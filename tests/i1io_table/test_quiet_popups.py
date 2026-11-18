@@ -428,7 +428,9 @@ def test_quiet_mode_keeps_the_tabs_own_layout(tab, beta, tmp_path, monkeypatch, 
     assert tab._left_buttons.isVisible() and tab._stop_btn.isVisible()
     assert not tab._start_btn.isEnabled()
     assert tab._table_switch_off_line.isVisible() and tab._table_problem_btn.isVisible()
-    assert "switch the table off at its power switch" in tab._table_switch_off_line.text()
+    assert "switch the table off at its power switch" in tab._table_switch_off_text.text()
+    # Report a problem stands in that line, at its right end, directly above Stop
+    assert tab._table_problem_btn.parentWidget() is tab._table_switch_off_line
     # options greyed as for a hand read; the live-preview group stays usable
     assert not tab._m_options.isEnabled()
     p = WindowPerson(win, sim, lambda c: qtbot.waitUntil(c, timeout=15000))

@@ -7489,29 +7489,36 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             self._table_quiet_before = {"calm": not self._calm_outer.isHidden()}
             line = getattr(self, "_table_switch_off_line", None)
             if line is None:
+                # ONE ROW above START / STOP: the switch-off line and, at its right end,
+                # directly above Stop, Report a problem. Measured on screen: in the button row
+                # itself a third button cut "Start Measurement" and "Save as Defaults" at
+                # every size the main window allows (the left column is about 385 pt wide).
+                from PyQt6.QtWidgets import QHBoxLayout, QWidget
                 left = self._left_buttons.parentWidget()
-                line = QLabel(tr("To stop the arm at once, switch the table off at its "
-                                 "power switch."), left)
+                line = QWidget(left)
                 line.setObjectName("i1io_table_switch_off_line")
-                line.setWordWrap(True)
-                line.setContentsMargins(16, 8, 16, 0)
-                f = line.font()
+                row = QHBoxLayout(line)
+                row.setContentsMargins(16, 8, 16, 0)
+                row.setSpacing(12)
+                text = QLabel(tr("To stop the arm at once, switch the table off at its "
+                                 "power switch."), line)
+                text.setWordWrap(True)
+                f = text.font()
                 f.setBold(True)
-                line.setFont(f)
-                lay = left.layout()
-                lay.insertWidget(lay.indexOf(self._left_buttons), line)
-                self._table_switch_off_line = line
-            btn = getattr(self, "_table_problem_btn", None)
-            if btn is None:
-                btn = QPushButton(tr("Report a problem"), self._left_buttons)
+                text.setFont(f)
+                row.addWidget(text, 1)
+                btn = QPushButton(tr("Report a problem"), line)
                 btn.setObjectName("i1io_table_tab_problem")
                 btn.setFixedHeight(36)
                 btn.setAutoDefault(False)
                 btn.clicked.connect(self._on_table_problem_pressed)
-                row = self._row_holding(self._stop_btn)
-                if row is not None:
-                    row.insertWidget(row.indexOf(self._stop_btn) + 1, btn)
+                row.addWidget(btn, 0, Qt.AlignmentFlag.AlignVCenter)
+                lay = left.layout()
+                lay.insertWidget(lay.indexOf(self._left_buttons), line)
+                self._table_switch_off_line = line
+                self._table_switch_off_text = text
                 self._table_problem_btn = btn
+            btn = self._table_problem_btn
             self._calm_outer.setVisible(False)
             line.setVisible(True)
             btn.setVisible(True)
@@ -7528,21 +7535,6 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 w.setVisible(False)
         self._calm_outer.setVisible(before["calm"])
         self._stop_btn.setEnabled(False)
-
-    def _row_holding(self, w):
-        """The layout in the tab's button area that holds *w*."""
-        stack = [self._left_buttons.layout()]
-        while stack:
-            lay = stack.pop()
-            if lay is None:
-                continue
-            if lay.indexOf(w) >= 0:
-                return lay
-            for i in range(lay.count()):
-                sub = lay.itemAt(i).layout()
-                if sub is not None:
-                    stack.append(sub)
-        return None
 
     def _on_table_moving(self, on: bool) -> None:
         """The tab's Stop is the table's Stop in quiet mode: live whenever

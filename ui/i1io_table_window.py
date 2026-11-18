@@ -1285,7 +1285,13 @@ class TableMeasureWindow(QFrame):
             text_h, n = 0, 0
             for lab in (self._title, self._text):
                 if lab.text():
+                    # a label's heightForWidth never answers less than its own minimum, which
+                    # _fit_text may have set at an older, narrower width (measured on screen:
+                    # an empty band under the ending's text)
+                    old_min = lab.minimumHeight()
+                    lab.setMinimumHeight(0)
                     text_h += lab.heightForWidth(tw)
+                    lab.setMinimumHeight(old_min)
                     n += 1
             if self._note_box.isVisibleTo(pop) or getattr(self, "_note_sticky", False):
                 text_h += self._note_box.sizeHint().height()
@@ -1310,6 +1316,11 @@ class TableMeasureWindow(QFrame):
                 h = max_h
             self._room_level = 2 if in_scroll else 0
             pop.setFixedWidth(w)
+            # never lower than what the layout itself needs at this width (measured on screen:
+            # the buttons' own height under the app's button font is more than a size hint
+            # counted, and the lowest row was cut)
+            lay.activate()
+            h = max(int(h), int(lay.totalMinimumSize().height()))
             if pop.height() != h:
                 pop.setFixedHeight(int(h))
         finally:
@@ -1368,8 +1379,11 @@ class TableMeasureWindow(QFrame):
         labels = {b.text() for b in getattr(self, "_buttons", [])}
         pairs = ((pop.problem_btn, self._problem_btn), (pop.end_btn, self._end_btn),
                  (pop.close_btn, self._close_btn))
+        # the ending itself offers no End measurement (it IS the ending)
+        on_ending = getattr(self, "_page_id", "") in ("end_of_session", "done")
         for mine, theirs in pairs:
-            mine.setVisible(not theirs.isHidden() and mine.text() not in labels)
+            mine.setVisible(not theirs.isHidden() and mine.text() not in labels
+                            and not (on_ending and mine is pop.end_btn))
             mine.setEnabled(theirs.isEnabled())
         pop.foot.setVisible(any(not b.isHidden() for b, _t in pairs))
 
