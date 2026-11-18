@@ -1541,6 +1541,7 @@ class TableMeasureWindow(QFrame):
                 self.cue.emit(snd)          # W-1: as the window appears
             self._move_popup_into_place()
             pop.show()
+            self._ask_for_attention(pop)
         # once shown and polished, again from the real heights (and once the text has been
         # fitted to the real width)
         QTimer.singleShot(0, self._refit_popup)
@@ -1548,6 +1549,19 @@ class TableMeasureWindow(QFrame):
         self._answer_box.no_default()
         pop.foot.no_default()
         self._keep_popup_on_screen()
+
+    @staticmethod
+    def _ask_for_attention(pop) -> None:
+        """Review 14, S-8: a pop-up that opens while ChromIQ is not the front app asks for
+        attention (the Dock icon bounces, the taskbar entry flashes) until the person comes
+        back; it never takes the keyboard from another app."""
+        try:
+            from PyQt6.QtGui import QGuiApplication
+            from PyQt6.QtWidgets import QApplication
+            if QGuiApplication.applicationState() != Qt.ApplicationState.ApplicationActive:
+                QApplication.alert(pop, 0)
+        except Exception:      # noqa: BLE001 - only a convenience
+            log.debug("i1iO table: the attention request failed", exc_info=True)
 
     def _move_popup_into_place(self) -> None:
         pop = self._popup

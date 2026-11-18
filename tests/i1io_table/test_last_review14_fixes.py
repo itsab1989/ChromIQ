@@ -611,3 +611,36 @@ def test_s6_no_table_text_says_in_this_panel():
     import inspect
     assert "in this panel" not in inspect.getsource(W)
 
+
+# ---- S-8: a pop-up opened while ChromIQ is not the front app asks for attention ------------------
+
+def test_s8_a_pop_up_behind_another_app_asks_for_attention_without_the_keyboard(
+        qtbot, monkeypatch, tmp_path, settings):
+    from PyQt6.QtGui import QGuiApplication
+    alerts, activated = [], []
+    monkeypatch.setattr(QGuiApplication, "applicationState",
+                        staticmethod(lambda: Qt.ApplicationState.ApplicationInactive))
+    monkeypatch.setattr(QApplication, "alert", staticmethod(lambda w, ms=0: alerts.append(w)))
+    monkeypatch.setattr(W.TablePopup, "activateWindow", lambda self: activated.append(self))
+    monkeypatch.setattr(W.TablePopup, "raise_", lambda self: activated.append(self))
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
+                                                    asking=False)
+    p.idle()
+    qtbot.waitUntil(win.popup_open, timeout=5000)
+    assert alerts and alerts[-1] is win.popup()
+    assert not activated
+
+
+def test_s8_no_attention_request_while_chromiq_is_in_front(qtbot, monkeypatch, tmp_path,
+                                                           settings):
+    from PyQt6.QtGui import QGuiApplication
+    alerts = []
+    monkeypatch.setattr(QGuiApplication, "applicationState",
+                        staticmethod(lambda: Qt.ApplicationState.ApplicationActive))
+    monkeypatch.setattr(QApplication, "alert", staticmethod(lambda w, ms=0: alerts.append(w)))
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
+                                                    asking=False)
+    p.idle()
+    qtbot.waitUntil(win.popup_open, timeout=5000)
+    assert not alerts
+
