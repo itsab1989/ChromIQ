@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-4.3.46-7c5cff">
+  <img alt="Version" src="https://img.shields.io/badge/version-4.3.47-7c5cff">
   <img alt="Downloads" src="https://img.shields.io/endpoint?url=https://itsab1989.github.io/github-traffic-downloads-dashboard/assets/badges/itsab1989_ChromIQ-downloads.json">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2a9d8f">
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-blue">
@@ -634,8 +634,12 @@ ways:
 >   tile. **The drive inside the app has so far run only against a simulated
 >   table, and has not yet read a chart on a real one.**
 > - 4.3.45 stopped at the white calibration on a real table, because of a
->   fault of ours. 4.3.46 fixes that, but everything after the calibration has
->   still run only against a simulated table and may stop further on.
+>   fault of ours, which 4.3.46 fixes. The first real run of 4.3.46 then got
+>   past the calibration and stopped when the table let the arm go for the
+>   aiming, because a rule of ours was too strict for a real arm that settles
+>   a little; 4.3.47 corrects that. Everything after that point (the three aims
+>   and reading the rows) has still run only against a simulated table and may
+>   stop further on.
 > - Windows and Linux are untested. If it does not work there, ChromIQ stops
 >   with a message, and you can still measure in i1Profiler and use IMPORT.
 >   Since 4.3.46, ChromIQ on Windows offers to install the driver the table

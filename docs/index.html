@@ -28,7 +28,7 @@
   "operatingSystem": "macOS, Windows, Linux",
   "applicationCategory": "DesignApplication",
   "applicationSubCategory": "Colour management / printer profiling",
-  "softwareVersion": "4.3.46",
+  "softwareVersion": "4.3.47",
   "license": "https://www.gnu.org/licenses/gpl-3.0.html",
   "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"},
   "url": "https://itsab1989.github.io/ChromIQ/",
@@ -450,7 +450,10 @@ footer .sp{flex:1}
           tester program has run the movements, the start-up, the white calibration and one reading.
           The drive inside the app has so far run only against a simulated table and has not yet
           read a chart on a real one: 4.3.45 stopped at the white calibration on a real table, because
-          of a fault of ours, which 4.3.46 fixes. Windows and Linux are untested (4.3.46 offers the
+          of a fault of ours, which 4.3.46 fixes. The first real run of 4.3.46 then stopped when the table
+          let the arm go for the aiming, because a rule of ours was too strict for a real arm that settles
+          a little, which 4.3.47 corrects; the three aims and reading the rows have still run only
+          against a simulated table. Windows and Linux are untested (4.3.46 offers the
           table&rsquo;s Windows driver, not yet tried with a real table), and ChromIQ sends only commands
           recorded from i1Profiler. Other i1iO tables are not supported yet. Off until you turn it on in
           <b>Preferences &rsaquo; Beta</b>; with it off, nothing changes. Your report is welcome on
