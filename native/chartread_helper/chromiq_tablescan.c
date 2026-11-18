@@ -34,6 +34,31 @@
  *                                        it found them), <name>.json
  *   {"cmd":"tscan_quit"} or end of stdin the instrument is let go
  * Every event carries "t": this process's msec clock, for the tester's log.
+ *
+ * THE DUAL ROW (2026-11-18), ONLY with --i1io-table-dual (cq_tscan_dual):
+ * the i1Pro 2 dual scan on the table, as the volunteer's recordings of
+ * i1Profiler 3.8.6 show it (native/instlib/cq_i1pro2_dual.h, section (d)).
+ * At the start the dual session is switched on (the factory tables are
+ * read, nothing is sent) and the dual tile kept for this white is looked up
+ * (event tdual_state). Then:
+ *   {"cmd":"tscan_calibrate"}            also reads the tile with the UV LED
+ *                                        (10 dark + 5 UV, the volts) and keeps
+ *                                        it; event tdual_calibration
+ *   {"cmd":"tscan_arm","n":550,"pass":"lamp"|"uv","wait_ms":3000}
+ *                                        the pass this arm is for; the fire
+ *                                        fires THAT pass (never another)
+ *   {"cmd":"tscan_fire","n":550,"patches":24,"name":"row1"}
+ *                                        the armed pass (lit first, dark after)
+ *   {"cmd":"tscan_dual_compute","name":"row1","scale":"1.1560"}
+ *                                        reads <name>.dual_in.txt (n, then per
+ *                                        patch the lamp pass's 36 values and the
+ *                                        UV pass's 36, cut by the app), checks
+ *                                        that the UV pass belongs to the lamp
+ *                                        pass, writes <name>.dual_out.txt (per
+ *                                        patch M1's 36 and M2's 36); event
+ *                                        tscan_dual_computed (no values)
+ * Without the switch none of this is reachable: no pass is armed, the fire is
+ * the table scan's own, and the compute command answers tscan_unknown.
  * AGPL-3.0 like the rest of the helper (see ../instlib/License.txt). */
 
 #ifdef SALONEINSTLIB
@@ -58,6 +83,8 @@
 #include "instappsup.h"
 #include "chromiq_ext.h"
 #include "cq_tscan.h"
+#include "cq_dual.h"
+#include "chromiq_dualscan.h"
 
 #define CQ_TS_Q 8
 static char cq_ts_q[CQ_TS_Q][256];
@@ -197,7 +224,7 @@ static void ts_write(const char *name, cq_tscan_rec *r, char *files, int flen) {
 	}
 }
 
-static void ts_emit_fired(const char *name, cq_tscan_rec *r, int rc) {
+static void ts_emit_fired(const char *name, cq_tscan_rec *r, int rc, const char *extra) {
 	char files[512], body[1600];
 	FILE *fp;
 	char path[2048];
@@ -210,13 +237,13 @@ static void ts_emit_fired(const char *name, cq_tscan_rec *r, int rc) {
 	    "\"t_fire\":%u,\"ms_dark_trig\":%d,\"ms_dark_data\":%d,\"ms_lit_trig\":%d,"
 	    "\"ms_lit_data\":%d,\"ms_misc\":%d,\"since_lamp_off_ms\":%u,\"since_lights_off_ms\":%u,"
 	    "\"misc\":[%d,%d,%d,%d,%d],\"maxraw\":%d,\"saturated\":%d,"
-	    "\"nwav\":%d,\"wl\":[%.1f,%.1f],\"patches\":%d,\"rec_ev\":%d,\"files\":[%s]}",
+	    "\"nwav\":%d,\"wl\":[%.1f,%.1f],\"patches\":%d,\"rec_ev\":%d,\"files\":[%s]%s}",
 	    msec_time(), name, rc == 0 ? "true" : "false", rc, r->nread, r->ngot,
 	    r->dark_ev, r->dark_proc_ev, r->lit_ev, r->misc_ev, r->dark_sent, r->lit_sent,
 	    r->t_fire, REL(r->t_dark_trig), REL(r->t_dark_data), REL(r->t_lit_trig),
 	    REL(r->t_lit_data), REL(r->t_misc), r->since_lamp_off_ms, r->since_lights_off_ms,
 	    r->misc[0], r->misc[1], r->misc[2], r->misc[3], r->misc[4], r->maxraw, r->saturated,
-	    r->nwav, r->wl_short, r->wl_long, r->npatch, r->rec_ev, files);
+	    r->nwav, r->wl_short, r->wl_long, r->npatch, r->rec_ev, files, extra != NULL ? extra : "");
 #undef REL
 	snprintf(path, sizeof(path), "%s/%s.json", ts_dir, name);
 	if ((fp = fopen(path, "w")) != NULL) {
@@ -224,6 +251,166 @@ static void ts_emit_fired(const char *name, cq_tscan_rec *r, int rc) {
 		fclose(fp);
 	}
 	cq_emit_raw("%s", body);
+}
+
+
+/* ---- the dual row (only with --i1io-table-dual) ---- */
+static struct {
+	int on;					/* the dual session is on (tables read) */
+	int have_tile;			/* a dual tile of this white: made now, or kept */
+	int pass;				/* the pass the last arm said yes to (0: none) */
+	cq_dual_cal cal;		/* W / T / E of the tile, kA / kD (never written) */
+} ts_dd;
+
+static void ts_dual_take_tile(const cq_dual_tile *t) {
+	int j;
+	for (j = 0; j < CQ_DUAL_NB; j++) {
+		ts_dd.cal.W[j] = t->W[j];
+		ts_dd.cal.T[j] = t->T[j];
+		ts_dd.cal.E[j] = t->E[j];
+	}
+	ts_dd.cal.have_uv_tile = 1;
+	ts_dd.cal.cal_lamp_clocks = t->lamp_clocks;
+	ts_dd.cal.cal_uv_clocks = t->uv_clocks;
+}
+
+/* at the start: the dual session on, the kept tile of this white looked up */
+static void ts_dual_start(inst *it) {
+	cq_dual_tile t;
+	const char *why = NULL;
+	int na, j;
+	memset(&ts_dd, 0, sizeof(ts_dd));
+	na = i1pro2_cq_tdual_on((void *)it, ts_dd.cal.kA, ts_dd.cal.kD);
+	if (na == CQ_DUAL_NA_OK) {
+		ts_dd.on = 1;
+		ts_dd.cal.nb = CQ_DUAL_NB;
+		ts_dd.cal.wl_short = 380.0;
+		ts_dd.cal.wl_long = 730.0;
+		for (j = 0; j < CQ_DUAL_NB; j++)
+			ts_dd.cal.W[j] = ts_dd.cal.E[j] = 1.0;
+		if (i1pro2_cq_dual_tile_restore((void *)it, &t)) {
+			ts_dual_take_tile(&t);
+			if ((why = cq_dual_check(&ts_dd.cal)) == NULL)
+				ts_dd.have_tile = 1;
+		}
+	} else
+		why = na == CQ_DUAL_NA_NO_UV_LED || na == CQ_DUAL_NA_NO_TABLES ? "dual_no_uv_tables"
+		    : na == CQ_DUAL_NA_HIGHRES ? "dual_high_resolution" : "dual_not_available";
+	cq_emit_raw("{\"event\":\"tdual_state\",\"t\":%u,\"on\":%s,\"tile\":\"%s\",\"why\":\"%s\"}",
+	            msec_time(), ts_dd.on ? "true" : "false", ts_dd.have_tile ? "kept" : "none",
+	            why != NULL ? why : "");
+}
+
+/* after a successful strip white: the tile with the UV LED, kept */
+static void ts_dual_after_cal(inst *it) {
+	cq_dual_tile t;
+	const char *why = NULL;
+	int ev, kept = 0;
+	ts_dd.have_tile = 0;
+	ts_dd.cal.have_uv_tile = 0;
+	memset(&t, 0, sizeof(t));
+	t.volts_before = t.volts_after = -1;
+	if (!ts_dd.on)
+		why = "dual_not_available";
+	else if ((ev = i1pro2_cq_dual_tile((void *)it, &t)) != 0 || !t.ok)
+		why = "no_dual_calibration";
+	else {
+		ts_dual_take_tile(&t);
+		if ((why = cq_dual_check(&ts_dd.cal)) == NULL) {
+			ts_dd.have_tile = 1;
+			kept = i1pro2_cq_dual_tile_save((void *)it, &t);
+		}
+	}
+	cq_emit_raw("{\"event\":\"tdual_calibration\",\"t\":%u,\"ok\":%s,\"why\":\"%s\","
+	            "\"mode\":\"%s\",\"lamp_clocks\":%d,\"uv_clocks\":%d,\"volts\":[%d,%d],"
+	            "\"kept\":%s}", msec_time(), ts_dd.have_tile ? "true" : "false",
+	            why != NULL ? why : "", t.mode_scan ? "scan" : "spot", t.lamp_clocks,
+	            t.uv_clocks, t.volts_before, t.volts_after, kept ? "true" : "false");
+}
+
+/* the armed pass, fired; -2 = refused before anything was sent (said) */
+static int ts_dual_fire(inst *it, int n, int np, const char *name, cq_tscan_rec *r) {
+	char extra[96];
+	int pass = ts_dd.pass, rc, vb = -1, va = -1;
+	ts_dd.pass = 0;			/* one fire per arm */
+	if (pass != CQ_TDUAL_PASS_LAMP && pass != CQ_TDUAL_PASS_UV) {
+		cq_emit_raw("{\"event\":\"tscan_fired\",\"t\":%u,\"name\":\"%s\",\"ok\":false,"
+		            "\"rc\":-1,\"refused\":\"no pass was armed\",\"lit_sent\":0}", msec_time(), name);
+		return -2;
+	}
+	rc = i1pro2_cq_tdual_fire((void *)it, pass, n, np, r, &vb, &va);
+	snprintf(extra, sizeof(extra), ",\"pass\":\"%s\",\"volts\":[%d,%d]",
+	         pass == CQ_TDUAL_PASS_UV ? "uv" : "lamp", vb, va);
+	ts_emit_fired(name, r, rc, extra);
+	return rc;
+}
+
+/* M1 / M2 of a dual row from the app's cut (lamp and UV per patch) */
+static void ts_dual_compute(const char *line, const char *name) {
+	char path[2048], sb[32];
+	const char *why = NULL, *pairing = "";
+	double s = 0.0, *L = NULL, *U = NULL, m1[CQ_DUAL_NB], m2[CQ_DUAL_NB];
+	cq_dual_pairing_ev pe;
+	FILE *fp;
+	int n = 0, i, j, ok;
+	memset(&pe, 0, sizeof(pe));
+	if (ts_get(line, "scale", sb, sizeof(sb)))
+		s = atof(sb);
+	if (!ts_dd.on)
+		why = "dual_not_available";
+	else if (!ts_dd.have_tile)
+		why = "no_dual_calibration";
+	else if (!(s >= 0.5 && s <= 2.0))
+		why = "bad_scale";
+	if (why == NULL) {
+		snprintf(path, sizeof(path), "%s/%s.dual_in.txt", ts_dir, name);
+		if ((fp = fopen(path, "r")) == NULL || fscanf(fp, "%d", &n) != 1 || n < 1 || n > 1000)
+			why = "record";
+		else if ((L = (double *)calloc((size_t)n * CQ_DUAL_NB, sizeof(double))) == NULL
+		      || (U = (double *)calloc((size_t)n * CQ_DUAL_NB, sizeof(double))) == NULL)
+			why = "memory";
+		else {
+			for (i = 0, ok = 1; ok && i < n; i++) {
+				for (j = 0; ok && j < CQ_DUAL_NB; j++)
+					ok = fscanf(fp, "%lf", &L[i * CQ_DUAL_NB + j]) == 1;
+				for (j = 0; ok && j < CQ_DUAL_NB; j++)
+					ok = fscanf(fp, "%lf", &U[i * CQ_DUAL_NB + j]) == 1;
+			}
+			if (!ok)
+				why = "record";
+		}
+		if (fp != NULL)
+			fclose(fp);
+	}
+	/* the UV pass belongs to THIS row's lamp pass (the hand dual scan's own
+	 * check: at 380-400 nm the UV reading is only the LED light the patch
+	 * reflects, (T / W) x L of the same patches) */
+	if (why == NULL && (why = cq_dual_pairing(&ts_dd.cal, n, L, U, &pe)) == NULL)
+		pairing = pe.checked ? "checked" : "pairing_not_checked";
+	if (why == NULL) {
+		snprintf(path, sizeof(path), "%s/%s.dual_out.txt", ts_dir, name);
+		if ((fp = fopen(path, "w")) == NULL)
+			why = "write";
+		else {
+			for (i = 0; why == NULL && i < n; i++) {
+				if ((why = cq_dual_patch(&ts_dd.cal, s, L + i * CQ_DUAL_NB, U + i * CQ_DUAL_NB,
+				                         m1, m2)) != NULL)
+					break;
+				for (j = 0; j < CQ_DUAL_NB; j++)
+					fprintf(fp, "%s%.8f", j ? " " : "", m1[j]);
+				for (j = 0; j < CQ_DUAL_NB; j++)
+					fprintf(fp, " %.8f", m2[j]);
+				fprintf(fp, "\n");
+			}
+			if (fclose(fp) != 0 && why == NULL)
+				why = "write";
+		}
+	}
+	free(L);
+	free(U);
+	cq_emit_raw("{\"event\":\"tscan_dual_computed\",\"t\":%u,\"name\":\"%s\",\"ok\":%s,"
+	            "\"why\":\"%s\",\"n\":%d,\"pairing\":\"%s\",\"usable\":%d}", msec_time(), name,
+	            why == NULL ? "true" : "false", why != NULL ? why : "", n, pairing, pe.usable);
 }
 
 /* The instrument path: the first i1Pro 2 in the list (or the -c port, if it is
@@ -306,6 +493,8 @@ int cq_run_table_scan(int comport, flow_control fc, const char *outdir,
 	}
 	cq_emit_raw("{\"event\":\"tscan_instrument\",\"t\":%u,\"model\":\"%s\"}",
 	            msec_time(), inst_name(it->get_itype(it)));
+	if (cq_tscan_dual)
+		ts_dual_start(it);
 
 	for (;;) {
 		if (!cq_ts_take(line, sizeof(line))) {
@@ -322,25 +511,46 @@ int cq_run_table_scan(int comport, flow_control fc, const char *outdir,
 			ts_name(line, name, sizeof(name));
 			cq_emit_raw("{\"event\":\"tscan_firing\",\"t\":%u,\"name\":\"%s\",\"n\":%d}",
 			            msec_time(), name, n);
-			rc = i1pro2_cq_tscan_fire((void *)it, n, np, &r);
-			ts_emit_fired(name, &r, rc);
+			if (cq_tscan_dual) {
+				rc = ts_dual_fire(it, n, np, name, &r);
+				if (rc == -2)
+					continue;		/* refused before anything was sent, said */
+			} else {
+				rc = i1pro2_cq_tscan_fire((void *)it, n, np, &r);
+				ts_emit_fired(name, &r, rc, "");
+			}
 			cq_tscan_rec_clear(&r);
 		} else if (strstr(line, "\"tscan_arm\"") != NULL) {
 			int n = ts_get_int(line, "n", 0);
 			int wmax = ts_get_int(line, "wait_ms", 3000);
-			int w = 0, rdy, waited = 0;
-			char why[96];
+			int w = 0, rdy, waited = 0, pass = 0;
+			char why[96], pw[16];
 			unsigned int t0 = msec_time();
 			if (wmax < 0) wmax = 0;
 			if (wmax > 10000) wmax = 10000;
+			if (cq_tscan_dual) {	/* the dual row: the pass is said, and fired as said */
+				ts_dd.pass = 0;
+				if (ts_get(line, "pass", pw, sizeof(pw)))
+					pass = strcmp(pw, "lamp") == 0 ? CQ_TDUAL_PASS_LAMP
+					     : strcmp(pw, "uv") == 0 ? CQ_TDUAL_PASS_UV : 0;
+			}
 			for (;;) {
 				why[0] = '\0';
-				rdy = i1pro2_cq_tscan_ready((void *)it, n, &w, why, sizeof(why));
+				if (!cq_tscan_dual)
+					rdy = i1pro2_cq_tscan_ready((void *)it, n, &w, why, sizeof(why));
+				else if (pass == 0) {
+					rdy = -1;
+					strcpy(why, "no such pass");
+				} else
+					rdy = i1pro2_cq_tdual_ready((void *)it, pass, n, ts_dd.have_tile, &w, why,
+					                            sizeof(why));
 				if (rdy != 0 || (int)(msec_time() - t0) + w > wmax)
 					break;
 				msec_sleep(w > 20 ? 20 : (w > 0 ? w : 1));
 				waited = 1;
 			}
+			if (cq_tscan_dual && rdy == 1)
+				ts_dd.pass = pass;
 			cq_emit_raw("{\"event\":\"tscan_armed\",\"t\":%u,\"n\":%d,\"ready\":%s,"
 			            "\"waited_ms\":%u,\"still_ms\":%d,\"why\":\"%s\"}", msec_time(), n,
 			            rdy == 1 ? "true" : "false", msec_time() - t0,
@@ -350,11 +560,20 @@ int cq_run_table_scan(int comport, flow_control fc, const char *outdir,
 			int e = i1pro2_cq_tscan_lights_off((void *)it);
 			cq_emit_raw("{\"event\":\"tscan_lights_off\",\"t\":%u,\"err\":%d}", msec_time(), e);
 		} else if (strstr(line, "\"tscan_calibrate\"") != NULL) {
+			if (cq_tscan_dual) {	/* a new white needs a new dual tile */
+				ts_dd.have_tile = 0;
+				ts_dd.cal.have_uv_tile = 0;
+			}
 			rv = cq_handle_calibrate(it, inst_calt_needed, inst_calc_none, 0);
 			calibrated = (rv & inst_mask) == inst_ok;
+			if (cq_tscan_dual && calibrated)
+				ts_dual_after_cal(it);	/* the tile with the UV LED, kept */
 			cq_emit_raw("{\"event\":\"tscan_calibrated\",\"t\":%u,\"ok\":%s,\"detail\":\"%s\"}",
 			            msec_time(), calibrated ? "true" : "false",
 			            calibrated ? "" : "calibration failed or cancelled");
+		} else if (cq_tscan_dual && strstr(line, "\"tscan_dual_compute\"") != NULL) {
+			ts_name(line, name, sizeof(name));
+			ts_dual_compute(line, name);
 		} else if (strstr(line, "\"tscan_quit\"") != NULL) {
 			break;
 		} else {

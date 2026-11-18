@@ -41,6 +41,21 @@ DRIVER_MAY_CALL = _LIBC | {
     "i1pro2_cq_ruler_options",
     # its own functions
     "cq_dual_s", "cq_dual_volts", "cq_dual_uv_readings",
+    # ---- the i1iO 2 table's dual row (2026-11-18, section (d)); each read in i1pro_imp.c:
+    # the table scan's own trigger: request 0xD4 from its trigger thread (i1pro2_delayed_trigger)
+    "i1pro2_triggermeasure",
+    # request 0xC9, 8 bytes IN (the status read after every recorded lamp pass; the table
+    # scan sends it after every pass already)
+    "i1pro_getmisc",
+    # state only, nothing sent: the table scan's ready rules and its instrument check, the
+    # read cancel's reset, error mapping, clocks, joining the trigger thread
+    "i1pro2_cq_tscan_ready", "cq_tscan_m", "usb_reinit_cancel", "msec_time", "time",
+    "m->trig_thread->del",
+    # arithmetic on readings already read
+    "i1pro_scale_specrd",
+    # the dual tile kept beside ArgyllCMS's own calibration file: files, no instrument
+    "xdg_bds", "xdg_free", "create_parent_directories", "fopen", "fwrite", "fread", "fclose",
+    "memcmp", "sprintf", "strncpy", "CQ_TD_NO",
 }
 
 #: chromiq_dualdev.c (the helper side): the instrument only through the dual API and read_strip
@@ -50,6 +65,8 @@ HELPER_MAY_CALL = _LIBC | {
     "i1pro2_cq_dual_spot_uv", "i1pro2_cq_dual_take_uv", "i1pro2_cq_dual_take_lamp",
     "i1pro2_cq_dual_conv", "i1pro2_cq_dual_lamp_count", "i1pro2_cq_ruler_take",
     "i1pro2_cq_dual_uv_pass_ready",    # reads the driver's state, sends nothing (M2 fix)
+    # the i1iO 2 table (--dual-table, 2026-11-18): the dual tile kept / taken up again, files only
+    "i1pro2_cq_dual_tile_save", "i1pro2_cq_dual_tile_restore",
     # arithmetic and output, no instrument
     "cq_dual_check", "cq_dual_cut", "cq_dual_patch", "cq_dual_positions", "cq_cx_from_ipatch",
     "cq_dual_pairing",                 # the pairing check (M1 fix), arithmetic only
@@ -77,7 +94,7 @@ def _own(path: Path, prefix: "tuple[str, ...]") -> "set[str]":
 
 
 def test_the_driver_part_calls_only_functions_that_send_d4_or_d8_or_nothing():
-    own = _own(DRIVER, ("i1pro2_cq_dual_", "cq_dual_"))
+    own = _own(DRIVER, ("i1pro2_cq_dual_", "cq_dual_", "i1pro2_cq_tdual_", "cq_tdual_"))
     extra = _calls(DRIVER) - DRIVER_MAY_CALL - own
     assert not extra, (
         f"cq_i1pro2_dual.h calls {sorted(extra)}: find out what each sends to the instrument "
@@ -126,6 +143,9 @@ REACHABLE_SENDERS = {
     ("i1pro_readmeasurement", "read", "0x82"): "the readings of a trigger",
     ("cq_ruler_thread", "read", "0x85"): "the ruler stream, read only (the ruler check's reader)",
     ("i1pro_waitfor_switch_th", "read", "0x84"): "the instrument's button, read only",
+    # the i1iO 2 table's dual row (2026-11-18): the status read after every recorded lamp pass
+    # (the table scan sends it already)
+    ("i1pro_getmisc", "control", "0xC9"): "the status, 8 bytes in, read only (recorded)",
     # the lights Beta's own recorded light program, before a trigger, only with that Beta on
     ("cq_lights_send", "control", "0xD6"): "lights Beta only: its recorded OFF_SLOW",
     ("cq_lights_send", "write", "0x03"): "lights Beta only: its recorded OFF_SLOW",
@@ -173,7 +193,7 @@ def _senders(defs, names) -> "set[tuple[str, str, str]]":
 
 def test_every_request_the_dual_scan_can_reach_is_one_we_have_read():
     defs = _driver_defs()
-    api = set(re.findall(r"\b(i1pro2_cq_dual_\w+)\s*\(", (INSTLIB / "cq_dual.h").read_text(encoding="utf-8")))
+    api = set(re.findall(r"\b(i1pro2_cq_t?dual_\w+)\s*\(", (INSTLIB / "cq_dual.h").read_text(encoding="utf-8")))
     assert api and api <= set(defs), sorted(api - set(defs))
     drv = {n for n in DRIVER_MAY_CALL if n in defs}
     start = api | drv | {"i1pro_read_strip"}     # the helper's it->read_strip is ArgyllCMS's
@@ -211,3 +231,36 @@ def test_the_rev_a_to_d_senders_hang_only_off_the_rev_a_to_d_branches():
             assert "p->dtype != instI1Pro2" in body[max(0, m.start() - 200):m.start()], s
     opts = defs["i1pro2_cq_dual_options"]
     assert "p->dtype != instI1Pro2" in opts.split("if (!on)")[0]
+
+
+# ---- the i1iO 2 table's dual row, the helper's side (chromiq_tablescan.c, 2026-11-18)
+
+TABLESCAN = ROOT / "native" / "chartread_helper" / "chromiq_tablescan.c"
+
+#: what the table scan's dual functions (ts_dual_*) may call: the dual API, arithmetic, files
+TABLE_HELPER_MAY_CALL = _LIBC | {
+    "i1pro2_cq_tdual_on", "i1pro2_cq_dual_tile_restore", "i1pro2_cq_dual_tile",
+    "i1pro2_cq_dual_tile_save", "i1pro2_cq_tdual_fire",
+    "cq_dual_check", "cq_dual_pairing", "cq_dual_patch",
+    "cq_emit_raw", "msec_time", "snprintf", "ts_get", "atof", "fopen", "fclose", "fscanf",
+    "fprintf", "ts_emit_fired", "ts_dual_take_tile",
+}
+
+
+def _function_bodies(path: Path, prefix: str) -> str:
+    t = path.read_text(encoding="utf-8", errors="replace")
+    t = re.sub(r"/\*.*?\*/", "", t, flags=re.S)
+    out = ""
+    for m in re.finditer(r"^static [^\n(]*\b(" + prefix + r"\w*)\s*\([^)]*\)\s*\{", t, flags=re.M):
+        out += t[m.end():t.find("\n}\n", m.end())] + "\n"
+    return out
+
+
+def test_the_table_dual_helper_reaches_the_instrument_only_through_the_dual_api():
+    body = _function_bodies(TABLESCAN, "ts_dual_")
+    assert "i1pro2_cq_tdual_fire" in body and "cq_dual_pairing" in body
+    body = re.sub(r'"(\\.|[^"\\])*"', '""', body)
+    calls = {re.sub(r"\s+", "", n) for n in re.findall(
+        r"([A-Za-z_]\w*(?:\s*->\s*[A-Za-z_]\w*)*)\s*\(", body)} - _KEYWORDS
+    extra = calls - TABLE_HELPER_MAY_CALL
+    assert not extra, f"chromiq_tablescan.c's dual part calls {sorted(extra)}"

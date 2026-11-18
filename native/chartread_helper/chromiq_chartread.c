@@ -818,6 +818,8 @@ static int cq_cx_from_ipatch(cq_cx_val *d, ipatch *v) {
 }
 
 /* CHROMIQ_EXT: the i1Pro 2 dual scan's device side (step 2). */
+static int cq_dual_table = 0;	/* --dual-table: patch by patch on the i1iO 2 table */
+static int cq_dd_nocal = 0;		/* -N was given */
 #include "cq_ruler.h"
 #include "cq_dual.h"
 #include "chromiq_dualdev.c"
@@ -6303,6 +6305,8 @@ static int cq_locs_fit_legacy_grid(cgats *icg, int li, alphix *paix, alphix *sai
  * and {"event":"button_test_end"} says so. Reads nothing, writes nothing. */
 /* CHROMIQ_EXT (study, 2026-11-16): --i1io-table-scan <dir>, NULL = not asked. */
 static const char *cq_tscan_dir = NULL;
+/* CHROMIQ_EXT (2026-11-18): --i1io-table-dual, the dual row on the table. */
+int cq_tscan_dual = 0;
 /* CHROMIQ_EXT (round B, 2026-11-17): --i1io-press-wait, the i1iO table drive's
  * "Aimed" by the instrument's button (chromiq_presswait.c). */
 static int cq_presswait = 0;
@@ -6526,7 +6530,7 @@ int main(int argc, char *argv[]) {
 				 * before it relies on it. One JSON line, then exit 0.
 				 * "legacy_labels": reads sheets ChromIQ's layout engine
 				 * printed with its pre-4.3.3-beta.7 labels as printed. */
-				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"turn\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\",\"lights_signals\",\"lights_during_reading\",\"ruler_check\",\"i1pro3_conditions\",\"margin_tolerance\",\"i1pro2_dual_conditions\",\"i1pro2_dual_scan\"],\"build\":\"%s\"}\n",
+				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"turn\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\",\"lights_signals\",\"lights_during_reading\",\"ruler_check\",\"i1pro3_conditions\",\"margin_tolerance\",\"i1pro2_dual_conditions\",\"i1pro2_dual_scan\",\"i1io_table_dual\"],\"build\":\"%s\"}\n",
 				       cq_helper_build_string());
 				fflush(stdout);
 				return 0;
@@ -6554,6 +6558,18 @@ int main(int argc, char *argv[]) {
 				 * scan on an i1iO 2 table (chromiq_tablescan.c). No chart. */
 				cq_tscan_dir = argv[ai + 1];
 				eat = 2;
+			} else if (strcmp(argv[ai], "--i1io-table-dual") == 0) {
+				/* CHROMIQ_EXT (2026-11-18): the i1Pro 2 dual scan's rows on
+				 * the i1iO 2 table, only with --i1io-table-scan */
+				cq_tscan_dual = 1;
+				eat = 1;
+			} else if (strcmp(argv[ai], "--dual-table") == 0) {
+				/* CHROMIQ_EXT (2026-11-18): the dual scan patch by patch on
+				 * the i1iO 2 table: the dual tile is kept after a dual
+				 * calibration and, under -N, taken up again for the same
+				 * white (the table reads every row in a reader of its own) */
+				cq_dual_table = 1;
+				eat = 1;
 			} else if (strcmp(argv[ai], "--i1io-press-wait") == 0) {
 				/* CHROMIQ_EXT (round B, 2026-11-17): the i1iO table drive's
 				 * aiming: open the i1Pro 2, report one press of its button
@@ -6614,8 +6630,10 @@ int main(int argc, char *argv[]) {
 				g_log->verb = verb;
 
 			/* No auto calibration */
-			} else if (argv[fa][1] == 'N')
+			} else if (argv[fa][1] == 'N') {
 				nocal = 1;
+				cq_dd_nocal = 1;	/* CHROMIQ_EXT: the table's dual rows (--dual-table) */
+			}
 
 			/* Disable bi-directional strip recognition */
 			else if (argv[fa][1] == 'B')

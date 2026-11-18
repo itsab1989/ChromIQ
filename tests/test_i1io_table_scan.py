@@ -226,7 +226,8 @@ def test_only_the_switch_reaches_the_new_code():
     # 2026-11-18c: and its device side (step 2)
     assert caps and base and caps == [base[0].replace(
         '\\"margin_tolerance\\"]',
-        '\\"margin_tolerance\\",\\"i1pro2_dual_conditions\\",\\"i1pro2_dual_scan\\"]')]
+        '\\"margin_tolerance\\",\\"i1pro2_dual_conditions\\",\\"i1pro2_dual_scan\\",'
+        '\\"i1io_table_dual\\"]')]
 
 
 def test_the_build_string():
@@ -236,10 +237,11 @@ def test_the_build_string():
     # 2026-11-18b = 18a + the dual scan's resume rule (review fixes);
     # 2026-11-18c = 18b + the dual scan's device side (step 2);
     # 2026-11-18d = 18c + the dual scan's safety fixes (pairing on the instrument path, only
-    # recorded UV forms, 41 lamp clocks), last
-    assert "chromiq-chartread 2026-11-18d " in h
+    # recorded UV forms, 41 lamp clocks);
+    # 2026-11-18e = 18d + the dual scan on the i1iO 2 table (--i1io-table-dual, --dual-table), last
+    assert "chromiq-chartread 2026-11-18e " in h
     assert ("+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule"
-            "+i1pro2-dual-device+i1pro2-dual-safety\"") in h
+            "+i1pro2-dual-device+i1pro2-dual-safety+i1io-table-dual\"") in h
 
 
 def _base_tree(tmp: Path) -> Path:

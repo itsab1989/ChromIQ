@@ -202,9 +202,9 @@ def test_the_vendor_script_reapplies_the_hooks():
 
 def test_the_helper_reports_the_device_word_and_the_new_build():
     src = (HELPER / "chromiq_chartread.c").read_text(encoding="utf-8", errors="replace")
-    assert '\\"i1pro2_dual_conditions\\",\\"i1pro2_dual_scan\\"]' in src
+    assert '\\"i1pro2_dual_conditions\\",\\"i1pro2_dual_scan\\",' in src
     h = (HELPER / "chromiq_ext.h").read_text(encoding="utf-8")
-    assert "chromiq-chartread 2026-11-18d " in h and "+i1pro2-dual-device+i1pro2-dual-safety\"" in h
+    assert "chromiq-chartread 2026-11-18e " in h and "+i1pro2-dual-device+i1pro2-dual-safety+" in h
 
 
 def test_a_failed_pass_is_read_again_and_a_session_failure_keeps_m0():

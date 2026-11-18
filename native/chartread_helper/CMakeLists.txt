@@ -405,10 +405,23 @@ target_include_directories(i1pro2_dual_test PRIVATE
   ${INSTLIB} ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(i1pro2_dual_test PRIVATE instlib)
 
+# The i1Pro 2 dual scan on the i1iO 2 table (2026-11-18): the dual row and the
+# table's dual tile through the real driver on the fake USB layer
+# (tests/i1io_table/test_dual_helper_wire.py).
+add_executable(i1io_table_dual_test EXCLUDE_FROM_ALL
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests/i1io_table_dual_test.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_dualscan.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_stubs.c
+  ${INSTLIB}/alphix.c
+)
+target_include_directories(i1io_table_dual_test PRIVATE
+  ${INSTLIB} ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(i1io_table_dual_test PRIVATE instlib)
+
 set(_cq_link_targets chromiq-chartread i1pro2_lights_test i1pro3_lights_test
     i1pro3_conditions_test i1io_table_scan_test)
 list(APPEND _cq_link_targets i1pro2_lights_modes_test i1pro3_lights_modes_test)
-list(APPEND _cq_link_targets i1pro2_dual_test)
+list(APPEND _cq_link_targets i1pro2_dual_test i1io_table_dual_test)
 list(APPEND _cq_link_targets i1pro_ruler_scan_test i1pro3_ruler_test)
 list(APPEND _cq_link_targets i1pro2_lights_modes_test_watched
      i1pro3_lights_modes_test_watched i1pro_ruler_scan_test_watched

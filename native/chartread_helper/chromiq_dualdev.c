@@ -70,6 +70,34 @@ static const char *cq_dd_start(inst *it) {
 		cq_dd.cal.W[j] = cq_dd.cal.E[j] = 1.0;	/* until a dual calibration */
 	cq_dd.it = it;
 	cq_dd.on = 1;
+	/* THE i1iO 2 TABLE (--dual-table, 2026-11-18): every row is read by a
+	 * reader of its own under -N, with the white ArgyllCMS restored; the
+	 * dual tile kept for exactly that white is taken up again (it reads
+	 * nothing). The hand path never passes --dual-table: unchanged. */
+	if (cq_dual_table && cq_dd_nocal) {
+		cq_dual_tile t;
+		const char *why;
+		if (i1pro2_cq_dual_tile_restore(it, &t)) {
+			for (j = 0; j < CQ_DUAL_NB; j++) {
+				cq_dd.cal.W[j] = t.W[j];
+				cq_dd.cal.T[j] = t.T[j];
+				cq_dd.cal.E[j] = t.E[j];
+			}
+			cq_dd.cal.have_uv_tile = 1;
+			cq_dd.cal.cal_lamp_clocks = t.lamp_clocks;
+			cq_dd.cal.cal_uv_clocks = t.uv_clocks;
+			cq_dd.cal_scan = t.mode_scan;
+			why = cq_dual_check(&cq_dd.cal);
+			cq_dd.cal_ok = why == NULL;
+			cq_dd.cal_why = why != NULL ? why : "";
+		}
+		cq_emit_raw("{\"event\":\"dual_calibration\",\"ok\":%s,\"why\":\"%s\",\"mode\":\"%s\","
+		            "\"lamp_clocks\":%d,\"uv_clocks\":%d,\"volts\":[-1,-1],\"driver\":0,"
+		            "\"kept\":true}", cq_dd.cal_ok ? "true" : "false",
+		            cq_dd.cal_ok ? "" : (cq_dd.cal.have_uv_tile ? cq_dd.cal_why : "no_dual_calibration"),
+		            cq_dd.cal_scan ? "scan" : "spot", cq_dd.cal.cal_lamp_clocks,
+		            cq_dd.cal.cal_uv_clocks);
+	}
 	return NULL;
 }
 
@@ -99,6 +127,8 @@ static void cq_dd_after_cal(inst *p) {
 	}
 	cq_dd.cal_ok = why == NULL;
 	cq_dd.cal_why = why != NULL ? why : "";
+	if (cq_dual_table && cq_dd.cal_ok)	/* the i1iO 2 table: kept for its rows' readers */
+		(void)i1pro2_cq_dual_tile_save(p, &t);
 	cq_emit_raw("{\"event\":\"dual_calibration\",\"ok\":%s,\"why\":\"%s\",\"mode\":\"%s\","
 	            "\"lamp_clocks\":%d,\"uv_clocks\":%d,\"volts\":[%d,%d],\"driver\":%d}",
 	            cq_dd.cal_ok ? "true" : "false", why != NULL ? why : "",

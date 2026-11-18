@@ -97,4 +97,21 @@ int i1pro2_cq_dual_uv_lit(void *pp);	/* 1 while a UV-LED trigger may be running 
 int i1pro2_cq_dual_lamp_count(void *pp);	/* readings of the last lamp pass (its ruler share) */
 int i1pro2_cq_dual_uv_pass_ready(void *pp);	/* 1 = the UV pass may be asked for (ruler stream of a lamp pass runs) */
 
+/* The i1iO 2 table (2026-11-18, cq_i1pro2_dual.h section (d)): only the
+ * helper's table-scan mode with --i1io-table-dual and the patch-by-patch
+ * reading with --dual-table call these. cq_tscan_rec is cq_tscan.h's. */
+#define CQ_TDUAL_PASS_LAMP 1
+#define CQ_TDUAL_PASS_UV 2
+#define CQ_TDUAL_NMAX 1150
+int i1pro2_cq_tdual_on(void *pp, double *kA, double *kD);	/* CQ_DUAL_NA_*; no ruler */
+int i1pro2_cq_dual_tile_save(void *pp, const cq_dual_tile *t);	/* 1 = kept */
+int i1pro2_cq_dual_tile_restore(void *pp, cq_dual_tile *out);	/* 1 = of this white */
+int i1pro2_cq_tdual_ready(void *pp, int pass, int nread, int have_tile, int *wait_ms,
+                          char *why, int whylen);
+#ifdef CQ_TSCAN_H
+int i1pro2_cq_tdual_fire(void *pp, int pass, int nread, int npatch, cq_tscan_rec *r,
+                         int *volts_before, int *volts_after);
+#endif
+extern const char *i1pro2_cq_dual_tile_path_for_test;
+
 #endif /* CQ_DUAL_H */
