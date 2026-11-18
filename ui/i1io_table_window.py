@@ -599,6 +599,11 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
             "You chose to leave the start-up to i1Profiler. ChromIQ has let go of the table."),
         "person_chose_back": tr("You chose Back, so the arm did not move."),
         "sheet_not_laid": tr("You chose Stop before the arm moved to the aiming place."),
+        # 4.3.47: the freed arm shifted further than a freed arm settles (RELEASE_SETTLE_UNITS)
+        "free_arm_moved_at_the_alignment_start": tr(
+            "When the motors let the arm go at the place where the aiming starts, it moved "
+            "further than a freed arm settles by itself (more than 5 mm). ChromIQ cannot tell "
+            "whether a hand or the table moved it, so it sends nothing more to the table."),
         "arm_did_not_give_way_at_the_alignment_start": tr(
             "The arm did not move freely when you pushed it, so ChromIQ does not aim with it."),
         "stopped_during_the_aims": tr("You chose Stop while aiming."),
@@ -3235,7 +3240,10 @@ class TableMeasureWindow(QFrame):
             out.append((tr("Bring the arm home"), self._on_home))
         if j is None or j.ended is not None or j.phase != "open":
             out.append((tr("Close"), self._close_job))
-        # End measurement is the footer's button (always there while the table is open)
+        elif not out:
+            # 4.3.47 (the volunteer's run of 18 Nov): a page with no answer at all looked like
+            # a hang; the one way on (the footer's End measurement) is offered on the page too
+            out.append((tr("End measurement"), self._on_end_pressed))
         return out
 
     def _show_stopped_by_you(self, res) -> None:
@@ -3262,8 +3270,16 @@ class TableMeasureWindow(QFrame):
                                                            "cancelled_by_person"):
             title, body = _refused(M, reason_text(res.reason))
         else:
+            j = self.job
+            if msg is None and wb == "open_i1profiler_once" and j is not None \
+                    and j.ended is None and j.phase == "open":
+                # 4.3.47: the job still holds the USB connection until End measurement, so the
+                # way back says that first; the free arm and the readings as they are
+                msg = M.M_I1IO_DRIVE_STOPPED_END_FIRST
             msg = msg or M.M_I1IO_DRIVE_STOPPED
             title, body = msg.render(**_fill(msg, where=where, log=self._log_name))
+            if msg is M.M_I1IO_DRIVE_STOPPED_END_FIRST:
+                body += self._stopped_extras()
             if wb in SWITCH_OFF_WAYS:
                 # review 14, M-1: "Switch the table off now" first, then why
                 body = body + "\n\n" + reason_text(res.reason, res.detail)
@@ -3272,6 +3288,26 @@ class TableMeasureWindow(QFrame):
         self._show("stopped", title, body, self._way_on_buttons())
         self._after_stop_controls()
         self._show_note()
+
+    def _arm_left_free(self) -> bool:
+        j = self.job
+        st = j.state() if j is not None else None
+        return bool(st is not None and st.arm_free is True and not st.at_rest)
+
+    def _stopped_extras(self) -> str:
+        """4.3.47: after M-I1IO-DRIVE-STOPPED-END-FIRST, the free arm (M-I1IO-DRIVE-FREE-LEFT)
+        and what happens to the readings, each only when it is true."""
+        from workflow import measurement_messages as M
+        out = ""
+        if self._arm_left_free():
+            out += "\n\n" + M.M_I1IO_DRIVE_FREE_LEFT.render()[1]
+        n = self.job.accepted_in_this_session() if self.job is not None else 0
+        if n:
+            out += "\n\n" + tr("Your readings so far are kept: when you press End measurement, "
+                                "ChromIQ asks whether to save them.")
+        else:
+            out += "\n\n" + tr("Nothing was measured yet, so there is nothing to save.")
+        return out
 
     def _after_stop_controls(self) -> None:
         j = self.job
@@ -3554,8 +3590,10 @@ class TableMeasureWindow(QFrame):
         if j.ended is not None and wb == "open_i1profiler_once":
             # the session has ended (saved, discarded or nothing read) and the arm was left
             # out: only the way home is said, never "you can still save them" beside "saved"
-            body = tr("The arm was left out over the table. Open i1Profiler 3.8.6 or older once "
-                      "and let it find the table: it brings the arm home.") + "\n\n" + body
+            way = (M.M_I1IO_DRIVE_FREE_LEFT.render()[1] if self._arm_left_free() else
+                   tr("The arm was left out over the table. Open i1Profiler 3.8.6 or older once "
+                      "and let it find the table: it brings the arm home."))
+            body = way + "\n\n" + body
         elif wb not in ("none", "home_offered"):
             msgs = {"switch_off_pending": M.M_I1IO_DRIVE_SWITCH_OFF,
                     "switch_off_unfinished": M.M_I1IO_DRIVE_SWITCH_OFF,
