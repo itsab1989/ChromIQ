@@ -294,8 +294,11 @@ def test_the_windows_driver_installer_never_targets_the_table_without_the_explic
     window = src[src.index("    def _show_usb_installer(self)"):]
     window = window[:window.index("\n    def ", 10)]
     at = window.index("ExplicitTableChoice(")
-    # after the window's own "the install button was pressed" check, never before it
-    assert window.index("if result != _WINUSB or not devices:") < at
+    # after the window's own "the TABLE's own button was pressed" check, never before it
+    # (review 446, W-S1: the table is a choice of its own, never part of the instruments' install)
+    assert window.index("result = dlg.exec()") < window.index(
+        "if result == _TABLE and table_devices:") < at
+    assert window.count("d.done(_TABLE)") == 1
 
 
 @pytest.mark.parametrize("entries,present,want", [

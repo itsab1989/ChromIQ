@@ -990,14 +990,19 @@ the same issue exists with any other xrite instrument that is held by argylls dr
 special here and it should be allowed to install it and the app shall help with it."* The ruling
 is his; the behaviour below is what was built from it and awaits his confirmation.)
 
-* **Preferences, Instrument drivers (Windows, the Beta on).** The i1iO 2 table (USB 0971:2004) is
-  listed like an instrument, with its driver state, the same install button, the same certificate
-  disclosure and the same permission prompt; a paragraph under the list says that it is listed
-  because of the Beta, that while the table has this driver i1Profiler cannot use the table, and
-  that installing X-Rite's own driver for the table again gives it back. The i1Pro 2 in the arm
-  (0971:2000) keeps its own line. The person's choice for the table is attached only after the
-  window's install button was pressed (`install_winusb` refuses a table device without it).
-  Beta off: the window makes exactly the call it always made and never lists the table.
+* **Preferences, Instrument drivers (Windows, the Beta on).** The i1iO 2 table (USB 0971:2004) has
+  a section of its own, "The i1iO table (beta)", below the instruments: its line with its driver
+  state, a paragraph and its OWN button, "Install Driver for the Table" ("Reinstall Driver for
+  the Table" when it has the driver). That button installs for the table alone, with the same
+  certificate disclosure and the same permission prompt as an instrument; the instruments'
+  "Install Driver" never includes the table (review 446, W-S1), so the i1Pro 2 can get the driver
+  while the table keeps X-Rite's, and the reverse. The paragraph says the table is listed because
+  of the Beta, that ChromIQ drives the table itself (it is not called a colorimeter that ArgyllCMS
+  talks to, W-S2), that while the table has this driver i1Profiler cannot use the table, and the
+  way back. The i1Pro 2 in the arm (0971:2000) keeps its own line among the instruments. The
+  person's choice for the table is attached only after the table's own button was pressed, built
+  from the listed table's own id (`install_winusb` refuses a table device without it). Beta off:
+  the window makes exactly the call it always made and never lists the table.
 * **START (Windows).** A table without the libusb-win32 driver: M-I1IO-DRIVE-TABLE-DRIVER, with
   "Not now" (installs nothing) and "Install the driver for the table now" (the table window lets
   go, then the same Instrument drivers window opens). The i1Pro 2 in the arm without the driver:

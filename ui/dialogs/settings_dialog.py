@@ -681,37 +681,74 @@ def _is_the_table(device) -> bool:
     return is_table(getattr(device, "vid", ""), getattr(device, "pid", ""))
 
 
-def usb_table_text(devices, tables_not_offered=()) -> str:
-    """What the Instrument drivers window adds about the i1iO 2 table (the Beta "X-Rite i1iO
-    support" on), appended to `usb_installer_text`'s message; "" when there is nothing to say.
+def usb_table_button_label(tables, wdi_available: bool) -> "str | None":
+    """The table's OWN button in the Instrument drivers window (review 446, W-S1): the table is a
+    choice of its own, never part of the instruments' install. None when no table is listed."""
+    if not tables:
+        return None
+    if not wdi_available:
+        return _label_open_zadig()
+    if all(getattr(t, "has_winusb", False) for t in tables):
+        return tr("Reinstall Driver for the Table")
+    return tr("Install Driver for the Table")
+
+
+def usb_table_text(devices, tables_not_offered=(), button: "str | None" = None,
+                   with_certificate_line: bool = False) -> str:
+    """The table's own section of the Instrument drivers window (the Beta "X-Rite i1iO support"
+    on); "" when there is nothing to say.
 
     THE OWNER'S RULING OF 2026-11-18: the table is treated like any X-Rite instrument that
-    ArgyllCMS's driver holds. So it is listed like one, with the same button, and the paragraph
-    says the one thing that is true of every such instrument and matters most for a table owner:
-    while it has this driver, i1Profiler cannot use it, and how it goes back. The way back is
-    said as far as this project has verified it (X-Rite's own driver, installed again); no
-    Windows menu path is named, because none has been tried here.
+    ArgyllCMS's driver holds. REVIEW 446 (W-S1, W-S2): it is still a CHOICE OF ITS OWN, because
+    the table is the one device whose driver takes i1Profiler's table away. So it has its own
+    section, its own line and its own button (*button*, `usb_table_button_label`), and the
+    instruments' install never includes it: someone can give the i1Pro 2 the driver and leave
+    the table with X-Rite's, or the reverse. Its own words, too: ChromIQ drives the table itself;
+    the table is not a colorimeter that ArgyllCMS talks to.
+
+    *with_certificate_line*: the certificate disclosure, when no instrument section above
+    carries it already (only the table is listed).
 
     *tables_not_offered* are tables attached to a Windows for ARM computer, where the driver
     cannot let ChromIQ drive the table (`core.usb_driver_installer.table_driver_can_help`):
     they are not listed for an install, and one sentence says why.
     """
+    tables = [d for d in devices if _is_the_table(d)]
     parts = []
-    if any(_is_the_table(d) for d in devices):
+    if tables:
+        lines = "<br>".join(
+            "&nbsp;&nbsp;\u2022 {name}: <i>{state}</i>".format(
+                name=d.name,
+                state=(tr("driver installed") + " \u2713" if d.has_winusb
+                       else tr("driver not installed")))
+            for d in tables)
+        parts.append(tr("<b>Connected table:</b>") + "<br>" + lines)
         parts.append(tr(
-            "<b>The i1iO table</b> is listed because the beta option \u201cX-Rite i1iO "
-            "support\u201d is on. ChromIQ drives the table through the same driver it uses for "
-            "your instruments, and installing it for the table works the same way. As with any "
-            "X-Rite instrument that has this driver: while the table has it, i1Profiler cannot "
-            "use the table. To give the table back to i1Profiler, install X-Rite's own driver "
-            "for the table again. The i1Pro 2 in the table's arm is a USB device of its own: "
-            "when it is connected, it has its own line in this list."))
+            "The table is listed because the beta option \u201cX-Rite i1iO support\u201d is on. "
+            "ChromIQ drives the table itself, through the same USB driver (libusb-win32) that "
+            "ArgyllCMS reads your instruments through. Giving the table this driver is a choice "
+            "of its own: <b>{button}</b> is for the table alone, and ChromIQ never includes the "
+            "table when it installs the driver for your instruments. A Windows security prompt "
+            "will appear when you press it. Click Yes to continue.").format(
+                button=button or _label_install_driver()))
+        parts.append(tr(
+            "The i1Pro 2 in the table's arm is a USB device of its own. When it is connected, it "
+            "is listed under \u201c{instruments}\u201d above, and you can give it the driver "
+            "whether or not the table has it.").format(
+                instruments=tr("Instruments that ArgyllCMS reads over USB")))
+        parts.append(tr(
+            "As with any X-Rite instrument that has this driver: while the table has it, "
+            "i1Profiler cannot use the table. To give the table back to i1Profiler, install "
+            "X-Rite's own driver for the table again."))
     if tables_not_offered:
         parts.append(tr(
             "<b>The i1iO table</b> is connected, but ChromIQ cannot drive it on this Windows for "
             "ARM computer yet, so no driver is offered for it here. Measuring in i1Profiler "
             "3.8.6 or older and IMPORT still work."))
-    return "".join("<br><br>" + one for one in parts)
+    text = "<br><br>".join(parts)
+    if text and tables and with_certificate_line:
+        text += usb_certificate_notice_line()
+    return text
 
 
 def usb_install_outcome(*, wdi_available: bool, ran_ok: bool,
@@ -9149,6 +9186,7 @@ class SettingsDialog(QDialog):
         _SERIAL_FOLDER = 5
         _SERIAL_NOT_LISTED = 6
         _WINUSB_CERT = 7
+        _TABLE = 8         # the i1iO table's own install button (review 446, W-S1)
 
         offer_anyway = False
 
@@ -9163,7 +9201,13 @@ class SettingsDialog(QDialog):
             # offered an install that cannot help (said in one sentence instead)
             tables_not_offered = [] if _table_can_help or not _with_table else \
                 [d for d in devices if _is_the_table(d)]
-            if tables_not_offered:
+            # THE TABLE IS A CHOICE OF ITS OWN (review 446, W-S1): it gets its own section and
+            # its own button, and `devices` (the instruments' half, its text, its button and its
+            # install) never holds it. Beta off, nothing here is ever the table, so `devices` is
+            # exactly what the window always had.
+            table_devices = [] if tables_not_offered or not _with_table else \
+                [d for d in devices if _is_the_table(d)]
+            if _with_table:
                 devices = [d for d in devices if not _is_the_table(d)]
             needs_install = [d for d in devices if not d.has_winusb]
             states = self._serial_states()
@@ -9191,7 +9235,6 @@ class SettingsDialog(QDialog):
             usb_lay = QVBoxLayout(usb_grp)
             usb_lay.setSpacing(12)
             msg_text, btn_label = usb_installer_text(devices, _wdi_available)
-            msg_text += usb_table_text(devices, tables_not_offered)
             msg = QLabel(msg_text, usb_grp)
             msg.setWordWrap(True)
             msg.setTextFormat(Qt.TextFormat.RichText)
@@ -9215,6 +9258,36 @@ class SettingsDialog(QDialog):
                 row.addWidget(install_btn)
                 usb_lay.addLayout(row)
             body_lay.addWidget(usb_grp)
+
+            # --- the i1iO table, its own section (the Beta on, review 446) ----
+            if table_devices or tables_not_offered:
+                table_grp = QGroupBox(tr("The i1iO table (beta)"), dlg)
+                table_lay = QVBoxLayout(table_grp)
+                table_lay.setSpacing(12)
+                table_btn_label = usb_table_button_label(table_devices, _wdi_available)
+                table_msg = QLabel(usb_table_text(
+                    table_devices, tables_not_offered, button=table_btn_label,
+                    with_certificate_line=not devices), table_grp)
+                table_msg.setWordWrap(True)
+                table_msg.setTextFormat(Qt.TextFormat.RichText)
+                table_lay.addWidget(table_msg)
+                if table_btn_label is not None:
+                    row = QHBoxLayout()
+                    row.addStretch()
+                    if not devices and usb_shows_certificate_details(table_devices,
+                                                                     _wdi_available):
+                        # no instrument section carries the disclosure's button: this one does
+                        cert_btn = QPushButton(_label_what_this_changes(), table_grp)
+                        cert_btn.clicked.connect(
+                            lambda _c=False, d=dlg: d.done(_WINUSB_CERT))
+                        row.addWidget(cert_btn)
+                    table_btn = QPushButton(table_btn_label, table_grp)
+                    table_btn.setObjectName("primary")
+                    table_btn.clicked.connect(
+                        lambda _c=False, d=dlg: d.done(_TABLE))
+                    row.addWidget(table_btn)
+                    table_lay.addLayout(row)
+                body_lay.addWidget(table_grp)
 
             # --- the COM-port half ------------------------------------------
             serial_grp = QGroupBox(
@@ -9287,18 +9360,21 @@ class SettingsDialog(QDialog):
                 self._serial_from_folder()
                 continue
 
-            if result != _WINUSB or not devices:
+            if result == _TABLE and table_devices:
+                # THE PERSON'S CHOICE FOR THE TABLE, ATTACHED HERE AND NOWHERE ELSE: the table's
+                # own button was pressed. Only the table is a target, and it is built from the
+                # listed table's own id. Without the choice `install_winusb` refuses the table.
+                targets = [table_device_for(ExplicitTableChoice(TABLE_CHOICE_WORDS), d)
+                           for d in table_devices]
+                driver_was_missing = any(not d.has_winusb for d in table_devices)
+            elif result != _WINUSB or not devices:
                 break   # Close button, or nothing to act on
-
-            # ---- run installation ----
-            # "Reinstall Driver" (no device needs install) repairs every detected
-            # device; otherwise only the ones missing a driver are targeted.
-            targets = needs_install or devices
-            # THE PERSON'S CHOICE, ATTACHED HERE AND NOWHERE ELSE: the install button of this
-            # window was pressed with the table listed, which is the same explicit choice every
-            # instrument gets. Without it `install_winusb` refuses the table.
-            targets = [table_device_for(ExplicitTableChoice(TABLE_CHOICE_WORDS))
-                       if _with_table and _is_the_table(d) else d for d in targets]
+            else:
+                # ---- run installation ----
+                # "Reinstall Driver" (no device needs install) repairs every detected
+                # device; otherwise only the ones missing a driver are targeted.
+                targets = needs_install or devices
+                driver_was_missing = bool(needs_install)
             if _wdi_available:
                 attempts = self._install_the_drivers(targets, install_winusb)
                 # WHAT WAS NEVER TRIED IS NOT WHAT FAILED. The loop stops after
@@ -9358,7 +9434,7 @@ class SettingsDialog(QDialog):
                     # apart from an install. Empty means the user pressed
                     # `Reinstall Driver` on hardware that already worked, and
                     # the outcome window must not call that a success.
-                    driver_was_missing=bool(needs_install),
+                    driver_was_missing=driver_was_missing,
                     target_names=[d.name for d in targets],
                 )
             else:
@@ -9366,7 +9442,7 @@ class SettingsDialog(QDialog):
                     wdi_available=False, ran_ok=False, still_unbound_names=[],
                     stopped_watching=False,
                     zadig_status=launch_zadig(),
-                    driver_was_missing=bool(needs_install),
+                    driver_was_missing=driver_was_missing,
                     target_names=[d.name for d in targets],
                 )
 

@@ -225,10 +225,20 @@ def _choice_holds(device) -> bool:
             and (device.vid, device.pid) in TABLE_DEVICE)
 
 
-def table_device_for(choice: ExplicitTableChoice) -> "UsbDevice":
+def table_device_for(choice: ExplicitTableChoice, listed=None) -> "UsbDevice":
+    """The table as an install target, carrying the person's *choice*. *listed* is the table
+    the window listed: its own (vid, pid) is used, after checking that it IS a table (review
+    446, note: with a second table id in TABLE_DEVICE, the first entry would be the wrong
+    device). Without *listed*, the one table id there is."""
     if not isinstance(choice, ExplicitTableChoice) or choice.words != TABLE_CHOICE_WORDS:
         raise ValueError("the table's driver needs the person's explicit choice")
-    (vid, pid), name = next(iter(TABLE_DEVICE.items()))
+    if listed is not None:
+        vid, pid = str(listed.vid).lower(), str(listed.pid).lower()
+        if (vid, pid) not in TABLE_DEVICE:
+            raise ValueError("the table's driver is only for the table")
+        name = TABLE_DEVICE[(vid, pid)]
+    else:
+        (vid, pid), name = next(iter(TABLE_DEVICE.items()))
     device = TableUsbDevice(vid=vid, pid=pid, name=name, has_winusb=False)
     choice.for_device = (vid, pid)
     device.choice = choice

@@ -1,0 +1,165 @@
+{
+ "munki_and_pro_bound__close": {
+  "asked": [
+   [
+    [],
+    {}
+   ]
+  ],
+  "installed": [],
+  "seen": [
+   [
+    "Instrument drivers",
+    "Connected colorimeters:&nbsp;&nbsp;• X-Rite i1Studio / ColorMunki — driver installed ✓&nbsp;&nbsp;• GretagMacbeth i1 Pro / i1 Pro 2 — driver installed ✓The driver is already installed for the devices above. If ChromIQ or Argyll still can't open your instrument, click Reinstall Driver to run the installer again.Besides the driver itself, one other thing on this computer changes. The driver is built for your instrument at the moment it is installed, so it has to be signed at that moment too, and the installer puts the certificate it signs with into two of Windows' own lists of trusted signers (one of them the trusted-root list) for the whole computer. It stays there after the driver is gone. ArgyllCMS's own driver installer does the same. Click What this changes for exactly what it is, what it can and cannot vouch for, and how to take it out again.\nChromIQ cannot see a USB-to-serial bridge on this computer at the moment. If nothing of that kind is plugged in, that is exactly what you would expect and there is nothing to do here.The CR30 does not speak to Windows directly. Inside it sits a small chip — a USB-to-serial bridge — whose whole job is to turn the USB cable into a COM port, and ChromIQ reads the instrument through that port. When Windows has no driver for the bridge, no port appears, and the instrument is invisible to ChromIQ and to every other program on the computer.If your CR30 is plugged in and switched on and you are still reading this, its bridge may not be starting up at all — a cable that only carries power rather than data will do it, and so will a socket that has stopped working. Try a different cable and a different socket first. If that changes nothing, use My instrument is not listed and ChromIQ will offer you the driver anyway."
+   ]
+  ]
+ },
+ "munki_and_pro_bound__first": {
+  "asked": [
+   [
+    [],
+    {}
+   ]
+  ],
+  "installed": [
+   [
+    "0765",
+    "6008",
+    "X-Rite i1Studio / ColorMunki",
+    "UsbDevice",
+    false
+   ],
+   [
+    "0971",
+    "2000",
+    "GretagMacbeth i1 Pro / i1 Pro 2",
+    "UsbDevice",
+    false
+   ]
+  ],
+  "seen": [
+   [
+    "Instrument drivers",
+    "Connected colorimeters:&nbsp;&nbsp;• X-Rite i1Studio / ColorMunki — driver installed ✓&nbsp;&nbsp;• GretagMacbeth i1 Pro / i1 Pro 2 — driver installed ✓The driver is already installed for the devices above. If ChromIQ or Argyll still can't open your instrument, click Reinstall Driver to run the installer again.Besides the driver itself, one other thing on this computer changes. The driver is built for your instrument at the moment it is installed, so it has to be signed at that moment too, and the installer puts the certificate it signs with into two of Windows' own lists of trusted signers (one of them the trusted-root list) for the whole computer. It stays there after the driver is gone. ArgyllCMS's own driver installer does the same. Click What this changes for exactly what it is, what it can and cannot vouch for, and how to take it out again.\nChromIQ cannot see a USB-to-serial bridge on this computer at the moment. If nothing of that kind is plugged in, that is exactly what you would expect and there is nothing to do here.The CR30 does not speak to Windows directly. Inside it sits a small chip — a USB-to-serial bridge — whose whole job is to turn the USB cable into a COM port, and ChromIQ reads the instrument through that port. When Windows has no driver for the bridge, no port appears, and the instrument is invisible to ChromIQ and to every other program on the computer.If your CR30 is plugged in and switched on and you are still reading this, its bridge may not be starting up at all — a cable that only carries power rather than data will do it, and so will a socket that has stopped working. Try a different cable and a different socket first. If that changes nothing, use My instrument is not listed and ChromIQ will offer you the driver anyway."
+   ],
+   [
+    "Driver Installation",
+    "ChromIQ cannot tell you whether that changed anything.The driver was already there before you clicked, and it is still there now. The installer finished without complaining, but there was nothing missing for it to put right, so there is no difference for ChromIQ to point at and call a success.Nothing was removed or replaced. If ArgyllCMS still cannot open your instrument, unplug it, wait a few seconds and plug it back in. Then open Instrument drivers in Preferences again and use Check again."
+   ]
+  ]
+ },
+ "only_table__close": {
+  "asked": [
+   [
+    [],
+    {}
+   ]
+  ],
+  "installed": [],
+  "seen": [
+   [
+    "Instrument drivers",
+    "No colorimeter detected.Make sure your device is plugged in via USB, then click Check again.\nChromIQ cannot see a USB-to-serial bridge on this computer at the moment. If nothing of that kind is plugged in, that is exactly what you would expect and there is nothing to do here.The CR30 does not speak to Windows directly. Inside it sits a small chip — a USB-to-serial bridge — whose whole job is to turn the USB cable into a COM port, and ChromIQ reads the instrument through that port. When Windows has no driver for the bridge, no port appears, and the instrument is invisible to ChromIQ and to every other program on the computer.If your CR30 is plugged in and switched on and you are still reading this, its bridge may not be starting up at all — a cable that only carries power rather than data will do it, and so will a socket that has stopped working. Try a different cable and a different socket first. If that changes nothing, use My instrument is not listed and ChromIQ will offer you the driver anyway."
+   ]
+  ]
+ },
+ "only_table__first": {
+  "asked": [
+   [
+    [],
+    {}
+   ]
+  ],
+  "installed": [],
+  "seen": [
+   [
+    "Instrument drivers",
+    "No colorimeter detected.Make sure your device is plugged in via USB, then click Check again.\nChromIQ cannot see a USB-to-serial bridge on this computer at the moment. If nothing of that kind is plugged in, that is exactly what you would expect and there is nothing to do here.The CR30 does not speak to Windows directly. Inside it sits a small chip — a USB-to-serial bridge — whose whole job is to turn the USB cable into a COM port, and ChromIQ reads the instrument through that port. When Windows has no driver for the bridge, no port appears, and the instrument is invisible to ChromIQ and to every other program on the computer.If your CR30 is plugged in and switched on and you are still reading this, its bridge may not be starting up at all — a cable that only carries power rather than data will do it, and so will a socket that has stopped working. Try a different cable and a different socket first. If that changes nothing, use My instrument is not listed and ChromIQ will offer you the driver anyway."
+   ]
+  ]
+ },
+ "pro_bound_table_unbound__close": {
+  "asked": [
+   [
+    [],
+    {}
+   ]
+  ],
+  "installed": [],
+  "seen": [
+   [
+    "Instrument drivers",
+    "Connected colorimeter:&nbsp;&nbsp;• GretagMacbeth i1 Pro / i1 Pro 2 — driver installed ✓The driver is already installed for the device above. If ChromIQ or Argyll still can't open your instrument, click Reinstall Driver to run the installer again.Besides the driver itself, one other thing on this computer changes. The driver is built for your instrument at the moment it is installed, so it has to be signed at that moment too, and the installer puts the certificate it signs with into two of Windows' own lists of trusted signers (one of them the trusted-root list) for the whole computer. It stays there after the driver is gone. ArgyllCMS's own driver installer does the same. Click What this changes for exactly what it is, what it can and cannot vouch for, and how to take it out again.\nChromIQ cannot see a USB-to-serial bridge on this computer at the moment. If nothing of that kind is plugged in, that is exactly what you would expect and there is nothing to do here.The CR30 does not speak to Windows directly. Inside it sits a small chip — a USB-to-serial bridge — whose whole job is to turn the USB cable into a COM port, and ChromIQ reads the instrument through that port. When Windows has no driver for the bridge, no port appears, and the instrument is invisible to ChromIQ and to every other program on the computer.If your CR30 is plugged in and switched on and you are still reading this, its bridge may not be starting up at all — a cable that only carries power rather than data will do it, and so will a socket that has stopped working. Try a different cable and a different socket first. If that changes nothing, use My instrument is not listed and ChromIQ will offer you the driver anyway."
+   ]
+  ]
+ },
+ "pro_bound_table_unbound__first": {
+  "asked": [
+   [
+    [],
+    {}
+   ]
+  ],
+  "installed": [
+   [
+    "0971",
+    "2000",
+    "GretagMacbeth i1 Pro / i1 Pro 2",
+    "UsbDevice",
+    false
+   ]
+  ],
+  "seen": [
+   [
+    "Instrument drivers",
+    "Connected colorimeter:&nbsp;&nbsp;• GretagMacbeth i1 Pro / i1 Pro 2 — driver installed ✓The driver is already installed for the device above. If ChromIQ or Argyll still can't open your instrument, click Reinstall Driver to run the installer again.Besides the driver itself, one other thing on this computer changes. The driver is built for your instrument at the moment it is installed, so it has to be signed at that moment too, and the installer puts the certificate it signs with into two of Windows' own lists of trusted signers (one of them the trusted-root list) for the whole computer. It stays there after the driver is gone. ArgyllCMS's own driver installer does the same. Click What this changes for exactly what it is, what it can and cannot vouch for, and how to take it out again.\nChromIQ cannot see a USB-to-serial bridge on this computer at the moment. If nothing of that kind is plugged in, that is exactly what you would expect and there is nothing to do here.The CR30 does not speak to Windows directly. Inside it sits a small chip — a USB-to-serial bridge — whose whole job is to turn the USB cable into a COM port, and ChromIQ reads the instrument through that port. When Windows has no driver for the bridge, no port appears, and the instrument is invisible to ChromIQ and to every other program on the computer.If your CR30 is plugged in and switched on and you are still reading this, its bridge may not be starting up at all — a cable that only carries power rather than data will do it, and so will a socket that has stopped working. Try a different cable and a different socket first. If that changes nothing, use My instrument is not listed and ChromIQ will offer you the driver anyway."
+   ],
+   [
+    "Driver Installation",
+    "ChromIQ cannot tell you whether that changed anything.The driver was already there before you clicked, and it is still there now. The installer finished without complaining, but there was nothing missing for it to put right, so there is no difference for ChromIQ to point at and call a success.Nothing was removed or replaced. If ArgyllCMS still cannot open your instrument, unplug it, wait a few seconds and plug it back in. Then open Instrument drivers in Preferences again and use Check again."
+   ]
+  ]
+ },
+ "pro_unbound_table_unbound__close": {
+  "asked": [
+   [
+    [],
+    {}
+   ]
+  ],
+  "installed": [],
+  "seen": [
+   [
+    "Instrument drivers",
+    "Connected colorimeter:&nbsp;&nbsp;• GretagMacbeth i1 Pro / i1 Pro 2 — driver not installedClick Install Driver and ChromIQ will install the USB driver your instrument needs, so ArgyllCMS can talk to it. A Windows security prompt will appear. Click Yes to continue.Only the instruments marked driver not installed above are touched. If Windows already shows one of them a driver, this replaces that driver; no other device is changed. Earlier versions of ChromIQ told people to choose WinUSB, and ArgyllCMS cannot read an instrument through WinUSB, so if that is what you have, this is the repair, and you did nothing wrong. Afterwards Windows may list your instrument under a driver name you do not recognise. That is normal: it is the driver ArgyllCMS reads instruments through. It is signed, so Windows needs no special mode, and it works on x64 and ARM64.Besides the driver itself, one other thing on this computer changes. The driver is built for your instrument at the moment it is installed, so it has to be signed at that moment too, and the installer puts the certificate it signs with into two of Windows' own lists of trusted signers (one of them the trusted-root list) for the whole computer. It stays there after the driver is gone. ArgyllCMS's own driver installer does the same. Click What this changes for exactly what it is, what it can and cannot vouch for, and how to take it out again.\nChromIQ cannot see a USB-to-serial bridge on this computer at the moment. If nothing of that kind is plugged in, that is exactly what you would expect and there is nothing to do here.The CR30 does not speak to Windows directly. Inside it sits a small chip — a USB-to-serial bridge — whose whole job is to turn the USB cable into a COM port, and ChromIQ reads the instrument through that port. When Windows has no driver for the bridge, no port appears, and the instrument is invisible to ChromIQ and to every other program on the computer.If your CR30 is plugged in and switched on and you are still reading this, its bridge may not be starting up at all — a cable that only carries power rather than data will do it, and so will a socket that has stopped working. Try a different cable and a different socket first. If that changes nothing, use My instrument is not listed and ChromIQ will offer you the driver anyway."
+   ]
+  ]
+ },
+ "pro_unbound_table_unbound__first": {
+  "asked": [
+   [
+    [],
+    {}
+   ]
+  ],
+  "installed": [
+   [
+    "0971",
+    "2000",
+    "GretagMacbeth i1 Pro / i1 Pro 2",
+    "UsbDevice",
+    false
+   ]
+  ],
+  "seen": [
+   [
+    "Instrument drivers",
+    "Connected colorimeter:&nbsp;&nbsp;• GretagMacbeth i1 Pro / i1 Pro 2 — driver not installedClick Install Driver and ChromIQ will install the USB driver your instrument needs, so ArgyllCMS can talk to it. A Windows security prompt will appear. Click Yes to continue.Only the instruments marked driver not installed above are touched. If Windows already shows one of them a driver, this replaces that driver; no other device is changed. Earlier versions of ChromIQ told people to choose WinUSB, and ArgyllCMS cannot read an instrument through WinUSB, so if that is what you have, this is the repair, and you did nothing wrong. Afterwards Windows may list your instrument under a driver name you do not recognise. That is normal: it is the driver ArgyllCMS reads instruments through. It is signed, so Windows needs no special mode, and it works on x64 and ARM64.Besides the driver itself, one other thing on this computer changes. The driver is built for your instrument at the moment it is installed, so it has to be signed at that moment too, and the installer puts the certificate it signs with into two of Windows' own lists of trusted signers (one of them the trusted-root list) for the whole computer. It stays there after the driver is gone. ArgyllCMS's own driver installer does the same. Click What this changes for exactly what it is, what it can and cannot vouch for, and how to take it out again.\nChromIQ cannot see a USB-to-serial bridge on this computer at the moment. If nothing of that kind is plugged in, that is exactly what you would expect and there is nothing to do here.The CR30 does not speak to Windows directly. Inside it sits a small chip — a USB-to-serial bridge — whose whole job is to turn the USB cable into a COM port, and ChromIQ reads the instrument through that port. When Windows has no driver for the bridge, no port appears, and the instrument is invisible to ChromIQ and to every other program on the computer.If your CR30 is plugged in and switched on and you are still reading this, its bridge may not be starting up at all — a cable that only carries power rather than data will do it, and so will a socket that has stopped working. Try a different cable and a different socket first. If that changes nothing, use My instrument is not listed and ChromIQ will offer you the driver anyway."
+   ],
+   [
+    "Driver Installation",
+    "It worked. The driver is installed, and Windows has attached it to your instrument: GretagMacbeth i1 Pro / i1 Pro 2.That last part is the check that matters. An installer can finish without complaining and still fail to attach the driver to the hardware, so ChromIQ does not take its word for it: it looks the instrument up again afterwards. The driver is there.You can close this window and start measuring."
+   ]
+  ]
+ }
+}

@@ -152,17 +152,91 @@ def test_beta_on_the_window_lists_the_table_and_says_what_it_means(
     assert installed == []                               # Close installs nothing
 
 
-def test_the_install_button_attaches_the_choice_to_the_table_and_nothing_else(
-        dialog, on_windows, beta, monkeypatch):
-    asked, installed = _hardware(monkeypatch, [_table(), _pro(False)])
-    with ModalDriver(lambda w: _button(w, "Install Driver").click(),
+def _other(bound=False):
+    return inst.UsbDevice("0765", "6008", "X-Rite i1Studio / ColorMunki", bound)
+
+
+def _press(dialog, label):
+    """Open the window, press *label*, acknowledge the outcome; the texts seen."""
+    with ModalDriver(lambda w: _button(w, label).click(),
                      lambda w: _ok_button(w).click()) as drv:
         dialog._show_usb_installer()
     assert drv.modal_count == 2
-    assert [(d.vid, d.pid) for d in installed] == [TABLE, I1PRO]
-    table, pro = installed
-    assert inst._choice_holds(table)                     # the person's own press
-    assert type(pro) is inst.UsbDevice and getattr(pro, "choice", None) is None
+    return drv
+
+
+def test_the_instruments_button_never_takes_the_table_along(
+        dialog, on_windows, beta, monkeypatch):
+    """Review 446, W-S1: both driverless; "Install Driver" (the instruments' button) installs
+    for the i1Pro 2 and NOT for the table."""
+    asked, installed = _hardware(monkeypatch, [_table(), _pro(False)])
+    _press(dialog, "Install Driver")
+    assert [(d.vid, d.pid) for d in installed] == [I1PRO]
+    assert type(installed[0]) is inst.UsbDevice and getattr(installed[0], "choice", None) is None
+
+
+def test_the_tables_own_button_installs_for_the_table_alone_with_the_choice(
+        dialog, on_windows, beta, monkeypatch):
+    """Review 446, W-S1: the table is its own explicit choice: its button installs for the
+    table only, carrying the person's choice; the driverless i1Pro 2 is left as it is."""
+    asked, installed = _hardware(monkeypatch, [_table(), _pro(False)])
+    _press(dialog, "Install Driver for the Table")
+    assert [(d.vid, d.pid) for d in installed] == [TABLE]
+    assert inst._choice_holds(installed[0])                # the person's own press
+
+
+def test_the_i1pro2_can_get_the_driver_while_the_table_keeps_x_rites(
+        dialog, on_windows, beta, monkeypatch):
+    """Review 446, W-S1, both directions: the table with the driver and the i1Pro 2 without
+    (and the reverse) are still two choices."""
+    asked, installed = _hardware(monkeypatch, [_table(True), _pro(False)])
+    seen = []
+
+    def look_then_install(w):
+        seen.append((_button(w, "Install Driver") is not None,
+                     _button(w, "Reinstall Driver for the Table") is not None))
+        _button(w, "Install Driver").click()
+    with ModalDriver(look_then_install, lambda w: _ok_button(w).click()):
+        dialog._show_usb_installer()
+    assert seen == [(True, True)]
+    assert [(d.vid, d.pid) for d in installed] == [I1PRO]
+    installed.clear()
+    asked, installed = _hardware(monkeypatch, [_table(False), _pro(True)])
+    _press(dialog, "Install Driver for the Table")
+    assert [(d.vid, d.pid) for d in installed] == [TABLE]
+
+
+def test_a_table_target_is_built_from_the_listed_table_and_never_from_an_instrument():
+    choice = inst.ExplicitTableChoice(inst.TABLE_CHOICE_WORDS)
+    t = inst.table_device_for(choice, _table())
+    assert (t.vid, t.pid) == TABLE and inst._choice_holds(t)
+    with pytest.raises(ValueError):
+        inst.table_device_for(inst.ExplicitTableChoice(inst.TABLE_CHOICE_WORDS), _pro())
+
+
+def test_with_only_the_table_the_window_does_not_call_it_a_colorimeter(
+        dialog, on_windows, beta, monkeypatch):
+    """Review 446, W-S2: with only the table connected, nothing calls it a colorimeter that
+    ArgyllCMS talks to; the table's own section says what is true of it."""
+    asked, installed = _hardware(monkeypatch, [_table()])
+    seen = []
+
+    def look_then_close(w):
+        from PyQt6.QtWidgets import QGroupBox
+        seen.append([g.title() for g in w.findChildren(QGroupBox)])
+        _button(w, "Close").click()
+    with ModalDriver(look_then_close) as drv:
+        dialog._show_usb_installer()
+    said = drv.text_of(0)
+    assert "Connected colorimeter" not in said
+    assert "so ArgyllCMS can talk to it" not in said
+    assert "Connected table:" in said and "X-Rite i1iO 2 table: driver not installed" in said
+    assert "ChromIQ drives the table itself" in said
+    assert "The i1iO table (beta)" in seen[0]
+    # the certificate disclosure travels with the only install button there is
+    assert sd.usb_certificate_notice_line()[len("<br><br>"):][:40] in \
+        sd.usb_table_text([_table()], button="x", with_certificate_line=True)
+    assert installed == []
 
 
 def test_beta_off_the_window_is_exactly_as_before(dialog, on_windows, beta, monkeypatch):
@@ -174,6 +248,62 @@ def test_beta_off_the_window_is_exactly_as_before(dialog, on_windows, beta, monk
     assert asked == [{}]                                 # the old call, word for word
     assert "i1iO" not in drv.text_of(0)
     assert [(d.vid, d.pid) for d in installed] == [I1PRO]
+
+
+_BETA_OFF_CASES = {
+    "pro_unbound_table_unbound": [(_pro, False), (_table, False)],
+    "pro_bound_table_unbound": [(_pro, True), (_table, False)],
+    "only_table": [(_table, False)],
+    "munki_and_pro_bound": [(lambda b: inst.UsbDevice("0765", "6008",
+                                                      "X-Rite i1Studio / ColorMunki", b), True),
+                            (_pro, True)],
+}
+
+
+@pytest.mark.parametrize("case", sorted(_BETA_OFF_CASES))
+@pytest.mark.parametrize("press", ["first", "close"])
+def test_beta_off_the_window_is_byte_identical_to_4_3_45(
+        dialog, on_windows, beta, monkeypatch, case, press):
+    """Beta off, recorded completely and compared with 4.3.45 itself: every enumerate_connected
+    call with its arguments, every modal window's title and text, every device handed to
+    install_winusb. The recording `tests/data/instrument_drivers_beta_off_4_3_45.json` was made
+    by the review of 2026-11-18 (`probes/test_probe_win_beta_off.py`) in the 4.3.45 tree with the
+    same fake hardware."""
+    import json
+    from pathlib import Path
+    beta["on"] = False
+    devices = [make(bound) for make, bound in _BETA_OFF_CASES[case]]
+    asked, installed = [], []
+    _hardware(monkeypatch, devices)
+
+    def enumerate_connected(*a, **kw):
+        asked.append([list(a), kw])
+        if kw.get("include_table"):
+            return list(devices)
+        return [d for d in devices if not inst.is_table(d.vid, d.pid)]
+    monkeypatch.setattr(inst, "enumerate_connected", enumerate_connected)
+
+    def install(d, **kw):
+        installed.append([d.vid, d.pid, d.name, type(d).__name__,
+                          bool(getattr(d, "choice", None))])
+        return inst.InstallAttempt.INSTALLED
+    monkeypatch.setattr(inst, "install_winusb", install)
+
+    def first(w):
+        for label in ("Install Driver", "Reinstall Driver"):
+            b = _button(w, label)
+            if b is not None:
+                b.click()
+                return
+        _button(w, "Close").click()
+    steps = (first, lambda w: _ok_button(w).click()) if press == "first" else \
+        (lambda w: _button(w, "Close").click(),)
+    with ModalDriver(*steps) as drv:
+        dialog._show_usb_installer()
+    got = json.loads(json.dumps({"asked": asked, "installed": installed, "seen": drv.seen}))
+    golden = json.loads((Path(__file__).resolve().parents[1] / "data"
+                         / "instrument_drivers_beta_off_4_3_45.json").read_text(encoding="utf-8"))
+    assert got == golden[f"{case}__{press}"]
 
 
 def test_an_arm64_pc_is_not_offered_an_install_for_the_table(
@@ -195,8 +325,13 @@ def test_an_arm64_pc_is_not_offered_an_install_for_the_table(
 def test_the_table_text_alone():
     assert sd.usb_table_text([_pro()]) == ""
     assert sd.usb_table_text([SimpleNamespace(name="x", has_winusb=False)]) == ""
-    one = sd.usb_table_text([_table()])
-    assert one.startswith("<br><br>") and "i1Profiler cannot use the table" in one
+    one = sd.usb_table_text([_table()], button="Install Driver for the Table")
+    assert one.startswith(sd.tr("<b>Connected table:</b>"))
+    assert "i1Profiler cannot use the table" in one
+    assert "<b>Install Driver for the Table</b> is for the table alone" in one
+    assert sd.usb_table_button_label([], True) is None
+    assert sd.usb_table_button_label([_table()], True) == "Install Driver for the Table"
+    assert sd.usb_table_button_label([_table(True)], True) == "Reinstall Driver for the Table"
     arm = sd.usb_table_text([], [_table()])
     assert "Windows for ARM" in arm and "i1Profiler cannot use" not in arm
 
