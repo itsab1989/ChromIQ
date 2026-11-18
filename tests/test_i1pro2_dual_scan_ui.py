@@ -493,10 +493,18 @@ def test_build_from_is_set_to_the_choice_once(qapp, tmp_path, monkeypatch):
     saved = []
     fake = SimpleNamespace(_ti3_path=main, _build_from="",
                            _dual_note_lbl=None,
-                           save_target_settings=lambda: saved.append(1))
+                           save_target_settings=lambda: saved.append(1) or True,
+                           _refresh_build_from=lambda: None)
+    fake._dual_preset_commit = lambda m, c: TabProfile._dual_preset_commit(
+        fake, m, c)
     TabProfile._dual_preset_once(fake, True)
     assert fake._build_from == "M2"
-    assert PassRecord.load(Run.dual_pass_record(main)).preset_done
+    # a load of the target's settings before it is stored: set again
+    fake._build_from = ""
+    TabProfile._dual_preset_once(fake, True)
+    assert fake._build_from == "M2"
+    TabProfile._dual_preset_commit(fake, main, "M2")
+    assert saved and PassRecord.load(Run.dual_pass_record(main)).preset_done
     fake._build_from = "M1"                 # the person's later choice
     TabProfile._dual_preset_once(fake, True)
     assert fake._build_from == "M1", "never a second time"
@@ -516,7 +524,8 @@ def test_until_every_strip_has_both_passes_it_says_why(qapp, tmp_path):
                           setVisible=lambda v: shown.__setitem__("v", v))
     fake = SimpleNamespace(_ti3_path=main, _build_from="",
                            _dual_note_lbl=lbl,
-                           save_target_settings=lambda: None)
+                           save_target_settings=lambda: None,
+                           _dual_preset_commit=lambda m, c: None)
     TabProfile._dual_preset_once(fake, True)
     assert fake._build_from == ""
     assert shown["v"] is True and "M2" in shown["t"] and "B" in shown["t"]

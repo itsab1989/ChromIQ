@@ -9828,7 +9828,7 @@ alone.
 
 > **Dual scan (beta, first try): each strip is read twice**
 >
-> Each strip is read twice: first as usual with the lamp, then once more over the same strip with the UV light, without lifting the instrument. From the two passes ChromIQ works out M1 and M2 besides M0, and the profile is made from {chosen}. This needs the ruler (the guide the i1Pro 2 slides along): without it only M0 is measured. Not yet tried on a real instrument; M1 and M2 are calculated.
+> First as usual with the lamp, then once more over the same strip with the UV light, without lifting the instrument. From the two passes ChromIQ works out M1 and M2 besides M0, and the profile is made from {chosen}. This needs the ruler (the guide the i1Pro 2 slides along): without it only M0 is measured. Not yet tried on a real instrument; M1 and M2 are calculated.
 
 ### M-DUAL-CAL-TILE · PROPOSED · the X-Rite i1Pro 2 dual scan (Preferences > Beta), Measure, 2026-11-18
 

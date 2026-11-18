@@ -3218,14 +3218,17 @@ class TabProfile(QWidget):
                     cond, reason = storage.build_from_preset(main)
                     rec = storage.pass_record_of(main)
                     if cond != "M0" and rec is not None and not rec.preset_done:
-                        from core.file_manager import Run
-                        rec.preset_done = True
-                        rec.save(Run.dual_pass_record(main))
+                        # set it now, and count it as done only once the
+                        # target's own settings hold it: a load of the
+                        # target's settings in between (which comes after a
+                        # measurement is handed over) would put it back
                         self._build_from = cond
                         log.info("Build Profile: build from %s, as chosen in "
                                  "the Measure tab for this dual scan", cond)
                         from PyQt6.QtCore import QTimer
-                        QTimer.singleShot(0, self.save_target_settings)
+                        QTimer.singleShot(
+                            0, lambda m=main, c=cond: self._dual_preset_commit(
+                                m, c))
                     elif cond == "M0" and reason and \
                             storage.chosen_condition(main) != "M0":
                         text = tr(
@@ -3238,6 +3241,25 @@ class TabProfile(QWidget):
         if lbl is not None:
             lbl.setText(text)
             lbl.setVisible(bool(text))
+
+    def _dual_preset_commit(self, main, cond: str) -> None:
+        """The pre-set is kept in the target's settings, then marked done in
+        the pass record, so it is made once and a later choice stands."""
+        try:
+            if getattr(self, "_build_from", "") != cond or \
+                    Path(getattr(self, "_ti3_path", "") or "") != Path(main):
+                return
+            if not self.save_target_settings():
+                log.debug("dual scan: Build from not stored yet")
+            from core.file_manager import Run
+            from workflow.dual_scan import storage
+            rec = storage.pass_record_of(main)
+            if rec is not None and not rec.preset_done:
+                rec.preset_done = True
+                rec.save(Run.dual_pass_record(main))
+            self._refresh_build_from()
+        except Exception:      # noqa: BLE001
+            log.debug("dual scan: pre-set not committed", exc_info=True)
 
     def _apply_build_from_state(self, choices=None) -> None:
         if choices is None:

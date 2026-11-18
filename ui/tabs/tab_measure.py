@@ -12439,9 +12439,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return
         from PyQt6.QtWidgets import QLabel
         from workflow import measurement_messages as M
-        title, body = M.M_DUAL_CAL_TILE.render()
-        lbl = QLabel(f"<b>{html.escape(title)}</b><br>{html.escape(body)}",
-                     dlg)
+        _title, body = M.M_DUAL_CAL_TILE.render()
+        lbl = QLabel(f"<b>{html.escape(body)}</b>", dlg)
         lbl.setObjectName("dual_cal_tile")
         lbl.setTextFormat(Qt.TextFormat.RichText)
         lbl.setWordWrap(True)
@@ -12456,7 +12455,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         from workflow import measurement_messages as M
         title, body = M.M_DUAL_CAL_TILE.render()
         self._dual_tile_wait = True
-        self._preview.set_notice(f"{title}. {body}", warn=True)
+        self._preview.set_notice(body, warn=True)
         self._flash_status(title, 30000)
 
     def _dual_tile_released(self) -> None:

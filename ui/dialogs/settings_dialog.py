@@ -3737,7 +3737,7 @@ class SettingsDialog(QDialog):
             min_width=680)
         self._i1pro2_dual_check.clicked.connect(self._on_i1pro2_dual_clicked)
         _dualrow = QHBoxLayout()
-        _dualrow.setContentsMargins(28, 0, 0, 0)
+        _dualrow.setContentsMargins(24, 0, 0, 0)
         _dualrow.addWidget(self._i1pro2_dual_check)
         _dualrow.addStretch()
         _dualrow.addWidget(dual_tip)
