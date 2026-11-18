@@ -389,3 +389,29 @@ def test_the_helper_arguments_and_the_refined_store():
         storage.store_refined(st, key, ScaleChoice.standard())
     with pytest.raises(DualScanRefused):
         model.check_scale(7)
+
+
+# ----------------------------------------------------------------- guarantees
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def test_no_eeprom_write_is_compiled_into_the_i1pro2_driver():
+    """X-Rite's program writes a usage log into the i1Pro 2's memory; ChromIQ
+    must not. The vendored driver's only EEPROM writer is called only from
+    i1pro_update_log, whose body sits under ENABLE_WRITE, which is undefined."""
+    src = (ROOT / "native" / "instlib" / "i1pro_imp.c").read_text(encoding="utf-8", errors="replace")
+    assert "#undef ENABLE_WRITE" in src and "#define ENABLE_WRITE" not in src
+    calls = [i for i in range(len(src)) if src.startswith("i1pro_writeEEProm(p,", i)]
+    assert calls, "the writer's calls moved: look again"
+    a = src.index("i1pro_code i1pro_update_log(i1pro *p) {")
+    guard = src.index("#ifdef ENABLE_WRITE", a)
+    end = src.index("#endif", guard)
+    assert all(guard < i < end for i in calls)
+
+
+def test_the_dual_arithmetic_touches_no_instrument():
+    for name in ("chromiq_dualscan.c", "chromiq_dualscan.h"):
+        text = (ROOT / "native" / "chartread_helper" / name).read_text(encoding="utf-8")
+        for word in ("usb_", "icom", "i1pro_", "EEProm", "fopen", "remove("):
+            assert word not in text, (name, word)
