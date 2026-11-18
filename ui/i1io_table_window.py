@@ -101,6 +101,10 @@ HANDS_OFF_LABELS = (
     "The page is laid, and my hands are away from the table",
     "Make this move, my hands are away", "As described, my hands are away",
     "Yes, it is centred, my hands are away")
+#: REVIEW 14, S-3: the pages after whose answer the arm moves at once; as a pop-up each carries
+#: the one-line switch-off sentence itself (the tab's line stands behind the pop-up)
+MOVES_AT_ONCE_PAGES = ("go", "start_up", "sheet_laid", "first_visit", "check_mark",
+                       "report_after_step")
 #: REVIEW 14, M-1: the ways back that mean a move may still be waiting, or a movement (or the
 #: start-up) was never reported as finished: "Switch the table off now" is the first thing shown,
 #: and no later page hides or contradicts it
@@ -1950,6 +1954,11 @@ class TableMeasureWindow(QFrame):
             # review 14, M-1: while a move may still be waiting, "Switch the table off now" is
             # the first thing every page shows, whatever else it asks
             text = self._switch_off_first() + "\n\n" + text
+        if page_id in MOVES_AT_ONCE_PAGES and switch_off_line() not in text:
+            # review 14, S-3: a pop-up covers the tab's switch-off line, so a page after whose
+            # answer the arm moves at once says it itself (in the panel too: one definition of
+            # every page)
+            text = text + "\n\n" + switch_off_line()
         self._title.setText(title)
         self._text.setText(text)
         self._scroll.verticalScrollBar().setValue(0)

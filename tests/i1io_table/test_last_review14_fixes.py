@@ -527,3 +527,24 @@ def test_s2_not_now_is_the_offers_confirming_answer(qtbot, monkeypatch, tmp_path
         settings.set(KEY, True)
         settings.set("i1io_table_strip_offer_declined", False)
 
+
+# ---- S-3: a pop-up after whose answer the arm moves at once says how to stop it ----------------
+
+@BOTH
+def test_s3_every_page_that_moves_at_once_carries_the_switch_off_line(qtbot, monkeypatch,
+                                                                      tmp_path, settings,
+                                                                      asking):
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
+                                                    asking=asking)
+    p.script.update({"end_of_session": "Save and stop"})
+    seen = set()
+    for _ in range(200):
+        page = p.page()
+        if page in W.MOVES_AT_ONCE_PAGES:
+            seen.add(page)
+            assert W.switch_off_line() in win._text.text(), page
+        if page == "done":
+            break
+        p.answer_page(page)
+    assert {"go", "sheet_laid", "check_mark"} <= seen
+
