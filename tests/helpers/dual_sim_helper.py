@@ -126,6 +126,13 @@ def main(argv: "list[str]") -> int:
                 emit(st["pending"])
                 st["pending"] = None
             emit(text)
+        # the real helper has ended: so does the simulation, with its code
+        code = child.wait()
+        try:
+            sys.stdout.buffer.flush()
+        except OSError:
+            pass
+        os._exit(code)
 
     reader = threading.Thread(target=pump_child, daemon=True)
     reader.start()
