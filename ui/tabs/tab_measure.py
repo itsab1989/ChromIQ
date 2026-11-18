@@ -7379,6 +7379,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         from core import i1pro2_lights_marker as _lights
         if self._blocked_by_i1pro2_lights_left_on(family=_lights.CHART_FAMILY):
             return True
+        # THE X-Rite i1Pro 2 DUAL SCAN ON THE TABLE (Preferences > Beta, 2026-11-18, a first
+        # try): the hand dual scan's own plan (the filter row's choice, never mixed), refused
+        # with its own words before anything is opened or written. None: the table as always.
+        table_dual = self._table_dual_setup()
+        if table_dual is False:
+            return True
         # EVERY RUN TYPE (round A, the owner: "it just has to save the
         # measurement in the correct folder for every runtype with the correct
         # name"): the place the job saves into is the run type's own, through
@@ -7430,6 +7436,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             run = run.run.verification_chart(
                 _vid, getattr(self, "_staged_from", None) if _staged is not None else None)
         args = self._manager._build_args(params)
+        if table_dual is not None:
+            # the dual scan records the filter row's choice instead of sending -F (as by hand)
+            args = self._args_without_filter(args)
         _beside = Path(run.measurement_ti3)
         self._ti3_mtime_before = (_beside.stat().st_mtime if _beside.exists()
                                   else None)
@@ -7463,7 +7472,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                                  only_locs=only_locs,
                                  mode=self._current_mode(), replace_agreed=at_risk,
                                  archive=self._archive_measurement_before_replacing,
-                                 presentation=presentation)
+                                 presentation=presentation, dual=table_dual)
         win.saved.connect(self._on_table_measurement_saved)
         win.finished_with.connect(self._on_table_window_finished)
         win.progress.connect(self._on_table_progress)
@@ -7777,6 +7786,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 from workflow import measurement_messages as M
                 self._log.appendPlainText(
                     M.M_I1IO_DRIVE_STRIP_TOO_LONG.render(row=ev.get("row", "?"))[1])
+            elif kind == "strip_fallback" and ev.get("why") == "dual_row_patches_too_short":
+                # the dual scan on the table: patches too short for a dual row
+                from workflow import measurement_messages as M
+                self._log.appendPlainText(
+                    M.M_I1IO_DRIVE_DUAL_PATCHES_TOO_SHORT.render(row=ev.get("row", "?"))[1])
             elif kind == "row_start":
                 # round B: a strip session may read a row patch by patch (too long for one
                 # strip move, or chosen after a failed strip): ring its patches then
@@ -12322,6 +12336,76 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._dual_status_sheet = sheet
         lbl.setStyleSheet(sheet)
         self._dual_status_styled = True
+
+    def _table_dual_setup(self):
+        """The i1Pro 2 dual scan on the i1iO 2 table (2026-11-18, a first try): what START
+        does about it, by the hand dual scan's own rules (``workflow.dual_scan.session``).
+        ``None``: the table measures as always (the Beta off, or this helper cannot do it on
+        the table, which the log says); ``False``: refused, and said, before anything is
+        opened; else the ``dual_rows.DualSetup`` the table job reads with. The table always
+        reads with ChromIQ's own helper and an i1Pro 2, so neither the engine choice nor the
+        model question applies here."""
+        from workflow.dual_scan import session as D
+        try:
+            if not D.switched_on(self._settings):
+                return None
+            caps = self._dual_caps()
+            if not D.helper_can(caps):
+                return None
+            try:
+                main = self._measurement_to_continue()
+            except Exception:      # noqa: BLE001
+                main = None
+            plan = D.plan_for(self._settings, caps, "i1Pro 2", self._measure_filter_code(),
+                              main)
+            if plan.refusal:
+                self._show_dual_refusal(plan.refusal)
+                return False
+            if not plan.dual or plan.choice is None:
+                return None
+            # the table package is imported only by the table window's module (lazily)
+            from ui.i1io_table_window import table_dual_setup
+            setup = table_dual_setup(plan, caps)
+            if setup is None:
+                log.info("dual scan: this helper cannot do it on the table")
+                self._log.appendPlainText(tr(
+                    "The dual scan on the table needs a newer ChromIQ reading program than "
+                    "this one, so this measurement keeps M0 only."))
+            return setup
+        except Exception:      # noqa: BLE001 - never block a read on this
+            log.debug("dual scan: no table plan", exc_info=True)
+            return None
+
+    @staticmethod
+    def _args_without_filter(args) -> list:
+        """chartread's arguments (a list) without -F and its value."""
+        out, skip = [], False
+        for a in list(args or []):
+            if skip:
+                skip = False
+                continue
+            if a == "-F":
+                skip = True
+                continue
+            if isinstance(a, str) and a.startswith("-F") and len(a) > 2:
+                continue
+            out.append(a)
+        return out
+
+    def _show_dual_refusal(self, refusal: str) -> None:
+        """M-DUAL-FILTER-NOT-DUAL or M-DUAL-START-REFUSED, as the hand path says them."""
+        from workflow import measurement_messages as M
+        from workflow.dual_scan import session as D
+        if refusal == "filter_not_dual":
+            title, body = M.M_DUAL_FILTER_NOT_DUAL.render(
+                setting=self._filter_label(self._measure_filter_code()),
+                start=self._start_button_name())
+        else:
+            title, body = M.M_DUAL_START_REFUSED.render(reason=D.reason_sentence(refusal))
+        log.warning("dual scan: START refused on the table (%s)", refusal)
+        self._log.appendPlainText(f"[{title}]\n{body}")
+        self._log.ensureCursorVisible()
+        self._say_on_screen(title, body)
 
     def _dual_caps(self) -> frozenset:
         try:

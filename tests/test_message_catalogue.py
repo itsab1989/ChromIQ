@@ -188,6 +188,10 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-I1IO-DRIVE-REFINE-DONE-NEXT",
     # 2026-11-17, round B of the i1iO table drive: the instrument's button as Aimed
     "M-I1IO-DRIVE-AIM-BUTTON",
+    # 2026-11-18, the i1Pro 2 dual scan on the i1iO 2 table, a first try (the owner's ruling)
+    "M-I1IO-DRIVE-DUAL-ROWS",
+    "M-I1IO-DRIVE-DUAL-SPOT",
+    "M-I1IO-DRIVE-DUAL-PATCHES-TOO-SHORT",
     # 2026-11-17, round B: strip rows, a first try
     "M-I1IO-DRIVE-STRIP-OPTION",
     "M-I1IO-DRIVE-STRIP-FIRST-TRY",

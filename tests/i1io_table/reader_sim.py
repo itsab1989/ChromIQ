@@ -450,8 +450,7 @@ class FakeHelperProc:
             ok = h.spot_dual_kept and not h.faults.get("dual_not_kept")
             self._emit({"event": "dual_calibration", "ok": ok,
                         "why": "" if ok else "no_dual_calibration", "mode": "spot",
-                        "lamp_clocks": 515, "uv_clocks": 515, "volts": [-1, -1], "driver": 0,
-                        "kept": True})
+                        "lamp_clocks": 515, "uv_clocks": 515, "volts": [-1, -1], "driver": 0})
         if not self.no_cal or not h.calibrated:
             self.state = "cal"
             self._emit({"event": "cal_required", "cond": "man_trans_white" if fault ==

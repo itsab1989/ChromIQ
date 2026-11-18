@@ -12374,6 +12374,46 @@ M_I1IO_DRIVE_STRIP_FIRST_TRY = _m(
     "START MEASUREMENT again.",
     approved=False)
 
+#: THE X-Rite i1Pro 2 DUAL SCAN ON THE i1iO 2 TABLE (2026-11-18, a first try; the owner: "you
+#: have the commands so you will do patch by patch and strip mode so it can be tried"): the
+#: table panel's first page with the dual scan on, rows (strip) or patch by patch. {chosen}
+#: the condition chosen in the filter row (M0, M1 or M2).
+M_I1IO_DRIVE_DUAL_ROWS = _m(
+    "M-I1IO-DRIVE-DUAL-ROWS",
+    "M1 and M2 by a dual scan (beta, a first try)",
+    "The dual scan is switched on (Preferences > Beta), so the table reads every row "
+    "twice, as i1Profiler does: first forward with the lamp, then straight back over the "
+    "same row with the UV light. ChromIQ works out M1 and M2 from the two passes and "
+    "keeps M0 as well. Build Profile starts at {chosen}, the condition chosen in the "
+    "filter row. The calibration also reads the white tile with the UV light, so keep the"
+    " white tile clean and uncovered.\n\nThis has not been tried on a real table yet. Every"
+    " command it sends to the table and to the i1Pro 2 was recorded from i1Profiler on a "
+    "volunteer's table, and ChromIQ keeps every reading of both passes in this "
+    "measurement's folder so that the first real runs can be checked. A row whose second "
+    "pass does not match its first is offered to you again, as a row or patch by patch.",
+    approved=False)
+
+M_I1IO_DRIVE_DUAL_SPOT = _m(
+    "M-I1IO-DRIVE-DUAL-SPOT",
+    "M1 and M2, patch by patch (beta, a first try)",
+    "The dual scan is switched on (Preferences > Beta), so the i1Pro 2 reads every patch "
+    "twice on the same spot, as i1Profiler does: once with its lamp and once with its UV "
+    "light. The table moves exactly as in any measurement patch by patch. ChromIQ works "
+    "out M1 and M2 and keeps M0 as well. Build Profile starts at {chosen}, the condition "
+    "chosen in the filter row. The calibration also reads the white tile with the UV "
+    "light.\n\nThis has not been tried on a real table yet. A patch whose reading with the "
+    "UV light does not succeed is read again, both readings together.",
+    approved=False)
+
+#: a row whose patches are too short for a dual row: read patch by patch with the dual scan
+M_I1IO_DRIVE_DUAL_PATCHES_TOO_SHORT = _m(
+    "M-I1IO-DRIVE-DUAL-PATCHES-TOO-SHORT",
+    "This row is read patch by patch",
+    "The patches of row {row} are too short to be read twice as a strip at the speed the "
+    "dual scan uses, so ChromIQ reads this row patch by patch, still with the dual scan. "
+    "Nothing else changes.",
+    approved=False)
+
 M_I1IO_DRIVE_STRIP_TOO_LONG = _m(
     "M-I1IO-DRIVE-STRIP-TOO-LONG",
     "This row is read patch by patch",
@@ -12960,6 +13000,7 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_AIM, M_I1IO_DRIVE_AIM_BUTTON, M_I1IO_DRIVE_AIM_PATCH,
     M_I1IO_DRIVE_AIM_BUTTON_PATCH, M_I1IO_DRIVE_CHECK_MARK_PATCH, M_I1IO_DRIVE_STRIP_OPTION,
     M_I1IO_DRIVE_STRIP_FIRST_TRY, M_I1IO_DRIVE_STRIP_TOO_LONG, M_I1IO_DRIVE_STRIP_DEFAULT_OFFER,
+    M_I1IO_DRIVE_DUAL_ROWS, M_I1IO_DRIVE_DUAL_SPOT, M_I1IO_DRIVE_DUAL_PATCHES_TOO_SHORT,
     M_I1IO_DRIVE_ROW_FAILED_STRIP, M_I1IO_DRIVE_FRONT,
     M_I1IO_DRIVE_FRONT_YES,
     M_I1IO_DRIVE_FIRST_VISIT, M_I1IO_DRIVE_READER_CONSENT,

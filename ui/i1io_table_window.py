@@ -312,6 +312,17 @@ def default_job_factory(sheet: dict, page: int, run, stamp: str, ask: bool):
 JOB_FACTORY = default_job_factory
 
 
+def table_dual_setup(plan, caps):
+    """The i1Pro 2 dual scan on the table (2026-11-18, a first try): START's plan
+    (``workflow.dual_scan.session.Plan``, dual) as the job's ``dual_rows.DualSetup``; None when
+    this helper cannot do the dual scan on the table (no ``i1io_table_dual`` word)."""
+    from workflow.i1io.table import dual_rows as dl
+    if dl.CAPABILITY not in set(caps or ()):
+        return None
+    return dl.DualSetup(tuple(plan.args()), float(plan.choice.value), plan.choice.source,
+                        plan.chosen, "table")
+
+
 def usb_status():
     """(ok, message id) of the USB library, read only (no device is touched)."""
     try:
@@ -804,6 +815,54 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
             "just made, so it does not use that white, and nothing has been read with it. "
             "Press Carry on to calibrate again."),
         "calibration_not_done": tr("The instrument has not been calibrated yet."),
+        # the X-Rite i1Pro 2 dual scan on the table (2026-11-18, a first try)
+        "uv_pass_failed_clean": tr(
+            "the second pass, with the UV light, could not be started, so the arm did not "
+            "drive back over the row. Nothing of the row is kept"),
+        "uv_pass_wrong_strip": tr(
+            "the second pass, with the UV light, does not match the first pass of this row, "
+            "so ChromIQ cannot be sure both passes read the same patches. Nothing of the row is "
+            "kept"),
+        "uv_spot_failed": tr(
+            "the reading with the UV light did not succeed on a patch, even when it was read "
+            "again"),
+        "dual_calibration_not_kept": tr(
+            "the reading program found no calibration with the UV light for the white the "
+            "i1Pro 2 has now, so nothing was moved. Please calibrate again, with the arm at "
+            "home"),
+        "dual_calibration_failed": tr(
+            "The calibration on the white tile worked, but its second part, the reading of the "
+            "tile with the UV light that M1 and M2 need, did not. Nothing has been read with "
+            "this calibration. Please calibrate again; if this happens again, switch the dual "
+            "scan off in Preferences > Beta to measure M0 only."),
+        "dual_not_available": tr(
+            "this i1Pro 2 cannot do the dual scan, so nothing was moved"),
+        "dual_no_uv_tables": tr(
+            "this i1Pro 2 has no UV light, or does not hold the factory values the dual scan "
+            "needs, so nothing was moved. To measure M0 with it, switch the dual scan off in "
+            "Preferences > Beta"),
+        "dual_high_resolution": tr(
+            "The dual scan reads in the standard resolution only. Please untick “High "
+            "resolution spectral mode (-H)” and start again."),
+        "dual_needs_a_calibration": tr(
+            "The dual scan needs a calibration at the start, which also reads the white tile "
+            "with the UV light. Please untick “Skip initial calibration (-N)” and start "
+            "again."),
+        "dual_conditions_missing": tr(
+            "the row was read, but the reading program did not write its M1 and M2 values, so "
+            "the row is offered to you again"),
+        "dual_row_patches_too_short": tr(
+            "the patches are too short to be read twice as a strip"),
+        "stopped_before_the_uv_pass": tr(
+            "You pressed Stop, so ChromIQ stopped after the first pass of the row, before the "
+            "pass with the UV light. Nothing of the row is kept."),
+        "mixed_scan_kind": tr(
+            "The readings this measurement would complete were made in another way (with or "
+            "without the dual scan), so they cannot go into one file. Please start a new "
+            "measurement, or switch the dual scan in Preferences > Beta as it was."),
+        "mixed_factor": tr(
+            "The readings this measurement would complete were made with another factor for "
+            "M1 and M2, so they cannot go into one file."),
     }
     if (rid.startswith("aims_") or rid in ("sheet_marks_on_one_line", "sheet_turned",
                                            "alignment_refused")) and d.get("aim_target") == "patch":
@@ -823,6 +882,13 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
         return tr("The measurement reached the number of commands ChromIQ allows for it.")
     if rid in texts:
         return texts[rid]
+    try:
+        # the dual scan's own reasons (the helper's words for a row's M1 / M2), as by hand
+        from workflow.dual_scan import session as _D
+        if _D.reason_id(rid):
+            return _D.reason_sentence(rid)
+    except Exception:      # noqa: BLE001
+        pass
     # never the id itself on screen (review 11, M-1): it is in the log and in the
     # measurement's diagnostics file
     log.info("i1iO table: a step ended with %r (no sentence of its own)", rid)
@@ -1020,10 +1086,14 @@ class TableMeasureWindow(QFrame):
 
     def __init__(self, parent, settings, sheet: dict, run, chart_args, *, only_locs=None,
                  mode: str = "manual", replace_agreed: bool = False, archive=None,
-                 stamp: "str | None" = None, presentation: "str | None" = None) -> None:
+                 stamp: "str | None" = None, presentation: "str | None" = None,
+                 dual=None) -> None:
         super().__init__(parent)
         self.setObjectName("i1io_table_window")
         self._settings = settings
+        #: the X-Rite i1Pro 2 dual scan on the table (Preferences > Beta, 2026-11-18, a first
+        #: try): workflow.i1io.table.dual_rows.DualSetup, or None (the table as always)
+        self._dual = dual
         #: "panel" (the first measurement, asking after each step) or "popups" (quiet mode),
         #: decided at START and kept for the whole session
         self.presentation = presentation or presentation_for(settings)
@@ -2168,10 +2238,22 @@ class TableMeasureWindow(QFrame):
                            tr("Now: aiming at mark {mark}.").format(mark=ev.get("mark", "?")))
         elif kind == "strip_fallback":
             from workflow import measurement_messages as M
+            why = ev.get("why")
             live["now"] = (M.M_I1IO_DRIVE_STRIP_TOO_LONG.render(row=ev.get("row", "?"))[1]
-                           if ev.get("why") == "strip_row_too_long" else
+                           if why == "strip_row_too_long" else
+                           M.M_I1IO_DRIVE_DUAL_PATCHES_TOO_SHORT.render(
+                               row=ev.get("row", "?"))[1]
+                           if why == "dual_row_patches_too_short" else
                            tr("Now: row {row} is read patch by patch, because only some of its "
                               "patches are to be read.").format(row=ev.get("row", "?")))
+        elif kind == "strip_move" and ev.get("dual_pass") == "lamp":
+            live["now"] = tr("Now: the arm drives along row {row} of page {page} while the "
+                             "instrument reads it with its lamp (the first of two passes).").format(
+                row=ev.get("row", "?"), page=ev.get("page", "?"))
+        elif kind == "strip_move" and ev.get("dual_pass") == "uv":
+            live["now"] = tr("Now: the arm drives straight back along row {row} of page {page} "
+                             "while the instrument reads it with its UV light (the second "
+                             "pass).").format(row=ev.get("row", "?"), page=ev.get("page", "?"))
         elif kind == "strip_move":
             live["now"] = tr("Now: the arm drives along row {row} of page {page} while the "
                              "instrument reads it as a strip.").format(
@@ -2350,6 +2432,8 @@ class TableMeasureWindow(QFrame):
                                ask_after_each_step(self._settings))
         # D-4b (Preferences > Beta, off by default): the table's stored white tile values
         self.job.stored_tile_white = stored_tile_white(self._settings)
+        # the i1Pro 2 dual scan (Preferences > Beta): decided at START, None = off
+        self.job.dual = self._dual
         # the preview follows the job (display only; emitted from the job's thread)
         self.job.on_progress = self._signals.progress.emit
         try:
@@ -2518,6 +2602,11 @@ class TableMeasureWindow(QFrame):
         if self.job.row_kind == "strip":
             # round B (proposed text): the rows are read as strips, a first try
             body += "\n\n" + M.M_I1IO_DRIVE_STRIP_FIRST_TRY.render()[1]
+        if self._dual is not None:
+            # the i1Pro 2 dual scan on the table (proposed text): a first try, both modes
+            body += "\n\n" + (M.M_I1IO_DRIVE_DUAL_ROWS if self.job.row_kind == "strip"
+                              else M.M_I1IO_DRIVE_DUAL_SPOT).render(
+                chosen=self._dual.chosen)[1]
         body += "\n\n" + (tr("The i1Pro 2 is calibrated on the table's white tile; it stays "
                               "in the arm.")
                            if calibration_place(self._settings) == "table tile" else

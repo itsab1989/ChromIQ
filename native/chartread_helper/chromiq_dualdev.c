@@ -91,9 +91,10 @@ static const char *cq_dd_start(inst *it) {
 			cq_dd.cal_ok = why == NULL;
 			cq_dd.cal_why = why != NULL ? why : "";
 		}
+		/* the same event as after a calibration (volts -1: nothing was read) */
 		cq_emit_raw("{\"event\":\"dual_calibration\",\"ok\":%s,\"why\":\"%s\",\"mode\":\"%s\","
-		            "\"lamp_clocks\":%d,\"uv_clocks\":%d,\"volts\":[-1,-1],\"driver\":0,"
-		            "\"kept\":true}", cq_dd.cal_ok ? "true" : "false",
+		            "\"lamp_clocks\":%d,\"uv_clocks\":%d,\"volts\":[-1,-1],\"driver\":0}",
+		            cq_dd.cal_ok ? "true" : "false",
 		            cq_dd.cal_ok ? "" : (cq_dd.cal.have_uv_tile ? cq_dd.cal_why : "no_dual_calibration"),
 		            cq_dd.cal_scan ? "scan" : "spot", cq_dd.cal.cal_lamp_clocks,
 		            cq_dd.cal.cal_uv_clocks);
