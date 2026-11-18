@@ -18,6 +18,11 @@ Three kinds, nothing else:
    (`Table.creep`) one m0 of at most 5 mm per axis, at most 5 mm beyond that Y (fix 2). They are
    built by i1io_geometry.m0_line / m2_line only.
 
+4. THE DUAL ROW (2026-11-18, the i1Pro 2 dual scan on the table): d1 210 (C_DUAL_FIXED) and the
+   scan move at 132 (geometry.DUAL_M2_SPEEDS), each recorded byte for byte in i1Profiler's dual
+   rows on the volunteer's table, and allowed ONLY while the job's dual row reads the pass they
+   belong to (``Table.dual_phase``); with no dual phase the list above is unchanged.
+
 Never: any memory or configuration write, i0, any other u8 than the two reads, any line form not
 seen in a recording, any other speed, any target outside the area.
 """
@@ -63,27 +68,60 @@ C_RECORDED_AT = {
 #: data characters in each done answer (recorded)
 C_DATA_LEN = {"aim": 8, "scan_c4": 2, "scan_d1": 4, "scan_a3": 20, "scan_c3": 0}
 
+#: THE DUAL ROW (the i1Pro 2 dual scan on the table, 2026-11-18): ONE further fixed line, recorded
+#: byte for byte only in i1Profiler's dual rows, and allowed ONLY while the job's dual row reads
+#: its second (UV) pass (``Table.dual_phase == "uv"``): never in any other place.
+C_DUAL_FIXED = {
+    "scan_d1_uv": _frame("d1", "00d2"),   # 210, before the UV pass straight back
+}
+C_DUAL_RECORDED_AT = {
+    "scan_d1_uv": "before the UV pass of all five accepted dual rows of the volunteer's recording "
+                  "of 18 Nov 2026 (B 50.112 `;d100d23a` -> `:$d1000D207`, 62.255, 74.350; A 231.5, "
+                  "243.7), after the zero-length m0 and c4, before p0 and the m2 straight back at "
+                  "132; answer the echo 00D2. The lamp pass before it keeps d1 016d (365)",
+}
+C_DUAL_DATA_LEN = {"scan_d1_uv": 4}
+#: the table's dual phase in which each line of the dual row may be sent
+DUAL_PHASES = ("lamp", "uv")
+
 _ALLOWED_WIRE = {tbl.WIRE[k]: k for k in PART_C_WIRE_KEYS}
 _FIXED = {v: k for k, v in C_FIXED.items()}
+_DUAL_FIXED = {v: k for k, v in C_DUAL_FIXED.items()}
 _COMPUTED_RE = re.compile(rb";(m[02])([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{2})\r")
 
 
-def classify(line: bytes) -> "tuple[str, bool, str]":
+def classify(line: bytes, dual_phase: "str | None" = None) -> "tuple[str, bool, str]":
     """(command id, is it a movement, label) for an allowed line; ForbiddenLine otherwise.
-    Computed lines are checked for form, checksum, recorded speed and the area."""
+    Computed lines are checked for form, checksum, recorded speed and the area.
+
+    *dual_phase* (the dual row, 2026-11-18; None everywhere else): "lamp" or "uv" while the
+    job's dual row reads that pass. Only then is a scan move at the dual row's recorded speed
+    (132) allowed, and then ONLY that speed; d1 210 only in the "uv" pass, and d1 365 never
+    there. With *dual_phase* None this is the released allow-list, unchanged."""
     line = bytes(line)
+    if dual_phase is not None and dual_phase not in DUAL_PHASES:
+        raise tbl.ForbiddenLine(f"an unknown dual phase {dual_phase!r}")
     if line in _ALLOWED_WIRE:
         key = _ALLOWED_WIRE[line]
         return line[1:3].decode("ascii"), line in tbl.MOTION_LINES, key
     if line in _FIXED:
+        if _FIXED[line] == "scan_d1" and dual_phase == "uv":
+            raise tbl.ForbiddenLine("d1 365 before a dual row's UV pass (recorded: d1 210)")
         return line[1:3].decode("ascii"), False, _FIXED[line]
+    if line in _DUAL_FIXED:
+        if dual_phase != "uv":
+            raise tbl.ForbiddenLine(f"{line!r} outside a dual row's UV pass")
+        return line[1:3].decode("ascii"), False, _DUAL_FIXED[line]
     m = _COMPUTED_RE.fullmatch(line)
     if not m or not tbl.checksum_ok(line.decode("ascii").rstrip("\r")):
         raise tbl.ForbiddenLine(f"not one of part C's lines: {line!r}")
     cid, x, y, v = geo.decode_xyv(line)
     if cid == "m0" and v not in geo.RECORDED_M0_SPEEDS:
         raise tbl.ForbiddenLine(f"m0 at speed {v}: not recorded on a chart")
-    if cid == "m2" and v not in geo.RECORDED_M2_SPEEDS:
+    if cid == "m2" and dual_phase is not None and v not in geo.DUAL_M2_SPEEDS:
+        raise tbl.ForbiddenLine(f"m2 at speed {v} in a dual row (recorded: "
+                                f"{geo.DUAL_M2_SPEEDS[0]} only)")
+    if cid == "m2" and dual_phase is None and v not in geo.RECORDED_M2_SPEEDS:
         raise tbl.ForbiddenLine(f"m2 at speed {v}: not a recorded scan speed")
     if not geo.CAP_AREA.contains((x, y)):
         raise tbl.ForbiddenLine(f"{cid} to ({x}, {y}): outside the measuring area (beyond the "
@@ -95,7 +133,8 @@ def make_gate(table):
     """The gate Table._write calls in part C: classify, and for a computed move also the whole
     swept rectangle from the position read right before it (no fresh reading: refused)."""
     def gate(line: bytes):
-        cid, motion, label = classify(line)
+        phase = getattr(table, "dual_phase", None)
+        cid, motion, label = classify(line) if phase is None else classify(line, phase)
         if label in ("computed m0", "scan move"):
             start = table.position_now
             if start is None:
@@ -124,3 +163,13 @@ def make_gate(table):
 def wire_gate(line: bytes) -> str:
     """The second check at the USB write itself (FtdiUsb.gate in part C)."""
     return classify(line)[0]
+
+
+def make_wire_gate(table):
+    """The second check at the USB write for a session that may read DUAL rows: the same
+    classify, with the table's dual phase at the moment of the write. A session without the
+    dual scan uses :func:`wire_gate` itself (the job sets exactly that object)."""
+    def gate(line: bytes) -> str:
+        phase = getattr(table, "dual_phase", None)
+        return (classify(line) if phase is None else classify(line, phase))[0]
+    return gate

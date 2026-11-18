@@ -179,9 +179,16 @@ def row_records(session_dirs) -> "list[tuple[Path, dict]]":
     return out
 
 
-def assemble(session_dirs, chart_ti2, out_ti3, base_ti3=None) -> Assembly:
+def assemble(session_dirs, chart_ti2, out_ti3, base_ti3=None, cond: "str | None" = None
+             ) -> Assembly:
     """The measurement of these sessions (and the run's earlier partial *base_ti3*), written to
-    *out_ti3*. Never raises for a refusal: the result says it, and nothing is written then."""
+    *out_ti3*. Never raises for a refusal: the result says it, and nothing is written then.
+
+    *cond* ("M1" / "M2", the i1Pro 2 dual scan on the table, 2026-11-18): the same assembly of
+    the same row records, each patch taken from the SAME row as its M0 reading, from that row's
+    file of this condition (``rec["conditions"]``), and the base's condition file. A patch whose
+    row has no such file refuses the whole condition (``dual_rows_without_m1_m2``): M1 and M2
+    are never pieced together from other readings than the main file's."""
     from workflow.measurement_pairing import attach_device_values_from_chart, match_by_name
     from workflow.measurement_state import Ti3State, classify, unread_locations
     out_ti3 = Path(out_ti3)
@@ -191,7 +198,14 @@ def assemble(session_dirs, chart_ti2, out_ti3, base_ti3=None) -> Assembly:
     rows: "dict[str, list[str]]" = {}
     rejected = []
     white = None                     # "own" / "stored": every row of a measurement alike
+    missing_cond = []
     try:
+        if cond is not None and base_ti3 is not None and Path(base_ti3).is_file():
+            import workflow.i1pro3_conditions as ic
+            bc = ic.condition_file(base_ti3, cond)
+            if bc is None or Path(bc) == Path(base_ti3):
+                raise Refused("dual_base_without_conditions", condition=cond)
+            base_ti3 = bc
         if base_ti3 is not None and Path(base_ti3).is_file():
             bf, brows, btext = _rows_by_loc(Path(base_ti3))
             white = "stored" if re.search(r'^' + WHITE_KEYWORD + r'\s', btext, re.M) else "own"
@@ -203,6 +217,13 @@ def assemble(session_dirs, chart_ti2, out_ti3, base_ti3=None) -> Assembly:
         for f, rec in row_records(session_dirs):
             name = rec.get("reader_ti3")
             accepted = rec.get("accepted") or []
+            if cond is not None and accepted:
+                name = (rec.get("conditions") or {}).get(cond)
+                if not name:
+                    for a in accepted:
+                        rows.pop(a.get("loc", ""), None)
+                        missing_cond.append(a.get("loc", ""))
+                    continue
             if not name or not accepted:
                 for a in accepted:
                     rejected.append((a.get("loc", ""), "reader_saved_nothing"))
@@ -231,13 +252,18 @@ def assemble(session_dirs, chart_ti2, out_ti3, base_ti3=None) -> Assembly:
                 if parts is None:
                     rejected.append((loc, "reader_saved_nothing"))
                     continue
-                if not _xyz_agrees(rf, parts, a.get("xyz")):
+                if cond is None and not _xyz_agrees(rf, parts, a.get("xyz")):
                     rejected.append((loc, "saved_value_differs_from_the_reading"))
                     continue
+                if loc in missing_cond:
+                    missing_cond.remove(loc)
                 row = [parts[i] for i in keep]
                 rows[loc] = _scaled(fields, row, scale) if scale else row
     except Refused as exc:
         return Assembly("refused", exc.reason, detail=exc.detail)
+    if missing_cond:
+        return Assembly("refused", "dual_rows_without_m1_m2",
+                        detail={"condition": cond, "patches": sorted(set(missing_cond))[:20]})
     if not rows:
         return Assembly("empty", "nothing_read", rejected=tuple(rejected))
     text = _write_device_free(head, fields, rows, white == "stored")

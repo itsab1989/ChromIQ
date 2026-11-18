@@ -424,9 +424,15 @@ def test_geometry_first_visit_matches_the_driven_boxes():
 
 
 def test_the_scan_path_sets_defer_stop_only_inside_its_try_after_busy():
-    """Review (2)(b): a Ctrl-C between the two lines can no longer leave defer_stop set."""
+    """Review (2)(b): a Ctrl-C between the two lines can no longer leave defer_stop set. Since
+    the dual row (2026-11-18) the one path to the fire is one function every pass goes through
+    (the single row, the dual row's lamp pass and its UV pass), and run_row reaches it only."""
     import inspect
-    src = inspect.getsource(sc.run_row)
+    assert "return _one_path_to_the_fire(table, inst, plan, outdir, res)" in inspect.getsource(
+        sc.run_row)
+    assert "return _one_path_to_the_fire(table, inst, plan, outdir, res)" in inspect.getsource(
+        sc._run_uv_pass)
+    src = inspect.getsource(sc._one_path_to_the_fire)
     i_busy = src.index("table.busy += 1")
     i_try = src.index("try:", i_busy)
     i_defer = src.index("table.defer_stop = True")

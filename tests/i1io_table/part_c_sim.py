@@ -30,10 +30,22 @@ from workflow.i1io.table.session_table import checksum, checksum_ok
 #: stage, so a wrong constant could never show in a test. Measured on the recordings (value
 #: replay, 20 passes; study/i1io-scan 9f01e8acd): lamp + 0.3718 s, sd 0.0027 s.
 TABLE_MOTION_START_AFTER_LAMP_S = 0.372
+#: THE DUAL ROW (the volunteer's recordings of 18 Nov 2026, the simulator's own copies): the UV
+#: pass's move starts 0.233-0.240 s after its trigger, its first reading comes at +0.231 s; the
+#: done answers came at lamp trigger + T + A + 0.653 s and UV trigger + T + A + 0.345 s (B 48.097,
+#: 53.265), the lamp pass's data 3.12 s and the UV pass's 2.98 s after their triggers (N 550)
+TABLE_MOTION_START_AFTER_UV_S = 0.236
+UV_FIRST_READING_S = 0.231
+DUAL_DONE_EXTRA = {"lamp": (0.62, 0.68), "uv": (0.33, 0.36)}
 
 # ---- the simulator's own copy of part C's rules ---------------------------------------------
 C_P1, C_C4, C_D1, C_A3, C_C3 = ";p124", ";c42e", ";d1016d35", ";a331", ";c32f"
 C_SPEEDS_M2 = (40, 53, 54, 61, 87, 88, 110, 118, 137, 138, 168)
+#: the dual row's two recorded forms (the simulator's own copy): d1 210 and m2 at 132; d1 210 only
+#: right after c4 that came right after a zero-length m0 from where a scan move ended; 132 only
+#: in a sitting the simulator was told reads dual rows (``CSimTable.dual``)
+C_D1_UV = ";d100d23a"
+C_SPEEDS_DUAL = (132,)
 C_TARGET_BOX = (-1384, 1716, 523, 3109)        # targets: never beyond the front zone's cap
 C_SWEEP_BOX = (-1434, 1766, 473, 3114)         # the swept rectangle from where the arm is
 #                                                (the cap plus the 5-unit arrival tolerance)
@@ -76,6 +88,10 @@ class CSimTable(SimTable):
         self.scan_moves = []
         #: the frontmost Y the motors have brought the arm to in this simulated sitting
         self.front_seen = float(C_PROVEN_Y[0])
+        #: the dual row: this sitting may read dual rows (m2 at 132, d1 210 in its place)
+        self.dual = False
+        self.last_scan_end = None          # where the last scan move ended (the UV pass's start)
+        self.zero_m0_at = None             # the received index of the last zero-length m0
 
     # -- the person's hand at an aim
     def aim(self, n: int) -> None:
@@ -104,12 +120,24 @@ class CSimTable(SimTable):
             raise SimViolation("c3 not right after a3")
         if cid in ("a3", "c3") and self.m2_pending is not None and self.m2_pending.get("lamp"):
             raise SimViolation(f"{cid} after the scan move had started")
+        if line == C_D1_UV:
+            n = len(self.received)
+            if not self.dual or self.zero_m0_at is None or self.zero_m0_at != n - 3 \
+                    or self.received[-2] != C_C4:
+                raise SimViolation("d1 210 not right after c4 after the zero-length m0 at the "
+                                   "end of a scan move")
         if cid in ("m0", "m2") and line not in SPOT_XY and line not in (M1498, M2507):
             x, y, v = _s16(args[0:4]), _s16(args[4:8]), int(args[8:12], 16)
             if cid == "m0" and v != 300:
                 raise SimViolation(f"m0 at {v}")
-            if cid == "m2" and v not in C_SPEEDS_M2:
+            if cid == "m2" and v not in C_SPEEDS_M2 and not (self.dual and v in C_SPEEDS_DUAL):
                 raise SimViolation(f"m2 at {v}")
+            if cid == "m2" and v in C_SPEEDS_DUAL and self.received[-3:-1] and \
+                    self.received[-3] not in (C_D1, C_D1_UV):
+                raise SimViolation("a scan move at 132 not after d1 and p0")
+            if cid == "m0" and self.last_scan_end is not None and \
+                    _near(here, self.last_scan_end) and (x, y) == (round(here[0]), round(here[1])):
+                self.zero_m0_at = len(self.received) - 1
             if not _inside(C_TARGET_BOX, (x, y)):
                 raise SimViolation(f"{cid} to ({x}, {y}) outside the area")
             lo = (min(here[0], x), min(here[1], y))
@@ -241,6 +269,8 @@ class CSimTable(SimTable):
         if cid == "c4":
             return 0, f"{int(self.c_faults.get('c4_byte', 0xBA)):02X}", 0.20
         if cid == "d1":
+            if line == C_D1_UV:
+                return 0, self.c_faults.get("d1_uv_echo", "00D2"), 0.016
             return 0, self.c_faults.get("d1_echo", "016D"), 0.016
         if cid in ("a3", "c3") and self.m2_pending is None:
             return 3, "", 0.016             # INVENTED: no scan move waiting (it was lost)
@@ -278,18 +308,27 @@ class CSimTable(SimTable):
         return self._execute(line, cid, a, fault)
 
     # -- the instrument's lamp starts a waiting scan move
-    def lamp(self, t_lamp: float) -> None:
+    def lamp(self, t_lamp: float, dual_pass: "str | None" = None) -> None:
+        """*dual_pass* ("lamp" / "uv"): the trigger of a dual row's pass (the UV LED starts the
+        move too, sooner after its trigger: the recordings' own timings)."""
         p = self.m2_pending
         if p is None or not p["c3"] or p["lamp"] or p.get("ignore") \
                 or self.c_faults.get("lamp_ignored"):
             return
         p["lamp"] = True
-        extra = 0.42 + 0.08 * self.lamp_rng.random()
-        p["motion_start"] = t_lamp + TABLE_MOTION_START_AFTER_LAMP_S
+        if dual_pass is None:
+            extra = 0.42 + 0.08 * self.lamp_rng.random()
+            p["motion_start"] = t_lamp + TABLE_MOTION_START_AFTER_LAMP_S
+        else:
+            lo, hi = DUAL_DONE_EXTRA[dual_pass]
+            extra = lo + (hi - lo) * self.lamp_rng.random()
+            p["motion_start"] = t_lamp + (TABLE_MOTION_START_AFTER_UV_S if dual_pass == "uv"
+                                          else TABLE_MOTION_START_AFTER_LAMP_S)
         done_at = t_lamp + (p["T"] + p["A"]) / 1000.0 + extra
         self._busy_until = done_at
         self.scan_moves.append((tuple(self.pos), p["to"], p["v"]))
         self.pos = [float(p["to"][0]), float(p["to"][1])]
+        self.last_scan_end = (float(p["to"][0]), float(p["to"][1]))
         self._reply(done_at, ":$m20")
 
     def pending(self, until: float) -> bytes:
@@ -400,9 +439,18 @@ class FakeScanReader:
     """Answers like the helper in its table-scan mode, on the simulator's clock; the lamp
     starts the simulator's waiting scan move."""
 
-    def __init__(self, sim: CSimTable, outdir, log, faults=None, chart=None):
+    def __init__(self, sim: CSimTable, outdir, log, faults=None, chart=None, dual=False):
         self.sim, self.outdir, self.log = sim, str(outdir), log
         self.faults = dict(faults or {})
+        #: the dual row (--i1io-table-dual): the pass armed, the last lamp pass delivered,
+        #: a dual tile kept (faults["dual_kept"]: a strip white with its dual tile was made)
+        self.dual = bool(dual)
+        self.armed_pass = None
+        self.lamp_done = False
+        self.dual_calibration = None
+        self.dual_kept = bool(self.faults.get("dual_kept"))
+        if self.dual:
+            sim.dual = True
         os.makedirs(self.outdir, exist_ok=True)
         self.last_lamp_off = sim.clock - 10.0
         self.lights_at = None
@@ -427,12 +475,33 @@ class FakeScanReader:
         if self.faults.get("cal_fails"):
             raise ReaderFailed("the strip calibration failed")
         self.calibrated = True
+        if self.dual:
+            # the recorded dual calibration: 10 dark + 5 UV-LED readings of the tile, the volts
+            self.sim.clock += 0.33
+            ok = not self.faults.get("dual_cal_fails")
+            self.dual_calibration = {"event": "tdual_calibration", "ok": ok,
+                                     "why": "" if ok else "uv_tile_dark", "mode": "scan",
+                                     "lamp_clocks": 139, "uv_clocks": 139,
+                                     "volts": [660, 655], "kept": ok}
+            self.dual_kept = ok
+
+    def dual_state(self, timeout=5.0):
+        if not self.dual:
+            return {"event": "timeout"}
+        if self.faults.get("no_uv_led"):
+            return {"event": "tdual_state", "on": False, "tile": "none",
+                    "why": "dual_no_uv_tables"}
+        return {"event": "tdual_state", "on": True,
+                "tile": "kept" if self.dual_kept else "none", "why": ""}
 
     def alive(self):
         return not self.faults.get("dead")
 
     def ready_now(self) -> bool:
         t = self.sim.clock
+        if self.armed_pass == "uv":
+            return (self.armed_n is not None and self.lamp_done
+                    and t >= self.last_lamp_off + 1.07)
         return (self.armed_n is not None and self.lights_at is not None
                 and t >= self.last_lamp_off + 1.07 and t >= self.lights_at + 0.68)
 
@@ -440,9 +509,28 @@ class FakeScanReader:
         self.lights_at = self.sim.clock
         return {"event": "tscan_lights_off", "err": 1 if self.faults.get("lights_err") else 0}
 
-    def arm(self, n, wait_ms=3000):
+    def arm(self, n, wait_ms=3000, pass_=None):
+        self.armed_pass = None
+        if self.dual and pass_ not in ("lamp", "uv"):
+            return {"event": "tscan_armed", "ready": False, "why": "no such pass"}
+        if not self.dual and pass_ is not None:
+            raise SimViolation("a pass armed without --i1io-table-dual")
         if self.faults.get("not_ready") or not (self.calibrated or self.faults.get("restored")):
             return {"event": "tscan_armed", "ready": False, "why": "not calibrated"}
+        if self.dual and not self.dual_kept:
+            return {"event": "tscan_armed", "ready": False, "why": "no dual calibration"}
+        if self.dual and n > 1150:
+            return {"event": "tscan_armed", "ready": False, "why": "reading count out of range"}
+        if pass_ == "uv":
+            if not self.lamp_done or self.faults.get("uv_not_ready"):
+                return {"event": "tscan_armed", "ready": False,
+                        "why": "the lamp pass of this row did not deliver"}
+            need = self.last_lamp_off + 1.07
+            t = self.sim.clock
+            if need > t:
+                self.sim.clock = need
+            self.armed_n, self.armed_pass = n, "uv"
+            return {"event": "tscan_armed", "ready": True, "waited_ms": int(max(0, need - t) * 1000)}
         if self.lights_at is None:
             return {"event": "tscan_armed", "ready": False, "why": "no lights-off"}
         need = max(self.last_lamp_off + 1.07, self.lights_at + 0.68)
@@ -452,10 +540,13 @@ class FakeScanReader:
                 return {"event": "tscan_armed", "ready": False, "why": "timing"}
             self.sim.clock = need
         self.armed_n = n
+        self.armed_pass = pass_
         return {"event": "tscan_armed", "ready": True, "waited_ms": int(max(0, need - t) * 1000)}
 
     def fire(self, n, patches, name):
         """True when the trigger reached the reader (the real ScanReader's contract)."""
+        if self.dual:
+            return self._fire_dual(n, patches, name)
         self.fires += 1
         self.armed_n = None
         self.lights_at = None
@@ -484,7 +575,78 @@ class FakeScanReader:
         self.fired_due = t_end + 0.006
         return True
 
-    def _stream(self, name, n, p):
+    def _fire_dual(self, n, patches, name):
+        """The dual row's armed pass (the helper fires exactly that): the lit trigger first
+        (lamp, or the UV LED), its data, then the 5 dark readings (and the volts after UV)."""
+        which = self.armed_pass
+        self.fires += 1
+        self.armed_n = None
+        self.armed_pass = None
+        self.lights_at = None
+        t = self.sim.clock
+        if which not in ("lamp", "uv"):
+            self.fired_event = {"event": "tscan_fired", "name": name, "ok": False, "rc": -1,
+                                "refused": "no pass was armed", "lit_sent": 0}
+            self.fired_due = t
+            return True
+        if which == "uv":
+            self.lamp_done = False
+        if self.faults.get("fire_unsent"):
+            self.faults["dead"] = True
+            return False
+        t_trig = t + 0.006
+        lit = not (self.faults.get("no_lamp") or (which == "uv" and self.faults.get("no_uv")))
+        p = self.sim.m2_pending
+        if lit:
+            self.sim.lamp(t_trig, dual_pass=which)
+        first = UV_FIRST_READING_S if which == "uv" else 0.370
+        t_end = t_trig + first + n * READING_S
+        if which == "lamp":
+            self.last_lamp_off = t_end
+        files = []
+        if lit and p is not None and p.get("lamp"):
+            files = self._stream(name, n, p, which)
+        ok = lit and not self.faults.get("dark_fail")
+        if which == "lamp" and ok:
+            self.lamp_done = True
+        self.fired_event = {"event": "tscan_fired", "name": name, "ok": ok, "n": n,
+                            "got": n if lit else 0, "lit_sent": 1 if lit else 0,
+                            "dark_sent": 1, "ms_lit_trig": 6, "ms_dark_trig": int(
+                                (t_end - t) * 1000) + 5, "files": files, "pass": which,
+                            "volts": [661, 657] if which == "uv" else [-1, -1]}
+        self.fired_due = t_end + 0.045
+        return True
+
+    def dual_compute(self, name, scale, timeout=10.0):
+        """The helper's M1 / M2 of a cut row (the simulator's own invented glow: a brightened
+        paper glows at 420-500 nm). Faults: uv_wrong_strip (the pairing check refuses)."""
+        path = os.path.join(self.outdir, name + ".dual_in.txt")
+        try:
+            with open(path, encoding="ascii") as fh:
+                rows = fh.read().split("\n")
+            n = int(rows[0])
+            vals = [[float(x) for x in r.split()] for r in rows[1:1 + n]]
+        except (OSError, ValueError, IndexError):
+            return {"event": "tscan_dual_computed", "ok": False, "why": "record", "n": 0}
+        if self.faults.get("uv_wrong_strip"):
+            return {"event": "tscan_dual_computed", "ok": False, "why": "uv_pass_wrong_strip",
+                    "n": n, "pairing": ""}
+        out = []
+        for v in vals:
+            L = v[:36]
+            g = [0.02 * math.exp(-((380 + 10 * w - 450) / 30.0) ** 2) * float(scale) for w in
+                 range(36)]
+            m1 = [a + 0.6 * b for a, b in zip(L, g)]
+            m2 = [a - b for a, b in zip(L, g)]
+            out.append(" ".join(f"{x:.8f}" for x in m1 + m2))
+        with open(os.path.join(self.outdir, name + ".dual_out.txt"), "w",
+                  encoding="ascii") as fh:
+            fh.write("\n".join(out) + "\n")
+        self.sim.clock += 0.02
+        return {"event": "tscan_dual_computed", "ok": True, "why": "", "n": n,
+                "pairing": "checked", "usable": n}
+
+    def _stream(self, name, n, p, which=None):
         """The reading stream of the simulated sheet along the move (aperture 4.5 mm)."""
         a, b = p["from"], p["to"]
         L = math.hypot(b[0] - a[0], b[1] - a[1]) / 10.0
@@ -505,12 +667,22 @@ class FakeScanReader:
                 return d_acc + V * (t - ta)
             return L - 0.5 * acc * max(0.0, tt - t) ** 2
         rows = []
+        first, start = ((UV_FIRST_READING_S, TABLE_MOTION_START_AFTER_UV_S) if which == "uv"
+                        else (0.370, TABLE_MOTION_START_AFTER_LAMP_S))
         for i in range(n):
-            t = 0.370 + (i + 0.5) * READING_S - TABLE_MOTION_START_AFTER_LAMP_S
+            t = first + (i + 0.5) * READING_S - start
             s = s_at(t)
             f = s / L if L else 0
             x, y = a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1])
             spec = _spectrum_at(x, y)
+            if which == "uv":
+                # the UV pass in lamp-white units: the LED light the patch reflects (strong at
+                # 380-400 nm, none beyond 450) and a little glow; small numbers, as recorded
+                spec = [v * max(0.0, 1.6 - 0.04 * w) * (0.25 if w < 7 else 0.02) +
+                        0.004 * math.exp(-((380 + 10 * w - 450) / 30.0) ** 2)
+                        for w, v in enumerate(spec)]
+                rows.append([v + self.rng.gauss(0, 0.0002) for v in spec])
+                continue
             rows.append([v + self.rng.gauss(0, 0.001) for v in spec])
         path = os.path.join(self.outdir, name + ".spec.csv")
         with open(path, "w", encoding="utf-8") as fh:
@@ -572,17 +744,21 @@ class FakeReaders:
         r.open = open_
         return r
 
-    def scan(self, folder):
+    def scan(self, folder, extra_args=()):
         self.started.append(("scan", str(folder)))
         faults = dict(self.scan_faults)
         if self.strip_calibrated:
             faults["restored"] = True
-        r = FakeScanReader(self.sim, str(folder), self.log, faults)
+        dual = "--i1io-table-dual" in tuple(extra_args)
+        if getattr(self, "strip_dual_kept", False):
+            faults["dual_kept"] = True
+        r = FakeScanReader(self.sim, str(folder), self.log, faults, dual=dual)
         owner = self
         real_cal = r.calibrate
 
         def calibrate(place, timeout=120.0):
             real_cal(place, timeout)
             owner.strip_calibrated = True
+            owner.strip_dual_kept = bool(r.dual_kept) and dual
         r.calibrate = calibrate
         return r

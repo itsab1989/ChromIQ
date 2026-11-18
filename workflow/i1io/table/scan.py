@@ -69,6 +69,27 @@ PENDING_EXTRA_S = 10.0
 HELPER_NMAX = 2000
 PENDING_MARKER = "SCAN_MOVE_MAY_BE_PENDING.txt"
 
+# ---- THE DUAL ROW (the i1Pro 2 dual scan on the table, 2026-11-18; A FIRST TRY) ---------------
+#: What i1Profiler 3.8.6 did on every accepted dual row of the volunteer's recordings of 18 Nov
+#: 2026 (private analysis, section 2): the lamp pass as above at 132, then straight back over
+#: the same row with the UV LED, also at 132: p0, a ZERO-LENGTH m0 to the position just read, c4,
+#: d1 210 (echo 00D2), p0, m2 back to the row start, a3, c3, the UV trigger starts the move.
+DUAL_SPEED = 132
+D1_UV_ECHO = "00D2"
+#: the UV pass's first reading and motion start after its trigger (recorded: the position log's
+#: first sample with the first reading at +0.231 s; ChromIQ's own cut by position fits the UV
+#: motion start at +0.233 to +0.240 s, all giving M2 0.012-0.022 dE00 with a 1.5 mm clean edge)
+UV_FIRST_READING_AFTER_TRIGGER_S = 0.231
+UV_MOTION_START_AFTER_TRIGGER_S = 0.236
+#: the clean edge the dual row's cut leaves on each side of a patch's window (at 132 mm/s the
+#: lamp pass's motion start is known to +-6 ms = 0.8 mm; 0.5 mm gave p95 1.04 dE00, 1.5 mm 0.22)
+DUAL_EDGE_MM = 1.5
+#: readings each patch must get in EACH pass (the hand dual scan's own minimum, CQ_DUAL_MIN_UV)
+DUAL_MIN_READINGS = 3
+#: the longest UV-LED on time ever recorded: 1150 readings (a slow hand pass, 6.0 s; the
+#: helper's CQ_TDUAL_NMAX refuses more)
+DUAL_N_MAX = 1150
+
 
 @dataclass
 class Patch:
@@ -91,6 +112,8 @@ class RowPlan:
     T: int = 0
     A: int = 0
     N: int = 0
+    #: a pass of a DUAL row (the dual scan on the table): its only recorded speed is 132
+    dual: bool = False
 
     @property
     def m0(self) -> bytes:
@@ -98,7 +121,7 @@ class RowPlan:
 
     @property
     def m2(self) -> bytes:
-        return geo.m2_line(self.end[0], self.end[1], self.speed)
+        return geo.m2_line(self.end[0], self.end[1], self.speed, dual=self.dual)
 
     @property
     def move_s(self) -> float:
@@ -118,10 +141,10 @@ def reading_count(T: int, A: int) -> int:
     return int(math.ceil((T + A) / (READING_S * 1000.0) / 10.0) * 10)
 
 
-def plan_row(name, start, end, speed, patches=None, aperture_mm=4.5) -> RowPlan:
+def plan_row(name, start, end, speed, patches=None, aperture_mm=4.5, dual: bool = False) -> RowPlan:
     start = (int(round(start[0])), int(round(start[1])))
     end = (int(round(end[0])), int(round(end[1])))
-    p = RowPlan(name, start, end, int(speed), list(patches or []), aperture_mm)
+    p = RowPlan(name, start, end, int(speed), list(patches or []), aperture_mm, dual=bool(dual))
     p.dist = math.hypot(end[0] - start[0], end[1] - start[1])
     p.T = int(p.dist * 100 / p.speed)
     p.A = 5 * p.speed
@@ -137,8 +160,12 @@ class PlanRefused(Exception):
 
 
 def check_plan(p: RowPlan, at=None, front_y=None) -> None:
-    if p.speed not in geo.RECORDED_M2_SPEEDS:
-        raise PlanRefused(f"speed {p.speed} is not a recorded scan speed")
+    if p.speed not in (geo.DUAL_M2_SPEEDS if p.dual else geo.RECORDED_M2_SPEEDS):
+        raise PlanRefused(f"speed {p.speed} is not a recorded scan speed"
+                          + (" for a dual row" if p.dual else ""))
+    if p.dual and p.N > DUAL_N_MAX:
+        raise PlanRefused(f"{p.N} readings: longer than the longest recorded UV-LED pass "
+                          f"({DUAL_N_MAX})")
     try:
         geo.check_target(p.start, "the row start", front_y)
         geo.check_target(p.end, "the row end", front_y)
@@ -252,10 +279,17 @@ def _near(p, q, d=ARRIVAL_UNITS) -> bool:
 
 
 def run_row(table: tbl.Table, inst, plan: RowPlan, log, outdir: str,
-            confirm_move=None) -> RowResult:
+            confirm_move=None, uv_pass: bool = False) -> RowResult:
     """Scan one row. Before the scan move every failure is clean (nothing pending, the arm last
     read where it stands); after it, the ONE path to the fire. *confirm_move(a, b)* is asked
-    before the travel to the row start (the first-visit rule); False ends the row cleanly."""
+    before the travel to the row start (the first-visit rule); False ends the row cleanly.
+
+    *uv_pass* (the dual row's second pass, 2026-11-18): the arm stands at the end of the lamp
+    pass just read; the recorded UV pass is sent instead of the lamp pass's beginning (no
+    lights-off, a ZERO-LENGTH m0 to the position just read, c4, d1 210, p0, the instrument
+    armed for its UV pass), and from the scan move on it is the SAME one path to the fire."""
+    if uv_pass:
+        return _run_uv_pass(table, inst, plan, log, outdir)
     res = RowResult("failed_clean", "", plan)
     try:
         at = table.position()
@@ -310,7 +344,66 @@ def run_row(table: tbl.Table, inst, plan: RowPlan, log, outdir: str,
         res.kind, res.why = "failed_clean", str(exc)
         log("SCAN", f"{plan.name}: {res.why}")
         return res
+    return _one_path_to_the_fire(table, inst, plan, outdir, res)
 
+
+def _run_uv_pass(table: tbl.Table, inst, plan: RowPlan, log, outdir: str) -> RowResult:
+    """The dual row's UV pass, before its scan move, exactly as recorded (B 49.889-50.160):
+    p0 (the lamp pass's last reading, kept), m0 to that position (zero length), c4, d1 210, p0,
+    then the instrument armed for the UV pass. Every failure here is clean (nothing pending)."""
+    res = RowResult("failed_clean", "", plan)
+    try:
+        if not plan.dual:
+            raise CleanFail("a UV pass that is not a dual row's (a bug)")
+        at = table.position_now
+        if at is None or table.motion_unconfirmed:
+            at = table.position()
+        res.start_read = at
+        if not _near(at, plan.start):
+            raise CleanFail(f"the arm stands at {at}, not at the end of the lamp pass "
+                            f"{plan.start}")
+        try:
+            check_plan(plan, at, getattr(table, "front_y", None))
+        except PlanRefused as exc:
+            raise CleanFail(f"the plan was refused: {exc}") from None
+        if not inst.alive():
+            raise CleanFail("the instrument reader is not running")
+        here = geo.m0_line(at[0], at[1], TRAVEL_SPEED)       # the recorded zero-length m0
+        try:
+            table.c_exchange(here, 0, window=geo.move_window(at, at),
+                             timeout=geo.move_window(at, at)[1] + 4.0, late_is_doubt=False)
+        except tbl.MoveOutside as exc:
+            res.notes.append(str(exc))
+            raise CleanFail(f"the zero-length move took {exc.took:.2f} s, outside "
+                            f"{exc.lo:.2f}-{exc.hi:.2f} s") from None
+        d = table.c_exchange(cl.C_FIXED["scan_c4"], cl.C_DATA_LEN["scan_c4"], timeout=1.0)
+        res.c4 = int(d.data, 16)
+        if not C4_RANGE[0] <= res.c4 <= C4_RANGE[1]:
+            raise CleanFail(f"c4 answered {res.c4:02X}, never seen (recorded B7..BC)")
+        d = table.c_exchange(cl.C_DUAL_FIXED["scan_d1_uv"], cl.C_DUAL_DATA_LEN["scan_d1_uv"],
+                             timeout=1.0)
+        if d.data.upper() != D1_UV_ECHO:
+            raise table._doubt(f"d1 answered {d.data}, not the recorded echo {D1_UV_ECHO}")
+        got = table.position()
+        res.at_start = got
+        if not _near(got, plan.start):
+            raise table._doubt(f"the arm arrived at {got}, not at the UV pass's start "
+                               f"{plan.start}")
+        armed = inst.arm(plan.N, 3000)
+        res.armed = armed
+        if armed.get("event") != "tscan_armed" or armed.get("ready") is not True:
+            raise CleanFail(f"the instrument is not ready to fire at once ({armed})")
+    except CleanFail as exc:
+        res.kind, res.why = "failed_clean", str(exc)
+        log("SCAN", f"{plan.name}: {res.why}")
+        return res
+    return _one_path_to_the_fire(table, inst, plan, outdir, res)
+
+
+def _one_path_to_the_fire(table: tbl.Table, inst, plan: RowPlan, outdir: str,
+                          res: RowResult) -> RowResult:
+    """From the scan move on: THE RULE (module docstring). Shared by the single row, the dual
+    row's lamp pass and its UV pass, so that every one of them has exactly this path."""
     # ======== FROM HERE: ONE PATH TO THE FIRE ==========================================
     refused = False
     never_written = False
@@ -498,15 +591,19 @@ def time_at(plan: RowPlan, along_mm: float) -> float:
     return plan.move_s - math.sqrt(2 * (L - s) / a)
 
 
-def windows(plan: RowPlan, motion_start_s: float, nread: int, edge_mm: float = 0.5):
+def windows(plan: RowPlan, motion_start_s: float, nread: int, edge_mm: float = 0.5,
+            first_reading_s: float = FIRST_READING_AFTER_LAMP_S):
+    """Per patch, the readings [i0, i1) that lie in its clean middle. *motion_start_s* and
+    *first_reading_s*: after the pass's trigger (the lamp pass's defaults; a dual row's UV pass
+    passes its own)."""
     out = []
     for q in plan.patches:
         half_clean = q.half_mm - plan.aperture_mm / 2 - edge_mm
         if half_clean <= 0:
             out.append((0, 0))
             continue
-        t0 = motion_start_s + time_at(plan, q.along_mm - half_clean) - FIRST_READING_AFTER_LAMP_S
-        t1 = motion_start_s + time_at(plan, q.along_mm + half_clean) - FIRST_READING_AFTER_LAMP_S
+        t0 = motion_start_s + time_at(plan, q.along_mm - half_clean) - first_reading_s
+        t1 = motion_start_s + time_at(plan, q.along_mm + half_clean) - first_reading_s
         i0 = int(math.ceil(t0 / READING_S))
         i1 = int(math.floor(t1 / READING_S))
         out.append((max(0, i0), min(nread, max(i0, i1))))

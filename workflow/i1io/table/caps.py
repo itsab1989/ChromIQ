@@ -55,6 +55,11 @@ HOME = (8, 1)              # stage F: s0 p0 i1 s0 f0 f4 f4 p0
 ALIGN_CYCLE = tuple(sum(v) for v in zip(APPROACH, AIMS, CREEP, CHECK_MOVE, HOME))
 #: A strip row (stage E2's row step 12 / 2, and its front-row ends 7 / 2).
 STRIP_ROW = (12 + 7, 2 + 2)
+#: THE DUAL ROW (2026-11-18): a strip row plus its UV pass straight back (the recorded zero-length
+#: m0, c4, d1 210, p0, m2, a3, c3, and the p0 at its end: 8 lines, 2 movements), plus one line of
+#: room (the arm read again before the UV pass when its last reading is not fresh)
+DUAL_UV_PASS = (9, 2)
+DUAL_ROW = (STRIP_ROW[0] + DUAL_UV_PASS[0], STRIP_ROW[1] + DUAL_UV_PASS[1])
 #: The allowance, stated: 10 % of a page's need, two rows read again, one more alignment.
 ALLOWANCE_FRACTION = 0.10
 ALLOWANCE_ROWS = 2
@@ -81,10 +86,11 @@ def spot_row_step(n: int) -> "tuple[int, int]":
     return (4 * n + 4, n)
 
 
-def row_cost(n: int) -> "tuple[int, int]":
-    """The larger of reading the row patch by patch or as a strip."""
+def row_cost(n: int, dual: bool = False) -> "tuple[int, int]":
+    """The larger of reading the row patch by patch or as a strip (*dual*: a dual row)."""
     s = spot_row(n)
-    return (max(s[0], STRIP_ROW[0]), max(s[1], STRIP_ROW[1]))
+    r = DUAL_ROW if dual else STRIP_ROW
+    return (max(s[0], r[0]), max(s[1], r[1]))
 
 
 class CapsRefused(Exception):
@@ -135,10 +141,10 @@ def check_shape(shape: ChartShape) -> None:
                               value=sum(rows), maximum=m["per_page"])
 
 
-def page_caps(rows: "tuple[int, ...]") -> "tuple[int, int]":
+def page_caps(rows: "tuple[int, ...]", dual: bool = False) -> "tuple[int, int]":
     """(lines, movements) for one page: its need plus its allowance."""
-    need = [ALIGN_CYCLE[i] + sum(row_cost(n)[i] for n in rows) for i in (0, 1)]
-    longest = max(row_cost(n) for n in rows)
+    need = [ALIGN_CYCLE[i] + sum(row_cost(n, dual)[i] for n in rows) for i in (0, 1)]
+    longest = max(row_cost(n, dual) for n in rows)
     out = []
     for i in (0, 1):
         allow = (ALLOWANCE_ALIGNMENTS * ALIGN_CYCLE[i] + ALLOWANCE_ROWS * longest[i]
@@ -164,27 +170,28 @@ class Caps:
                               "calibrations": 1, "tile_readings": 1}}
 
 
-def caps_for(shape: ChartShape) -> Caps:
-    """The session caps for a chart of *shape* (CapsRefused only beyond the layout maxima)."""
+def caps_for(shape: ChartShape, dual: bool = False) -> Caps:
+    """The session caps for a chart of *shape* (CapsRefused only beyond the layout maxima).
+    *dual*: the session may read dual rows (each row's UV pass counted, :data:`DUAL_ROW`)."""
     check_shape(shape)
     lines = OPEN[0] + PARK[0] + CALIBRATION[0] + TILE_READING[0]
     moves = OPEN[1] + PARK[1] + CALIBRATION[1] + TILE_READING[1]
     for rows in shape.pages:
-        pl, pm = page_caps(rows)
+        pl, pm = page_caps(rows, dual)
         lines += pl
         moves += pm
     return Caps(lines, moves, shape)
 
 
-def caps_for_sheet(sheet: dict) -> Caps:
-    return caps_for(shape_of(sheet))
+def caps_for_sheet(sheet: dict, dual: bool = False) -> Caps:
+    return caps_for(shape_of(sheet), dual)
 
 
 #: The creep's own step (5 mm), kept with the geometry module's value (a test pins both).
 CREEP_STEP = geo.CREEP_STEP
 
 
-def caps_for_missing(sheet: dict, locs) -> Caps:
+def caps_for_missing(sheet: dict, locs, dual: bool = False) -> Caps:
     """Step 8, resume: the caps of a session that reads only *locs* (the patches a partial
     measurement lacks): the chart's shape with every row cut to its missing patches (rows and
     pages with none left out). A page with nothing missing needs no alignment, so it adds
@@ -199,5 +206,5 @@ def caps_for_missing(sheet: dict, locs) -> Caps:
     except (KeyError, TypeError) as exc:
         raise CapsRefused("chart_record_unreadable", what=type(exc).__name__) from None
     if not pages:
-        return caps_for_sheet(sheet)
-    return caps_for(ChartShape(pages))
+        return caps_for_sheet(sheet, dual)
+    return caps_for(ChartShape(pages), dual)

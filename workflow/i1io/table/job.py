@@ -50,12 +50,15 @@ from __future__ import annotations
 
 import copy
 import json
+import math
+import os
 import threading
 import time
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from . import caps as cp
+from . import dual_rows as dl
 from . import geometry as geo
 from . import lines as cl
 from . import measurement as ms
@@ -490,6 +493,14 @@ class TableJob:
         #: per band to the white tile values stored in the table's memory, as i1Profiler does.
         #: Off: the i1Pro 2's own white reference, as in a measurement by hand.
         self.stored_tile_white = bool(stored_tile_white)
+        #: THE i1Pro 2 DUAL SCAN ON THE TABLE (2026-11-18, a first try): what START decided
+        #: (dual_rows.DualSetup), set by the window before the job opens; None = the released
+        #: job, line for line (no dual argument, no dual line, no dual file)
+        self.dual: "dl.DualSetup | None" = None
+        #: the dual calibrations of this session: {"spot": event, "strip": event}
+        self.dual_calibrations: "dict[str, dict]" = {}
+        #: why M1 / M2 could not be written for the measurement (None: written, or no dual)
+        self.dual_conditions_refused: "str | None" = None
         #: the per-band factors in use (None: off, or refused), and why they were refused
         self.white_scale: "tuple | None" = None
         self.white_scale_refused: "str | None" = None
@@ -1043,10 +1054,12 @@ class TableJob:
                     sorted(int(a.get("number", 0)) for a in pts) != [1, 2, 3]:
                 raise StageFailed("chart_page_without_three_aim_points", page=k + 1)
         try:
-            self.caps = cp.caps_for_sheet(sheet)
+            dual = self.dual is not None
+            self.caps = cp.caps_for_sheet(sheet, dual) if dual else cp.caps_for_sheet(sheet)
             if self.only_locs is not None:
                 # step 8, resume: the caps come from what is MISSING, not from the whole chart
-                self.caps = cp.caps_for_missing(sheet, self.only_locs)
+                self.caps = (cp.caps_for_missing(sheet, self.only_locs, dual) if dual
+                             else cp.caps_for_missing(sheet, self.only_locs))
         except cp.CapsRefused as exc:
             raise StageFailed(exc.reason, **exc.detail) from None
         # review 8, M-3: the CHART's pages (a resume's caps leave out the pages with nothing
@@ -1096,11 +1109,14 @@ class TableJob:
         d.front_y = None
         d.creep = False
         d.c_gate = cl.make_gate(d)
+        #: the dual row's phase ("lamp" / "uv") while it reads that pass; None otherwise
+        d.dual_phase = None
         d.c_caps = (self.caps.lines, self.caps.moves)
         # final fix round, M-1: no movement line while a hands-off confirmation is owed
         d.motion_guard = self._motion_guard
         if hasattr(self.transport, "gate"):
-            self.transport.gate = cl.wire_gate
+            # the dual scan: the same classify, with the table's dual phase at the write
+            self.transport.gate = cl.wire_gate if self.dual is None else cl.make_wire_gate(d)
         d._touch_out = lambda: "asked after the step"
         state = d.opening()
         out = {"table": state, "system": pf.system}
@@ -1925,9 +1941,38 @@ class TableJob:
         if self._earlier_dirs:
             # review 8, S-3: options set after an adoption keep it (never silently undone)
             detail["adopted_still_missing"] = len(self.only_locs or ())
+        why = self._dual_refusal(rep.options)
+        if why:
+            self.options_report, self._requested = before
+            self._apply_locs()
+            return self._result("options", Kind.REFUSED, why, **detail)
         if not rep.ok:
             return self._result("options", Kind.REFUSED, "option_refused", **detail)
         return self._result("options", Kind.OK, "", **detail)
+
+    def _dual_refusal(self, opts: "sp.ReadOptions") -> "str | None":
+        """The dual scan on the table (2026-11-18): an option or a measurement it cannot go on
+        with, as the hand dual scan refuses them (reason ids of workflow/dual_scan/reasons.py).
+        Never anything without the dual scan."""
+        import workflow.dual_scan.storage as S
+        base = self._resume_base
+        if self.dual is None:
+            # a single-scan session never writes into a dual measurement (and the other way)
+            if base is not None and S.read_dual_record(base).dual:
+                return "mixed_scan_kind"
+            return None
+        if opts.skip_initial_calibration:
+            return "dual_needs_a_calibration"
+        if opts.high_res:
+            return "dual_high_resolution"
+        if base is not None:
+            rec = S.read_dual_record(base)
+            if not rec.dual and S._has_readings(Path(base)):
+                return "mixed_scan_kind"
+            if rec.dual and rec.scale is not None and round(rec.scale, 4) != round(
+                    self.dual.scale, 4):
+                return "mixed_factor"
+        return None
 
     def _report_with_fields_built_on(self, rep: "sp.OptionsReport") -> "sp.OptionsReport | None":
         """*rep* with its field options replaced by those that save what the readings this
@@ -2043,7 +2088,7 @@ class TableJob:
                                              if system == "macos" else [])
 
     def _start_reader(self, folder: Path, name: str, patches, calibrate: bool,
-                      moves_next: bool = False):
+                      moves_next: bool = False, dual_args=()):
         """Part C's instrument_ready() and spot_reader(): the helper can run, exactly one
         i1Pro 2 and no other instrument, the consent (once in the session, before the FIRST
         reader starts), then the reader. A generator (the consent is a confirmation).
@@ -2068,8 +2113,10 @@ class TableJob:
             yield from self._hands_off(self._gen_step or "read_row")
         self._check_other_program()
         try:
-            r = self._reader_factory(folder, name, list(patches), calibrate,
-                                     self.options_report.options.reader_args(), self.diag.log)
+            args = self.options_report.options.reader_args()
+            if dual_args:
+                args = tuple(args) + tuple(dual_args)
+            r = self._reader_factory(folder, name, list(patches), calibrate, args, self.diag.log)
         except (OSError, ValueError, rd.ReaderFailed) as exc:
             raise StageFailed("reader_could_not_start", error=type(exc).__name__) from None
         self.readers_started += 1
@@ -2336,7 +2383,9 @@ class TableJob:
         folder = self.diag.folder / self._block["folder"]
         # tester C1: the reader first (its checks and the consent), then the place, asked once
         # in the session (the tester asked it at the reader's calibration request)
-        reader = yield from self._start_reader(folder, "c1_spot", sp.CAL_PATCHES, True)
+        reader = yield from self._start_reader(
+            folder, "c1_spot", sp.CAL_PATCHES, True,
+            dual_args=self._dual_spot_args(folder, self.cal_place) if self.dual else ())
         if self.instrument_out:
             # S-1 (the volunteer's table, 17 Nov 2026: an own-tile calibration failed and the
             # session went on): the instrument may still lie on its own tile, out of the arm.
@@ -2373,9 +2422,22 @@ class TableJob:
         self._cal_refused = None
         self._open_reader(reader, self._cal_place_ok)
         cal_ok = bool(getattr(reader, "calibrated", False))
+        dual_ev = self._dual_event(reader, "dual_calibration") if self.dual is not None else None
         self._close_reader(reader)
         if not cal_ok:
             raise StageFailed("calibration_not_confirmed")
+        if self.dual is not None:
+            # the dual scan (2026-11-18): the helper read the tile with the UV LED right after
+            # the white (10 dark + 5 UV-LED readings, the volts) and kept it for the rows'
+            # readers; without it no row could have M1 / M2
+            self.dual_calibrations.pop("spot", None)
+            if not dual_ev or not dual_ev.get("ok"):
+                self.calibration = None
+                raise StageFailed("dual_calibration_failed",
+                                  why=str((dual_ev or {}).get("why") or "no_dual_calibration"))
+            self.dual_calibrations["spot"] = dual_ev
+            self.diag.log("STEP", "the dual calibration (the tile with the UV LED) is made and "
+                                  "kept for the rows: " + json.dumps(dual_ev))
         strip_white = False
         if self.options_report.options.strip:
             # round B (tester C1): the strip white as well, on the same tile, while the
@@ -2591,11 +2653,15 @@ class TableJob:
         fallback = None
         try:
             try:
-                plan = sp.plan_row(self.sheet, self.page, k, self.alignment,
-                                   self._table.front_y, kind=kind, only_locs=self.only_locs)
+                plan = (sp.plan_row(self.sheet, self.page, k, self.alignment,
+                                    self._table.front_y, kind=kind, only_locs=self.only_locs,
+                                    dual=True) if self.dual is not None else
+                        sp.plan_row(self.sheet, self.page, k, self.alignment,
+                                    self._table.front_y, kind=kind, only_locs=self.only_locs))
             except sp.RowRefused as exc:
                 if kind != "strip" or exc.reason not in ("strip_row_too_long",
-                                                         "strip_only_some_patches"):
+                                                         "strip_only_some_patches",
+                                                         "dual_row_patches_too_short"):
                     raise
                 fallback = exc.reason
                 self.diag.log("DATA", f"row {row} is read patch by patch: {exc.reason} "
@@ -2627,7 +2693,9 @@ class TableJob:
             self._progress(event="strip_fallback", row=plan.index + 1, why=fallback)
         attempt = 1
         while True:
-            if plan.kind == "strip":
+            if plan.kind == "strip" and self.dual is not None:
+                rec = yield from self._dual_strip_attempt(plan, attempt)
+            elif plan.kind == "strip":
                 rec = yield from self._strip_attempt(plan, attempt)
             else:
                 rec = yield from self._row_attempt(plan, attempt)
@@ -2724,12 +2792,22 @@ class TableJob:
                                                    what=f"row {plan.index + 1}")
             if not ok:
                 raise PersonStopped("first_visit_declined")
-            reader = yield from self._start_reader(folder, name, [(p.sample_id, p.loc)
-                                                                  for p in plan.patches], False,
-                                                   moves_next=True)
+            reader = yield from self._start_reader(
+                folder, name, [(p.sample_id, p.loc) for p in plan.patches], False,
+                moves_next=True,
+                dual_args=self._dual_spot_args(folder, self.cal_place) if self.dual else ())
             self._cal_refused = None
             self._open_reader(reader, self._cal_in_a_row)
             opened = True
+            if self.dual is not None:
+                # the dual scan, patch by patch: this row's reader must have taken up the dual
+                # tile kept for THIS white (else no patch could have M1 / M2): checked before
+                # the arm moves
+                dev = self._dual_event(reader, "dual_calibration")
+                rec["dual_calibration"] = dev
+                if not dev or not dev.get("ok"):
+                    self.calibration_due = True
+                    raise _RowFailed("dual_calibration_not_kept", "")
             last_t = 0.0
             for i, p in enumerate(plan.patches):
                 if i:
@@ -2770,6 +2848,17 @@ class TableJob:
                     self._close_reader(reader)
             rec["accepted"] = [{"sample_id": r["sample_id"], "loc": r["loc"], "xyz": r["xyz"]}
                                for r in readings if r.get("plausible")]
+            if self.dual is not None and opened:
+                # the dual scan: the row's M1 / M2 files, in step with its readings
+                rec["conditions"] = self._dual_row_conditions(
+                    folder, folder / rec["reader_ti3"] if rec["reader_ti3"] else None)
+                rec["dual_spot_results"] = [
+                    {k: ev.get(k) for k in ("ok", "why", "uv_triggers", "volts")}
+                    for ev in self._events(reader) if ev.get("event") == "dual_pass_result"]
+                if rec["accepted"] and rec["conditions"] is None and rec["status"] == "read":
+                    rec.update(status="failed", why="dual_conditions_missing")
+                    self._progress(event="row_end", row=plan.index + 1, status="failed",
+                                   loc=None)
             self.diag.write_json(f"{self._block['folder']}/{name}{ms.ROW_RECORD_SUFFIX}", rec)
             self._write_readings(folder, name, readings + rec["failed"])
             self._block["data"].setdefault("rows", []).append(
@@ -2788,7 +2877,7 @@ class TableJob:
         if self._scan_factory is None:
             raise StageFailed("strip_reading_not_available")
         try:
-            scan = self._scan_factory(folder / "strip", self.diag.log)
+            scan = self._new_scan(folder / "strip")
         except (OSError, ValueError, rd.ReaderFailed) as exc:
             raise StageFailed("reader_could_not_start", error=type(exc).__name__) from None
         self.readers_started += 1
@@ -2798,6 +2887,17 @@ class TableJob:
             if not _is_i1pro2(ev.get("model")):
                 raise StageFailed("wrong_instrument", model=ev.get("model"))
             scan.calibrate(self._cal_place_ok)
+            if self.dual is not None:
+                # the dual row: the strip white's tile read with the UV LED as well (recorded:
+                # 10 dark + 5 UV-LED readings at the strip integration, the volts), kept
+                dev = getattr(scan, "dual_calibration", None)
+                self.dual_calibrations.pop("strip", None)
+                if not dev or not dev.get("ok"):
+                    raise StageFailed("dual_calibration_failed",
+                                      why=str((dev or {}).get("why") or "no_dual_calibration"))
+                self.dual_calibrations["strip"] = dev
+                self.diag.log("STEP", "the strip white's dual calibration is made and kept: "
+                                      + json.dumps(dev))
         except rd.ReaderFailed as exc:
             raise StageFailed("strip_calibration_failed", log_reason=str(exc)) from None
         finally:
@@ -2827,12 +2927,46 @@ class TableJob:
         if self._scan_factory is None:
             raise StageFailed("strip_reading_not_available")
         try:
-            scan = self._scan_factory(folder, self.diag.log)
+            scan = self._new_scan(folder)
         except (OSError, ValueError, rd.ReaderFailed) as exc:
             raise StageFailed("reader_could_not_start", error=type(exc).__name__) from None
         self.readers_started += 1
         self._open_readers.append(scan)
         return scan
+
+    # ---- the i1Pro 2 dual scan on the table (2026-11-18, a first try) ----------------------
+    def _new_scan(self, folder: Path):
+        """A table-scan reader; with the dual scan its helper is told --i1io-table-dual."""
+        if self.dual is None:
+            return self._scan_factory(folder, self.diag.log)
+        return self._scan_factory(folder, self.diag.log, extra_args=self.dual.scan_args)
+
+    def _dual_spot_args(self, folder: Path, place: "str | None") -> "list[str]":
+        """A patch-by-patch reader's dual arguments: the hand dual scan's, the white of the
+        tile the calibration is made on, --dual-table, and the row folder's conditions."""
+        return self.dual.spot_args(Path(folder) / "conditions", dl.white_for_place(place))
+
+    @staticmethod
+    def _dual_event(reader, name: str) -> "dict | None":
+        """The reader's LAST event of that name (its helper's own words), or None."""
+        for ev in reversed(TableJob._events(reader)):
+            if ev.get("event") == name:
+                return ev
+        return None
+
+    def _dual_row_conditions(self, folder: Path, ti3: "Path | None") -> "dict | None":
+        """The M1 / M2 files the patch-by-patch reader wrote for its row file (in step with
+        its readings), as names relative to the row folder; None when either is missing."""
+        if ti3 is None or not Path(ti3).is_file():
+            return None
+        import workflow.i1pro3_conditions as ic
+        out = {}
+        for cond in dl.CONDITIONS:
+            f = ic.condition_file(ti3, cond)
+            if f is None or not Path(f).is_file() or Path(f) == Path(ti3):
+                return None
+            out[cond] = Path(f).relative_to(Path(folder)).as_posix()
+        return out
 
     def _strip_attempt(self, plan: "sp.RowPlan", attempt: int):
         """One strip row: the first-visit rule for the way to its start and the run, the front
@@ -2961,6 +3095,195 @@ class TableJob:
                    "notes": (rec.get("scan") or {}).get("notes", [])})
         return rec
 
+    def _dual_strip_attempt(self, plan: "sp.RowPlan", attempt: int):
+        """One DUAL row (the i1Pro 2 dual scan on the table, 2026-11-18, a first try): the
+        strip row's own checks and lamp pass at 132 (scan.run_row, byte for byte its lines but
+        the speed), then straight back with the UV LED (scan.run_row(uv_pass=True): the zero
+        m0, c4, d1 210, p0, the same one path to the fire), both passes cut by position, M1 / M2
+        worked out by the helper (which proves the UV pass belongs to this row). A pending move
+        or a doubt in either pass ends the table part as for a strip row; a clean failure, a cut
+        that cannot be made or a UV pass that does not belong fails the row (offered again as
+        a row or patch by patch). Every reading of both passes stays in the session folder."""
+        d = self._table
+        lamp = plan.scan
+        self._row_seq += 1
+        name = plan.name if attempt == 1 else f"{plan.name}_again{attempt - 1}"
+        folder = self.diag.folder / self._block["folder"]
+        folder.mkdir(parents=True, exist_ok=True)
+        rec = {"seq": self._row_seq, "page": plan.page + 1, "row": plan.index + 1,
+               "attempt": attempt, "kind": "strip", "dual": True, "name": name,
+               "status": "started", "why": "", "reader_ti3": None, "accepted": [],
+               "failed": [], "patches": len(plan.patches), "speed": lamp.speed,
+               "readings_planned": lamp.N, "first_try": True, "not_tried_on_a_real_table": True,
+               "white_scale": list(self.white_scale) if self.white_scale else None}
+        self._decide_white_by_a_row()
+        lamp = sc.plan_row(name, lamp.start, lamp.end, lamp.speed,
+                           [sc.Patch(q.sample_id, q.loc, q.xy, q.along_mm, q.half_mm)
+                            for q in lamp.patches], lamp.aperture_mm, dual=True)
+        uv = sp.uv_pass_of(lamp)
+        scan = None
+        self._progress(event="row_start", row=plan.index + 1, kind="strip",
+                       locs=[p.loc for p in plan.patches], dual=True)
+        try:
+            if d.arm_free or d.position_now is None:
+                self._step("row_where", 1, 0)
+                d.position()
+            a0 = d.position_now
+            ok = yield from self._confirm_new_part(a0, lamp.start, lamp.end,
+                                                   what=f"row {plan.index + 1}")
+            if not ok:
+                raise PersonStopped("first_visit_declined")
+            scan = yield from self._start_scan(folder)
+            try:
+                ev = scan.opened(timeout=sp.OPEN_TIMEOUT_S)
+            except rd.ReaderFailed as exc:
+                raise _RowFailed("strip_reader_did_not_open", "") from exc
+            if not _is_i1pro2(ev.get("model")):
+                raise _RowFailed("wrong_instrument", "")
+            state = scan.dual_state()
+            rec["dual_state"] = state
+            if not state.get("on"):
+                # this instrument cannot do the dual scan (no UV LED, no factory tables)
+                raise _RowFailed(str(state.get("why") or "dual_not_available"), "")
+            if state.get("tile") != "kept":
+                # no dual tile kept for this white: nothing is moved; a new calibration first
+                self.calibration_due = True
+                raise _RowFailed("dual_calibration_not_kept", "")
+            self._soft_stop()
+            if self._pause_stop:
+                self._pause_stop = False
+                raise PersonStopped("stopped_before_the_strip")
+            if geo.in_front_zone(lamp.start) or geo.in_front_zone(lamp.end):
+                self._step("row_ends", 9, 2)
+                a = d.position()
+                if d.arm_free:
+                    self._still(a)
+                yield from self._move_to(lamp.start, f"row {plan.index + 1}'s start")
+                yield from self._move_to(lamp.end, f"row {plan.index + 1}'s end")
+                rec["front_row_ends_confirmed"] = True
+            if self._hands_off_due:
+                raise _RowFailed("strip_move_refused_here", "")
+            results = {}
+            for which, pplan in (("lamp", lamp), ("uv", uv)):
+                if which == "uv":
+                    # between the two passes: a stop or a problem reported during the lamp
+                    # pass is honoured here, before the UV pass's first line
+                    self._soft_stop()
+                    if self._pause_stop:
+                        self._pause_stop = False
+                        raise PersonStopped("stopped_before_the_uv_pass")
+                    self._step("row_uv", *cp.DUAL_UV_PASS)
+                else:
+                    self._step("row", 12, 2)
+                self._progress(event="strip_move", row=plan.index + 1, speed=pplan.speed,
+                               dual_pass=which)
+                guard = self._latency_guard() if self._latency_guard is not None else None
+                if guard is not None:
+                    guard.__enter__()
+                d.dual_phase = which
+                try:
+                    res = sc.run_row(
+                        d, dl.DualPass(scan, which), pplan, d.log, str(folder),
+                        confirm_move=(lambda a, b, e=lamp.end: (self._seg_visited(a, b)
+                                                                and self._seg_visited(b, e))),
+                        uv_pass=(which == "uv"))
+                finally:
+                    d.dual_phase = None
+                    if guard is not None:
+                        try:
+                            guard.__exit__(None, None, None)
+                        except Exception:      # noqa: BLE001 - never the job's concern
+                            pass
+                files = sc.save_row(str(folder), res) if which == "lamp" else \
+                    _save_pass(str(folder), res)
+                results[which] = res
+                rec.setdefault("scan", {})[which] = {
+                    "kind": res.kind, "why": res.why, "notes": res.notes, "files": files,
+                    "c4": res.c4, "a3": res.a3,
+                    "fired": {k: (res.fired or {}).get(k) for k in
+                              ("ok", "got", "lit_sent", "dark_sent", "ms_lit_trig", "pass",
+                               "volts")}}
+                if res.kind == "pending":
+                    raise Doubt("a scan move may be pending", sc.PENDING_TEXT)
+                if res.kind == "after_doubt":
+                    raise Doubt(res.why)
+                if res.kind != "done":
+                    raise _RowFailed(("uv_pass_failed_clean" if which == "uv"
+                                      else _strip_clean_id(res.why)), "")
+                self.driven.append((pplan.start, pplan.end))
+            # both passes ran: cut both by position, then the helper's M1 / M2
+            try:
+                wl, lrows = sc.read_spec_csv(str(folder / f"{lamp.name}.spec.csv"))
+                _wl2, urows = sc.read_spec_csv(str(folder / f"{uv.name}.spec.csv"))
+            except (OSError, ValueError):
+                raise _RowFailed("strip_readings_unreadable", "") from None
+            cut = dl.cut_dual(lamp, uv, lrows, urows)
+            cut.wavelengths = list(wl)
+            _write_json(folder / f"{name}.dual_cut.json",
+                        {"ok": cut.ok, "reason": cut.reason, "info": cut.info})
+            rec["cut"] = {"ok": cut.ok, "reason": cut.reason,
+                          "lamp_readings_per_patch": cut.info.get("lamp_readings_per_patch"),
+                          "uv_readings_per_patch": cut.info.get("uv_readings_per_patch")}
+            if not cut.ok:
+                raise _RowFailed(cut.reason, str(cut.info.get("loc") or ""))
+            xyz0 = stp._xyz(cut.lamp, cut.wavelengths)
+            for q, xyz in zip(plan.patches, xyz0):
+                why = sp.plausible(xyz)
+                if why or not all(math.isfinite(v) for v in xyz):
+                    raise _RowFailed("strip_patch_implausible", q.loc)
+            dl.write_dual_in(str(folder / f"{name}.dual_in.txt"), cut)
+            comp = scan.dual_compute(name, self.dual.scale)
+            rec["dual_compute"] = {k: comp.get(k) for k in ("ok", "why", "pairing", "n",
+                                                            "usable")}
+            if not comp.get("ok"):
+                raise _RowFailed(str(comp.get("why") or "uv_pass_missing"), "")
+            try:
+                m1, m2 = dl.read_dual_out(str(folder / f"{name}.dual_out.txt"),
+                                          len(plan.patches), len(cut.wavelengths))
+            except (OSError, ValueError):
+                raise _RowFailed("record", "") from None
+            white = dl.white_for_place(self.cal_place)
+            kws = dl.dual_keywords(self.dual, white)
+            row_file = f"{name}.strip{stp.ROW_FILE_SUFFIX}"
+            c0 = dl.condition_cut(lamp, cut, cut.lamp)
+            stp.write_row_file(str(folder / row_file), c0, self.options_report.options)
+            dl.add_keywords(str(folder / row_file), kws)
+            conds = {}
+            for cond, vals in (("M1", m1), ("M2", m2)):
+                f = f"{name}.strip.{cond}{stp.ROW_FILE_SUFFIX}"
+                stp.write_row_file(str(folder / f), dl.condition_cut(lamp, cut, vals),
+                                   self.options_report.options)
+                dl.add_keywords(str(folder / f), kws + [("MEASUREMENT_CONDITION", cond)])
+                conds[cond] = f
+            rec["reader_ti3"] = row_file
+            rec["conditions"] = conds
+            rec["accepted"] = stp.accepted_entries(c0, row_file)
+            for a in rec["accepted"]:
+                self._progress(event="patch_read", row=plan.index + 1, loc=a["loc"],
+                               xyz=list(a["xyz"]))
+            rec["status"] = "read"
+            self._progress(event="row_end", row=plan.index + 1, status="read")
+        except _RowFailed as f:
+            self._progress(event="row_end", row=plan.index + 1, status="failed", loc=f.loc)
+            rec.update(status="failed", why=f.reason, failed_loc=f.loc or None)
+        except PersonStopped as exc:
+            rec.update(status="stopped", why=exc.reason)
+            raise
+        except BaseException as exc:      # noqa: BLE001 - recorded, then the step ends
+            rec.update(status="stopped" if not isinstance(exc, StageFailed) else "failed",
+                       why=getattr(exc, "reason", type(exc).__name__))
+            raise
+        finally:
+            if scan is not None:
+                self._close_reader(scan)
+            self.diag.write_json(f"{self._block['folder']}/{name}{ms.ROW_RECORD_SUFFIX}", rec)
+            self._block["data"].setdefault("rows", []).append(
+                {k: rec[k] for k in ("page", "row", "attempt", "status", "why", "reader_ti3")}
+                | {"read": len(rec["accepted"]), "failed": 0, "kind": "strip", "dual": True,
+                   "notes": [n for v in (rec.get("scan") or {}).values()
+                             for n in v.get("notes", [])]})
+        return rec
+
     def _between_patches(self) -> None:
         self._soft_stop()
         if self._pause_stop:
@@ -2986,6 +3309,13 @@ class TableJob:
             rid, det = sp.failure_id(str(exc), self._events(reader), alive)
             if rid == "instrument_asks_for_calibration":
                 self.calibration_due = True
+            if self.dual is not None and rid == "reading_failed":
+                # the dual scan: the UV half of this patch failed (the helper reads the patch
+                # again as one unit): said as such
+                last = self._dual_event(reader, "dual_pass_result")
+                if last is not None and last.get("ok") is False:
+                    det = dict(det, dual_why=str(last.get("why") or ""))
+                    raise _PatchFailed("uv_spot_failed", retry=alive, **det) from None
             raise _PatchFailed(rid, retry=alive and rid in sp.RETRYABLE, **det) from None
         why = sp.plausible(r.xyz)
         rec = {"sample_id": p.sample_id, "loc": p.loc, "target": list(p.target),
@@ -3080,9 +3410,93 @@ class TableJob:
             return self._result("measurement", Kind.REFUSED, "measurement_not_written",
                                 error=type(exc).__name__)
         self._assembly = a
-        self.diag.write_json("measurement.json", a.as_dict())
+        extra = {}
+        if self.dual is not None and a.state in ("complete", "partial"):
+            extra["dual"] = self._dual_measurement(a)
+        self.diag.write_json("measurement.json", dict(a.as_dict(), **extra))
         kind = Kind.OK if a.state in ("complete", "partial") else Kind.REFUSED
-        return self._result("measurement", kind, a.reason, measurement=a.as_dict())
+        return self._result("measurement", kind, a.reason, measurement=a.as_dict(), **extra)
+
+    def _dual_measurement(self, a) -> dict:
+        """The dual scan (2026-11-18): M1 and M2 of the assembled measurement, assembled from
+        the same row records (each patch from its M0 row) and named by the main file's readings
+        as the i1Pro 3 Beta's files are (``conditions/<hash>-M1.ti3``, CHROMIQ_CONDITION_OF,
+        MEASUREMENT_CONDITION). Refused (said, logged, M0 stays) when any patch lacks them."""
+        from core.file_manager import Run
+        import workflow.i1pro3_conditions as ic
+        from workflow.measurement_condition import record_condition
+        main = Path(a.path)
+        self.dual_conditions_refused = None
+        self._dual_files = {}
+        made = {}
+        for cond in dl.CONDITIONS:
+            tmp = main.with_name(f"{main.stem}.{cond}.assembled.ti3")
+            c = ms.assemble(self._session_dirs(), self._chart_ti2, tmp, base_ti3=self._base(),
+                            cond=cond)
+            if c.state != a.state or c.read != a.read or set(c.unread) != set(a.unread):
+                self.dual_conditions_refused = c.reason or "dual_rows_without_m1_m2"
+                self.diag.log("DATA", f"M1 and M2 are not written for this measurement: "
+                                      f"{cond} {c.state} {c.reason} " + json.dumps(c.detail))
+                return {"conditions": None, "why": self.dual_conditions_refused}
+            made[cond] = tmp
+        record_condition(main, "M0")
+        key = ic.data_block_hash(main)
+        for cond, tmp in made.items():
+            dest = Run.for_dir(main.parent).condition_ti3(cond, measurement=main)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            os.replace(tmp, dest)
+            record_condition(dest, cond)
+            ic._set_condition_of(dest, key)
+            self._dual_files[cond] = dest
+        self.diag.log("DATA", "M1 and M2 written beside the measurement (dual scan, a first "
+                              f"try): {', '.join(p.name for p in self._dual_files.values())}")
+        return {"conditions": {k: v.name for k, v in self._dual_files.items()}, "why": ""}
+
+    def _file_dual_conditions(self, dest: Path) -> dict:
+        """After the person's Save: M1 / M2 into the run beside its measurement (named by the
+        same readings), and the dual scan's pass record (``Run.dual_pass_record``) with the
+        person's choice, so Build Profile starts at it exactly as after a hand dual scan."""
+        import shutil
+        import workflow.i1pro3_conditions as ic
+        from workflow.dual_scan.record import PassRecord
+        out = {"conditions": None, "why": self.dual_conditions_refused or ""}
+        files = getattr(self, "_dual_files", {}) or {}
+        filed = {}
+        if not self.dual_conditions_refused and len(files) == len(dl.CONDITIONS):
+            for cond, src in files.items():
+                to = self.run.condition_ti3(cond)
+                if to is None:
+                    break
+                to.parent.mkdir(parents=True, exist_ok=True)
+                tmp = to.with_name(to.name + ".table-part")
+                shutil.copyfile(str(src), str(tmp))
+                os.replace(tmp, to)
+                filed[cond] = to
+            if not all(ic.condition_file(dest, c) is not None for c in dl.CONDITIONS):
+                filed = {}
+                out["why"] = "conditions_not_in_step"
+        strips = [f"p{pg + 1}_row{k + 1}" for pg, page in enumerate(self.sheet["pages"])
+                  for k in range(len(page["strips"]))]
+        rec = PassRecord(strips, chosen=self.dual.chosen)
+        have = set(self._assembly.unread)
+        if filed:
+            for pg, page in enumerate(self.sheet["pages"]):
+                for k, st in enumerate(page["strips"]):
+                    locs = {q["loc"] for q in st["patches"]}
+                    if not (locs & have):
+                        rec.helper_strip(f"p{pg + 1}_row{k + 1}", True)
+        else:
+            for pg, page in enumerate(self.sheet["pages"]):
+                for k, st in enumerate(page["strips"]):
+                    locs = {q["loc"] for q in st["patches"]}
+                    if not (locs & have):
+                        rec.helper_lamp_only(f"p{pg + 1}_row{k + 1}",
+                                             "uv_pass_missing")
+        from core.file_manager import Run
+        rec.save(Run.dual_pass_record(dest))
+        out["conditions"] = {k: v.name for k, v in filed.items()} if filed else None
+        self.diag.log("DATA", "dual scan filed: " + json.dumps(out))
+        return out
 
     def accepted_in_this_session(self) -> int:
         if self.run is None or self.stamp is None:
@@ -3271,6 +3685,14 @@ class TableJob:
                                   f"({type(exc).__name__})")
         self.ended = "saved"
         restored = bool(outcome is not None and outcome.restored)
+        dual_filed = None
+        if self.dual is not None and not restored:
+            try:
+                dual_filed = self._file_dual_conditions(dest)
+            except (OSError, ValueError) as exc:
+                dual_filed = {"conditions": None, "why": f"not_written_{type(exc).__name__}"}
+                self.diag.log("INFO", f"M1 / M2 could not be filed ({type(exc).__name__}); "
+                                      "the measurement (M0) is filed")
         detail = {"measurement": self._assembly.as_dict(), "announce": dest.name,
                   "verdict": outcome.verdict.value if outcome else None,
                   "before": outcome.before if outcome else None,
@@ -3284,6 +3706,8 @@ class TableJob:
                                   and can_resume(dest, self._chart_ti2))}
         if outcome is None:
             detail["verdict_not_judged"] = True
+        if dual_filed is not None:
+            detail["dual"] = dual_filed
         # review 8, NOTE: "filed" is true only when the run keeps this measurement (a §3b
         # restore, M-TI3-SHRANK / M-TI3-EMPTY, put the earlier file back)
         result = {"filed": not restored, "state": self._assembly.state,
@@ -3664,6 +4088,23 @@ _STRIP_CLEAN_IDS = (
     ("the scan move ran and the arm is at the row end, but the instrument did not deliver",
      "strip_instrument_delivered_nothing"),
 )
+
+
+def _save_pass(outdir: str, res) -> "list[str]":
+    """A dual row's UV pass: its plan and result (its readings are the helper's own files)."""
+    p = Path(outdir) / (res.plan.name + ".plan_and_result.json")
+    try:
+        p.write_text(json.dumps(res.as_dict(), indent=1, default=str), encoding="utf-8")
+    except OSError:
+        return []
+    return [p.name]
+
+
+def _write_json(path: Path, data) -> None:
+    try:
+        Path(path).write_text(json.dumps(data, default=str), encoding="utf-8")
+    except OSError:
+        pass
 
 
 def _strip_clean_id(why: str) -> str:

@@ -37,11 +37,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 HELPER_NAME = "chromiq-chartread"
-HELPER_BUILD = "2026-11-18d"      # ChromIQ's helper: the table scan (2026-11-17a) + the button wait (17b)
+HELPER_BUILD = "2026-11-18e"      # ChromIQ's helper: the table scan (2026-11-17a) + the button wait (17b)
 #                                    + the i1Pro 2 dual-scan conditions (18a, nothing for the table)
 #                                    + the dual scan's resume rule (18b, nothing for the table)
 #                                    + the dual scan's device side (18c, nothing for the table yet)
 #                                    + the dual scan's safety fixes (18d, nothing for the table)
+#                                    + the dual scan on the table (18e: --i1io-table-dual,
+#                                      --dual-table; nothing without them)
 #: the build token of the helper's button wait (--i1io-press-wait, round B). A helper without it
 #: (2026-11-17a and older) is simply not asked: the panel's Aimed button always works.
 PRESS_WAIT_TOKEN = "+i1io-press-wait"
@@ -574,6 +576,9 @@ class ScanReader:
         self.proc = _Proc([str(helper), "--json", *extra_args, "--i1io-table-scan",
                            str(self.outdir)], log, self.outdir)
         self.log = log
+        #: the dual row (2026-11-18): the helper's tdual_calibration event of the last
+        #: calibration (None: none, or not a dual session)
+        self.dual_calibration: "dict | None" = None
 
     def opened(self, timeout=45.0) -> dict:
         ev = self.proc.wait(("tscan_instrument",), timeout)
@@ -583,12 +588,16 @@ class ScanReader:
 
     def calibrate(self, place, timeout=120.0) -> None:
         self.proc.send({"cmd": "tscan_calibrate"})
+        self.dual_calibration = None
         end = time.monotonic() + timeout
         while time.monotonic() < end:
-            ev = self.proc.wait(("tscan_calibrated", "cal_required", "cal_message"),
-                                end - time.monotonic())
+            ev = self.proc.wait(("tscan_calibrated", "cal_required", "cal_message",
+                                 "tdual_calibration"), end - time.monotonic())
             if ev is None or ev.get("event") in ("helper_gone", "error"):
                 raise ReaderFailed(f"the strip calibration did not finish ({ev})")
+            if ev["event"] == "tdual_calibration":
+                self.dual_calibration = ev     # only a dual session's helper says this
+                continue
             if ev["event"] == "cal_required":
                 if not place(ev):
                     raise ReaderFailed("the strip calibration was not done")
@@ -609,12 +618,33 @@ class ScanReader:
             return {"event": "failed", "why": str(exc)}
         return self.proc.wait(("tscan_lights_off",), 2.0) or {"event": "timeout"}
 
-    def arm(self, n: int, wait_ms: int = 3000) -> dict:
+    def arm(self, n: int, wait_ms: int = 3000, pass_: "str | None" = None) -> dict:
+        """*pass_* ("lamp" / "uv"): a dual row's pass (only a helper started with
+        --i1io-table-dual knows it, and then it fires exactly the pass it was armed for)."""
+        cmd = {"cmd": "tscan_arm", "n": n, "wait_ms": wait_ms}
+        if pass_ is not None:
+            cmd["pass"] = pass_
         try:
-            self.proc.send({"cmd": "tscan_arm", "n": n, "wait_ms": wait_ms})
+            self.proc.send(cmd)
         except ReaderFailed as exc:
             return {"event": "failed", "why": str(exc)}
         return self.proc.wait(("tscan_armed",), wait_ms / 1000.0 + 2.0) or {"event": "timeout"}
+
+    # ---- the dual row (2026-11-18; only with --i1io-table-dual) ---------------------------
+    def dual_state(self, timeout: float = 5.0) -> dict:
+        """The helper's tdual_state event (the dual session on; the dual tile of this white
+        kept or not), which comes right after tscan_instrument."""
+        return self.proc.wait(("tdual_state",), timeout) or {"event": "timeout"}
+
+    def dual_compute(self, name: str, scale: float, timeout: float = 10.0) -> dict:
+        """M1 / M2 of a dual row from <name>.dual_in.txt (the app's cut): the helper checks
+        that the UV pass belongs to the lamp pass and writes <name>.dual_out.txt."""
+        try:
+            self.proc.send({"cmd": "tscan_dual_compute", "name": name,
+                            "scale": f"{float(scale):.4f}"})
+        except ReaderFailed as exc:
+            return {"event": "failed", "why": str(exc)}
+        return self.proc.wait(("tscan_dual_computed",), timeout) or {"event": "timeout"}
 
     def fire(self, n: int, patches: int, name: str) -> bool:
         """Never raises: called on the one path after the scan move. False when the trigger

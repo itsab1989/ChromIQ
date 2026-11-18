@@ -50,7 +50,10 @@ STEP6_MODULES = {"job.py", "caps.py", "usb_system.py", "diagnostics.py",
                  # build step 8: the end of a session, what the next START finds
                  "session_end.py",
                  # round B (build step 10): a strip row's readings into patches, its row file
-                 "strip.py"}
+                 "strip.py",
+                 # the i1Pro 2 dual scan on the table (2026-11-18): the dual row's cut, its
+                 # files, its pass adapter
+                 "dual_rows.py"}
 
 
 def test_the_package_holds_the_five_moved_modules_and_the_job():
@@ -80,7 +83,19 @@ STEP7_APP_IMPORTS = {
     "reader.py": {"workflow.chartread_engine"},
     "job.py": {"workflow.measurement_state",
                # step 8: Save is guarded as every measurement is (old/ copy, C0 -> C)
-               "workflow.measurement_session"},
+               "workflow.measurement_session",
+               # the i1Pro 2 dual scan on the table (2026-11-18): the hand dual scan's own files
+               # and records, never a second mechanism (its storage rules, its pass record, the
+               # i1Pro 3 Beta's condition files, the measurement's condition keyword, the run)
+               "workflow.dual_scan.storage", "workflow.dual_scan.record",
+               "workflow.i1pro3_conditions", "workflow.measurement_condition",
+               "core.file_manager"},
+    # the dual scan: M1 / M2 assembled from the base's condition files (the i1Pro 3 Beta's)
+    "measurement.py": {"workflow.measurement_pairing", "workflow.measurement_state",
+                       "core.text_io", "core.file_manager", "workflow.argyll_colorimetry",
+                       "workflow.i1pro3_conditions"},
+    # the dual scan's header keywords, as storage names them
+    "dual_rows.py": {"workflow.dual_scan.storage"},
 }
 
 

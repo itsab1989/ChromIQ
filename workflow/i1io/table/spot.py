@@ -156,7 +156,7 @@ class RowPlan:
 
 
 def plan_row(sheet: dict, page: int, index: int, alignment, front_y=None, kind: str = "spot",
-             only_locs=None) -> RowPlan:
+             only_locs=None, dual: bool = False) -> RowPlan:
     """The row's plan. Spot (step 7): part C's ``sheet_spot_rows`` for this row: every patch's
     centre through the alignment (``Alignment.target``: on the aimed sheet, inside the area,
     not beyond the confirmed front), every row from column 0 (the end of marks 1 and 2, the
@@ -169,6 +169,8 @@ def plan_row(sheet: dict, page: int, index: int, alignment, front_y=None, kind: 
     if kind not in ROW_KINDS:
         raise RowRefused("row_kind_unknown", row_kind=kind)
     if kind == "strip":
+        if dual:
+            return plan_dual_row(sheet, page, index, alignment, front_y, only_locs)
         return plan_strip_row(sheet, page, index, alignment, front_y, only_locs)
     try:
         st = sheet["pages"][page]["strips"][index]
@@ -241,8 +243,66 @@ def plan_strip_row(sheet: dict, page: int, index: int, alignment, front_y=None,
                      readings=last.N if last is not None else None, readings_max=STRIP_N_MAX)
 
 
-def _one_strip(sheet, page, index, alignment, speed, front_y):
-    """scan.sheet_rows for one row (the same targets, ends and serpentine order)."""
+# ---- THE DUAL ROW (the i1Pro 2 dual scan on the table, 2026-11-18; A FIRST TRY) ---------------
+
+def dual_windows_ok(lamp, uv) -> "int | None":
+    """The fewest readings any patch gets in EITHER pass of a dual row with the dual row's cut
+    (``scan.DUAL_EDGE_MM``, each pass's own motion start and first reading), or None when a
+    window lies outside a pass's readings."""
+    w = sc.windows(lamp, sc.MOTION_START_AFTER_LAMP_S, lamp.N, edge_mm=sc.DUAL_EDGE_MM)
+    w += sc.windows(uv, sc.UV_MOTION_START_AFTER_TRIGGER_S, uv.N, edge_mm=sc.DUAL_EDGE_MM,
+                    first_reading_s=sc.UV_FIRST_READING_AFTER_TRIGGER_S)
+    if any(i1 - i0 < 1 for i0, i1 in w):
+        return None
+    return min(i1 - i0 for i0, i1 in w) if w else None
+
+
+def uv_pass_of(lamp) -> "sc.RowPlan":
+    """The UV pass of a dual row: the same row, straight back at the same speed (recorded)."""
+    pts = [sc.Patch(q.sample_id, q.loc, q.xy, half_mm=q.half_mm) for q in lamp.patches]
+    return sc.plan_row(lamp.name + "_uv", lamp.end, lamp.start, lamp.speed, pts,
+                       lamp.aperture_mm, dual=True)
+
+
+def plan_dual_row(sheet: dict, page: int, index: int, alignment, front_y=None,
+                  only_locs=None) -> RowPlan:
+    """One row as a DUAL row: the lamp pass from just beyond the row's -X end to just beyond its
+    +X end and the UV pass straight back, BOTH at the recorded 132 (``scan.DUAL_SPEED``), every
+    row in the same direction (as recorded: the UV pass brings the arm back to the row's start).
+    Refused, so that the caller reads the row patch by patch with the dual scan and says why:
+
+    * ``strip_only_some_patches``: a resume or a refinement wants only part of the row;
+    * ``strip_row_too_long``: the run leaves the measuring area, or it needs more readings than
+      the longest UV-LED pass ever recorded (``scan.DUAL_N_MAX``);
+    * ``dual_row_patches_too_short``: a patch gets fewer than ``scan.DUAL_MIN_READINGS``
+      readings in one of the two passes with the dual row's clean edge."""
+    try:
+        st = sheet["pages"][page]["strips"][index]
+    except (KeyError, IndexError, TypeError):
+        raise RowRefused("row_not_in_chart", page=page + 1, row=index + 1) from None
+    if only_locs is not None and not {q["loc"] for q in st["patches"]} <= set(only_locs):
+        raise RowRefused("strip_only_some_patches", page=page + 1, row=index + 1)
+    from . import geometry as geo
+    try:
+        lamp = _one_strip(sheet, page, index, alignment, sc.DUAL_SPEED, front_y, dual=True)
+        sc.check_plan(lamp, None, front_y)
+        uv = uv_pass_of(lamp)
+        sc.check_plan(uv, None, front_y)
+    except (geo.AreaRefused, sc.PlanRefused) as exc:
+        raise RowRefused("strip_row_too_long", page=page + 1, row=index + 1,
+                         log_reason=str(exc)) from None
+    fewest = dual_windows_ok(lamp, uv)
+    if fewest is None or fewest < sc.DUAL_MIN_READINGS:
+        raise RowRefused("dual_row_patches_too_short", page=page + 1, row=index + 1,
+                         fewest=fewest, needed=sc.DUAL_MIN_READINGS)
+    pts = tuple(PatchTarget(q.sample_id, q.loc, (int(round(q.xy[0])), int(round(q.xy[1]))))
+                for q in lamp.patches)
+    return RowPlan(page, index, "strip", pts, scan=lamp)
+
+
+def _one_strip(sheet, page, index, alignment, speed, front_y, dual: bool = False):
+    """scan.sheet_rows for one row (the same targets, ends and serpentine order). *dual*: every
+    row from its -X end (a dual row's UV pass brings the arm back there), at the dual speed."""
     along = float(sheet["patch_mm"][1])
     st = sheet["pages"][page]["strips"][index]
     r0, r1 = st["run_mm"]
@@ -250,7 +310,7 @@ def _one_strip(sheet, page, index, alignment, speed, front_y):
     ub = sc.sheet_table_mm(sheet, (st["x_mm"], r1))
     a = alignment.target(ua, f"row {index + 1}'s run end", front_y=front_y)
     b = alignment.target(ub, f"row {index + 1}'s run end", front_y=front_y)
-    if (a[0] > b[0]) != (index % 2 == 1):
+    if (a[0] > b[0]) != (False if dual else index % 2 == 1):
         a, b = b, a
     patches = []
     for q in st["patches"]:
@@ -259,7 +319,7 @@ def _one_strip(sheet, page, index, alignment, speed, front_y):
                                 alignment.target(u, f"patch {q['loc']}", run_out_mm=0.5,
                                                  front_y=front_y),
                                 half_mm=along / 2))
-    return sc.plan_row(f"p{page + 1}_row{index + 1}", a, b, speed, patches)
+    return sc.plan_row(f"p{page + 1}_row{index + 1}", a, b, speed, patches, dual=dual)
 
 
 def rows_on_page(sheet: dict, page: int) -> int:

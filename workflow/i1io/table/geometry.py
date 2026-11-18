@@ -197,6 +197,13 @@ RECORDED_M0_SPEEDS = (300,)
 #: 17 Nov 2026 at 168 (`;m2047a061c00a837`, `;m2fab7066f00a8cb`; a3 answered A 840, T 1474,
 #: V 168, N 470 readings by the app's own rule; each move done 0.456 / 0.448 s after lamp + T + A).
 RECORDED_M2_SPEEDS = (40, 53, 54, 61, 87, 88, 110, 118, 137, 138, 168)
+#: THE DUAL ROW (the i1Pro 2 dual scan on the table, 2026-11-18): the ONLY speed i1Profiler used
+#: for both passes of every accepted dual row in the volunteer's recordings of 18 Nov 2026 (B
+#: 43.6-80.3: `;m204f306a0008466` forward, `;m2fa6706ad0084fb` straight back; a3 answered A 660,
+#: T 2045, V 132). Never a speed of a single strip, and never allowed outside a dual row
+#: (lines.classify, the table's dual phase); 82 and 51, i1Profiler's slow repeats of a failed
+#: row, are NOT used (a failed dual row is offered again, or patch by patch).
+DUAL_M2_SPEEDS = (132,)
 
 #: Run-in / run-out allowed beyond the aimed marks along a row, and across the rows.
 RUN_OUT_MM = 10.0
@@ -289,11 +296,13 @@ def m0_line(x: int, y: int, speed: int = 300) -> bytes:
     return _line("m0", x, y, speed)
 
 
-def m2_line(x: int, y: int, speed: int) -> bytes:
+def m2_line(x: int, y: int, speed: int, dual: bool = False) -> bytes:
     """The ONLY builder of a computed scan move (m2): the recorded form apart from X, Y and a
-    recorded speed."""
-    if speed not in RECORDED_M2_SPEEDS:
-        raise AreaRefused(f"a scan move at speed {speed}: not a recorded speed")
+    recorded speed. *dual*: a pass of the dual row, whose only recorded speed is
+    :data:`DUAL_M2_SPEEDS` (and no other)."""
+    if speed not in (DUAL_M2_SPEEDS if dual else RECORDED_M2_SPEEDS):
+        raise AreaRefused(f"a scan move at speed {speed}: not a recorded speed"
+                          + (" for a dual row" if dual else ""))
     if not CAP_AREA.contains((x, y)):
         raise AreaRefused(f"a scan move's end X {x}, Y {y}: outside {CAP_AREA.text()}")
     return _line("m2", x, y, speed)

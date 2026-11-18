@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import collections
 import json
+import math
 import random
 from pathlib import Path
 
@@ -50,6 +51,18 @@ def spectrum_at(x: float, y: float) -> "list[float]":
         f = t - i
         out.append(base[i] * (1 - f) + base[i + 1] * f)
     return out
+
+
+def _dual_head(lines, args) -> "list[str]":
+    """The header keywords the helper writes into every file of a dual measurement."""
+    head = ['KEYWORD "CHROMIQ_DUAL_SCAN"', 'CHROMIQ_DUAL_SCAN "i1pro2"',
+            'KEYWORD "CHROMIQ_DUAL_SCALE"', f'CHROMIQ_DUAL_SCALE "{args.get("--dual-scale", "")}"',
+            'KEYWORD "CHROMIQ_DUAL_SCALE_SOURCE"',
+            f'CHROMIQ_DUAL_SCALE_SOURCE "{args.get("--dual-scale-source", "")}"',
+            'KEYWORD "CHROMIQ_DUAL_WHITE"', f'CHROMIQ_DUAL_WHITE "{args.get("--dual-white", "")}"',
+            'KEYWORD "CHROMIQ_DUAL_CHOSEN"',
+            f'CHROMIQ_DUAL_CHOSEN "{args.get("--dual-chosen", "")}"']
+    return list(lines[:1]) + head + list(lines[1:])
 
 
 def _read_ti2(path: Path) -> "list[tuple[str, str]]":
@@ -96,6 +109,10 @@ class HelperSim:
         self.scans: "list[str]" = []
         self.scan_readers: list = []
         self.strip_calibrated = False
+        #: the dual scan on the table (2026-11-18): a dual tile kept for the spot white / the
+        #: strip white (as the helper keeps it beside ArgyllCMS's calibration file)
+        self.spot_dual_kept = False
+        self.strip_dual_kept = False
 
     def proc_class(self):
         helper = self
@@ -120,7 +137,7 @@ class HelperSim:
         from tests.i1io_table import part_c_sim as csim
         helper = self
 
-        def make(folder, log):
+        def make(folder, log, extra_args=()):
             helper.scans.append(str(folder))
             faults = dict(helper.faults.get("scan") or {})
             at = helper.faults.get("scan_at")
@@ -128,13 +145,19 @@ class HelperSim:
                 faults = {}
             if helper.strip_calibrated:
                 faults["restored"] = True
-            r = _ChartScanReader(helper.sim, str(folder), log, faults)
+            dual = "--i1io-table-dual" in tuple(extra_args)
+            if helper.strip_dual_kept:
+                faults["dual_kept"] = True
+            r = _ChartScanReader(helper.sim, str(folder), log, faults, dual=dual)
+            r.extra_args = tuple(extra_args)
             r.colour_at = helper.colour_at
             real_cal = r.calibrate
 
             def calibrate(place, timeout=120.0):
+                helper.strip_dual_kept = False
                 real_cal(place, timeout)
                 helper.strip_calibrated = True
+                helper.strip_dual_kept = bool(getattr(r, "dual_kept", False)) and dual
             r.calibrate = calibrate
             helper.scan_readers.append(r)
             return r
@@ -203,12 +226,12 @@ def _chart_scan_reader():
         the tester's simulator unchanged."""
         colour_at = None
 
-        def _stream(self, name, n, p):
+        def _stream(self, name, n, p, which=None):
             orig = csim._spectrum_at
             if self.colour_at is not None:
                 csim._spectrum_at = self.colour_at
             try:
-                return super()._stream(name, n, p)
+                return super()._stream(name, n, p, which)
             finally:
                 csim._spectrum_at = orig
     return ChartScanReader
@@ -376,6 +399,12 @@ class FakeHelperProc:
         h.charts.append(ti2.read_text(encoding="ascii"))
         self.patches = _read_ti2(ti2)
         self.no_cal = "-N" in argv
+        #: the dual scan patch by patch on the table (--dual-table with the hand dual
+        #: scan's --dual-scale ... and --condition-dir)
+        self.dual = "--dual-table" in argv and "--dual-scale" in argv
+        self.dual_args = {k: argv[argv.index(k) + 1] for k in
+                          ("--dual-scale", "--dual-scale-source", "--dual-white",
+                           "--dual-chosen", "--condition-dir") if k in argv}
         self.no_spectral = "-n" in argv
         self.lab_only = "-l" in argv
         self.lab_too = "-L" in argv
@@ -416,6 +445,13 @@ class FakeHelperProc:
             self._emit({"event": "instrument", "model": "X-Rite i1 Pro" if fault ==
                         "wrong_model" else "X-Rite i1 Pro 2", "chart_model": "X-Rite i1 Pro 2"})
         self._cal_fault = fault
+        if self.dual and self.no_cal:
+            # a row's reader takes up the dual tile kept for this white (or has none)
+            ok = h.spot_dual_kept and not h.faults.get("dual_not_kept")
+            self._emit({"event": "dual_calibration", "ok": ok,
+                        "why": "" if ok else "no_dual_calibration", "mode": "spot",
+                        "lamp_clocks": 515, "uv_clocks": 515, "volts": [-1, -1], "driver": 0,
+                        "kept": True})
         if not self.no_cal or not h.calibrated:
             self.state = "cal"
             self._emit({"event": "cal_required", "cond": "man_trans_white" if fault ==
@@ -461,6 +497,15 @@ class FakeHelperProc:
                 return
             h.calibrated = True
             h.calibrations += 1
+            if self.dual:
+                # the dual calibration right after the white: the tile with the UV LED
+                sim.clock += 0.6
+                ok = not h.faults.get("dual_cal_fails")
+                h.spot_dual_kept = ok
+                self._emit({"event": "dual_calibration", "ok": ok,
+                            "why": "" if ok else "uv_tile_dark", "mode": "spot",
+                            "lamp_clocks": 515, "uv_clocks": 515, "volts": [662, 658],
+                            "driver": 0})
             self._emit({"event": "cal_result", "result": "done"})
             self._ready()
         elif cmd == "goto":
@@ -493,6 +538,22 @@ class FakeHelperProc:
                             "optional": False})
                 return
             sim.clock += float(h.faults.get("read_s", 0.9))
+            if self.dual:
+                # the UV half on the same spot (dark + UV-LED readings, the volts): one unit
+                sim.clock += 0.45
+                uvf = h.faults.get("uv_spot_once", ())
+                if loc in uvf and ("uv", loc) not in h.failed_once:
+                    h.failed_once.add(("uv", loc))
+                    self._emit({"event": "dual_pass_result", "what": "spot", "strip": "",
+                                "ok": False, "why": "uv_spot_failed", "uv_readings": 0,
+                                "fewest_per_patch": -1, "uv_triggers": 1, "volts": [-1, -1],
+                                "pairing": ""})
+                    self._emit({"event": "error", "kind": "misread",
+                                "detail": "Misread (the UV half of this patch)"})
+                    return
+                self._emit({"event": "dual_pass_result", "what": "spot", "strip": "",
+                            "ok": True, "why": "", "uv_readings": 1, "fewest_per_patch": -1,
+                            "uv_triggers": 1, "volts": [661, 657], "pairing": ""})
             xyz, spec = self._xyz_here()
             h.readings_at.append((tuple(sim.pos), loc))
             if fault == "implausible":
@@ -560,8 +621,38 @@ class FakeHelperProc:
                     row += [f"{v:.6f}" for v in spec]
                 lines.append(" ".join(row))
             lines += ["END_DATA", ""]
+            if self.dual:
+                lines = _dual_head(lines, self.dual_args)
             path.write_text("\n".join(lines), encoding="ascii")
+            if self.dual:
+                self._save_conditions(path, lines)
         self._emit({"event": "saved", "path": str(path), "read_patches": len(self.read)})
+
+    def _save_conditions(self, main: Path, lines) -> None:
+        """M1 / M2 beside the row file, as the helper's conditions record writes them: named by
+        the main file's readings, the same rows with the simulator's invented glow."""
+        from workflow import i1pro3_conditions as ic
+        key = ic.data_block_hash(main)
+        cdir = Path(self.dual_args.get("--condition-dir") or (self.cwd / "conditions"))
+        cdir.mkdir(parents=True, exist_ok=True)
+        begin = lines.index("BEGIN_DATA")
+        fields = lines[begin - 4].split()
+        spec_i = [i for i, f in enumerate(fields) if f.startswith("SPEC_")]
+        for cond, k in (("M1", 0.6), ("M2", -1.0)):
+            out = list(lines[:1]) + ['KEYWORD "MEASUREMENT_CONDITION"',
+                                     f'MEASUREMENT_CONDITION "{cond}"',
+                                     'KEYWORD "CHROMIQ_CONDITION_OF"',
+                                     f'CHROMIQ_CONDITION_OF "{key}"'] + list(lines[1:begin + 1])
+            for ln in lines[begin + 1:]:
+                if ln in ("END_DATA", ""):
+                    out.append(ln)
+                    continue
+                parts = ln.split(" ")
+                for i in spec_i:
+                    w = int(fields[i][5:])
+                    parts[i] = f"{float(parts[i]) + k * 2.0 * math.exp(-((w - 450) / 30.0) ** 2):.6f}"
+                out.append(" ".join(parts))
+            (cdir / f"{key}-{cond}.ti3").write_text("\n".join(out), encoding="ascii")
 
     # ---- reader._Proc's interface --------------------------------------------------------------
     def alive(self) -> bool:
