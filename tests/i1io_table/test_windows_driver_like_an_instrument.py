@@ -354,6 +354,68 @@ def test_the_open_time_refusal_becomes_the_same_offer(qtbot, monkeypatch, tmp_pa
     assert p.labels() == ["Not now", "Install the driver for the table now"]
 
 
+@pytest.mark.parametrize("problem", ["no-libusb0-dll", "table driver none"])
+def test_the_opening_on_an_arm64_pc_never_turns_into_the_offer_in_the_job(problem):
+    """Review 446, W-M1, the job's half: the registry said libusb0 and the opening still found the
+    table without its driver (or its libusb0.dll missing) on a Windows for ARM computer. The job
+    names the truthful message; nothing reached the table."""
+    from workflow.i1io.table import session_table as tbl
+    job, sim, _t = H.make_job(preflight=_pf(arm64=True))
+
+    def refuse():
+        raise tbl.NotAvailable(tbl.DRIVER_NOT_INSTALLED, problem=problem)
+    job._open_transport = refuse
+    r = H.Person(job, sim).drive(job.open())
+    assert (r.kind, r.reason) == (J.Kind.REFUSED, "usb_open_refused")
+    assert r.detail["message_id"] == "M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM"
+    assert sim.received == []
+
+
+@pytest.mark.parametrize("arm64,step,labels", [
+    (True, "open_refused", ["Close"]),
+    (False, "driver_offer", None),
+])
+def test_the_reviewers_arm64_scenario_gets_the_truthful_message_not_the_offer(
+        qtbot, monkeypatch, tmp_path, settings, arm64, step, labels):  # noqa: F811
+    """Review 446, W-M1, probe `test_probe_win_arm_open.py` as a test: the preflight says libusb0
+    in the registry and the machine is ARM64; the opening finds no libusb0.dll. Before the fix
+    the window offered "Install the driver for the table now" on ARM."""
+    from workflow import measurement_messages as M
+    from workflow.i1io.table import session_table as tbl
+    monkeypatch.setattr(H, "OK_PREFLIGHT", _pf(arm64=arm64))
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings)
+    job = sim.jobs[0]
+
+    def refuse():
+        raise tbl.NotAvailable(tbl.DRIVER_NOT_INSTALLED, problem="no-libusb0-dll")
+    job._open_transport = refuse
+    assert p.drive_until(("driver_offer", "open_refused")) == step
+    if arm64:
+        assert win._title.text() == M.M_I1IO_DRIVE_USB_NOT_ON_THIS_SYSTEM.title
+        assert p.labels() == labels
+        assert not any("Install" in x for x in p.labels())
+    assert sim.sim.received == []
+
+
+@pytest.mark.parametrize("reason", ["driver_not_installed_for_table",
+                                    "driver_not_installed_for_instrument",
+                                    "usb_open_refused"])
+def test_every_way_into_the_offer_asks_whether_the_pc_is_arm64_first(
+        qtbot, monkeypatch, tmp_path, settings, reason):  # noqa: F811
+    """Review 446, W-M1, the window's half: whatever refusal reaches the window (even one a
+    future job sends without its own ARM check), a Windows for ARM computer never gets the
+    offer."""
+    from workflow import measurement_messages as M
+    monkeypatch.setattr(H, "OK_PREFLIGHT", _pf())
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings)
+    win.job.preflight_seen = _pf(arm64=True)
+    detail = {"message_id": "M-I1IO-DRIVE-TABLE-DRIVER-NOT-INSTALLED",
+              "problem": "no-libusb0-dll"} if reason == "usb_open_refused" else {}
+    win._show_open_refused(SimpleNamespace(detail=detail, reason=reason, step="open"))
+    assert win._title.text() == M.M_I1IO_DRIVE_USB_NOT_ON_THIS_SYSTEM.title
+    assert p.labels() == ["Close"]
+
+
 def test_the_measure_tab_opens_the_driver_window_after_the_table_window_let_go(monkeypatch):
     """`_on_table_window_finished("install_driver")` opens the Instrument drivers window
     (Windows only, as Preferences); any other ending does not."""

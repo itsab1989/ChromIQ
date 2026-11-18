@@ -1097,8 +1097,15 @@ class TableJob:
         try:
             self.transport = self._open_transport()
         except tbl.NotAvailable as exc:
-            raise StageFailed("usb_open_refused", message_id=getattr(exc, "message_id", ""),
-                              problem=getattr(exc, "problem", "")) from None
+            mid, problem = getattr(exc, "message_id", ""), getattr(exc, "problem", "")
+            if pf.system == "windows" and pf.arm64_machine and mid == tbl.DRIVER_NOT_INSTALLED:
+                # review 446, W-M1: the opening found the table without its driver (or the
+                # driver's libusb0.dll missing) on a Windows for ARM computer. An install cannot
+                # help there, so never the offer: the truthful message, as before the opening
+                raise StageFailed("usb_open_refused",
+                                  message_id="M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM",
+                                  problem="windows-arm64-" + str(problem)) from None
+            raise StageFailed("usb_open_refused", message_id=mid, problem=problem) from None
         except tbl.TransportError as exc:
             raise StageFailed("usb_open_failed", error=type(exc).__name__) from None
         self.diag.log("INFO", tbl.usb_summary(self.transport))

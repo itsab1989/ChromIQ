@@ -3104,6 +3104,12 @@ class TableMeasureWindow(QFrame):
             # the opening itself found the table without the driver (or without libusb0.dll,
             # which the driver package installs): the same offer as before the opening
             reason = "driver_not_installed_for_table"
+        if reason in ("driver_not_installed_for_table", "driver_not_installed_for_instrument") \
+                and self._on_a_windows_arm64_pc():
+            # review 446, W-M1: EVERY way into the offer passes here, and a Windows for ARM
+            # computer never gets it (the drive cannot run there, so an install cannot help):
+            # the truthful message instead, whichever path brought the refusal
+            reason, d = "usb_open_refused", {"message_id": "M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM"}
         if reason in ("driver_not_installed_for_table", "driver_not_installed_for_instrument"):
             self._show_driver_offer(for_table=reason == "driver_not_installed_for_table")
             return
@@ -3124,6 +3130,22 @@ class TableMeasureWindow(QFrame):
         self._moving_controls(False)
         self._end_btn.setVisible(False)
         self._show("open_refused", title, body, [(tr("Close"), self._close_job_then_finish)])
+
+    def _on_a_windows_arm64_pc(self) -> bool:
+        """Whether this is a Windows for ARM computer, as the job's own check before the opening
+        read it (`Preflight.arm64_machine`); without that reading, asked of the machine itself on
+        Windows only. Read only."""
+        pf = getattr(self.job, "preflight_seen", None) if self.job is not None else None
+        if pf is not None:
+            return pf.system == "windows" and bool(getattr(pf, "arm64_machine", False))
+        import sys
+        if sys.platform != "win32":
+            return False
+        try:
+            import core.usb_library as usb_library
+            return bool(usb_library.machine_is_arm64())
+        except Exception:      # noqa: BLE001 - cannot tell: the job's own checks decided
+            return False
 
     def _show_driver_offer(self, for_table: bool) -> None:
         """4.3.46 (the owner, 2026-11-18): the table, and the i1Pro 2 in its arm, are helped to
