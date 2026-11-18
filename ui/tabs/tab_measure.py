@@ -7228,9 +7228,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # chart cannot be measured and M-FD9-SUPPORT-OFF says how to change
         # that, instead of offering to "correct" a name that is right.
         # An X-Rite i1iO table chart (a Beta), read HERE for the same reason:
-        # no chart is read for it that 4.3.32 did not read. On, the table
-        # cannot be driven yet and M-I1IO-NOT-YET says what can be done
-        # today; off, M-I1IO-SUPPORT-OFF says how to turn it on. Never the
+        # no chart is read for it that 4.3.32 did not read. On, a chart START
+        # did not hand to the table (no readable side file) gets
+        # M-I1IO-NOT-YET, which says why and what can be done; off, M-I1IO-SUPPORT-OFF says how to turn it on. Never the
         # repair below, which would rename it an i1Pro strip chart.
         from workflow.i1io.support import is_i1io_instrument_name
         if is_i1io_instrument_name(name):
@@ -7238,9 +7238,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             if i1io_enabled():
                 self._i1io_not_yet_window()
                 self._log.appendPlainText(tr(
-                    "Measurement not started: this chart is for the X-Rite "
-                    "i1iO table, and measuring with the table is not "
-                    "available in this version of ChromIQ yet."))
+                    "Measurement not started: this chart is for the X-Rite i1iO "
+                    "table, but the file ChromIQ drives the table by (the chart's "
+                    "name with the ending “.i1io.json”) is not beside it, or cannot "
+                    "be read. The window says what you can do."))
             else:
                 self._i1io_support_off_window()
                 self._log.appendPlainText(tr(
@@ -8052,8 +8053,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._i1io_not_yet_window()
         self._log.appendPlainText(tr(
             "Measurement not started: this chart is for the X-Rite i1iO "
-            "table, and measuring with the table is not available in this "
-            "version of ChromIQ yet."))
+            "table, but the file ChromIQ drives the table by (the chart's "
+            "name with the ending “.i1io.json”) is not beside it, or cannot "
+            "be read. The window says what you can do."))
         return True
 
     def _refused_as_an_isis_chart(self) -> bool:
@@ -8154,8 +8156,27 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         title, body = self._i1io_not_yet_message(M).render()
         if nums is not None:
             body += "\n\n" + M.i1io_pages_note(int(nums.get("pages") or 1))
-        self._i1io_window(title, body + "\n\n"
-                          + M.i1io_aim_text(self._i1io_aim_details()))
+        # 4.3.47: without its side file the table cannot measure this sheet
+        # (the window says so and how to make one it can), so the paragraph
+        # on where to aim the table on THIS sheet is left out: it would
+        # describe a table measurement that cannot happen.
+        if self._i1io_side_file_readable():
+            body += "\n\n" + M.i1io_aim_text(self._i1io_aim_details())
+        self._i1io_window(title, body)
+
+    def _i1io_side_file_readable(self) -> bool:
+        """Whether the loaded i1iO chart's side file `<stem>.i1io.json` is
+        beside it and reads as JSON. Never raises."""
+        try:
+            import json as _json
+            chart = Path(self._chart_file_for(self._ti1_path))
+            name = chart.name[:-4] if chart.name.lower().endswith(".ti2") \
+                else chart.stem
+            side = chart.with_name(name + ".i1io.json")
+            return isinstance(_json.loads(side.read_text(encoding="utf-8")),
+                              dict)
+        except Exception:      # noqa: BLE001 - a notice, never a blocker
+            return False
 
     def _i1io_measure_chart_numbers(self) -> "dict | None":
         """The numbers of the Measure Chart steps for the loaded i1iO chart
@@ -9688,8 +9709,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # Nothing is read here while the Beta is off.
         if self._started_the_table_drive():
             return
-        # An X-Rite i1iO table chart with i1iO support on (Beta): the table
-        # cannot be driven yet, so Start says so BEFORE anything is recovered,
+        # An X-Rite i1iO table chart with i1iO support on (Beta) that the
+        # table cannot drive (no readable side file), so Start says so and
+        # what to do (M-I1IO-NOT-YET) BEFORE anything is recovered,
         # armed or written. With the switch off nothing is read here; the
         # chart is refused where 4.3.32 already reads its instrument name
         # (`_blocked_by_unusable_target_instrument`).

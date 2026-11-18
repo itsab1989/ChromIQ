@@ -581,49 +581,65 @@ M_FD9_SUPPORT_OFF = _m(
     approved=False)
 
 #: Start pressed on an X-Rite i1iO table chart while i1iO support (Beta) is
-#: on: this version makes charts for the table but cannot drive it yet.
+#: on, and the table cannot drive it: since 4.3.45 START drives the table
+#: (`_started_the_table_drive`) for every chart that has its ChromIQ side
+#: file `<stem>.i1io.json` (the positions of the patches and the marks), so
+#: the chart that still gets here is one without it (copied without it, or
+#: the file cannot be read). Rewritten for 4.3.47: it used to say the table
+#: could not be driven yet. Shown by `_i1io_not_yet_window`; nothing is
+#: started, archived or written.
+_I1IO_NO_SIDE_FILE = (
+    "This chart was made for the X-Rite i1iO scanning table, but ChromIQ "
+    "cannot drive the table with it. To guide the arm, ChromIQ has to know "
+    "exactly where every patch and every aiming mark lies on the sheet. "
+    "When ChromIQ makes a chart for the table, it writes these positions "
+    "into a small file of its own beside the chart, with the chart's name "
+    "and the ending “.i1io.json”. This chart has no such file beside it, or "
+    "ChromIQ cannot read it, for example because only the chart file was "
+    "copied from another folder or another computer. Nothing is wrong with "
+    "the patches themselves.")
 M_I1IO_NOT_YET = _m(
     "M-I1IO-NOT-YET",
-    "Measuring with the i1iO table is not available yet",
-    "This chart was made for the X-Rite i1iO scanning table. This version "
-    "of ChromIQ can make charts for the table, but it cannot measure with "
-    "it yet: reading with the table is being prepared for a later version. "
-    "So this chart cannot be measured here at the moment. Nothing is wrong "
-    "with the chart. Please keep in mind that the layout may still change "
-    "once an i1iO owner has tested it, so a later version may ask you to "
-    "print the chart again.\n\n"
-    "What you can do today, if you still have i1Profiler 3.8.6 or an older "
-    "version and your printer uses RGB or CMYK: when the chart was made, "
-    "ChromIQ also saved its patches as i1Profiler patch-set files in the "
-    "“exports” folder beside the chart. Open one of them in i1Profiler, print the "
-    "chart that i1Profiler lays out for the table from it, and measure that "
-    "chart there with the table. Save "
-    "the measurement as an .mxf file, or as a CGATS text export that "
-    "includes the RGB or CMYK values, so that ChromIQ can tell which reading "
-    "belongs to which patch. Then bring it in with Tools → “Convert "
-    "i1Profiler → TI3”, and build the profile as usual.",
+    "The i1iO table cannot measure this chart",
+    _I1IO_NO_SIDE_FILE + "\n\n"
+    "To measure these patches with the table, make the chart for the table "
+    "again in ChromIQ. On the Create Chart tab, choose “i1iO 2 + i1Pro 2” "
+    "as the instrument. To keep the patches of this chart, press “Load "
+    "patch set” at the top of that tab and choose this chart's patch set, "
+    "the file with the chart's name and the ending “.ti1”: ChromIQ lays "
+    "these patches out again for the table. For new patches, press "
+    "Generate Chart instead. Then print the new chart on the Print Chart "
+    "tab and press Start Measurement on this tab: the table measures "
+    "it.\n\n"
+    "You can also measure the patches by hand, without the table: the i1Pro "
+    "2 from the table's arm measures by hand too, and ChromIQ reads it that "
+    "way. Make the chart in the same way, but choose “i1Pro / i1Pro 2 / "
+    "i1Pro 3” as the instrument, then print it and measure it by hand on this "
+    "tab. This sheet itself is laid out for the table, so ChromIQ does not "
+    "read it by hand.",
     approved=False)
 
 #: The same for a VERIFICATION or CALIBRATION chart made for the table
 #: (2026-11-13, the owner: those run types make i1iO charts as they do for
-#: other instruments). The first paragraph is M-I1IO-NOT-YET's; the i1Profiler
-#: way in its second ends in building a profile, which these charts are not
-#: for, so the way offered is the table's own head, measured by hand.
+#: other instruments). Its first paragraph is M-I1IO-NOT-YET's; these charts
+#: are made from the run's profile or the inks, not from a patch set, so the
+#: way offered is to create the chart again, for the table or for the i1Pro
+#: 2 by hand.
 M_I1IO_NOT_YET_BY_HAND = _m(
     "M-I1IO-NOT-YET-BY-HAND",
-    "Measuring with the i1iO table is not available yet",
-    "This chart was made for the X-Rite i1iO scanning table. This version "
-    "of ChromIQ can make charts for the table, but it cannot measure with "
-    "it yet: reading with the table is being prepared for a later version. "
-    "So this chart cannot be measured here at the moment. Nothing is wrong "
-    "with the chart. Please keep in mind that the layout may still change "
-    "once an i1iO owner has tested it, so a later version may ask you to "
-    "print the chart again.\n\n"
-    "What you can do today: the i1Pro 2 from your table's arm also measures "
-    "by hand, and ChromIQ reads it that way. On the Create Chart tab, choose "
-    "“i1Pro / i1Pro 2 / i1Pro 3” as the instrument for this chart and "
-    "create it again. Then print it on the Print Chart tab as usual and "
-    "measure it by hand on this tab.",
+    "The i1iO table cannot measure this chart",
+    _I1IO_NO_SIDE_FILE + "\n\n"
+    "To measure it with the table, make this chart again in ChromIQ. On "
+    "the Create Chart tab, choose “i1iO 2 + i1Pro 2” as the instrument for "
+    "this chart and create it again. Then print it on the Print Chart tab "
+    "and press Start Measurement on this tab: the table measures it.\n\n"
+    "You can also measure it by hand, without the table: the i1Pro 2 from "
+    "the table's arm measures by hand too, and ChromIQ reads it that way. "
+    "On the Create Chart tab, choose “i1Pro / i1Pro 2 / i1Pro 3” as the "
+    "instrument for this chart and create it again. Then print it on the "
+    "Print Chart tab as usual and measure it by hand on this tab. This "
+    "sheet itself is laid out for the table, so ChromIQ does not read it by "
+    "hand.",
     approved=False)
 
 #: What to aim at on an i1iO chart, by what the chart records

@@ -410,9 +410,12 @@ like for other instruments."*
 
 ### On: Measure
 
-Start on an i1iO chart shows M-I1IO-NOT-YET before anything is recovered,
-armed or written: measuring with the table is being prepared, the layout may
-still change, and the i1Profiler route that works today.
+Start on an i1iO chart that START does not hand to the table (see "START
+drives the table" below; in practice a chart without a readable side file
+`<stem>.i1io.json`) shows M-I1IO-NOT-YET before anything is recovered, armed
+or written. Since 4.3.47 (2026-11-18) it says why the table needs the side
+file, how to make a chart the table can measure, and the way by hand; it used
+to say that measuring with the table was being prepared.
 Loading such a chart logs "Chart instrument: X-Rite i1iO." without the
 strip-recognition detail other strip charts get, since no strip is read
 (with the option off the line is 4.3.33's).

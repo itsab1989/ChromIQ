@@ -5,6 +5,7 @@
 ### Fixed
 
 - **The scan arrow on the Measure tab sits on its strip at every preview size.** At a small preview the arrow leaned a quarter of a strip towards the next one, because the two extra pixels that make it a little wider than the strip all went to its right side. It is now centred on the strip.
+- **i1iO table beta: the window for a chart the table cannot measure now says why, and what to do.** Since 4.3.45 the table measures every chart ChromIQ makes for it. A chart that names the table but has lost ChromIQ's small file beside it (the chart's name with the ending “.i1io.json”, which holds where every patch and mark lies) still showed the old window saying that measuring with the table was being prepared for a later version. It now explains that this file is missing, how to make a chart the table can measure (Create Chart, “i1iO 2 + i1Pro 2”, “Load patch set” with the chart's own patch set), and how to measure the same patches by hand with the i1Pro 2 from the table's arm.
 
 ## v4.3.46
 
