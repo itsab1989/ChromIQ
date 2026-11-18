@@ -9,13 +9,13 @@ Feature owner's order (2026-11-18): the i1Pro 2 can give M0, M1 and M2 from a "d
 (every strip or patch read once with its tungsten lamp and once with its UV LED, after a
 calibration that also reads the white tile with the UV LED). ChromIQ offers this for the i1Pro 2
 by hand and on the i1iO 2 table, and keeps all three conditions through the EXISTING Beta
-"X-Rite i1Pro 3: keep M0, M1 and M2 from every scan" (same files, same choice afterwards).
+"X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every scan" (same files, same choice afterwards).
 
 Step 1 (2026-11-18): the calculation, the stored form, the helper's arithmetic and files,
 proved on recorded data. Step 2 (2026-11-18): the independent review's findings (REVIEW_446,
 branch 1) and the device side of the helper (section 7). No user interface yet.
 
-## Confirmed behaviour (two decisions only)
+## Confirmed behaviour (three decisions only)
 
 **Confirmed by:** Sebastian, 2026-11-18
 
@@ -32,6 +32,16 @@ branch 1) and the device side of the helper (section 7). No user interface yet.
 * **Passes from more than one calibration are allowed and recorded**: "Continue Measurement"
   reads the missing passes after a new dual calibration, and the measurement records that its
   passes come from more than one calibration.
+
+### The Beta option's name names the i1Pro 2 too
+
+**Confirmed by:** Sebastian, 2026-11-18
+
+* The existing Beta option in Preferences > Beta that the dual-scan switch sits under is named
+  "X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every scan (beta)" (it was "X-Rite i1Pro 3:
+  keep M0, M1 and M2 from every scan"), because the i1Pro 2's dual scan is switched on under it.
+  The settings key stays `i1pro3_conditions_beta` (no migration); the label, its help, every text
+  that quotes it and all 13 languages say the new name.
 
 ## ⏳ Awaiting confirmation
 
@@ -302,15 +312,14 @@ never on a real instrument. Code: `workflow/dual_scan/session.py` (the rules),
 `tests/test_i1pro2_dual_scan_ui.py`.
 
 * **Where it is switched on.** Preferences > Beta, "X-Rite i1Pro 2: also M1 and M2, by a dual
-  scan (beta, first try)", indented under "X-Rite i1Pro 3: keep M0, M1 and M2 from every scan" and
+  scan (beta, first try)", indented under "X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every scan" and
   greyed (keeping its value) while that is off, because the dual scan ends in that Beta's files.
   Turning it on asks for the own-risk confirmation, as the other instrument Betas do. Its (i)
   holds the cost sentence of section 6. Off (either switch): no `--dual-*` argument, no note, no
   window; the Measure tab is as before.
 * **Which instrument.** Only ChromIQ's engine, a helper naming both capability words, a chart that
-  is not a calibration's, and no instrument of another model seen in this app run (an i1Pro 3
-  keeps its own `-F`). The first measurement of an app run cannot know the model before START;
-  the switch says "i1Pro 2", so it is taken at its word.
+  is not a calibration's, and an instrument known to be an i1Pro 2 or not known to be another
+  model (an i1Pro 3 keeps its own `-F`). How the model is known before START: section 9.
 * **The filter row chooses the main condition.** With the dual scan on, "Spectral filter type
   (-F)" (off = M0, or M0 / M1 / M2) is not sent as `-F`: it goes out as `--dual-chosen` and is
   recorded; the main file stays M0. The polariser and D65 are refused before START
@@ -350,8 +359,11 @@ never on a real instrument. Code: `workflow/dual_scan/session.py` (the rules),
 * **Build Profile.** "Build from" is set to the chosen condition as soon as every strip has both
   passes (`storage.build_from_preset`), kept in the target's settings, and only once (the pass
   record's `preset_done`), so a later choice of the person's stands. Until then it stays at M0 and
-  a line under the measurement says why ("Dual scan: M2 was chosen in the Measure tab. M1 and M2
-  are not available yet: the second pass (UV light) of these strips is missing: ...").
+  a line under the measurement says why: strips not read yet ("... not every strip has been read.
+  Continue Measurement, with the dual scan still switched on, reads the strips still missing (B, C)
+  with both passes ..."), or M1 and M2 ended during the measurement ("... Continue Measurement
+  cannot add M1 and M2 to it; for M1 and M2, measure the chart again as a new measurement"). See
+  section 9.
 * **The ending, the lock, Continue Measurement, sounds and lights** are the hand path's, unchanged.
 * **Known difference from i1Profiler (the coordinator's decision, 2026-11-18):** a strip's LAMP
   pass carries ArgyllCMS's own lamp clocks (102 in scan mode), where i1Profiler sends 41; that is
@@ -361,3 +373,81 @@ never on a real instrument. Code: `workflow/dual_scan/session.py` (the rules),
   window needs the instrument's serial, which the app does not get from the engine today; the
   standard factor makes the feature fully usable without it), distinct sounds per pass (a row in
   `measurement_window_sounds.md` first), and the i1iO 2 table.
+
+### 9. Fix round after the independent UI review (2026-11-18)
+
+**Confirmed by:** *nobody yet.* Built and tested against the simulated helper and on screen; never
+on a real instrument. Tests: `tests/test_i1pro2_dual_scan_ui_fix.py`,
+`tests/test_i1pro2_dual_scan_ui_review.py`. Texts §M-PROPOSED (M-DUAL-CONTINUE-M0,
+M-DUAL-NOCAL-REFUSED, M-DUAL-PASS-ONE-NO-CAL, M-DUAL-PASS-TWO-NO-CAL, M-DUAL-MODEL-ASK,
+M-DUAL-MODEL-CORRECTED, M-DUAL-MODEL-NOTED, M-DUAL-FILTER-OFF-PARENT; M-DUAL-ENDED changed).
+
+* **Which instrument, before START (Sebastian asked for this on 2026-11-18; he has not seen the
+  result).** Nothing is sent to an instrument to find out
+  (`workflow/dual_scan/instrument_model.py`). Only with the dual scan on; with it off nothing of
+  this runs, nothing is read and nothing is written.
+  1. The USB connection (the system's own list, `core/argyll_instruments.usb_devices`): one
+     ArgyllCMS instrument attached that is an i1Pro 3 (0765:6009, the i1Pro 3 Plus has the same id)
+     or any other instrument: measured as without the Beta. 0971:2000 is "an i1Pro or an i1Pro 2":
+     ArgyllCMS tells the two apart only by the number of USB pipes, which this list does not give,
+     so USB alone never says "i1Pro 2". Nothing attached, several, or no list: USB cannot tell.
+  2. What is remembered across app runs: the model the instrument itself reported at the last
+     measurement with the dual scan on (the helper's `instrument` event, ArgyllCMS's "Instrument
+     Type:" line), or the person's answer. A remembered i1Pro 2 stands when USB says "i1Pro
+     family"; a remembered report of another family (an instrument changed since) does not.
+  3. When neither tells: one window before START, "Which instrument do you measure with?"
+     (M-DUAL-MODEL-ASK) with "i1Pro 2", "Another instrument", "Not sure" (the default: START as for
+     an i1Pro 2 and let the instrument's report correct it, nothing remembered) and "Cancel"
+     (nothing starts). The answer is remembered.
+  4. Preferences > Beta, under the dual-scan switch: "Instrument for the dual scan:" with "Ask
+     before the next measurement" (forgets), "i1Pro 2", "Another instrument (not an i1Pro 2)", and
+     a line saying what is remembered and where it came from. Written only when changed there, so
+     a reported model stays as the instrument reported it.
+  5. The instrument's own report at the start always wins. It is remembered, and when it
+     contradicts what START assumed, the engine is ended before the first reading and the same
+     read is started again the right way, as one session (`MeasureManager.relaunch_before_reading`:
+     the first engine's remaining output is not read, the tab sees no ending): an i1Pro 3 or any
+     other instrument gets exactly the read it gets without the Beta (the row's `-F`, no `--dual-*`,
+     so an i1Pro 2 refusing a filter still gets M-FILTER-REFUSED); an i1Pro 2 found after a start
+     without the dual scan gets the dual read when the plan applies. One sentence says so in the
+     log and under the chart (M-DUAL-MODEL-CORRECTED). When it cannot start again (something was
+     read), it goes on as started and says that (M-DUAL-MODEL-NOTED).
+* **How a person tells the instruments apart: verified, with sources.** ArgyllCMS 3.5.0
+  (`doc/instruments.html` of the release, read 2026-11-18; the vendored sources in
+  `native/instlib`): the i1Pro 2 is "AKA Eye-One Pro Rev E"; "There have been four revisions of the
+  Eye-One Pro, Rev. A, B, D and E (AKA Eye-One Pro2)"; the EFI ES-1000 is "a re-badged Eye-One
+  Pro"; the OEM i1Pro 2 EFI ES-2000 (part number EO2-XR-UF, the retail one EO2-XR-ULZW) is "fitted
+  with an Ultra Violet filter", "missing the UV illumination LED" and "the Zebra stripe ruler
+  sensor"; the i1Pro 3 and i1Pro 3 Plus, and OEM i1Pro 3s such as the EFI ES-3000; the cheapest
+  package was named i1Basic Pro 2. `insttypes.c` (USB ids, above; `inst_name`: "i1Pro", "i1Pro2",
+  "i1Pro3"), `i1pro_imp.h` (firmware 629 = Rev E), `i1pro_imp.c` / `i1pro3_imp.c` ("Instrument
+  Type:" line, " Plus" from the aperture). NOT verified, and the window says so: what is printed
+  on the instrument's label, and the product names shown by the vendor's software.
+* **Continue Measurement after M1 / M2 ended (review M-1).** The engine's resume takes M1 / M2 up
+  again only when the condition files still belong to the readings (`cq_cond_resume`); after M1 /
+  M2 ended they never do. So before START the status line says "Dual scan: this measurement
+  continues as M0 only" (M-DUAL-CONTINUE-M0; `session.ended_before`), the dual arguments are still
+  passed (the engine refuses a dual measurement continued without them), the engine's
+  `why: "resume"` arrives as M-DUAL-ENDED with its own sentence, and no text promises M1 / M2 back
+  ("For M1 and M2, measure the chart again as a new measurement"). A measurement stopped early
+  with its files in step continues with both passes for the strips not read yet.
+* **A new measurement into the same file starts a fresh pass record (review M-2)**; only Continue
+  Measurement (`-r`) takes the old one up again.
+* **Texts (review M-3).** The calibration and session-level reason sentences say what happened and
+  no action; M-DUAL-CAL-REFUSED adds "calibrate again before the next strip" (true: a good dual
+  calibration before the next strip's UV pass keeps M1 / M2), M-DUAL-ENDED adds that M0 goes on,
+  one pass per strip, and that M1 / M2 come back only with a new measurement. Every reason the
+  engine can give has a sentence; an unknown one gets a plain sentence without its id
+  (review S-4).
+* **"Skip initial calibration (-N)" with the dual scan is refused before START**
+  (M-DUAL-NOCAL-REFUSED, review S-5): on the hand path -N is the person's own choice, so it is not
+  overridden by a calibration they switched off, and the dual scan cannot work without it (a kept
+  calibration has no UV reading of the tile; M1 / M2 would end at the first strip).
+* **After a dual calibration that cannot give M1 / M2** the pass prompts say so
+  (M-DUAL-PASS-ONE-NO-CAL: calibrate again now; M-DUAL-PASS-TWO-NO-CAL: this pass only closes the
+  strip). Not asking for that pass at all needs a helper change.
+* **The pass line** in the status line is bold, in the text colour, one point above the app's body
+  size, only while a dual line is up.
+* **The simulated helper** ends M1 / M2 as the real one does: the strip that ends them is read
+  without its UV half, so the real helper's record is lost and its condition files go out of step,
+  and a later Continue Measurement gets the real helper's own `why: "resume"`.

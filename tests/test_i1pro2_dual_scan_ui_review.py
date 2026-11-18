@@ -1,9 +1,10 @@
 """Independent review of the i1Pro 2 dual scan UI step (2026-11-18, 8dd817972).
 
 Two faults found by reading the tab against the helper's C code
-(native/chartread_helper/chromiq_dualdev.c cq_dd_strip). Each test is
-``xfail(strict=True)``: it documents the fault and turns red (XPASS) the
-day the fault is fixed, so the marker must then be removed.
+(native/chartread_helper/chromiq_dualdev.c cq_dd_strip). Committed as strict
+expected failures (044a9bbcf); fixed in the fix round of the same day (S-2:
+a kept failure belongs to its own strip only; M-2: a new measurement into
+the same file starts a fresh pass record), so the marks are gone.
 """
 from __future__ import annotations
 
@@ -49,14 +50,6 @@ def _fake(tmp_path, strips=("A", "B")):
     return fake, logged
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "REVIEW 2026-11-18: a UV pass left by a command (goto / f / b while pass 2 "
-    "was due) gives dual_pass_result uv_pass_missing with NO misread window "
-    "(cq_dd_strip: *rv = rv2, the loop handles the key); _dual_failed stays "
-    "set and the NEXT misread window, of another strip, says the second pass "
-    "of strip A failed (also after M1 / M2 ended: dual_needs_ruler does not "
-    "clear it). Fix: clear _dual_failed at every strip_ready "
-    "(_on_stripe_changed) and on every dual_pass_result."))
 def test_a_left_second_pass_never_names_itself_in_another_strips_window(
         qapp, tmp_path):
     from ui.tabs.tab_measure import TabMeasure
@@ -82,15 +75,6 @@ def test_a_left_second_pass_never_names_itself_in_another_strips_window(
     assert "strip A" not in TabMeasure._dual_failure_html(fake)
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "REVIEW 2026-11-18: the pass record is named by the measurement's STEM "
-    "(Run.dual_pass_record), not by its readings, and nothing clears it, so a "
-    "NEW measurement into the same file (Replace) inherits the old one's "
-    "strip states and its preset_done: Build Profile is then never pre-set "
-    "for it, and a strip the new measurement has not read counts as having "
-    "both passes. Fix: start a fresh PassRecord when the session is not a "
-    "Continue Measurement (p.resume False), or key the record by the "
-    "readings' hash as the conditions files are."))
 def test_a_new_measurement_into_the_same_file_starts_a_fresh_pass_record(
         qapp, tmp_path):
     from core.file_manager import Run

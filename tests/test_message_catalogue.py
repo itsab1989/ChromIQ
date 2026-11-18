@@ -224,6 +224,14 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-DUAL-ON",
     "M-DUAL-PASS-NOTE",
     "M-DUAL-START-REFUSED",
+    "M-DUAL-FILTER-OFF-PARENT",
+    "M-DUAL-CONTINUE-M0",
+    "M-DUAL-NOCAL-REFUSED",
+    "M-DUAL-PASS-ONE-NO-CAL",
+    "M-DUAL-PASS-TWO-NO-CAL",
+    "M-DUAL-MODEL-ASK",
+    "M-DUAL-MODEL-CORRECTED",
+    "M-DUAL-MODEL-NOTED",
     # 4.3.45: Windows, switch the driver's colour management off first.
     "M-PRINT-WIN-DRIVER-CM",
     # 2026-11-16: the Beta "Custom page size in inches or pixels, and high

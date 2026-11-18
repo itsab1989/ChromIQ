@@ -3,7 +3,7 @@
 Pinned here, in the owner's and the coordinator's words
 (docs/design/i1pro2_dual_scan.md section 8, workflow/dual_scan/session.py):
 
-* a Beta under "X-Rite i1Pro 3: keep M0, M1 and M2 from every scan"; with
+* a Beta under "X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every scan"; with
   either off, nothing of it runs and the helper's command line is today's;
 * with it on, the filter row's M0 / M1 / M2 is NOT sent as -F: it is recorded
   with --dual-chosen, and the main file stays M0; the polariser and D65 are
@@ -107,7 +107,9 @@ def test_no_minus_f_goes_to_the_instrument(args, left):
     ("dual_high_resolution", "dual_high_resolution"),
     ("dual_no_uv_tables", "no_uv_tables"), ("mixed", "mixed_scan_kind"),
     ("uv_pass_wrong_strip", "uv_pass_wrong_strip"),
-    ("dual_record", ""), ("dual_not_available", ""), ("", "")])
+    # review of 2026-11-18, S-4: these had no sentence and showed their id
+    ("dual_record", "record"), ("dual_not_available", "not_available"),
+    ("resume", "resume"), ("", "")])
 def test_every_engine_reason_finds_its_sentence(why, rid):
     assert D.reason_id(why) == rid
     text = D.reason_sentence(why)
@@ -531,7 +533,11 @@ def test_until_every_strip_has_both_passes_it_says_why(qapp, tmp_path):
                            _dual_preset_commit_pending=lambda: None)
     TabProfile._dual_preset_once(fake, True)
     assert fake._build_from == ""
-    assert shown["v"] is True and "M2" in shown["t"] and "B" in shown["t"]
+    # B was read as M0 after M1 / M2 ended, so the condition files are out
+    # of step for good: no promise of Continue Measurement (review M-1)
+    assert shown["v"] is True and "M2" in shown["t"]
+    assert "ended during the measurement" in shown["t"]
+    assert "measure the chart again" in shown["t"]
 
 
 def test_the_filter_refused_variant_points_to_the_dual_scan(qapp):

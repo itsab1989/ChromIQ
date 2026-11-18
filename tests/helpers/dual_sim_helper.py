@@ -36,9 +36,22 @@ M2 end for the session, the strip is kept as M0). Patch by patch, one swipe
 is one press (lamp + UV); ``"uv_fault": "uv_spot_failed"`` refuses it.
 ``CHROMIQ_DUAL_SIM_CAL=dark`` makes every calibration ``uv_tile_dark``.
 
-LIMITS (said, not hidden): the replay instrument computes M1 / M2 for every
-strip it reads, so after ``needs_ruler`` the files still hold M1 / M2 where
-the real helper would hold none; patch by patch the replay has no dual
+AFTER M1 / M2 ENDED, AS THE REAL HELPER (review of 2026-11-18, NOTE: the
+simulation used to keep writing M1 / M2, which hid M-1 on screen). With
+``CHROMIQ_DUAL_SIM_M0_SUFFIX`` set (the driver writes, beside every strip
+``A``, a block ``A~M0`` with the same LAMP lines and no UV lines), the
+strip that ends M1 / M2 is read from that block, so the REAL helper's own
+conditions record is lost there (cq_cond_lose "dual_uv_pass_missing":
+the reading has no UV half; chromiq_chartread.c), whose event this
+simulation swallows: the real helper emits only its one end) and it writes
+no more condition files: they go out of step with the main file, exactly as
+on the instrument, and a later Continue Measurement gets the real helper's
+own ``conditions active:false why:"resume"``.
+
+LIMITS (said, not hidden): without that suffix the replay instrument
+computes M1 / M2 for every strip it reads, so after ``needs_ruler`` the files
+still hold M1 / M2 where the real helper would hold none; patch by patch the
+replay has no dual
 record, so its conditions end (``record``) after the first patch;
 the simulation swallows that event (the device path computes M1 / M2 for a
 patch, cq_dd_spot), so the tab behaves as with the real helper while the
@@ -60,6 +73,8 @@ REAL = Path(os.environ.get("CHROMIQ_DUAL_SIM_REAL") or (
 #: the UV tile reading after ArgyllCMS's calibration (1.5 s lamp-off wait,
 #: 10 dark and 5 UV readings): 2 to 3 s on the instrument
 TILE_S = float(os.environ.get("CHROMIQ_DUAL_SIM_TILE_S", "2.5"))
+#: the replay block of a strip's values without the dual record (see above)
+M0_SUFFIX = os.environ.get("CHROMIQ_DUAL_SIM_M0_SUFFIX", "")
 #: the person moving the instrument back over the strip
 PASS_S = float(os.environ.get("CHROMIQ_DUAL_SIM_PASS_S", "0.4"))
 
@@ -72,6 +87,7 @@ def main(argv: "list[str]") -> int:
     out_lock = threading.Lock()
     ready = threading.Event()        # the replay's ready-to-scan beep
     st = {"dual": False, "strip": "", "phase": "lamp", "spot": False,
+          "ended": False,
           "pending": None, "lamp_fault": "", "lamp_reason": "",
           "mode": "spot" if "-p" in argv else "scan"}
 
@@ -121,6 +137,8 @@ def main(argv: "list[str]") -> int:
                 # the replay has no dual record for a patch; the device path
                 # works M1 / M2 out for it (cq_dd_spot): the session goes on
                 continue
+            if kind == "conditions" and not ev.get("active") and st["ended"]:
+                continue      # the real helper ends M1 / M2 once, not twice
             if kind == "conditions" and not ev.get("active"):
                 st["dual"] = False
             if kind == "strip_ready":
@@ -196,6 +214,11 @@ def main(argv: "list[str]") -> int:
                 emit({"event": "conditions", "active": False,
                       "why": "dual_dual_needs_ruler"})
                 st["dual"] = False
+                st["ended"] = True
+                if M0_SUFFIX and not plain.get("as"):
+                    # the strip is kept as M0 and the real helper's record
+                    # ends here: no more condition files from now on
+                    plain = {**plain, "as": strip + M0_SUFFIX}
                 to_child(plain)
                 continue
             st["lamp_fault"] = str(cmd.get("lamp_fault") or "")

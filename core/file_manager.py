@@ -2617,7 +2617,7 @@ class Run(I1ioTablePlace):
         return dst
 
     # ---- the other measurement conditions (Preferences > Beta, 2026-11-15)
-    # "X-Rite i1Pro 3: keep M0, M1 and M2 from every scan": the chart-reading
+    # "X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every scan": the chart-reading
     # engine writes the two conditions -F did not choose into conditions/,
     # NAMED BY the hash of the main measurement's readings, so they follow
     # those readings wherever they go (workflow/i1pro3_conditions.py).

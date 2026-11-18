@@ -11874,7 +11874,11 @@ M_DUAL_SPOT_FAILED = _m(
 M_DUAL_ENDED = _m(
     "M-DUAL-ENDED",
     "Dual scan: M1 and M2 stop for this measurement",
-    "{reason} M0 goes on as always: carry on measuring.",
+    "{reason}\n\n"
+    "From here on ChromIQ reads M0 as always, one pass per strip: carry on "
+    "measuring. A strip read from now on has M0 only, and Continue "
+    "Measurement cannot add M1 and M2 to it later. For M1 and M2, measure "
+    "the chart again as a new measurement.",
     approved=False)
 
 #: In the log when a session keeps all three conditions from dual scans.
@@ -11901,6 +11905,127 @@ M_DUAL_START_REFUSED = _m(
     "This measurement cannot be continued this way",
     "{reason}\n\n"
     "Nothing has been measured or changed.",
+    approved=False)
+
+
+#: M-DUAL-FILTER-OFF when the option the dual scan sits under is off too
+#: (review of 2026-11-18, texts M3: the dual switch is greyed then).
+M_DUAL_FILTER_OFF_PARENT = _m(
+    "M-DUAL-FILTER-OFF-PARENT",
+    "The i1Pro 2 gives M1 and M2 only with a dual scan",
+    "The measurement did not start. On the Measure tab, “Spectral filter "
+    "type (-F)” is set to “{setting}”, and the i1Pro 2 reads M0 in a single "
+    "scan: it has no filter that ArgyllCMS could switch.\n\n"
+    "The i1Pro 2 can also give M1 and M2 with a dual scan: each strip is "
+    "read twice, first with the lamp and then with the instrument's UV "
+    "light, and ChromIQ works out M1 and M2 from the two passes. To use it, "
+    "switch on “{parent}” in {where} and, under it, “{option}”, then press "
+    "“{start}” again: ChromIQ asks you to calibrate, and the calibration "
+    "then reads the white tile with the UV light as well.\n\n"
+    "Or choose “M0: no filter (lamp as it is)”, or switch the row off, to "
+    "measure M0 now.\n\n"
+    "Nothing has been measured or changed.",
+    approved=False)
+
+#: The Measure tab before START, when the measurement to continue is a dual
+#: scan whose M1 and M2 ended (review of 2026-11-18, M-1): the engine cannot
+#: take them up again (its condition files no longer belong to the readings).
+M_DUAL_CONTINUE_M0 = _m(
+    "M-DUAL-CONTINUE-M0",
+    "Dual scan: this measurement continues as M0 only",
+    "M1 and M2 ended earlier in this measurement, so Continue Measurement "
+    "reads the strips still missing with the lamp only, one pass per strip, "
+    "and the measurement stays M0. For M1 and M2, measure the chart again "
+    "as a new measurement.",
+    approved=False)
+
+#: Before START: "Skip initial calibration (-N)" with the dual scan (review
+#: of 2026-11-18, S-5): a calibration kept from before has no reading of the
+#: white tile with the UV light, so M1 and M2 would end at the first strip.
+M_DUAL_NOCAL_REFUSED = _m(
+    "M-DUAL-NOCAL-REFUSED",
+    "The dual scan needs a calibration at the start",
+    "The measurement did not start. “{nocal}” is switched on, and the dual "
+    "scan needs a new calibration at the start of every measurement: only "
+    "then is the white tile read with the UV light as well, and M1 and M2 "
+    "are worked out from that reading. A calibration kept from before has "
+    "no such reading.\n\n"
+    "Switch “{nocal}” off and press “{start}” again: ChromIQ then asks you "
+    "to calibrate. Or, to measure M0 without calibrating, switch off "
+    "“{option}” in {where}.\n\n"
+    "Nothing has been measured or changed.",
+    approved=False)
+
+#: The pass prompts after a dual calibration that cannot give M1 / M2: the
+#: engine still asks for the second pass, which then cannot count (review
+#: of 2026-11-18, NOTE; asking only when it can count needs a helper change).
+M_DUAL_PASS_ONE_NO_CAL = _m(
+    "M-DUAL-PASS-ONE-NO-CAL",
+    "Strip {strip}: calibrate again first to keep M1 and M2",
+    "The last calibration cannot give M1 and M2. To keep them, calibrate "
+    "again now (press K or the Calibrate button) before you read strip "
+    "{strip}. If you read strip {strip} without calibrating, ChromIQ still "
+    "asks for its second pass, but that pass cannot count: M1 and M2 then "
+    "stop for this measurement and the strip is kept as M0.",
+    approved=False)
+
+M_DUAL_PASS_TWO_NO_CAL = _m(
+    "M-DUAL-PASS-TWO-NO-CAL",
+    "Strip {strip}, pass 2 of 2 (UV light): it only closes the strip",
+    "Read strip {strip} once more, as for every second pass, to close the "
+    "strip. The last calibration cannot give M1 and M2, so this pass cannot "
+    "count for them: M1 and M2 stop for this measurement, and strip {strip} "
+    "is kept as M0.",
+    approved=False)
+
+#: The one question before START when the dual scan is on and ChromIQ
+#: cannot tell which instrument is connected (the owner, 2026-11-18): not
+#: from the USB connection, and not from an earlier measurement.
+M_DUAL_MODEL_ASK = _m(
+    "M-DUAL-MODEL-ASK",
+    "Which instrument do you measure with?",
+    "The dual scan (beta) works only with an X-Rite i1Pro 2. {usb} Your "
+    "answer is remembered; you can change it in {where}.\n\n"
+    "How to tell the instruments apart:\n\n"
+    "•  The i1Pro 2 is the second generation of the i1Pro. ArgyllCMS, which "
+    "ChromIQ measures with, calls it the “Eye-One Pro Rev E”. X-Rite sold it "
+    "in packages named with “Pro 2”, for example i1Basic Pro 2.\n\n"
+    "•  The first i1Pro (ArgyllCMS: Rev A, B or D; also sold as the EFI "
+    "ES-1000) has no UV light, and neither has the OEM i1Pro 2 sold as the "
+    "EFI ES-2000: neither can make the dual scan. Choose “Another "
+    "instrument” for them.\n\n"
+    "•  The i1Pro 3 and the i1Pro 3 Plus are a newer generation. They keep "
+    "M0, M1 and M2 in their own way and need no dual scan: choose “Another "
+    "instrument”.\n\n"
+    "•  The surest sign is the instrument's own report: at the start of "
+    "every measurement the Measure log shows a line “Instrument Type:”, "
+    "which reads “i1Pro2” for an i1Pro 2. ChromIQ could not check what is "
+    "printed on the instrument's label, so this window does not describe "
+    "it.\n\n"
+    "Not sure? Choose “Not sure”: ChromIQ then starts as for an i1Pro 2, "
+    "and if the instrument reports another model, ChromIQ starts again the "
+    "right way before anything is read.",
+    approved=False)
+
+#: In the log and under the chart when the instrument's own report at the
+#: start differs from the model ChromIQ had assumed (the owner, 2026-11-18:
+#: the report always wins).
+M_DUAL_MODEL_CORRECTED = _m(
+    "M-DUAL-MODEL-CORRECTED",
+    "The instrument is not the one ChromIQ assumed",
+    "The instrument reported itself as {reported}, not as {assumed}, so "
+    "ChromIQ starts the measurement again the right way, before anything "
+    "is read, and remembers the {reported} from now on.",
+    approved=False)
+
+#: The same when the measurement cannot simply start again the right way:
+#: it goes on as started, and this says what that means.
+M_DUAL_MODEL_NOTED = _m(
+    "M-DUAL-MODEL-NOTED",
+    "The instrument is not the one ChromIQ assumed",
+    "The instrument reported itself as {reported}, not as {assumed}. "
+    "ChromIQ remembers the {reported} from now on. This measurement goes "
+    "on as it started, without the dual scan.",
     approved=False)
 
 
@@ -12901,7 +13026,10 @@ CATALOGUE = {m.id: m for m in (
     M_DUAL_CAL_TILE, M_DUAL_CAL_DONE, M_DUAL_CAL_REFUSED,
     M_DUAL_PASS_ONE, M_DUAL_PASS_TWO, M_DUAL_PASS_TWO_UNREAD,
     M_DUAL_PASS_FAILED, M_DUAL_SPOT_FAILED, M_DUAL_ENDED, M_DUAL_ON,
-    M_DUAL_PASS_NOTE, M_DUAL_START_REFUSED,
+    M_DUAL_PASS_NOTE, M_DUAL_START_REFUSED, M_DUAL_FILTER_OFF_PARENT,
+    M_DUAL_CONTINUE_M0, M_DUAL_NOCAL_REFUSED, M_DUAL_PASS_ONE_NO_CAL,
+    M_DUAL_PASS_TWO_NO_CAL, M_DUAL_MODEL_ASK, M_DUAL_MODEL_CORRECTED,
+    M_DUAL_MODEL_NOTED,
     M_STRIP_FAILED_COMS_DETAIL,
     M_RESUME_RESOLUTION,
     M_RESUME_RESOLUTION_INSTRUMENT,

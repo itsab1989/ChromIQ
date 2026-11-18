@@ -81,7 +81,7 @@ correction that it must be **all** of them, not a selection.
 
 **Confirmed by:** *nobody yet.*
 
-Preferences ▸ Beta ▸ "X-Rite i1Pro 3: keep M0, M1 and M2 from every scan"
+Preferences ▸ Beta ▸ "X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every scan"
 (`i1pro3_conditions_beta`, off by default) describes your equipment, like the
 ruler check, so it is global and read at every Start. Build Profile's "Build
 from" describes the measurement, so it is the run's own:

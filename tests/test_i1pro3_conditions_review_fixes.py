@@ -1,4 +1,4 @@
-"""X-Rite i1Pro 3: keep M0, M1 and M2 from every scan (Preferences > Beta):
+"""X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every scan (Preferences > Beta):
 the findings of the independent review of 2026-11-15, each pinned.
 
 * F1: a main file that records no condition is not offered as "M0, as

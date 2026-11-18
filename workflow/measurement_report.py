@@ -477,7 +477,7 @@ CONDITION_OTHER_CONDITION = "other_condition"
 def other_condition(report: "dict | None") -> bool:
     """True when *report*'s readings are in another measurement condition
     than the one its run's profile was built from (Preferences > Beta, "X-Rite
-    i1Pro 3: keep M0, M1 and M2"; recorded by `build_report` only while the
+    i1Pro 3 and i1Pro 2: keep M0, M1 and M2"; recorded by `build_report` only while the
     Beta is on)."""
     rec = (report or {}).get("measurement_condition")
     return (isinstance(rec, dict) and bool(rec.get("profile"))
@@ -1863,7 +1863,7 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
     it) is looked up at *at*, as it was when the sheet was measured there.
     """
     src = Path(ti3_path)
-    # "X-Rite i1Pro 3: keep M0, M1 and M2" (Preferences > Beta; Basti,
+    # "X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2" (Preferences > Beta; Basti,
     # 2026-11-15): a VERIFICATION of a run whose profile was built from
     # another condition is judged in that condition, from the same readings
     # kept in it, and says so (`report["measurement_condition"]`). None with

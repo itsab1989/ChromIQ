@@ -32,21 +32,25 @@ _BOTH_AGAIN = (
 
 #: id -> draft English sentence (for the UI step; not shown by this package)
 REASONS: "dict[str, str]" = {
+    # The calibration and session-level sentences below say what happened
+    # and nothing about what to do: they are used both in "Calibration
+    # Complete" (M-DUAL-CAL-REFUSED, which adds "calibrate again") and in
+    # M-DUAL-ENDED (which says that M0 goes on), and an action inside them
+    # contradicted the one around them (review of 2026-11-18, M-3).
     "no_dual_calibration": (
-        "This calibration was made for single scans, so it did not read the "
-        "white tile with the UV light, and ChromIQ cannot work out M1 and M2 "
-        "from it. M0 is not affected. Calibrate again with dual scan "
-        "switched on: the calibration and the reading must be made in the "
-        "same mode and at the same exposure."),
+        "This calibration has no reading of the white tile with the UV "
+        "light (the UV reading of the tile did not succeed, or the "
+        "calibration was made without the dual scan), so ChromIQ cannot work "
+        "out M1 and M2 from it. M0 is not affected."),
     "uv_tile_dark": (
         "During the calibration the UV light did not seem to light: the "
         "white tile gave back almost none of its light. ChromIQ does not "
-        "work out M1 and M2 from this calibration. M0 is not affected. "
-        "Calibrate again; if it happens again, the instrument's UV light "
-        "may need a service."),
+        "work out M1 and M2 from this calibration. M0 is not affected. If "
+        "this happens again after a new calibration, the instrument's UV "
+        "light may need to be checked by a service."),
     "calibration_mismatch": (
         "The calibration was made at another exposure than this reading, so "
-        "it does not fit the reading. Calibrate again before measuring."),
+        "it does not fit the reading."),
     "no_uv_tables": (
         "This instrument does not hold the factory data needed to work out "
         "M1 and M2 (some i1Pro 2 versions have no UV light). M0 can be "
@@ -104,23 +108,22 @@ REASONS: "dict[str, str]" = {
         "rest of this measurement: it gave no usable positions, or a second "
         "pass was left unread, so the ruler could not start again for the "
         "next strip. ChromIQ therefore stops working out M1 and M2 for this "
-        "measurement; M0 goes on as always."),
+        "measurement."),
     "uv_spot_failed": (
         "The reading of this patch with the UV light failed, so M1 and M2 "
         "cannot be worked out for it. Read the patch again: ChromIQ reads it "
         "with the lamp and then with the UV light in one go, so both "
         "readings are made again."),
     "no_ruler": (
-        "The instrument's position ruler gave no usable positions for this "
-        "dual scan, so the two passes cannot be matched patch by patch. "
-        "Read the strip again."),
+        "The instrument's position ruler gave no usable positions for the "
+        "two passes of this strip, so they cannot be matched patch by patch. "
+        + _BOTH_AGAIN),
     "calibration_mode_changed": (
-        "The reading mode changed since the last calibration (dual scan "
-        "and single scan need their own calibration). Calibrate again "
-        "before measuring."),
+        "The reading mode changed since the last calibration (a dual scan "
+        "and a single scan each need their own calibration)."),
     "bad_values": (
         "A reading holds values that are not numbers, so ChromIQ does not "
-        "use it. Read it again."),
+        "use it for M1 and M2."),
     "bad_scale": (
         "The factor used for M1 and M2 is not a sensible number, so ChromIQ "
         "does not use it."),
@@ -136,10 +139,52 @@ REASONS: "dict[str, str]" = {
         "the factor and white reference it was started with, or start a new "
         "measurement."),
     "dual_high_resolution": (
-        "A dual scan is not available in high resolution mode: the "
-        "instrument's factory data for M1 and M2 is given only at 10 nm "
-        "steps. Switch high resolution off for a dual scan, or measure M0 "
-        "in high resolution."),
+        "A dual scan is not available with “High resolution spectral mode "
+        "(-H)”: the instrument's factory data for M1 and M2 is given only at "
+        "10 nm steps. For a dual scan, switch “High resolution spectral mode "
+        "(-H)” off before you start, or measure M0 in high resolution."),
+    # Session-level ends the engine can give besides the ones above (review
+    # of 2026-11-18, S-4: each had no sentence and was shown as its raw id).
+    # The engine's own words: chromiq_dualdev.c (not_available, record,
+    # memory, conversion) and chromiq_chartread.c cq_cond_for_session /
+    # cq_cond_lose (mode, filter, files, instrument, resume, write, typed).
+    "not_available": (
+        "This i1Pro 2 does not offer what the dual scan needs, so ChromIQ "
+        "does not try the dual scan with it. Some versions have no UV light "
+        "at all, for example the OEM version EFI ES-2000. M0 is measured as "
+        "always."),
+    "record": (
+        "ChromIQ lost track of which reading belongs to which patch for M1 "
+        "and M2, so it stops working them out for this measurement."),
+    "memory": (
+        "The computer did not give ChromIQ enough memory to work out M1 and "
+        "M2, so it stops working them out for this measurement."),
+    "conversion": (
+        "The readings for M1 and M2 could not be converted into colour "
+        "values, so ChromIQ stops working them out for this measurement."),
+    "write": (
+        "The files for M1 and M2 could not be saved, so ChromIQ stops "
+        "keeping them for this measurement. Check that the disk has free "
+        "space and that the project folder can be written to."),
+    "resume": (
+        "M1 and M2 ended earlier in this measurement: its files for M1 and M2 "
+        "no longer belong to its readings, and the strips read since then "
+        "have M0 only. So what is read now is M0 only, one pass per strip."),
+    "mode": (
+        "The dual scan works only for reflective readings of a printed "
+        "chart, so this reading gives M0 only."),
+    "filter": (
+        "A filter choice reached the instrument together with the dual scan, "
+        "and the two do not go together, so this reading gives M0 only."),
+    "files": (
+        "ChromIQ had no folder for the M1 and M2 files of this measurement, "
+        "so this reading gives M0 only."),
+    "instrument": (
+        "The connected instrument is not an i1Pro 2, so the dual scan is not "
+        "used: it measures as it would without it."),
+    "typed": (
+        "A value was typed in by hand, and a typed value has no M1 and M2, so "
+        "ChromIQ stops keeping them for this measurement."),
     # refining the factor from an i1Profiler file (optional)
     "refine_no_conditions": (
         "The i1Profiler file does not hold M0, M1 and M2. Measure the strip "

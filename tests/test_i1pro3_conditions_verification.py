@@ -1,4 +1,4 @@
-"""X-Rite i1Pro 3: keep M0, M1 and M2 from every scan (Preferences > Beta):
+"""X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every scan (Preferences > Beta):
 verifications (Basti, 2026-11-15, ruling 2).
 
 * A verification keeps all three conditions too. Its pair lives in ONE

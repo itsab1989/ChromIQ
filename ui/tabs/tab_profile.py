@@ -187,13 +187,13 @@ def _hue_default_kept(settings) -> bool:
 
 def build_from_help() -> str:
     """The (i) of Build Profile's "Build from" (Preferences > Beta, "X-Rite
-    i1Pro 3: keep M0, M1 and M2 from every scan"; Basti, 2026-11-15:
+    i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every scan"; Basti, 2026-11-15:
     "friendly, extensive, easy to understand and correct"). Checked against
     workflow/i1pro3_conditions.py (choices_for, no_file_reason,
     average_missing_reason), workflow/fwa_gate.py (an M1/M2 file refuses
     -f) and `_build_from_suffix`."""
     return "\n\n".join((
-        tr("**What this choice does.** With the Beta option “X-Rite i1Pro 3: "
+        tr("**What this choice does.** With the Beta option “X-Rite i1Pro 3 and i1Pro 2: "
            "keep M0, M1 and M2 from every scan” switched on, the i1Pro 3 "
            "gives three sets of readings from the same scan, one for each "
            "standard measurement condition. Here you choose which of them "
@@ -865,7 +865,7 @@ class TabProfile(QWidget):
         _paint_note(self._file_lbl)
         self._file_lbl.setWordWrap(True)
         fg.addWidget(self._file_lbl, stretch=1)
-        # "Build from" (Preferences > Beta, "X-Rite i1Pro 3: keep M0, M1 and
+        # "Build from" (Preferences > Beta, "X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and
         # M2 from every scan", 2026-11-15): shown only with the Beta on, for
         # Guided and Manual alike (this box is above both).
         self._build_from = ""

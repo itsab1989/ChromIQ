@@ -326,8 +326,8 @@ DEFAULTS: dict[str, Any] = {
     #: every ordinary check. A reading accepted today never changes. Off = the
     #: helper is started without --margin-tolerance. Read at every Start.
     "margin_tolerance_beta":     False,
-    #: Beta (Settings -> Beta, 2026-11-15): "X-Rite i1Pro 3: keep M0, M1 and
-    #: M2 from every scan" (`workflow.i1pro3_conditions`). The chart-reading
+    #: Beta (Settings -> Beta, 2026-11-15): "X-Rite i1Pro 3 and i1Pro 2: keep
+    #: M0, M1 and M2 from every scan" (`workflow.i1pro3_conditions`). The chart-reading
     #: engine keeps the two conditions -F did not choose from the same pass
     #: in the run's conditions/ folder, and Build Profile offers them. Nothing
     #: new is sent to the instrument. Off = the helper is started without
@@ -341,6 +341,14 @@ DEFAULTS: dict[str, Any] = {
     #: --dual-scale and the Measure tab is exactly as before. Read at every
     #: Start.
     "i1pro2_dual_scan_beta":     False,
+    #: The instrument the dual scan is for (2026-11-18, the owner;
+    #: `workflow.dual_scan.instrument_model`): "i1pro2", "other" or "" (ask),
+    #: the instrument's own name when it reported itself, and whether the
+    #: instrument ("reported") or the person ("chosen") said so. Written only
+    #: with the dual scan on; shown and changed in Preferences > Beta.
+    "dual_scan_instrument":        "",
+    "dual_scan_instrument_name":   "",
+    "dual_scan_instrument_source": "",
     #: Beta (Settings -> Beta): also write the "turned" i1Profiler chart files
     #: (`workflow.i1profiler_turned`) into a chart's exports/ folder, so the
     #: printed ChromIQ sheet can be read in i1Profiler too after a quarter

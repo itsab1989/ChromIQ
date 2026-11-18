@@ -20,7 +20,7 @@ This package does that calculation for ChromIQ:
   sentence the later user interface step will translate.
 
 Where the three conditions are kept afterwards is the i1Pro 3 Beta's
-mechanism ("X-Rite i1Pro 3: keep M0, M1 and M2 from every scan",
+mechanism ("X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every scan",
 :mod:`workflow.i1pro3_conditions`), extended to the i1Pro 2, never a second
 one: see :mod:`workflow.dual_scan.storage`.
 

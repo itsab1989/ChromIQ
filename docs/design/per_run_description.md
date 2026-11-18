@@ -302,7 +302,7 @@ over all 8 combinations of the three parts being empty or not.
 
 **Confirmed by:** *nobody yet.* The rule itself is Basti's (Basti, 2026-11-15, relayed by the coordinator); what awaits his confirmation is the behaviour as built and described here.
 
-Preferences ▸ Beta ▸ "X-Rite i1Pro 3: keep M0, M1 and M2 from every scan". Basti:
+Preferences ▸ Beta ▸ "X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every scan". Basti:
 a profile built from M1 / M2 says so in its description, "better for clarity".
 
 | # | Beta | Build from | Default `-D` |

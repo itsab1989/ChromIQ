@@ -3711,7 +3711,8 @@ class SettingsDialog(QDialog):
         # the two conditions -F did not choose from the same pass; Build
         # Profile offers them. Nothing new is sent. Off = the base command line.
         self._i1pro3_conditions_check = QCheckBox(
-            tr("X-Rite i1Pro 3: keep M0, M1 and M2 from every scan (beta)"),
+            tr("X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every "
+               "scan (beta)"),
             self)
         cond_tip = TooltipButton(
             tr("M0, M1 and M2 from one scan (beta)"),
@@ -3743,6 +3744,32 @@ class SettingsDialog(QDialog):
         _dualrow.addWidget(dual_tip)
         _beta.addLayout(_dualrow)
         self._i1pro2_dual_tip = dual_tip
+        # WHICH INSTRUMENT (the owner, 2026-11-18): what ChromIQ remembers
+        # about the instrument the dual scan is for, changed or forgotten
+        # here ("ask again"). workflow/dual_scan/instrument_model.py.
+        from PyQt6.QtWidgets import QComboBox as _QCB, QLabel as _QL
+        self._dual_model_combo = _QCB(self)
+        self._dual_model_combo.setObjectName("dual_scan_instrument")
+        for _text, _data in (
+                (tr("Ask before the next measurement"), ""),
+                (tr("i1Pro 2"), "i1pro2"),
+                (tr("Another instrument (not an i1Pro 2)"), "other")):
+            self._dual_model_combo.addItem(_text, _data)
+        self._dual_model_lbl = _QL(tr("Instrument for the dual scan:"), self)
+        self._dual_model_note = _QL("", self)
+        self._dual_model_note.setObjectName("dual_scan_instrument_note")
+        self._dual_model_note.setWordWrap(True)
+        _modelrow = QHBoxLayout()
+        _modelrow.setContentsMargins(48, 0, 0, 0)
+        _modelrow.addWidget(self._dual_model_lbl)
+        _modelrow.addWidget(self._dual_model_combo)
+        _modelrow.addStretch()
+        _beta.addLayout(_modelrow)
+        _noterow = QHBoxLayout()
+        _noterow.setContentsMargins(48, 0, 0, 0)
+        _noterow.addWidget(self._dual_model_note, 1)
+        _beta.addLayout(_noterow)
+        self._i1pro2_dual_check.toggled.connect(self._dual_follows)
         self._i1pro3_conditions_check.toggled.connect(self._dual_follows)
 
         # Konica Minolta FD-9 support (PR #213, written and contributed by
@@ -4861,8 +4888,13 @@ class SettingsDialog(QDialog):
         option it belongs to is off."""
         on = self._i1pro3_conditions_check.isChecked()
         self._i1pro2_dual_check.setEnabled(on)
+        combo = getattr(self, "_dual_model_combo", None)
+        if combo is not None:
+            both = on and self._i1pro2_dual_check.isChecked()
+            for w in (combo, self._dual_model_lbl, self._dual_model_note):
+                w.setEnabled(both)
         self._i1pro2_dual_check.setToolTip("" if on else tr(
-            "Switch on “X-Rite i1Pro 3: keep M0, M1 and M2 from every scan” "
+            "Switch on “X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every scan” "
             "above to choose this: the dual scan keeps its M1 and M2 in the "
             "same files."))
 
@@ -6795,6 +6827,12 @@ class SettingsDialog(QDialog):
             bool(s.get("i1pro3_conditions_beta", False)))
         self._i1pro2_dual_check.setChecked(
             bool(s.get("i1pro2_dual_scan_beta", False)))
+        from workflow.dual_scan import instrument_model as _im
+        _rem = _im.remembered(s)
+        self._dual_model_loaded = _rem.kind
+        self._dual_model_combo.setCurrentIndex(
+            max(0, self._dual_model_combo.findData(_rem.kind)))
+        self._dual_model_note.setText(_im.describe(s))
         self._dual_follows()
         self._lights_signals_combo.setCurrentIndex(
             1 if bool(s.get("i1pro2_lights_signals", True)) else 0)
@@ -8428,6 +8466,15 @@ class SettingsDialog(QDialog):
         s.set("i1pro3_conditions_beta",
               self._i1pro3_conditions_check.isChecked())
         s.set("i1pro2_dual_scan_beta", self._i1pro2_dual_check.isChecked())
+        # the instrument for the dual scan: written only when it was changed
+        # here, so a model the instrument reported stays as it reported it
+        _kind = str(self._dual_model_combo.currentData() or "")
+        if _kind != getattr(self, "_dual_model_loaded", _kind):
+            from workflow.dual_scan import instrument_model as _im
+            if _kind:
+                _im.remember_choice(s, _kind)
+            else:
+                _im.forget(s)
         s.set("i1pro2_lights_signals",
               bool(self._lights_signals_combo.currentData()))
         s.set("i1pro2_lights_during_reading",
@@ -10159,14 +10206,25 @@ def i1pro2_dual_scan_help() -> str:
            "You do not need i1Profiler or any other X-Rite software for "
            "this."),
         tr("**What is sent to the instrument.** Only readings with the UV "
-           "light, in the forms i1Profiler was recorded using: the UV light "
-           "is on only while a reading with it is taken. Nothing is written "
-           "into the instrument."),
-        tr("**Not covered yet.** The i1iO 2 table, high resolution mode, "
-           "and i1Pro 2 versions without the UV light or its factory data "
-           "(some OEM versions): they measure M0 as always, and the Measure "
-           "log says why."),
-        tr("It works only with “X-Rite i1Pro 3: keep M0, M1 and M2 from every "
+           "light, and only in the forms seen in the recordings of "
+           "i1Profiler: the UV light is on only while a reading with it is "
+           "taken. Nothing is written into the instrument."),
+        tr("**Not covered yet.** The i1iO 2 table, “High resolution spectral "
+           "mode (-H)”, and i1Pro 2 versions without the UV light or its "
+           "factory data (some OEM versions, for example the EFI ES-2000): "
+           "they measure M0 as always, and the Measure log says why."),
+        tr("**Which instrument.** The dual scan is for the i1Pro 2 only. "
+           "Before a measurement ChromIQ finds out which instrument is "
+           "connected without sending it anything: from the USB connection, "
+           "or from what the instrument reported at the last measurement. "
+           "When neither tells, it asks you once. What it remembers is shown "
+           "below this option, where you can change it or let ChromIQ ask "
+           "again. At the start of every measurement the instrument reports "
+           "itself, and that report always wins: if it is not what ChromIQ "
+           "assumed, the measurement starts again the right way before "
+           "anything is read. An i1Pro 3 and every other instrument measure "
+           "exactly as without this option."),
+        tr("It works only with “X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every "
            "scan” switched on, and with ChromIQ's chart-reading engine. The "
            "option is read each time you start a measurement."),
         tr("**Default:** off."),
@@ -10193,7 +10251,7 @@ def i1pro2_dual_scan_confirmation() -> str:
 def i1pro3_conditions_confirmation() -> str:
     """The window shown when M0, M1 and M2 from one scan is switched on."""
     return tr(
-        "You are switching on “X-Rite i1Pro 3: keep M0, M1 and M2 from "
+        "You are switching on “X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from "
         "every scan”. Here is what that means.\n\n"
         "•  Every strip you measure with an i1Pro 3 in a profiling run is "
         "saved in the condition chosen in the Measure tab, as today, and "

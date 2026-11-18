@@ -1,4 +1,4 @@
-"""THE SWITCH, AND THE FILES, FOR "X-Rite i1Pro 3: keep M0, M1 and M2 from
+"""THE SWITCH, AND THE FILES, FOR "X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from
 every scan" (Preferences > Beta, 2026-11-15).
 
 An i1Pro 3 reads every strip in ONE pass, alternating its lamp LEDs and its
@@ -281,13 +281,36 @@ def no_file_reason(main: Path) -> str:
     if dual.read_dual_record(main).dual:
         # The i1Pro 2 dual scan (review of 2026-11-18): its M1 and M2 come
         # from a second pass per strip, and exist only once every strip has it.
+        # Review of 2026-11-18, M-1: Continue Measurement reads only the
+        # strips not read yet, and it cannot take M1 and M2 up again once
+        # they ended (the engine's condition files no longer belong to the
+        # readings), so it is promised only where it is true.
+        from workflow.dual_scan.session import ended_before
+        if ended_before(main):
+            return tr(
+                "This dual scan has no M1 and M2 that belong to its readings "
+                "any more: they ended during the measurement, so its "
+                "readings are M0 only. Continue Measurement cannot add M1 "
+                "and M2 to it; for M1 and M2, measure the chart again as a "
+                "new measurement.")
+        rec = dual.pass_record_of(main)
+        unread = ([s for (s, which) in rec.missing() if which == "lamp"]
+                  if rec is not None else [])
+        if unread:
+            return tr(
+                "M1 and M2 are not available yet: not every strip has been "
+                "read. Continue Measurement, with the dual scan still "
+                "switched on, reads the strips still missing ({strips}) with "
+                "both passes; until then this measurement is M0."
+                ).format(strips=", ".join(unread))
         due = dual.strips_without_second_pass(main)
         if due:
+            # read strips whose second pass is missing while the files are
+            # in step: not a state the engine leaves, so nothing is promised
             return tr(
                 "M1 and M2 are not available yet: the second pass (UV light) "
-                "of these strips is missing: {strips}. Continue Measurement "
-                "reads them; until then this measurement is M0."
-                ).format(strips=", ".join(due))
+                "of these strips is missing: {strips}. Until then this "
+                "measurement is M0.").format(strips=", ".join(due))
         return tr(
             "There are no M1 and M2 readings for this dual scan as it is now. "
             "They exist only once every strip has its second pass (UV light), "
@@ -302,7 +325,7 @@ def no_file_reason(main: Path) -> str:
     return tr(
         "There are no readings in this condition for the measurement as it "
         "is now. They are kept only for a measurement made with the option "
-        "“X-Rite i1Pro 3: keep M0, M1 and M2 from every scan” "
+        "“X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every scan” "
         "switched on, and only until its readings are changed in another "
         "way (for example averaged, imported or replaced).")
 

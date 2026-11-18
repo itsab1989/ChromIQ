@@ -236,7 +236,10 @@ def test_m2_the_record_keeps_a_dark_strips_pass_with_its_note():
 def test_m3_no_dual_calibration_states_the_true_cause():
     s = REASONS["no_dual_calibration"]
     assert "15 %" not in s and "too bright" not in s
-    assert "same mode" in s and "same exposure" in s and "M0 is not affected" in s
+    # the UI review of 2026-11-18 (M-3): the same id comes from a UV tile
+    # reading that failed, so the sentence names both causes and no action
+    assert "did not succeed" in s and "without the dual scan" in s
+    assert "M0 is not affected" in s
     assert "UV light" in s
     assert "15 %" not in model.__doc__.split("WHAT IS REFUSED")[1].split("154")[0]
 

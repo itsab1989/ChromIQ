@@ -3013,7 +3013,7 @@ def _reflow_row(layout, sizes, parent, **kw):
 def _other_condition_sentence(r: "dict | None") -> str:
     """Why a row compared with the profile is not shown: the profile was
     built from readings in another measurement condition than this
-    measurement has (Preferences > Beta, "X-Rite i1Pro 3: keep M0, M1 and
+    measurement has (Preferences > Beta, "X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and
     M2"; `measurement_report.other_condition`)."""
     from workflow.measurement_condition import condition_name
     rec = (r or {}).get("measurement_condition") or {}

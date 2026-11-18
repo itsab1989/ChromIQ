@@ -1,4 +1,4 @@
-"""X-Rite i1Pro 3: keep M0, M1 and M2 from every scan (Preferences > Beta):
+"""X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every scan (Preferences > Beta):
 averaging (Basti, 2026-11-15, ruling 3: "needed for completeness").
 
 * The same reads are averaged in each of the other two conditions, in the

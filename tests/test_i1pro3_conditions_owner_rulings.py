@@ -1,4 +1,4 @@
-"""X-Rite i1Pro 3: keep M0, M1 and M2 from every scan (Preferences > Beta):
+"""X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every scan (Preferences > Beta):
 the owner's four rulings of 2026-11-15 (Basti).
 
 1. A profile built from the M1 or M2 readings says so in its default

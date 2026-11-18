@@ -1,4 +1,4 @@
-"""X-Rite i1Pro 3: keep M0, M1 and M2 from every scan (Preferences > Beta):
+"""X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every scan (Preferences > Beta):
 with the option OFF, no code of the feature runs in the Measure tab.
 
 The Measure tab and the measure manager reach the feature at exactly four

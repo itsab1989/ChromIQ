@@ -1,4 +1,4 @@
-"""X-Rite i1Pro 3: keep M0, M1 and M2 from every scan (Preferences > Beta,
+"""X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every scan (Preferences > Beta,
 2026-11-15) in the REAL chromiq-chartread, through its replay instrument
 (CHROMIQ_REPLAY_INSTRUMENT=i1pro3, COND blocks in the script).
 

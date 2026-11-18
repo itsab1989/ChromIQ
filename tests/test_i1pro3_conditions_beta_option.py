@@ -1,4 +1,4 @@
-"""X-Rite i1Pro 3: keep M0, M1 and M2 from every scan (Preferences > Beta,
+"""X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every scan (Preferences > Beta,
 2026-11-15): the option, the Measure tab's command line and the Measure log.
 
 * OFF (the default): the helper is started with exactly 4.3.40's command line;

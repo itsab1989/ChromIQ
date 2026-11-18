@@ -6,7 +6,7 @@ reading. M1 and M2 are written by the chart-reading engine in the same
 autosave into the run's ``conditions/<hash>-M1.ti3`` and ``-M2.ti3``, named by
 the main file's readings (:func:`workflow.i1pro3_conditions.data_block_hash`),
 with ``MEASUREMENT_CONDITION`` and ``CHROMIQ_CONDITION_OF``: exactly the form
-"X-Rite i1Pro 3: keep M0, M1 and M2 from every scan" uses
+"X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every scan" uses
 (:mod:`workflow.i1pro3_conditions`, the helper's ``cq_cond_*``). So choosing a
 condition in Build Profile, the reports, averaging, verifications and the
 IMPORT comparisons work on them unchanged. The engine is asked for it with

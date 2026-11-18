@@ -319,7 +319,7 @@ class MeasureParams:
     #: Preferences > Beta, the margin tolerance (2026-11-16): passed only
     #: together with --ruler (it needs the ruler's record).
     engine_margin_tolerance: bool = False
-    #: "X-Rite i1Pro 3: keep M0, M1 and M2" (Beta): the run's conditions/
+    #: "X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2" (Beta): the run's conditions/
     #: folder, or None (off, or not a profiling run): no --condition-dir.
     engine_condition_dir: "Path | None" = None
     #: The X-Rite i1Pro 2 dual scan (Preferences > Beta, 2026-11-18): the
@@ -1024,6 +1024,8 @@ class MeasureManager(QObject):
         #: way, so never a reason to fall back.
         self._filter_refused = False
         self._dual_refused = ""
+        #: the engine was given the i1Pro 2 dual scan's arguments
+        self._dual_requested = False
         self._user_quit = False
         self._reset_requested_calibration()
         # The user can raise this for an ageing instrument (Settings → Beta);
@@ -1033,9 +1035,24 @@ class MeasureManager(QObject):
                                   else max(0, min(int(want), CAL_AUTO_RETRIES_MAX)))
         self._cal_retries_left = self._cal_auto_retries
 
+        #: The i1Pro 2 dual scan (Beta): parameters to start again with,
+        #: before anything was read (`relaunch_before_reading`).
+        self._relaunch: "MeasureParams | None" = None
+
         def _on_finish(code: int) -> None:
             self._lights_session_ended(code)
             self._ruler_session_ended(on_line)
+            relaunch = getattr(self, "_relaunch", None)
+            if relaunch is not None:
+                # the instrument reported another model than START assumed
+                # (the owner, 2026-11-18: its report wins): the same read
+                # again, the right way, before anything was read. Never a
+                # fallback and never an ending: the tab sees one session.
+                self._relaunch = None
+                log.info("measurement started again for the instrument it "
+                         "really is (exit %s of the first start)", code)
+                self.start(relaunch, on_line, on_finish)
+                return
             self._pending_post_retry_key = None
             self._engine_held = None
             self._window_hold = None
@@ -1237,6 +1254,7 @@ class MeasureManager(QObject):
                             from workflow.dual_scan.session import helper_can
                             if helper_can(helper_caps(params.engine_helper)):
                                 eargs += list(params.engine_dual_args)
+                                self._dual_requested = True
                             else:
                                 log.info("dual scan: this helper cannot do "
                                          "it; not passed")
@@ -3350,6 +3368,34 @@ class MeasureManager(QObject):
         """
         return bool(self._user_quit)
 
+    def _dual_conditions_end(self, ev: dict) -> bool:
+        """A conditions event without "dual_" in its reason that still ends
+        (or refuses) an i1Pro 2 dual session: the engine was given the dual
+        arguments and the instrument is an i1Pro 2 (chromiq_chartread.c
+        cq_cond_for_session's "mode", "filter", "files", "resume", and
+        cq_cond_lose's "record", "write", "memory"). The tab says it with
+        the dual scan's own sentence, never as the i1Pro 3 Beta's line
+        (review of 2026-11-18, S-4)."""
+        if ev.get("active") or not getattr(self, "_dual_requested", False):
+            return False
+        from core.measure_pace import model_key
+        return model_key(getattr(self, "_engine_model", "")) == "i1pro2"
+
+    def relaunch_before_reading(self, params: MeasureParams) -> bool:
+        """End the engine now and start *params* in its place, as one
+        session, when nothing has been read yet (the i1Pro 2 dual scan:
+        the instrument's own report contradicted what START assumed). False,
+        and nothing done, once a reading exists or on stock chartread."""
+        if (not self._engine_active or self._read_something
+                or self._readings_count or getattr(self, "_relaunch", None)
+                is not None or not self._runner.is_running):
+            return False
+        self._relaunch = params
+        log.warning("engine: ended before the first reading, to start again "
+                    "for the instrument it reported")
+        self._runner.abort()
+        return True
+
     def abort(self) -> None:
         """End the run now. Always deliberate — never an engine failure.
 
@@ -3933,6 +3979,8 @@ class MeasureManager(QObject):
         (chartread's ordinary console output) still go to the log."""
         from workflow.chartread_engine import parse_engine_line
 
+        if getattr(self, "_relaunch", None) is not None:
+            return     # the engine being ended for a new start says nothing
         ev = parse_engine_line(line)
         if ev is None:
             if line.strip():
@@ -4182,7 +4230,7 @@ class MeasureManager(QObject):
             self._on_lights_event(ev, on_line)
 
         elif kind == "conditions":
-            # "X-Rite i1Pro 3: keep M0, M1 and M2" (Preferences > Beta,
+            # "X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2" (Preferences > Beta,
             # 2026-11-15): one line when the session keeps them, one when it
             # stops; never a window, never a reading.
             from workflow.dual_scan import session as _dual
@@ -4190,7 +4238,7 @@ class MeasureManager(QObject):
                 # the i1Pro 2 dual scan (2026-11-18): the tab says it
                 log.info("engine: dual scan on: %s", ev)
                 self.dual_session.emit(dict(ev))
-            elif _dual.ends_dual(ev):
+            elif _dual.ends_dual(ev) or self._dual_conditions_end(ev):
                 log.warning("engine: dual scan: M1 and M2 end for this "
                             "measurement (%s); M0 goes on", ev.get("why"))
                 self.dual_ended.emit(str(ev.get("why") or ""))

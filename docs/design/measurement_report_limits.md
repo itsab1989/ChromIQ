@@ -10326,7 +10326,7 @@ mutation. Proof: `~/Desktop/ChromIQ-work/2026-10-02_beta3/U_impl_qc5/`.
 
 **Confirmed by:** *nobody yet.* The rule itself is Basti's (Basti, 2026-11-15, relayed by the coordinator); what awaits his confirmation is the behaviour as built and described here.
 
-Preferences ▸ Beta ▸ "X-Rite i1Pro 3: keep M0, M1 and M2 from every scan". With
+Preferences ▸ Beta ▸ "X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every scan". With
 the option on, a run's profile may be built from the M1 or M2 readings of its
 measurement (`meta.json` `profile_build.measurement_condition`). Basti: a
 verification uses the condition the profile was built from, automatically, and

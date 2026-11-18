@@ -493,7 +493,7 @@ def remove_installed_twins(dest: Path) -> "list[Path]":
 @dataclass
 class ProfileParams:
     ti3_path: Path
-    #: "X-Rite i1Pro 3: keep M0, M1 and M2" (Preferences > Beta): the file
+    #: "X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2" (Preferences > Beta): the file
     #: holding the SAME readings under another measurement condition, which
     #: colprof / the engine read INSTEAD of ``ti3_path``. Everything else
     #: (the profile's name and path, archiving, merges, signals) stays on
