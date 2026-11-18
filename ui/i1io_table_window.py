@@ -90,6 +90,17 @@ POPUP_SOUND = {
 }
 
 
+#: REVIEW 14, S-1: an answer that IS the hands-off confirmation (QUESTIONS.md: its page asks the
+#: person to take the hands away, and the arm moves at once after it) is taken only once its page
+#: has been on screen this long: a click meant for the window before (the second click of a double
+#: click on Aimed, say) can never move the arm. The button shows as not yet ready meanwhile, in
+#: its own size. The instrument's button keeps the same minimum (job.BUTTON_MIN_MS).
+HANDS_OFF_READY_MS = 600
+HANDS_OFF_LABELS = (
+    "Go", "Start the table, my hands are away",
+    "The page is laid, and my hands are away from the table",
+    "Make this move, my hands are away", "As described, my hands are away",
+    "Yes, it is centred, my hands are away")
 #: REVIEW 14, M-1: the ways back that mean a move may still be waiting, or a movement (or the
 #: start-up) was never reported as finished: "Switch the table off now" is the first thing shown,
 #: and no later page hides or contradicts it
@@ -1028,6 +1039,11 @@ class TableMeasureWindow(QFrame):
         self._press_seen = 0
         #: the mark the last aiming question was answered for by the instrument's button
         self._aimed_by_button: "int | None" = None
+        #: review 14, S-1: the hands-off answers of the page shown that are not pressable yet
+        self._not_ready: "list" = []
+        self._ready_timer = QTimer(self)
+        self._ready_timer.setSingleShot(True)
+        self._ready_timer.timeout.connect(self._hands_off_ready)
         self._press_timer = QTimer(self)
         self._press_timer.setInterval(100)
         self._press_timer.timeout.connect(self._poll_button)
@@ -1389,16 +1405,56 @@ class TableMeasureWindow(QFrame):
         for b in list(self._answer_box.buttons()):
             role = self._answer_box.buttonRole(b)
             b.setStyleSheet("")
-            b.setObjectName("primary" if role == R.AcceptRole and b.isEnabled() else "")
+            waiting = b in self._not_ready
+            b.setObjectName("primary" if role == R.AcceptRole and (b.isEnabled() or waiting)
+                            else "")
             if role == R.DestructiveRole:
                 mark_destructive(b)
             b.style().unpolish(b)
             b.style().polish(b)
         tint_dialog_primary(self._answers, measure_tab_accent())
+        for b in self._not_ready:
+            # review 14, S-1: not yet ready: the same font and frame (so the same size), no fill
+            try:
+                b.setStyleSheet(b.styleSheet() + self.NOT_READY_QSS)
+            except RuntimeError:          # gone with its page
+                pass
         qss = getattr(self, "_stop_qss", "")
         if qss:
             self._popup.end_btn.setStyleSheet(qss)
         mark_destructive(self._popup.end_btn)
+
+    #: review 14, S-1: a hands-off answer in its first moment: shown, but not yet pressable
+    NOT_READY_QSS = ("\nQPushButton:disabled { background: transparent; color: #8a8a8a;"
+                     " border: 1px dashed #8a8a8a; }")
+
+    def _hold_hands_off_answers(self, made) -> None:
+        """Review 14, S-1: the answers of this page that ARE the hands-off confirmation are
+        taken only once the page has been on screen for HANDS_OFF_READY_MS (in both
+        presentations): until then they show as not yet ready, in their own size."""
+        self._ready_timer.stop()
+        labels = {tr(x) for x in HANDS_OFF_LABELS}
+        held = [b for b in made if b.text() in labels and b.isEnabled()]
+        self._not_ready = held
+        if not held or HANDS_OFF_READY_MS <= 0:
+            self._not_ready = []
+            return
+        for b in held:
+            b.setEnabled(False)
+            b.setToolTip(tr("This answer can be pressed in a moment."))
+        # one timer, restarted by every page: only the page on screen now becomes ready
+        self._ready_timer.start(int(HANDS_OFF_READY_MS))
+
+    def _hands_off_ready(self) -> None:
+        held, self._not_ready = list(self._not_ready), []
+        for b in held:
+            try:
+                b.setEnabled(True)
+                b.setToolTip("")
+            except RuntimeError:          # gone with its page
+                pass
+        if self._popups and held:
+            self._style_popup_buttons()
 
     def set_stop_style(self, qss: str) -> None:
         """The look of the tab's own Stop, for the pop-up's End measurement."""
@@ -1630,6 +1686,8 @@ class TableMeasureWindow(QFrame):
             self._sync_popup_footer()
 
     def _clear_page(self) -> None:
+        self._ready_timer.stop()
+        self._not_ready = []
         box = getattr(self, "_answer_box", None)
         if box is not None:
             for b in list(box.buttons()):
@@ -1936,6 +1994,7 @@ class TableMeasureWindow(QFrame):
         no_default_button(self)
         self._tick_widgets = made_ticks
         self._buttons = made
+        self._hold_hands_off_answers(made)
         if self._popups:
             self._say(tr("In the table's window: {title}").format(title=title))
         self._flow_choices()

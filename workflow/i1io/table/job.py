@@ -161,8 +161,9 @@ ROWS_READ_AGAIN_PER_PAGE = 2
 #: question waits, ONE press of the i1Pro 2's own button is the same answer as Aimed. The helper
 #: (--i1io-press-wait) reports a press only while the job armed it, and never one sooner than
 #: BUTTON_MIN_MS after the arm (a press meant for the question before is not an answer); after
-#: BUTTON_WAIT_MS without a press it stops waiting (the panel's Aimed still works).
-BUTTON_MIN_MS = 400
+#: BUTTON_WAIT_MS without a press it stops waiting (the panel's Aimed still works). Review 14,
+#: S-1: the same minimum as the window's hands-off answers (``HANDS_OFF_READY_MS``, 0.6 s).
+BUTTON_MIN_MS = 600
 BUTTON_WAIT_MS = 600000
 #: how long the job waits, before it opens a reader, for the button wait to have let go of the
 #: i1Pro 2 (the helper's own close plus the kill that follows a close that blocks)

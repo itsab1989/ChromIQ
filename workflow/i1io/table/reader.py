@@ -539,7 +539,7 @@ class PressWaiter:
     def alive(self) -> bool:
         return self.proc.alive()
 
-    def arm(self, token: str, wait_ms: int = 600000, min_ms: int = 400) -> bool:
+    def arm(self, token: str, wait_ms: int = 600000, min_ms: int = 600) -> bool:
         try:
             self.proc.send({"cmd": "press_arm", "id": token, "wait_ms": str(int(wait_ms)),
                             "min_ms": str(int(min_ms))})

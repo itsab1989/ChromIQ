@@ -429,3 +429,79 @@ def test_m2_the_refused_later_calibration_page_offers_both_ways(qtbot, monkeypat
     old = W.reason_text("readings_with_different_white_references")
     assert "Set the option" not in old and "(Preferences > Beta)" not in old
 
+
+# ---- S-1: a hands-off answer is taken only after its page has been on screen a moment ----------
+
+@BOTH
+def test_s1_go_is_not_taken_in_its_first_moment(qtbot, monkeypatch, tmp_path, settings, asking,
+                                                hands_off_hold):
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
+                                                    asking=asking)
+    p.idle()
+    # the first hands-off page of a walk (the sheet is laid / GO), answered at once
+    for _ in range(40):
+        page = p.page()
+        if page in W.MOVES_AT_ONCE_PAGES:
+            break
+        p.answer_page(page)            # (no hands-off answer before this page)
+    label = {"go": "Go", "sheet_laid": "The page is laid, and my hands are away from the table",
+             "start_up": "Start the table, my hands are away",
+             "first_visit": "Make this move, my hands are away",
+             "check_mark": "Yes, it is centred, my hands are away",
+             "report_after_step": "As described, my hands are away"}[page]
+    b = _btn(win, label)
+    n = _moves(sim)
+    assert not b.isEnabled()                        # shown as not yet ready
+    QTest.mouseClick(b, Qt.MouseButton.LeftButton)   # a click meant for the window before
+    b.click()
+    qtbot.wait(200)                                  # laid out, still not ready
+    assert _moves(sim) == n and win.pages_shown[-1] == page and not win._busy
+    assert not b.isEnabled()
+    size = b.size()
+    qtbot.waitUntil(b.isEnabled, timeout=3000)
+    assert b.size() == size                          # the same size, ready now
+    b.click()
+    p.idle()
+    assert win.pages_shown[-1] != page
+
+
+@BOTH
+def test_s1_a_double_click_on_aimed_never_answers_go(qtbot, monkeypatch, tmp_path, settings,
+                                                     asking, hands_off_hold):
+    """Review 14's probe P-W1, fixed: the second click of a double click on Aimed (mark 3) lands
+    on the hands-off answer that follows, and is not taken."""
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
+                                                    asking=asking)
+    monkeypatch.setattr(W, "HANDS_OFF_READY_MS", 0)      # the walk there: a patient person
+    for _ in range(60):
+        page = p.page()
+        if page == "aimed" and win._last.detail.get("mark") == 3:
+            break
+        p.answer_page(page)
+    monkeypatch.setattr(W, "HANDS_OFF_READY_MS", hands_off_hold)
+    sim.aim(3)
+    QTest.mouseClick(_btn(win, "Aimed"), Qt.MouseButton.LeftButton)
+    p.idle()
+    nxt = win.pages_shown[-1]
+    ho = {"go": "Go", "report_after_step": "As described, my hands are away"}
+    assert nxt in ho, nxt
+    n = _moves(sim)
+    QTest.mouseClick(_btn(win, ho[nxt]), Qt.MouseButton.LeftButton)   # no wait at all
+    qtbot.wait(30)
+    assert _moves(sim) == n and win.pages_shown[-1] == nxt
+
+
+def test_s1_the_instruments_button_has_the_same_minimum(hands_off_hold):
+    assert J.BUTTON_MIN_MS == W.HANDS_OFF_READY_MS == 600
+    import inspect
+    from workflow.i1io.table import reader
+    assert inspect.signature(reader.PressWaiter.arm).parameters["min_ms"].default == 600
+
+
+def test_s1_every_hands_off_answer_is_held(hands_off_hold):
+    """The held labels are exactly the answers QUESTIONS.md marks as the hands-off
+    confirmation (the job's own list, by the window's words)."""
+    shown = {W.choice_label(k, v) for k, v in J.HANDS_OFF_ANSWERS}
+    shown |= {"Yes, it is centred, my hands are away"}
+    assert set(W.HANDS_OFF_LABELS) == shown
+
