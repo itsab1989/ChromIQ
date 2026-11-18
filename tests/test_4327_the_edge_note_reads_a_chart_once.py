@@ -396,6 +396,8 @@ def test_a_printtarg_run_forgets_the_pages(tmp_path):
 #: Places that write an image or start printtarg and never write a page of a
 #: chart the edge note or the overhang plan reads, with why.
 _NOT_CHART_PAGES = {
+    "workflow/i1io/table/job.py::TableJob._file_dual_conditions":
+        "the table dual scan's M1 / M2 measurement files beside the run's measurement",
     "ui/tabs/tab_measure.py::TabMeasure._dual_flush":
         "the i1Pro 2 dual scan's pass record (JSON beside the conditions)",
     "ui/tabs/tab_profile.py::TabProfile._dual_preset_commit":
