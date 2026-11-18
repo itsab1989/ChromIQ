@@ -130,7 +130,7 @@ def status() -> UsbStatus:
 
 def backend():
     """pyusb's libusb-1.0 backend on ChromIQ's own library, or None. Calls ``libusb_init``
-    (which opens no device). For the drive's later steps; nothing calls it yet."""
+    (which opens no device). Used by :func:`table_backend` on macOS and Linux."""
     path = library_path()
     if path is None:
         return None

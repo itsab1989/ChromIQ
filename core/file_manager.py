@@ -121,8 +121,8 @@ CACHE_DIRNAME   = "cache"
 VERIFICATIONS_DIRNAME = "verifications"
 #: The FD-9 Beta's per-Start session evidence (`Run.fd9_sessions_dir`).
 FD9_SESSIONS_DIRNAME = "fd9-sessions"
-#: The i1iO table drive (part of the i1iO Beta; nothing writes it yet): one
-#: folder per START under it (`Run.i1io_table_session_dir`). At the run root,
+#: The i1iO table drive (part of the i1iO Beta; written by the table panel's job
+#: since 4.3.45): one folder per START under it (`Run.i1io_table_session_dir`). At the run root,
 #: not in cache/: raw readings and the pending marker are not recreatable.
 I1IO_TABLE_DIRNAME = "i1io-table"
 #: The marker the table's scan module leaves when a strip move may still be
@@ -2525,7 +2525,8 @@ class Run(I1ioTablePlace):
         return self.i1io_pages_dir / f"page{int(page)}.ti3"
 
     # ---- the i1iO table drive (part of the i1iO Beta, build step 3 of
-    # 2026-11-17; NOTHING WRITES THESE YET). The measurement itself is
+    # 2026-11-17; written by the table panel's job since 4.3.45, every run
+    # type: profile, calibration and verification). The measurement itself is
     # `measurement_ti3`, as for every instrument. What one START of the table
     # sends and receives (row plans, raw reading streams, cuts, the session
     # log, the pending marker) goes into its own session folder at the run
