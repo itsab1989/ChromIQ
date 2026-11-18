@@ -2297,7 +2297,12 @@ class TableMeasureWindow(QFrame):
 
     # ---- start ------------------------------------------------------------------------------
     def start(self) -> None:
-        """The first page: the USB library, the explanation once, earlier sessions, options."""
+        """The first page: the USB library, the explanation once, earlier sessions, options.
+        Once per window (review 14, NOTE: a second call never builds a second job)."""
+        if getattr(self, "_started", False):
+            log.warning("i1iO table: start() called again on the same window; ignored")
+            return
+        self._started = True
         ok, mid = USB_STATUS()
         if not ok:
             from workflow import measurement_messages as M

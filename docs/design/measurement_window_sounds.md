@@ -352,6 +352,19 @@ the lights Beta on, the lights go red, as §4h and §4i say of any strip ChromIQ
 asks about. The per-strip ruler lines in the Measure log play nothing. No new
 sound was added.
 
+## 4k. The i1iO table's pop-up windows are listed in the table's own specification (4.3.45)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+The X-Rite i1iO table drive (Preferences ▸ Beta, quiet mode) asks through pop-up windows that are
+not in the tables above, because `core/measure_windows.py` does not register them: which sound
+each one plays is listed in [`i1io_table_support.md`](i1io_table_support.md), section
+on the quiet mode's pop-up windows (awaiting confirmation there), and comes from
+`ui/i1io_table_window.py::POPUP_SOUND`, whose names are checked against `core.sound` (W-4) by
+`tests/i1io_table/test_last_review14_fixes.py::test_note_every_pop_up_sound_is_a_real_sound`.
+
 ## 5. Related documents
 
 - [`measurement_exit_strategy.md`](measurement_exit_strategy.md) — the same windows, from the point of view of how each one ends a session

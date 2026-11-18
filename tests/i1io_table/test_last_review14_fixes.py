@@ -644,3 +644,31 @@ def test_s8_no_attention_request_while_chromiq_is_in_front(qtbot, monkeypatch, t
     qtbot.waitUntil(win.popup_open, timeout=5000)
     assert not alerts
 
+
+# ---- NOTES ---------------------------------------------------------------------------------------
+
+def test_note_every_pop_up_sound_is_a_real_sound():
+    """W-4: a typo in a cue would be silent, so the names are checked."""
+    import core.sound as S
+    for page, name in W.POPUP_SOUND.items():
+        assert hasattr(S, name) and getattr(S, name) in S.MEASUREMENT_EVENTS, (page, name)
+
+
+def test_note_the_sound_specification_points_to_the_table_pop_ups():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "docs" / "design" / "measurement_window_sounds.md").read_text(
+        encoding="utf-8")
+    assert "i1io_table_support.md" in text and "pop-up" in text
+    table = (root / "docs" / "design" / "i1io_table_support.md").read_text(encoding="utf-8")
+    assert "Awaiting confirmation: the quiet mode's pop-up windows" in table
+
+
+def test_note_start_twice_builds_one_job(qtbot, monkeypatch, tmp_path, settings):
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
+                                                    asking=False)
+    p.drive_until("go")
+    n = _moves(sim)
+    win.start()
+    p.idle()
+    assert len(sim.jobs) == 1 and _moves(sim) == n
