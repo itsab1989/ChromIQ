@@ -15254,16 +15254,27 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if not refining:
             # CLOSE IS EXPLAINED TOO (4.3.11): the window has three buttons
             # and its text named two. Before the grey line about the log.
-            _close = (tr("<b>Close</b> saves the measurement and ends the "
-                         "measuring session as well, but stays on this tab: "
-                         "go to the {tab} tab yourself whenever you are ready "
-                         "to create the calibration file.")
-                      if is_cal else
-                      tr("<b>Close</b> saves the measurement and ends the "
-                         "measuring session as well, but stays on this tab: "
-                         "go to the {tab} tab yourself whenever you are ready "
-                         "to build the profile.")).format(
-                tab=self._profile_tab_name())
+            if table:
+                # review 13, S-8: the table saved the measurement itself (said once,
+                # above); Close saves nothing more and only stays on this tab
+                _close = (tr("<b>Close</b> stays on this tab: go to the {tab} tab "
+                             "yourself whenever you are ready to create the "
+                             "calibration file.")
+                          if is_cal else
+                          tr("<b>Close</b> stays on this tab: go to the {tab} tab "
+                             "yourself whenever you are ready to build the "
+                             "profile.")).format(tab=self._profile_tab_name())
+            else:
+                _close = (tr("<b>Close</b> saves the measurement and ends the "
+                             "measuring session as well, but stays on this tab: "
+                             "go to the {tab} tab yourself whenever you are ready "
+                             "to create the calibration file.")
+                          if is_cal else
+                          tr("<b>Close</b> saves the measurement and ends the "
+                             "measuring session as well, but stays on this tab: "
+                             "go to the {tab} tab yourself whenever you are ready "
+                             "to build the profile.")).format(
+                    tab=self._profile_tab_name())
             _t = msg.text()
             _at = _t.rfind("<br><br><span")
             msg.setText(_t[:_at] + "<br><br>" + _close + _t[_at:] if _at >= 0

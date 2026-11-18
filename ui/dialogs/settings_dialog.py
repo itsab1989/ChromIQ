@@ -3892,6 +3892,10 @@ class SettingsDialog(QDialog):
             _i1iocal.addWidget(_QL(tr("Calibrate the i1Pro 2 of a table measurement:"), self))
             _i1iocal.addWidget(self._i1io_cal_combo)
             _i1iocal.addStretch()
+            # review 13, S-8: its help reachable without hovering, as every row around it
+            _i1iocal.addWidget(TooltipButton(
+                tr("Calibrate the i1Pro 2 of a table measurement:"),
+                i1io_cal_place_help(), self))
             _beta.addLayout(_i1iocal)
             # ...and D-4b, an option until the owner decides (off): the white
             # scaled to the tile values stored in the table, as i1Profiler does
@@ -10224,7 +10228,9 @@ def i1io_cal_place_help() -> str:
         "the default. On its own white tile you lift it out of the arm for the calibration "
         "and put it back afterwards. On a real i1iO 2 both places gave the same white within "
         "0.13 ΔE00 on average (at most 0.22), a difference nobody can see, so you do not "
-        "need to change this.")
+        "need to change this. Either way, ChromIQ makes the white only with the arm at its "
+        "resting place over the table's tile, and after a white on the instrument's own tile "
+        "it reads the table's tile once to check that the white is right.")
 
 
 def i1io_stored_white_help() -> str:
