@@ -10,9 +10,11 @@ platform patched and `install_winusb` replaced):
 
 1. Preferences > Instrument drivers lists the table, behind the Beta, like an instrument; the
    person's choice is attached only after its install button; Beta off = the very call it
-   always made; a Windows for ARM computer is not offered an install that cannot help.
+   always made; an x64 ChromIQ on a Windows for ARM computer is not offered an install that
+   cannot help it, while the ARM64 build there is offered it like x64 (2026-11-18).
 2. START: a table, or the i1Pro 2 in its arm, without the driver gets the offer ("Not now" /
-   install), which opens the same window; on an ARM64 PC the truthful message instead.
+   install), which opens the same window; for the x64 build on an ARM64 PC the truthful message
+   naming the ARM64 version instead.
 3. The texts: catalogued, proposed, no placeholder left, no em dash, translated.
 4. macOS and Linux unchanged.
 """
@@ -74,11 +76,18 @@ def test_unbound_targets_re_reads_the_table_only_when_it_was_a_target(monkeypatc
     assert {(d.vid, d.pid) for d in got} == {TABLE, I1PRO}
 
 
-@pytest.mark.parametrize("arm64,can", [(True, False), (False, True)])
-def test_no_install_can_help_the_table_on_an_arm64_pc(monkeypatch, arm64, can):
+@pytest.mark.parametrize("machine_arm,process_arm,can", [
+    (True, False, False),      # the x64 build under emulation on an ARM PC: cannot
+    (True, True, True),        # the ARM64 build on an ARM PC: can (2026-11-18)
+    (False, False, True),      # x64 on x64: unchanged
+])
+def test_the_install_can_help_unless_an_x64_build_runs_on_an_arm_pc(
+        monkeypatch, machine_arm, process_arm, can):
     import core.usb_library as ul
-    monkeypatch.setattr(ul, "machine_is_arm64", lambda: arm64)
+    monkeypatch.setattr(ul, "machine_is_arm64", lambda: machine_arm)
+    monkeypatch.setattr(ul, "process_is_windows_arm64", lambda: process_arm)
     assert inst.table_driver_can_help() is can
+    assert ul.table_drive_impossible_here() is (not can)
 
 
 # ---- 1b. the Instrument drivers window ----------------------------------------------------
@@ -102,7 +111,7 @@ def beta(monkeypatch):
     return state
 
 
-def _hardware(monkeypatch, devices, *, arm64=False):
+def _hardware(monkeypatch, devices, *, arm64=False, arm64_build=False):
     """The window's hardware, recorded: what enumerate_connected was asked, and what
     install_winusb was handed."""
     import core.resource_path as rp
@@ -122,6 +131,7 @@ def _hardware(monkeypatch, devices, *, arm64=False):
         return inst.InstallAttempt.INSTALLED
     monkeypatch.setattr(inst, "install_winusb", install)
     monkeypatch.setattr(ul, "machine_is_arm64", lambda: arm64)
+    monkeypatch.setattr(ul, "process_is_windows_arm64", lambda: arm64_build)
     monkeypatch.setattr(sd.SettingsDialog, "_serial_states", lambda self: [])
 
     class _P:
@@ -328,7 +338,7 @@ def test_beta_off_the_window_is_byte_identical_to_4_3_45(
     assert got == golden[f"{case}__{press}"]
 
 
-def test_an_arm64_pc_is_not_offered_an_install_for_the_table(
+def test_the_x64_build_on_an_arm64_pc_is_not_offered_an_install_for_the_table(
         dialog, on_windows, beta, monkeypatch):
     asked, installed = _hardware(monkeypatch, [_table()], arm64=True)
     buttons = []
@@ -339,9 +349,25 @@ def test_an_arm64_pc_is_not_offered_an_install_for_the_table(
     with ModalDriver(look_then_close) as drv:
         dialog._show_usb_installer()
     said = drv.text_of(0)
-    assert "cannot drive it on this Windows for ARM computer yet" in said
+    assert "on this Windows for ARM computer it cannot drive the table" in said
+    assert "Use the ARM64 version of ChromIQ on this computer" in said
+    assert "ChromIQ-Windows-arm64" in said
     assert buttons == [None]                             # no install button at all
     assert installed == []
+
+
+def test_the_arm64_build_on_an_arm64_pc_lists_the_table_and_offers_its_install(
+        dialog, on_windows, beta, monkeypatch):
+    """2026-11-18 (the owner: Windows on ARM shall be supported): the ARM64 build on an ARM PC
+    lists the table with its own button and installs for it on that button, exactly as x64."""
+    asked, installed = _hardware(monkeypatch, [_pro(), _table()], arm64=True, arm64_build=True)
+    with ModalDriver(lambda w: _button(w, "Install Driver for the Table").click(),
+                     lambda w: _ok_button(w).click()) as drv:
+        dialog._show_usb_installer()
+    said = drv.text_of(0)
+    assert "Windows for ARM" not in said and "Connected table:" in said
+    assert [(d.vid, d.pid) for d in installed] == [TABLE]
+    assert inst._choice_holds(installed[0])
 
 
 def test_the_table_text_alone():
@@ -387,6 +413,7 @@ def test_the_window_opens_on_its_own_as_preferences_opens_it(monkeypatch):
 # ---- 2. START: the job's checks ------------------------------------------------------------
 
 def _pf(table="libusb0", pro="libusb0", arm64=False, system="windows"):
+    """*arm64*: the x64 build running on a Windows for ARM PC (`Preflight.x64_on_arm64`)."""
     return us.Preflight(system, {}, us.Check("ok"), us.Check("cannot_tell"), None,
                         us.Check(table), us.Check(pro), arm64)
 
@@ -440,13 +467,98 @@ def test_the_i1pro2_driver_is_read_like_the_window_reads_it():
     def boom():
         raise OSError("registry")
     assert check("windows", boom).state == "cannot_tell"
-    assert us.machine_is_arm64("macos") is False and us.machine_is_arm64("linux") is False
+    assert us.x64_build_on_arm64("macos") is False and us.x64_build_on_arm64("linux") is False
 
 
 def test_the_preflight_records_both_drivers():
     d = _pf(table="none", pro="none", arm64=True).as_dict()
     assert d["table_driver"]["state"] == "none"
-    assert d["instrument_driver"]["state"] == "none" and d["arm64_machine"] is True
+    assert d["instrument_driver"]["state"] == "none" and d["x64_on_arm64"] is True
+
+
+@pytest.mark.parametrize("machine_arm,process_arm,offered", [
+    (True, True, True),        # the ARM64 build on an ARM PC: offered, like x64 (2026-11-18)
+    (True, False, False),      # the x64 build under emulation on an ARM PC: the truthful message
+    (False, False, True),      # x64 on x64: unchanged
+])
+@pytest.mark.parametrize("table,pro", [("none", "libusb0"), ("libusb0", "none")])
+def test_start_decides_by_the_process_not_the_machine(monkeypatch, machine_arm, process_arm,
+                                                      offered, table, pro):
+    """The preflight's ARM field comes from the PROCESS (`x64_build_on_arm64`), and the job
+    offers the install to the ARM64 build exactly as to x64; the x64 build on an ARM PC is
+    refused with M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM, which names the ARM64 version."""
+    import core.usb_library as ul
+    from workflow import measurement_messages as M
+    monkeypatch.setattr(ul, "machine_is_arm64", lambda: machine_arm)
+    monkeypatch.setattr(ul, "process_is_windows_arm64", lambda: process_arm)
+    x64_on_arm = us.x64_build_on_arm64("windows")
+    assert x64_on_arm is (machine_arm and not process_arm)
+    job, sim, _t = H.make_job(preflight=_pf(table=table, pro=pro, arm64=x64_on_arm))
+    r = H.Person(job, sim).drive(job.open())
+    if offered:
+        assert r.reason in ("driver_not_installed_for_table", "driver_not_installed_for_instrument")
+    else:
+        assert r.reason == "usb_open_refused"
+        assert r.detail["message_id"] == "M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM"
+        _t, body = M.M_I1IO_DRIVE_USB_NOT_ON_THIS_SYSTEM.render()
+        assert "Use the ARM64 version of ChromIQ on this computer" in body
+        assert "ChromIQ-Windows-arm64" in body
+    assert sim.received == []
+
+
+def test_the_download_named_in_the_texts_is_the_one_the_readme_offers():
+    """The x64-on-ARM texts name the ARM64 download exactly as README.md does."""
+    from pathlib import Path
+    readme = (Path(__file__).resolve().parents[2] / "README.md").read_text(encoding="utf-8")
+    assert "ChromIQ-Windows-arm64_<version>.zip" in readme
+
+
+# ---- 2c. Windows lists the devices through cfgmgr32, without a USB library ------------------
+
+PRO_ID = "USB\\VID_0971&PID_2000\\6&1A2B3C&0&1"
+PRO_ID_2 = "USB\\VID_0971&PID_2000\\6&4D5E6F&0&3"
+TABLE_ID = "USB\\VID_0971&PID_2004\\6&777&0&2"
+
+
+@pytest.mark.parametrize("ids,state", [
+    (None, "cannot_tell"),
+    (set(), "no_instrument"),
+    ({TABLE_ID}, "no_instrument"),
+    ({PRO_ID, TABLE_ID}, "ok"),
+    ({PRO_ID, PRO_ID_2, TABLE_ID}, "several_instruments"),          # two instances, same ids
+    ({PRO_ID, "USB\\VID_0971&PID_2000&MI_00\\7&AAA&0&0000", TABLE_ID}, "ok"),  # its interface
+    ({PRO_ID, TABLE_ID, "USB\\ROOT_HUB30\\5&2B&0&0",
+      "USB\\VID_046D&PID_C52B\\5&9&0&4", "USB\\VID_05AC&PID_1234\\1"}, "ok"),  # unrelated
+    ({PRO_ID, TABLE_ID, "USB\\VID_0765&PID_6008\\5&1&0&5"}, "other_instrument"),
+])
+def test_the_windows_list_comes_from_cfgmgr32_instances(ids, state):
+    devices = us.list_devices("windows", instance_ids=ids)
+    assert us.instrument_check(devices).state == state
+    if devices is not None:
+        assert all(set(d) == {"vid", "pid", "place", "hub", "interfaces"} for d in devices)
+
+
+def test_windows_never_asks_a_usb_library_for_the_list(monkeypatch):
+    """The ARM64 build has no libusb-1.0: on Windows neither the preflight's nor START's
+    instrument check may need one (x64 and ARM64 alike)."""
+    import core.usb_driver_installer as installer
+    import core.usb_library as ul
+
+    def boom(*a, **k):
+        raise AssertionError("a USB library was asked for the Windows list")
+    monkeypatch.setattr(ul, "backend", boom)
+    monkeypatch.setattr(installer, "present_usb_instance_ids", lambda: {PRO_ID, TABLE_ID})
+    assert us.instrument_now("win32").state == "ok"
+    monkeypatch.setattr(installer, "present_usb_instance_ids", lambda: None)
+    assert us.instrument_now("win32").state == "cannot_tell"
+
+
+def test_linux_still_lists_through_its_library(monkeypatch):
+    import core.usb_library as ul
+    asked = []
+    monkeypatch.setattr(ul, "backend", lambda: asked.append(1) or None)
+    assert us.instrument_now("linux").state == "cannot_tell"     # no backend here
+    assert asked == [1]
 
 
 def test_macos_and_linux_are_not_asked_about_any_driver():

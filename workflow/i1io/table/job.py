@@ -1061,22 +1061,23 @@ class TableJob:
         if pf.system == "windows" and pf.table_driver.state != "libusb0":
             # the owner's ruling: on Windows the table is reached like ArgyllCMS's instruments,
             # through libusb-win32, which only the person's explicit choice installs for it.
-            # 4.3.46 (owner, 2026-11-18): the window then offers that install, except on a
-            # Windows for ARM computer, where the drive cannot run: the truthful message there
-            if pf.arm64_machine:
+            # 4.3.46 (owner, 2026-11-18): the window then offers that install, except for an x64
+            # ChromIQ on a Windows for ARM computer, which cannot drive the table: the truthful
+            # message there (use the ARM64 version). The ARM64 build is offered it like x64.
+            if pf.x64_on_arm64:
                 raise StageFailed("usb_open_refused",
                                   message_id="M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM",
-                                  problem="windows-arm64-table-without-driver")
+                                  problem="windows-x64-on-arm64-table-without-driver")
             raise StageFailed("driver_not_installed_for_table",
                               driver_state=pf.table_driver.state, **pf.table_driver.detail)
         if pf.system == "windows" and pf.instrument_driver.state == "none":
             # 4.3.46: the i1Pro 2 in the arm is its own USB device and needs the same driver
             # (ArgyllCMS reads it through libusb-win32); the window offers that install too,
-            # except where the drive cannot run (an install there would not help the drive)
-            if pf.arm64_machine:
+            # except where the drive cannot run (the x64 build on an ARM PC)
+            if pf.x64_on_arm64:
                 raise StageFailed("usb_open_refused",
                                   message_id="M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM",
-                                  problem="windows-arm64-instrument-without-driver")
+                                  problem="windows-x64-on-arm64-instrument-without-driver")
             raise StageFailed("driver_not_installed_for_instrument")
         if pf.instrument.state != "ok":
             raise StageFailed(f"instrument_{pf.instrument.state}", **pf.instrument.detail)
@@ -1098,13 +1099,13 @@ class TableJob:
             self.transport = self._open_transport()
         except tbl.NotAvailable as exc:
             mid, problem = getattr(exc, "message_id", ""), getattr(exc, "problem", "")
-            if pf.system == "windows" and pf.arm64_machine and mid == tbl.DRIVER_NOT_INSTALLED:
-                # review 446, W-M1: the opening found the table without its driver (or the
-                # driver's libusb0.dll missing) on a Windows for ARM computer. An install cannot
-                # help there, so never the offer: the truthful message, as before the opening
+            if pf.system == "windows" and pf.x64_on_arm64 and mid == tbl.DRIVER_NOT_INSTALLED:
+                # review 446, W-M1, as revised 2026-11-18: the opening found the table without its
+                # driver (or its libusb0.dll missing) in an x64 ChromIQ on a Windows for ARM
+                # computer. An install cannot help that process: the truthful message instead
                 raise StageFailed("usb_open_refused",
                                   message_id="M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM",
-                                  problem="windows-arm64-" + str(problem)) from None
+                                  problem="windows-x64-on-arm64-" + str(problem)) from None
             if pf.system == "windows" and mid == tbl.DRIVER_NOT_INSTALLED \
                     and problem == "no-libusb0-dll":
                 # review 446, W-S3: Windows lists the table with libusb-win32 (the check before

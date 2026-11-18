@@ -3107,10 +3107,11 @@ class TableMeasureWindow(QFrame):
             # is not "no driver" (the Instrument drivers window shows it installed): its own words
             reason = ("driver_file_missing_for_table" if d.get("problem") == "no-libusb0-dll"
                       else "driver_not_installed_for_table")
-        if reason in _DRIVER_OFFERS and self._on_a_windows_arm64_pc():
-            # review 446, W-M1: EVERY way into the offer passes here, and a Windows for ARM
-            # computer never gets it (the drive cannot run there, so an install cannot help):
-            # the truthful message instead, whichever path brought the refusal
+        if reason in _DRIVER_OFFERS and self._x64_build_on_an_arm_pc():
+            # review 446, W-M1 (revised 2026-11-18): EVERY way into the offer passes here, and the
+            # x64 build on a Windows for ARM computer never gets it (it cannot drive the table
+            # there, so an install cannot help it): the truthful message, which names the ARM64
+            # version. The ARM64 build there is offered the install like x64 on x64.
             reason, d = "usb_open_refused", {"message_id": "M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM"}
         if reason in _DRIVER_OFFERS:
             self._show_driver_offer(reason)
@@ -3133,19 +3134,20 @@ class TableMeasureWindow(QFrame):
         self._end_btn.setVisible(False)
         self._show("open_refused", title, body, [(tr("Close"), self._close_job_then_finish)])
 
-    def _on_a_windows_arm64_pc(self) -> bool:
-        """Whether this is a Windows for ARM computer, as the job's own check before the opening
-        read it (`Preflight.arm64_machine`); without that reading, asked of the machine itself on
-        Windows only. Read only."""
+    def _x64_build_on_an_arm_pc(self) -> bool:
+        """Whether this is an x64 ChromIQ under emulation on a Windows for ARM computer, the one
+        combination that cannot drive the table (2026-11-18), as the job's own check before the
+        opening read it (`Preflight.x64_on_arm64`); without that reading, asked of this process
+        and machine on Windows only. The ARM64 build on an ARM PC is not this. Read only."""
         pf = getattr(self.job, "preflight_seen", None) if self.job is not None else None
         if pf is not None:
-            return pf.system == "windows" and bool(getattr(pf, "arm64_machine", False))
+            return pf.system == "windows" and bool(getattr(pf, "x64_on_arm64", False))
         import sys
         if sys.platform != "win32":
             return False
         try:
             import core.usb_library as usb_library
-            return bool(usb_library.machine_is_arm64())
+            return bool(usb_library.table_drive_impossible_here())
         except Exception:      # noqa: BLE001 - cannot tell: the job's own checks decided
             return False
 

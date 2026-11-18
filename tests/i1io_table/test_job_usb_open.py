@@ -271,6 +271,11 @@ def test_the_windows_backend_is_libusb_win32s_own_dll_by_full_path(monkeypatch, 
         tb = ul.table_backend("win32", dll_path=dll)
         assert tb.backend is None and tb.problem == problem
         assert ul.MESSAGE_FOR_PROBLEM[problem] == mid
+    # 2026-11-18: the ARM64 build whose libusb0.dll does not load has a broken package, which
+    # is not "use the ARM64 version"
+    monkeypatch.setattr(ul, "machine_is_arm64", lambda: True)
+    monkeypatch.setattr(ul, "process_is_windows_arm64", lambda: True)
+    assert ul.table_backend("win32", dll_path=dll).problem == "libusb0-does-not-load"
     got.clear()
     assert got == []
 
@@ -302,8 +307,10 @@ def test_pyusb_enumeration_keeps_ids_only():
                                                         D(0x1d6b, 0x0002, 9)])
     assert devs == [_d(0x0971, 0x2000), _d(0x0971, 0x2004), _d(0x1d6b, 0x0002, True)]
     assert "SECRET" not in repr(devs)
-    assert us.list_devices("windows", pyusb_find=lambda: (_ for _ in ()).throw(OSError())) is None
-    assert us.list_devices("windows") is None            # no backend: cannot tell, not a guess
+    assert us.list_devices("linux", pyusb_find=lambda: (_ for _ in ()).throw(OSError())) is None
+    assert us.list_devices("linux") is None              # no backend: cannot tell, not a guess
+    # 2026-11-18: Windows lists through cfgmgr32 (no USB library); None = cannot tell
+    assert us.list_devices("windows", instance_ids=None) is None or sys.platform == "win32"
     assert us.list_devices("other") is None
 
 

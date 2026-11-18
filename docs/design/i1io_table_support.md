@@ -982,6 +982,14 @@ and the reviewer's own walker and probes, copied as `test_review14_walker.py` an
   session) give their room to the panel: at 900 x 650 the ending shows its three answers and at
   least three lines of its explanation.
 
+### Confirmed behaviour: Windows on ARM is supported (2026-11-18)
+
+**Confirmed by:** Sebastian, 2026-11-18 (this one sentence only, his ruling of that day: *"many
+modern pcs use arm processors so this should work for them"*)
+
+* Windows on ARM shall be supported: the i1iO table drive is meant to run on a Windows for ARM
+  computer too.
+
 ### Confirmed behaviour: on Windows the table is treated like the instruments (2026-11-18)
 
 **Confirmed by:** Sebastian, 2026-11-18 (this one sentence only, his ruling of that day: *"the
@@ -1033,11 +1041,22 @@ is his; the behaviour below is what was built from it and awaits his confirmatio
   Re-running X-Rite's installer is not said, because the guide does not document it. The same
   steps in the window's table section, in M-I1IO-DRIVE-TABLE-DRIVER and in
   M-I1IO-DRIVE-I1PRO2-DRIVER.
-* **Windows for ARM computer.** No install is offered for the table there (neither in the window
-  nor at START), because the drive cannot run there: the window says so in one sentence, and START
-  shows M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM. That holds on every path into the offer, the
-  check before the opening and the opening itself (review 446, W-M1: the registry saying
-  libusb0 while the opening finds no libusb0.dll); the table window asks before any offer.
+* **Windows for ARM computer (revised 2026-11-18 after the owner's ruling above).** Decided by
+  the PROCESS, not the machine. The ARM64 build (the download ChromIQ-Windows-arm64) lists the
+  devices through Windows' cfgmgr32 (no USB library; one entry per device instance, composite
+  `&MI_xx` children and hubs skipped, so two i1Pro 2 are still "several instruments"), opens the
+  table through the ARM64 `libusb0.dll` the driver package installs, and is offered the driver
+  install in the Instrument drivers window and at START exactly like x64. The x64 build running
+  there under emulation cannot load that file: no install is offered to it, the window says so
+  in one sentence naming the ARM64 version, and START shows M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM,
+  which says to use the ARM64 version. That holds on every path into the offer, before the
+  opening and at it (review 446, W-M1). The x64 build on an x64 PC lists through cfgmgr32 as well
+  (one path for all of Windows; in the virtual machine both lists gave the same answer); nothing
+  else changes for it. The self-test line carries `libusb0=<version>|absent|does-not-load` on
+  Windows.
 * **Not tried on Windows, nor with a real table.** Tried on the Mac in real windows with the
   platform patched and a simulated table; the install itself was not run for the table. A run of
-  the built Windows app in the Windows 11 virtual machine is still owed.
+  the built Windows app in the Windows 11 virtual machine is still owed. On Windows for ARM: tried
+  in a Windows 11 ARM64 virtual machine without a table or an i1Pro 2 (the ARM64 `libusb0.dll`
+  loads in an ARM64 process, pyusb's libusb0 backend starts on it, the cfgmgr32 list works); no
+  USB transfer to a table and no measurement has run on an ARM computer.

@@ -250,18 +250,16 @@ def is_table(vid: str, pid: str) -> bool:
 
 
 def table_driver_can_help() -> bool:
-    """Whether installing the driver for the table can let ChromIQ drive it on this computer.
+    """Whether installing the driver for the table can let THIS ChromIQ drive it on this computer.
 
-    False on a Windows for ARM computer (requirement 4 of the 4.3.46 change: do not offer an install
-    that cannot work). There the table drive cannot run with either build: the ARM64 build bundles
-    no libusb-1.0 (no wheel), which the drive needs to list the USB devices before it opens the
-    table, and the x64 build runs emulated and cannot load the ARM64 libusb0.dll that the driver
-    package puts into System32. With the driver already installed, the existing check still LOADS
-    the file and says so in its own words (review 13, S-6); without it there is no file to load, so
-    the machine is what can be asked. Read only."""
+    False only for an x64 ChromIQ under emulation on a Windows for ARM computer: that process
+    cannot load the ARM64 libusb0.dll the driver package puts into System32 (measured
+    2026-11-18). The ARM64 build on the same computer can (the owner, 2026-11-18: "many modern
+    pcs use arm processors so this should work for them"): it lists the devices through
+    cfgmgr32 and opens the table through that libusb0.dll, so it needs no libusb-1.0. Read only."""
     try:
-        from core.usb_library import machine_is_arm64
-        return not machine_is_arm64()
+        from core.usb_library import table_drive_impossible_here
+        return not table_drive_impossible_here()
     except Exception:      # noqa: BLE001 - cannot tell: offer it, as for an instrument
         return True
 

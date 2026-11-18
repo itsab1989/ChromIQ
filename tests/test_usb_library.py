@@ -230,8 +230,9 @@ def test_only_the_selftest_uses_it_yet():
     # reached by nothing in the app: tests/test_i1io_table_not_reached_by_the_app.py)
     # build step 9: the table window asks the library's read-only status() before it builds a
     # job (the USB library missing is said, never a crash)
-    # release after 4.3.45: the driver installer asks only `machine_is_arm64` (read only), so
-    # that no install is offered for the table on a Windows for ARM computer
+    # release after 4.3.45: the driver installer asks only `table_drive_impossible_here` (read
+    # only), so that no install is offered for the table to an x64 ChromIQ on a Windows for ARM
+    # computer (the ARM64 build there is offered it, 2026-11-18)
     assert sorted(set(users)) == ["core/selftest.py", "core/usb_driver_installer.py",
                                   "ui/i1io_table_window.py",
                                   "workflow/i1io/table/session_table.py",
@@ -342,3 +343,45 @@ def test_the_x64_build_loads_libusb0_or_says_why(monkeypatch, tmp_path):
     bad = tmp_path / "libusb0.dll"
     bad.write_bytes(b"not a library")
     assert U.load_libusb0(bad) is not None        # does not load: the reason, never a crash
+
+
+def test_the_selftest_names_the_tables_windows_library(monkeypatch, tmp_path):
+    """2026-11-18: on Windows the self-test line carries `libusb0=<version>|absent|does-not-load`
+    (the table's own route, System32's libusb0.dll); off Windows nothing (the line unchanged)."""
+    import ctypes
+    from types import SimpleNamespace
+    assert U.libusb0_selftest_field() == "" or sys.platform == "win32"
+    monkeypatch.setattr(U.sys, "platform", "win32")
+    monkeypatch.setattr(U, "libusb0_dll_path", lambda: None)
+    assert U.libusb0_selftest_field() == "libusb0=absent"
+    dll = tmp_path / "libusb0.dll"
+    dll.write_bytes(b"x")
+    monkeypatch.setattr(U, "load_libusb0", lambda path: "OSError")
+    assert U.libusb0_selftest_field(dll) == "libusb0=does-not-load"
+    monkeypatch.setattr(U, "load_libusb0", lambda path: None)
+
+    class _Lib:
+        def __init__(self, path):
+            self.usb_init = lambda: None
+            self.usb_get_version = SimpleNamespace()
+
+            def get():
+                v = self.usb_get_version.restype._type_()
+                v.dll.major, v.dll.minor, v.dll.micro, v.dll.nano = 1, 4, 0, 0
+                return ctypes.pointer(v)
+            self.usb_get_version = _Callable(get)
+
+    class _Callable:
+        def __init__(self, fn):
+            self.fn, self.restype = fn, None
+
+        def __call__(self):
+            return self.fn()
+    monkeypatch.setattr(U.ctypes, "WinDLL", _Lib, raising=False)
+    assert U.libusb0_selftest_field(dll) == "libusb0=1.4.0.0"
+
+
+def test_the_selftest_fails_only_an_arm64_build_whose_libusb0_does_not_load():
+    src = (ROOT / "core" / "selftest.py").read_text(encoding="utf-8")
+    assert 'libusb0 == "libusb0=does-not-load" and process_is_windows_arm64()' in src
+    assert '(f" {libusb0}" if libusb0 else "")' in src

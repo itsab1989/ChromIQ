@@ -42,11 +42,22 @@ def run_if_asked() -> None:
         usb = usb_status()
         if not usb.ok and usb.problem != "not-bundled":
             raise RuntimeError(f"the USB library does not load: {usb.problem}")
+        # Windows: the TABLE's own route, libusb-win32's libusb0.dll in System32
+        # (the driver package installs it; 2026-11-18, the ARM64 build drives the
+        # table through it). "absent" is normal (no driver installed, always so on
+        # a build machine); "does-not-load" fails only the ARM64 build, where it
+        # means a broken driver package (an x64 build on an ARM PC cannot load it,
+        # which is expected). "" on macOS and Linux: their line is unchanged.
+        from core.usb_library import libusb0_selftest_field, process_is_windows_arm64
+        libusb0 = libusb0_selftest_field()
+        if libusb0 == "libusb0=does-not-load" and process_is_windows_arm64():
+            raise RuntimeError("libusb0.dll is installed and does not load in the ARM64 build")
     except BaseException as exc:      # noqa: BLE001 — report, then fail
         print(f"chromiq-selftest FAILED on {platform.machine()}: {exc!r}",
               flush=True)
         sys.exit(1)
     print(f"chromiq-selftest ok machine={platform.machine()} "
           f"numpy={numpy.__version__} blas_threads={threads} "
-          f"{usb.selftest_field()}", flush=True)
+          f"{usb.selftest_field()}"
+          + (f" {libusb0}" if libusb0 else ""), flush=True)
     sys.exit(0)

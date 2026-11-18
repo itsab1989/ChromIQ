@@ -709,9 +709,10 @@ def usb_table_text(devices, tables_not_offered=(), button: "str | None" = None,
     *with_certificate_line*: the certificate disclosure, when no instrument section above
     carries it already (only the table is listed).
 
-    *tables_not_offered* are tables attached to a Windows for ARM computer, where the driver
-    cannot let ChromIQ drive the table (`core.usb_driver_installer.table_driver_can_help`):
-    they are not listed for an install, and one sentence says why.
+    *tables_not_offered* are tables an x64 ChromIQ sees on a Windows for ARM computer, where the
+    driver cannot let THIS ChromIQ drive the table (`core.usb_driver_installer.
+    table_driver_can_help`; the ARM64 build there lists them like x64 on x64): they are not
+    listed for an install, and one sentence says why and names the ARM64 version.
     """
     tables = [d for d in devices if _is_the_table(d)]
     parts = []
@@ -763,10 +764,15 @@ def usb_table_text(devices, tables_not_offered=(), button: "str | None" = None,
             "adds: if you switch often, you can try a different USB port for each driver, which "
             "reportedly saves switching by hand."))
     if tables_not_offered:
+        # 2026-11-18: only the x64 build on a Windows for ARM computer (the ARM64 build lists
+        # the table and offers its driver like x64 on x64)
         parts.append(tr(
-            "<b>The i1iO table</b> is connected, but ChromIQ cannot drive it on this Windows for "
-            "ARM computer yet, so no driver is offered for it here. Measuring in i1Profiler "
-            "3.8.6 or older and IMPORT still work."))
+            "<b>The i1iO table</b> is connected, but this copy of ChromIQ is the version for "
+            "Intel and AMD processors (x64), and on this Windows for ARM computer it cannot drive "
+            "the table, so no driver is offered for it here. Use the ARM64 version of ChromIQ on "
+            "this computer instead, the download named ChromIQ-Windows-arm64: it lists the table "
+            "here and can install its driver. Measuring in i1Profiler 3.8.6 or older and IMPORT "
+            "still work."))
     text = "<br><br>".join(parts)
     if text and tables and with_certificate_line:
         text += usb_certificate_notice_line()

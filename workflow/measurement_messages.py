@@ -12471,12 +12471,21 @@ M_I1IO_DRIVE_USB_MISSING = _m(
     "still work.",
     approved=False)
 
+# Revised 2026-11-18 (the owner: "many modern pcs use arm processors so this should work for
+# them"): the ARM64 build drives the table on a Windows for ARM computer; only the x64 build
+# running there under emulation cannot (it cannot load the ARM64 libusb0.dll the driver
+# installs), and this says what to do instead. The download's name is README.md's.
 M_I1IO_DRIVE_USB_NOT_ON_THIS_SYSTEM = _m(
     "M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM",
-    "The table cannot be driven on this system yet",
-    "ChromIQ could not load the USB library it needs for the table on this "
-    "Windows for ARM computer, so it cannot drive the table here yet. Nothing "
-    "was sent. Measuring in i1Profiler 3.8.6 or older and IMPORT still work.",
+    "Use the ARM64 version of ChromIQ to drive the table on this computer",
+    "This is a Windows for ARM computer, and this copy of ChromIQ is the version for Intel "
+    "and AMD processors (x64), which Windows runs here through emulation. That version cannot "
+    "load the table's USB driver file on an ARM computer, so it cannot drive the table here. "
+    "Nothing was sent to the table.\n\n"
+    "Use the ARM64 version of ChromIQ on this computer instead: the download named "
+    "ChromIQ-Windows-arm64. It reaches the table through the same driver, and its Instrument "
+    "drivers window can install that driver for the table.\n\n"
+    "Until then, measuring in i1Profiler 3.8.6 or older and IMPORT still work.",
     approved=False)
 
 M_I1IO_DRIVE_USB_WINDOWS_DRIVER = _m(
