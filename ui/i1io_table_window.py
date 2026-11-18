@@ -1040,12 +1040,18 @@ class TableMeasureWindow(QFrame):
         self._answers.adjustSize()
         ans_h = self._answers.sizeHint().height() + sp
         alay = self._answers.layout()
-        if self._answers_pinned() and alay is not None and alay.hasHeightForWidth():
+        if alay is not None and alay.hasHeightForWidth():
             # review 12, S-3: the answers' true height at the panel's width (their status
-            # line wraps; a width-less hint under-counted it and the text area overlapped)
+            # line wraps; a width-less hint under-counted it and the text area overlapped);
+            # review 13, S-3: on every page (a stale hint kept a long text above the answers)
             ans_h = max(ans_h, alay.totalHeightForWidth(max(1, self.width() - m.left()
                                                            - m.right())) + sp)
         need = ls * 6 + 12
+        # review 13, S-3: the answers stay under the text only while the WHOLE question fits
+        # above them; a text longer than that scrolls with its answers after it, so no part of
+        # it (a safety sentence least of all) can stand below the edge while the answers are
+        # in view. The true-state box is the first to give way.
+        need = max(need, self._page_need_height())
         room = self.height() - fixed
         if room - ans_h - state_h >= need:
             level = 0
@@ -1068,6 +1074,30 @@ class TableMeasureWindow(QFrame):
         else:
             self._scroll.setMinimumHeight(max(ls * 3 + 12, min(self._text_min_height(), left)))
         self._room_level = level
+
+    def _page_need_height(self) -> int:
+        """Review 13, S-3: the height the question's title, text and note need at the width
+        the scrolling area gives them (counted as if its scroll bar showed)."""
+        try:
+            sb = self._scroll.verticalScrollBar().sizeHint().width()
+            m = self.layout().contentsMargins()
+            # the panel's own width (its children's geometry may not have followed a resize
+            # yet): the scrolling area spans the panel between its margins
+            vw = max(1, self.width() - m.left() - m.right() - 2 * self._scroll.frameWidth()
+                     - sb - 6 - self._page.contentsMargins().right())
+            sp = self._page.spacing()
+            h = 0
+            n = 0
+            for lab in (self._title, self._text):
+                if lab.text():
+                    h += lab.heightForWidth(vw)
+                    n += 1
+            if self._note_box.isVisibleTo(self) or getattr(self, "_note_sticky", False):
+                h += self._note_box.sizeHint().height()
+                n += 1
+            return h + sp * max(0, n - 1) + 12
+        except RuntimeError:          # the panel is gone
+            return 0
 
     #: the pages whose answers never scroll away (review 12, S-3): the ending's question
     PINNED_ANSWER_PAGES = ("end_of_session",)
@@ -1094,7 +1124,18 @@ class TableMeasureWindow(QFrame):
         from PyQt6.QtCore import QEvent
         if obj is self._scroll.viewport() and event.type() == QEvent.Type.Resize:
             self._fit_text()
+            if not getattr(self, "_refit_pending", False):
+                # review 13, S-3: once the layout has settled, the answers' place again
+                self._refit_pending = True
+                QTimer.singleShot(0, self._refit_room)
         return False
+
+    def _refit_room(self) -> None:
+        self._refit_pending = False
+        try:
+            self._fit_room()
+        except RuntimeError:          # the panel is gone
+            pass
 
     def _fit_text(self) -> None:
         """A word-wrapped label in a scroll area is laid out at its one-line minimum, so its
