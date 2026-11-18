@@ -1283,6 +1283,11 @@ class TableMeasureWindow(QFrame):
             tw = max(1, inner - 2 * self._scroll.frameWidth() - sb - 6
                      - self._page.contentsMargins().right())
             text_h, n = 0, 0
+            real = pop.isVisible() and self._scroll.viewport().width() > 40
+            if real:
+                # on screen: the heights the labels really have at the viewport's width
+                # (_fit_text set them), not an estimate
+                tw = max(1, self._scroll.viewport().width() - 6)
             for lab in (self._title, self._text):
                 if lab.text():
                     # a label's heightForWidth never answers less than its own minimum, which
@@ -1299,7 +1304,11 @@ class TableMeasureWindow(QFrame):
             text_h += self._page.spacing() * max(0, n - 1) + 8
             alay = self._answers.layout()
             ans_h = (alay.totalHeightForWidth(inner) if alay is not None
-                     and alay.hasHeightForWidth() else self._answers.sizeHint().height())
+                     and alay.hasHeightForWidth() else 0)
+            # the polished buttons (the app's button font makes them taller than a hint taken
+            # before the pop-up was shown: measured on screen, the last answer was cut)
+            ans_h = max(ans_h, self._answers.sizeHint().height(),
+                        self._answers.minimumSizeHint().height())
             foot_h = pop.foot.sizeHint().height() if not pop.foot.isHidden() else 0
             fixed = m.top() + m.bottom() + foot_h + sp * 2
             fits = fixed + text_h + ans_h + sp <= max_h
@@ -1370,6 +1379,15 @@ class TableMeasureWindow(QFrame):
         """The look of the tab's own Stop, for the pop-up's End measurement."""
         self._stop_qss = str(qss or "")
 
+    def _refit_popup(self) -> None:
+        try:
+            if self._popup is not None and self._popup.isVisible():
+                self._fit_text()
+                self._fit_popup()
+                self._keep_popup_on_screen()
+        except RuntimeError:          # gone
+            pass
+
     def _sync_popup_footer(self) -> None:
         """The pop-up's footer offers what the panel's footer offers now (Report a problem while
         the table is open, End measurement, Close), except an answer the page has already."""
@@ -1383,7 +1401,9 @@ class TableMeasureWindow(QFrame):
         on_ending = getattr(self, "_page_id", "") in ("end_of_session", "done")
         for mine, theirs in pairs:
             mine.setVisible(not theirs.isHidden() and mine.text() not in labels
-                            and not (on_ending and mine is pop.end_btn))
+                            and not (on_ending and mine is pop.end_btn)
+                            and not (getattr(self, "_page_id", "") == "problem"
+                                     and mine is pop.problem_btn))
             mine.setEnabled(theirs.isEnabled())
         pop.foot.setVisible(any(not b.isHidden() for b, _t in pairs))
 
@@ -1414,6 +1434,10 @@ class TableMeasureWindow(QFrame):
                 self.cue.emit(snd)          # W-1: as the window appears
             self._move_popup_into_place()
             pop.show()
+        # once shown and polished, again from the real heights (and once the text has been
+        # fitted to the real width)
+        QTimer.singleShot(0, self._refit_popup)
+        QTimer.singleShot(120, self._refit_popup)
         self._answer_box.no_default()
         pop.foot.no_default()
         self._keep_popup_on_screen()
@@ -1798,7 +1822,14 @@ class TableMeasureWindow(QFrame):
                 # the hand path's windows' buttons (TablePopup), by role
                 b.setFixedHeight(TablePopup.BUTTON_H)
                 b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-                self._button_roles[id(b)] = answer_role(label, alone=len(buttons) == 1)
+                role = answer_role(label, alone=len(buttons) == 1)
+                if role == QDialogButtonBox.ButtonRole.AcceptRole and any(
+                        r == QDialogButtonBox.ButtonRole.AcceptRole
+                        for r in self._button_roles.values()):
+                    # ONE confirming answer per window, as the hand path's windows have
+                    # (measured on screen: "Carry on" and "Bring the arm home" both filled)
+                    role = QDialogButtonBox.ButtonRole.ActionRole
+                self._button_roles[id(b)] = role
             else:
                 b.setMinimumHeight(self.ANSWER_MIN_H)
                 b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)

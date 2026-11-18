@@ -482,3 +482,50 @@ def test_the_pop_up_never_opens_over_the_chart_preview(tab, beta, tmp_path, monk
         p.drive_until(target)
         fg = win.popup().frameGeometry()
         assert not fg.intersects(prev), (size, target, fg, prev)
+
+
+@pytest.mark.parametrize("page", ["prepare", "sheet_laid", "go", "end_of_session",
+                                  "home_offered"])
+def test_no_button_of_a_pop_up_is_cut(qtbot, monkeypatch, tmp_path, settings, page):
+    """Found on screen: the last answer and the footer were cut at the pop-up's lower edge
+    (the polished buttons are taller than a hint taken before the pop-up was shown)."""
+    win, sim, run, p, saved, finished = _quiet(qtbot, monkeypatch, tmp_path, settings)
+    p.script.update({"end_of_session": "Save and stop"})
+    p.drive_until(page)
+    qtbot.wait(300)
+    pop = win.popup()
+    inside = QRect(0, 0, pop.width(), pop.height())
+    for b in pop.findChildren(QPushButton):
+        if not b.isVisible():
+            continue
+        r = QRect(b.mapTo(pop, QPoint(0, 0)), b.size())
+        assert inside.contains(r), (page, b.text(), r, inside)
+        box = b.parentWidget()
+        assert QRect(0, 0, box.width(), box.height()).contains(b.geometry()), (page, b.text())
+        assert b.height() >= b.minimumSizeHint().height(), (page, b.text())
+    # and no empty band under the text: the scroll area is at most a line taller than its page
+    ls = win._text.fontMetrics().lineSpacing()
+    if win._answers.parent() is pop:
+        assert win._scroll.viewport().height() <= win._scroll.widget().sizeHint().height() + ls * 2
+
+
+def test_at_most_one_answer_is_filled_in_the_accent(qtbot, monkeypatch, tmp_path, settings):
+    win, sim, run, p, saved, finished = _quiet(qtbot, monkeypatch, tmp_path, settings)
+    p.script.update({"end_of_session": "Save and stop", "stopped_by_you": "Carry on"})
+    p.script.update({"refused": "Carry on"})
+    seen, stopped = 0, False
+    for _ in range(120):
+        page = p.page()
+        if page == "check_mark" and not stopped:
+            stopped = True
+            win._on_stop()                       # the Stopped page: two confirming answers
+            p.idle()
+            page = p.page()
+            assert page == "stopped_by_you"
+        filled = [b.text() for b in win._answer_box.buttons() if b.objectName() == "primary"]
+        assert len(filled) <= 1, (page, filled)
+        seen += 1
+        if page == "done":
+            break
+        p.answer_page(page)
+    assert seen > 10
