@@ -10515,13 +10515,15 @@ alone.
 
 *Revised 2026-11-18 for the release after 4.3.45 (the owner: "it should be allowed to install it and the app shall help with it"): the window offers the install, through the same Instrument drivers window as an instrument. Buttons: "Not now" (installs nothing, ends as Close did) and "Install the driver for the table now" (opens the Instrument drivers window). Not offered on a Windows for ARM computer, where M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM is shown instead.*
 
+*Revised again 2026-11-18 after review 446 (W-M2, W-S1): the way back to i1Profiler is the one ArgyllCMS's installation guide documents for instruments (`doc/Installing_MSWindows.html`, "Using Argyll drivers with existing OEM drivers"), its menu names quoted exactly, with the honest note that it has not been tried with a table; re-running X-Rite's installer is no longer said, because the guide does not document it. {button} is the table's own button in the Instrument drivers window ("Install Driver for the Table").*
+
 > **The table does not have the driver ChromIQ uses on Windows**
 >
 > On Windows, ChromIQ reaches the table through the same driver it uses for your measuring instruments (libusb-win32), and the table does not have it yet. ChromIQ can install it for the table the same way as for an instrument.
 >
-> “{install}” opens the window “{window}”, where the table is listed. Nothing is installed until you press the install button there and allow it when Windows asks for your permission. When the driver is installed, press START MEASUREMENT again.
+> “{install}” opens the window “{window}”, where the table has a section and a button of its own, “{button}”. Nothing is installed until you press that button and allow it when Windows asks for your permission. It installs the driver for the table only; your instruments keep the drivers they have. When the driver is installed, press START MEASUREMENT again.
 >
-> As with any X-Rite instrument that has this driver: while the table has it, i1Profiler cannot use the table. To give the table back to i1Profiler, install X-Rite's own driver for the table again.
+> As with any X-Rite instrument that has this driver: while the table has it, i1Profiler cannot use the table. ArgyllCMS's installation guide describes the way back for instruments: in Device Manager, right-click the table, choose “Update Driver Software...”, then “let me pick from a list of device drivers on my computer”, and choose X-Rite's driver from the list. ChromIQ has not yet tried these steps with a table. The window “{window}” describes them in full.
 >
 > “Not now” installs nothing. Nothing was sent to the table. You can also measure in i1Profiler 3.8.6 or older and use IMPORT.
 
@@ -10529,13 +10531,15 @@ alone.
 
 *New 2026-11-18 for the release after 4.3.45 (the owner's ruling of the same day: the table and its instrument are helped to the driver like every instrument). Buttons: "Not now" and "Install the driver for the i1Pro 2 now" (opens the Instrument drivers window). Not offered on a Windows for ARM computer. Shown in betas as a proposed text (Knut, 2026-10-14); approved afterwards.*
 
+*Revised 2026-11-18 after review 446 (W-M2, W-S1): the way back as ArgyllCMS's installation guide documents it for instruments, menu names quoted exactly; {button} is the instruments' "Install Driver", which never includes the table.*
+
 > **The i1Pro 2 does not have the driver ChromIQ uses on Windows**
 >
 > The i1Pro 2 in the table's arm is a USB device of its own. On Windows, ChromIQ reads it through the same driver as your other measuring instruments (libusb-win32), the driver ArgyllCMS reads instruments through, and the i1Pro 2 does not have it yet.
 >
-> “{install}” opens the window “{window}”, where the i1Pro 2 is listed. Nothing is installed until you press the install button there and allow it when Windows asks for your permission. When the driver is installed, press START MEASUREMENT again.
+> “{install}” opens the window “{window}”, where the i1Pro 2 is listed among your instruments. Nothing is installed until you press “{button}” there and allow it when Windows asks for your permission. That button installs the driver for the instruments marked “driver not installed” and never for the table, which has a button of its own. When the driver is installed, press START MEASUREMENT again.
 >
-> As with any X-Rite instrument that has this driver: while the i1Pro 2 has it, i1Profiler cannot use the i1Pro 2. To give it back to i1Profiler, install X-Rite's own driver for the i1Pro 2 again.
+> As with any X-Rite instrument that has this driver: while the i1Pro 2 has it, i1Profiler cannot use the i1Pro 2. ArgyllCMS's installation guide describes the way back for instruments: in Device Manager, right-click the i1Pro 2, choose “Update Driver Software...”, then “let me pick from a list of device drivers on my computer”, and choose X-Rite's driver from the list. The window “{window}” describes these steps in full.
 >
 > “Not now” installs nothing. Nothing was sent to the table.
 

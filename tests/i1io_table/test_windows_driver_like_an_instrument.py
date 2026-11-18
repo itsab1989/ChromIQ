@@ -148,7 +148,9 @@ def test_beta_on_the_window_lists_the_table_and_says_what_it_means(
     assert asked == [{"include_table": True}]
     assert "X-Rite i1iO 2 table" in said and "GretagMacbeth i1 Pro / i1 Pro 2" in said
     assert "i1Profiler cannot use the table" in said
-    assert "install X-Rite's own driver for the table again" in said
+    for step in GUIDE_STEPS:
+        assert step in said
+    assert "install X-Rite's own driver" not in said
     assert installed == []                               # Close installs nothing
 
 
@@ -634,18 +636,56 @@ def test_the_measure_tab_opens_the_driver_window_after_the_table_window_let_go(m
 
 # ---- 3. the texts ------------------------------------------------------------------------------
 
+#: ArgyllCMS 3.5.0, doc/Installing_MSWindows.html, "Using Argyll drivers with existing OEM
+#: drivers", Windows 8, 8.1, 10 & 11, word for word (review 446, W-M2): "Right click on instrument
+#: -> Update Driver Software... -> let me pick from a list of device drivers on my computer
+#: (Choose either the Argyll driver or another driver from the list) -> Next -> Close"
+GUIDE_STEPS = ("Update Driver Software...",
+               "let me pick from a list of device drivers on my computer")
+
+
+def test_the_way_back_is_quoted_from_argyllcms_own_guide():
+    """Review 446, W-M2: the menu names the texts quote are the guide's own, word for word. Read
+    from the guide itself where ArgyllCMS is installed (this Mac has it; a machine without it
+    still checks the texts against the pinned words)."""
+    import html
+    import re
+    from pathlib import Path
+    guide = Path("/Applications/Argyll/doc/Installing_MSWindows.html")
+    if guide.exists():
+        text = re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", guide.read_text(
+            encoding="windows-1252", errors="replace"))))
+        for step in GUIDE_STEPS + ("Hardware and Sound -> Device Manager",
+                                   "different physical USB port for each installation"):
+            assert step in text, step
+    window = sd.usb_table_text([_table()], button="Install Driver for the Table")
+    for step in GUIDE_STEPS:
+        assert "\u201c" + step + "\u201d" in window
+    assert "Control Panel > Hardware and Sound > Device Manager" in window
+    assert "ChromIQ has not yet tried these steps with a table" in window
+    assert "different USB port for each driver" in window
+
+
 def test_the_texts_are_proposed_complete_and_say_the_way_back():
     from workflow import measurement_messages as M
     for msg, what in ((M.M_I1IO_DRIVE_TABLE_DRIVER, "the table"),
                       (M.M_I1IO_DRIVE_I1PRO2_DRIVER, "the i1Pro 2")):
         assert not msg.approved and msg.id in M.PROPOSED
-        title, body = msg.render(install="Install it", window="Instrument drivers")
+        title, body = msg.render(install="Install it", window="Instrument drivers",
+                                 button="Its button")
         for text in (title, body):
-            assert "{" not in text and "—" not in text
+            assert "{" not in text and "\u2014" not in text
         assert "i1Profiler cannot use " + what in body
-        assert "install X-Rite's own driver for " + what + " again" in body
+        assert "right-click " + what in body
+        for step in GUIDE_STEPS:
+            assert "\u201c" + step + "\u201d" in body
+        assert "ArgyllCMS's installation guide describes the way back for instruments" in body
+        assert "install X-Rite's own driver" not in body           # not documented by the guide
+        assert "\u201cIts button\u201d" in body
         assert "Nothing was sent to the table" in body
         assert "not offered in this beta" not in body
+    _t, table_body = M.M_I1IO_DRIVE_TABLE_DRIVER.render(install="i", window="w", button="b")
+    assert "ChromIQ has not yet tried these steps with a table" in table_body
 
 
 def test_the_german_texts_exist():

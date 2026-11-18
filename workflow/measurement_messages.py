@@ -12499,13 +12499,20 @@ M_I1IO_DRIVE_TABLE_DRIVER = _m(
     "On Windows, ChromIQ reaches the table through the same driver it uses for your "
     "measuring instruments (libusb-win32), and the table does not have it yet. ChromIQ can "
     "install it for the table the same way as for an instrument.\n\n"
-    "\u201c{install}\u201d opens the window \u201c{window}\u201d, where the table is listed. "
-    "Nothing is installed until you press the install button there and allow it when Windows "
-    "asks for your permission. When the driver is installed, press START MEASUREMENT "
-    "again.\n\n"
+    "\u201c{install}\u201d opens the window \u201c{window}\u201d, where the table has a "
+    "section and a button of its own, \u201c{button}\u201d. Nothing is installed until you "
+    "press that button and allow it when Windows asks for your permission. It installs the "
+    "driver for the table only; your instruments keep the drivers they have. When the driver "
+    "is installed, press START MEASUREMENT again.\n\n"
+    # review 446, W-M2: the way back as ArgyllCMS's guide documents it for instruments
+    # (doc/Installing_MSWindows.html, "Using Argyll drivers with existing OEM drivers"), its
+    # menu names quoted exactly; not tried with a table, and said so
     "As with any X-Rite instrument that has this driver: while the table has it, i1Profiler "
-    "cannot use the table. To give the table back to i1Profiler, install X-Rite's own driver "
-    "for the table again.\n\n"
+    "cannot use the table. ArgyllCMS's installation guide describes the way back for "
+    "instruments: in Device Manager, right-click the table, choose \u201cUpdate Driver "
+    "Software...\u201d, then \u201clet me pick from a list of device drivers on my "
+    "computer\u201d, and choose X-Rite's driver from the list. ChromIQ has not yet tried these "
+    "steps with a table. The window \u201c{window}\u201d describes them in full.\n\n"
     "\u201cNot now\u201d installs nothing. Nothing was sent to the table. You can also "
     "measure in i1Profiler 3.8.6 or older and use IMPORT.",
     approved=False)
@@ -12518,12 +12525,18 @@ M_I1IO_DRIVE_I1PRO2_DRIVER = _m(
     "through the same driver as your other measuring instruments (libusb-win32), the driver "
     "ArgyllCMS reads instruments through, and the i1Pro 2 does not have it yet.\n\n"
     "\u201c{install}\u201d opens the window \u201c{window}\u201d, where the i1Pro 2 is "
-    "listed. Nothing is installed until you press the install button there and allow it when "
-    "Windows asks for your permission. When the driver is installed, press START MEASUREMENT "
+    "listed among your instruments. Nothing is installed until you press \u201c{button}\u201d "
+    "there and allow it when Windows asks for your permission. That button installs the driver "
+    "for the instruments marked \u201cdriver not installed\u201d and never for the table, "
+    "which has a button of its own. When the driver is installed, press START MEASUREMENT "
     "again.\n\n"
+    # review 446, W-M2: the way back as ArgyllCMS's guide documents it for instruments
     "As with any X-Rite instrument that has this driver: while the i1Pro 2 has it, i1Profiler "
-    "cannot use the i1Pro 2. To give it back to i1Profiler, install X-Rite's own driver for "
-    "the i1Pro 2 again.\n\n"
+    "cannot use the i1Pro 2. ArgyllCMS's installation guide describes the way back for "
+    "instruments: in Device Manager, right-click the i1Pro 2, choose \u201cUpdate Driver "
+    "Software...\u201d, then \u201clet me pick from a list of device drivers on my "
+    "computer\u201d, and choose X-Rite's driver from the list. The window \u201c{window}\u201d "
+    "describes these steps in full.\n\n"
     "\u201cNot now\u201d installs nothing. Nothing was sent to the table.",
     approved=False)
 

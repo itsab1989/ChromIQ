@@ -736,10 +736,32 @@ def usb_table_text(devices, tables_not_offered=(), button: "str | None" = None,
             "is listed under \u201c{instruments}\u201d above, and you can give it the driver "
             "whether or not the table has it.").format(
                 instruments=tr("Instruments that ArgyllCMS reads over USB")))
+        # THE WAY BACK, AS ArgyllCMS's OWN GUIDE DOCUMENTS IT (review 446, W-M2), and nothing
+        # more: `doc/Installing_MSWindows.html` of ArgyllCMS 3.5.0, "Using Argyll drivers with
+        # existing OEM drivers", Windows 8, 8.1, 10 & 11: "Control Panel -> Hardware and Sound
+        # -> Device Manager", "(Locate the instrument in the device list. It may be underneath
+        # one of the top level items.)", "Right click on instrument -> Update Driver
+        # Software... -> let me pick from a list of device drivers on my computer", "(Choose
+        # either the Argyll driver or another driver from the list)", "-> Next -> Close"; and
+        # "you can try using a different physical USB port for each installation, as this
+        # reportedly avoids the need to manually switch drivers". The menu names are the
+        # guide's own, quoted exactly; the guide does not document re-running X-Rite's
+        # installer, so that is no longer said. Not tried with a table, and said so.
         parts.append(tr(
-            "As with any X-Rite instrument that has this driver: while the table has it, "
-            "i1Profiler cannot use the table. To give the table back to i1Profiler, install "
-            "X-Rite's own driver for the table again."))
+            "While the table has this driver, i1Profiler cannot use the table, as with any "
+            "X-Rite instrument that has it."))
+        parts.append(tr(
+            "The way back to i1Profiler, for the table or for the i1Pro 2, is the one "
+            "ArgyllCMS's installation guide describes for instruments on Windows 8, 8.1, 10 and "
+            "11: open Device Manager (Control Panel > Hardware and Sound > Device Manager) and "
+            "find the device in the list; it may be underneath one of the top-level entries. "
+            "Right-click it, choose \u201cUpdate Driver Software...\u201d, then \u201clet me "
+            "pick from a list of device drivers on my computer\u201d, choose X-Rite's driver "
+            "from the list, and finish with \u201cNext\u201d and \u201cClose\u201d. These "
+            "names are the ones in that guide; Windows 10 and 11 may word them a little "
+            "differently. ChromIQ has not yet tried these steps with a table. The same guide "
+            "adds: if you switch often, you can try a different USB port for each driver, which "
+            "reportedly saves switching by hand."))
     if tables_not_offered:
         parts.append(tr(
             "<b>The i1iO table</b> is connected, but ChromIQ cannot drive it on this Windows for "

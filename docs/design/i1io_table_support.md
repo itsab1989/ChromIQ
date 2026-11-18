@@ -982,6 +982,15 @@ and the reviewer's own walker and probes, copied as `test_review14_walker.py` an
   session) give their room to the panel: at 900 x 650 the ending shows its three answers and at
   least three lines of its explanation.
 
+### Confirmed behaviour: on Windows the table is treated like the instruments (2026-11-18)
+
+**Confirmed by:** Sebastian, 2026-11-18 (this one sentence only, his ruling of that day: *"the
+same issue exists with any other xrite instrument that is held by argylls driver. so nothing
+special here and it should be allowed to install it and the app shall help with it."*)
+
+* On Windows, the i1iO table is treated like any X-Rite instrument that ArgyllCMS's driver
+  holds: ChromIQ may install that driver for the table, and helps the person to do it.
+
 ### ⏳ Awaiting confirmation: the Windows driver for the table, offered like an instrument's (2026-11-18)
 
 **Confirmed by:** *nobody yet.* (The owner's ruling, 2026-11-18, overruling the 4.3.45 rule that
@@ -1013,6 +1022,17 @@ is his; the behaviour below is what was built from it and awaits his confirmatio
   without a backend): M-I1IO-DRIVE-TABLE-DRIVER-FILE, "Not now" / "Install the driver for the
   table again". It says the window will show the table "driver installed" and names the table's
   "Reinstall Driver for the Table" button, so the offer and the window agree.
+* **The way back to i1Profiler (review 446, W-M2).** Said as ArgyllCMS's own installation guide
+  documents it for instruments (`doc/Installing_MSWindows.html` of ArgyllCMS 3.5.0, "Using Argyll
+  drivers with existing OEM drivers", Windows 8, 8.1, 10 & 11): Device Manager (Control Panel >
+  Hardware and Sound > Device Manager), right-click the device, "Update Driver Software...",
+  "let me pick from a list of device drivers on my computer", X-Rite's driver from the list,
+  "Next", "Close"; the guide's tip of a different USB port for each driver. The menu names are
+  quoted exactly as the guide gives them (English in every language, with a note that a Windows
+  in another language shows them translated). Said plainly: not tried with a table.
+  Re-running X-Rite's installer is not said, because the guide does not document it. The same
+  steps in the window's table section, in M-I1IO-DRIVE-TABLE-DRIVER and in
+  M-I1IO-DRIVE-I1PRO2-DRIVER.
 * **Windows for ARM computer.** No install is offered for the table there (neither in the window
   nor at START), because the drive cannot run there: the window says so in one sentence, and START
   shows M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM. That holds on every path into the offer, the
