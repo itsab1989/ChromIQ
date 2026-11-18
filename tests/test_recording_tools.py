@@ -123,7 +123,8 @@ def test_a_plugin_can_be_loaded_from_a_file(tmp_path):
 def test_help_runs_and_writes_nothing(tmp_path, script):
     before = sorted(p.name for p in tmp_path.iterdir())
     proc = subprocess.run([sys.executable, str(ROOT / "scripts" / script), "--help"],
-                          cwd=tmp_path, capture_output=True, text=True, timeout=120)
+                          cwd=tmp_path, capture_output=True, text=True, encoding="utf-8",
+                          errors="replace", timeout=120)
     assert proc.returncode == 0, proc.stderr
     assert "usage" in proc.stdout.lower()
     assert sorted(p.name for p in tmp_path.iterdir()) == before

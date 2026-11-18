@@ -65,7 +65,7 @@ def test_caught_survived_and_not_planted_are_told_apart(tmp_path):
     assert {p: p.read_bytes() for p in proj.rglob("*.py")} == before
     for fid in ("baseline", "F1", "F2", "F3"):
         assert (out / fid / "tree" / "pkg" / "calc.py").is_file()
-    assert "return a - b" in (out / "F1" / "tree" / "pkg" / "calc.py").read_text()
+    assert "return a - b" in (out / "F1" / "tree" / "pkg" / "calc.py").read_text(encoding="utf-8")
     assert (out / "report.md").is_file()
 
 
@@ -75,7 +75,7 @@ def test_an_existing_out_folder_is_refused(tmp_path):
     out.mkdir()
     (out / "keep.txt").write_text("mine", encoding="utf-8")
     assert pf.main([str(_faults(tmp_path)), "--out", str(out), "--root", str(proj)]) == 2
-    assert (out / "keep.txt").read_text() == "mine"
+    assert (out / "keep.txt").read_text(encoding="utf-8") == "mine"
     assert sorted(p.name for p in out.iterdir()) == ["keep.txt"]
 
 

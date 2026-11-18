@@ -44,7 +44,8 @@ def test_there_are_examples():
 @pytest.mark.parametrize("script", _example_scripts(), ids=lambda p: p.name)
 def test_help_writes_nothing(tmp_path, script):
     proc = subprocess.run([sys.executable, str(script), "--help"], cwd=tmp_path,
-                          env=_clean_env(), capture_output=True, text=True, timeout=120)
+                          env=_clean_env(), capture_output=True, text=True,
+                          encoding="utf-8", errors="replace", timeout=120)
     assert proc.returncode == 0, proc.stderr
     assert "EXAMPLE" in proc.stdout
     assert list(tmp_path.iterdir()) == []
@@ -64,7 +65,7 @@ def test_an_example_that_builds_the_app_needs_the_sandbox(tmp_path, script):
         pytest.skip("does not start the app")
     proc = subprocess.run([sys.executable, str(script), str(tmp_path), str(tmp_path / "o.json")],
                           cwd=tmp_path, env=_clean_env(), capture_output=True, text=True,
-                          timeout=120)
+                          encoding="utf-8", errors="replace", timeout=120)
     assert proc.returncode != 0
     assert "CHROMIQ_SETTINGS_FILE" in proc.stderr + proc.stdout
     assert not (tmp_path / "o.json").exists()
@@ -93,8 +94,8 @@ def test_compare_identity_tells_the_three_cases_apart(tmp_path):
     assert [d[1] for d in diffs] == ["y.ti1"]
     text = "\n".join(lines)
     assert "byte-identical: 1" in text and "identical except a wall-clock time stamp: 1" in text
-    (tmp_path / "a.json").write_text(json.dumps(a))
-    (tmp_path / "b.json").write_text(json.dumps(b))
+    (tmp_path / "a.json").write_text(json.dumps(a), encoding="utf-8")
+    (tmp_path / "b.json").write_text(json.dumps(b), encoding="utf-8")
     assert ci.main([str(tmp_path / "a.json"), str(tmp_path / "b.json")]) == 1
     assert ci.main([str(tmp_path / "a.json"), str(tmp_path / "a.json")]) == 0
 
@@ -124,7 +125,7 @@ def test_the_gate_runner_is_valid_and_reads_pytests_own_exit_code(tmp_path):
     script = ROOT / "scripts" / "run_release_gates.sh"
     assert subprocess.run(["bash", "-n", str(script)], timeout=60).returncode == 0
     proc = subprocess.run(["bash", str(script), "--help"], cwd=tmp_path, capture_output=True,
-                          text=True, timeout=60)
+                          text=True, encoding="utf-8", errors="replace", timeout=60)
     assert proc.returncode == 0 and "THREE CONSECUTIVE" in proc.stdout
     assert list(tmp_path.iterdir()) == []
     src = script.read_text(encoding="utf-8")
