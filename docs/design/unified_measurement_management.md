@@ -9992,7 +9992,7 @@ alone.
 
 ### M-DUAL-MODEL-ASK · PROPOSED · the X-Rite i1Pro 2 dual scan (Preferences > Beta), Measure, 2026-11-18
 
-*New 2026-11-18 (fix round after the dual scan's UI review, a first try, never run on a real instrument): the one question before START, only with the dual scan on, when neither the USB connection nor an earlier measurement says which instrument is connected (the owner, 2026-11-18). Buttons “i1Pro 2”, “Another instrument”, “Not sure”, “Cancel”. {usb} one sentence on what the USB connection showed, {where} Preferences > Beta. The identification facts are from ArgyllCMS 3.5.0 (doc/instruments.html, spectro/insttypes.c, i1pro_imp.c); the label on the instrument was not verified and the text says so. Shown in the beta while awaiting approval.*
+*New 2026-11-18 (fix round after the dual scan's UI review, a first try, never run on a real instrument): the one question before START, only with the dual scan on, when neither the USB connection nor an earlier measurement says which instrument is connected (the owner, 2026-11-18). Buttons “i1Pro 2”, “Another instrument”, “Not sure”, “Cancel”. {usb} one sentence on what the USB connection showed, {where} Preferences > Beta. The identification facts are from ArgyllCMS 3.5.0 (doc/instruments.html, spectro/insttypes.c, i1pro_imp.c); the label on the instrument was not verified and the text says so. Shown in the beta while awaiting approval. Revised 2026-11-19 (table safety review, MUST-B1): it no longer says the EFI ES-2000 has no UV light or tells its owners to choose “Another instrument”. ArgyllCMS ties the missing UV light and ruler to one OEM part number (EO2-XR-UF), and a tester's ES-2000 reported itself as an i1Pro 2 with a working ruler.*
 
 > **Which instrument do you measure with?**
 >
@@ -10002,7 +10002,9 @@ alone.
 >
 > •  The i1Pro 2 is the second generation of the i1Pro. ArgyllCMS, which ChromIQ measures with, calls it the “Eye-One Pro Rev E”. X-Rite sold it in packages named with “Pro 2”, for example i1Basic Pro 2.
 >
-> •  The first i1Pro (ArgyllCMS: Rev A, B or D; also sold as the EFI ES-1000) has no UV light, and neither has the OEM i1Pro 2 sold as the EFI ES-2000: neither can make the dual scan. Choose “Another instrument” for them.
+> •  The first i1Pro (ArgyllCMS: Rev A, B or D; also sold as the EFI ES-1000) has no UV light and cannot make the dual scan. Choose “Another instrument” for it.
+>
+> •  An OEM i1Pro 2, such as the EFI ES-2000, usually works like an i1Pro 2: choose “i1Pro 2” for it. According to ArgyllCMS, a few OEM units (part number EO2-XR-UF) were built without the UV light. You do not need to find out whether yours is one of them: ChromIQ notices it by itself at the start of the measurement or at the calibration, and such an instrument then measures M0 as always, without M1 and M2. The Measure log says why.
 >
 > •  The i1Pro 3 and the i1Pro 3 Plus are a newer generation. They keep M0, M1 and M2 in their own way and need no dual scan: choose “Another instrument”.
 >

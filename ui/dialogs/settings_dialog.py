@@ -10396,10 +10396,14 @@ def i1pro2_dual_scan_help() -> str:
            "light, and only in the forms seen in the recordings of "
            "i1Profiler: the UV light is on only while a reading with it is "
            "taken. Nothing is written into the instrument."),
-        tr("**Not covered yet.** The i1iO 2 table, “High resolution spectral "
-           "mode (-H)”, and i1Pro 2 versions without the UV light or its "
-           "factory data (some OEM versions, for example the EFI ES-2000): "
-           "they measure M0 as always, and the Measure log says why."),
+        tr("**Not covered yet.** “High resolution spectral mode (-H)”, and "
+           "the few i1Pro 2 units built without the UV light or the factory "
+           "data the dual scan needs (ArgyllCMS names the part number "
+           "EO2-XR-UF for such OEM units; an OEM i1Pro 2 such as the EFI "
+           "ES-2000 usually works like an i1Pro 2). ChromIQ notices such an "
+           "instrument by itself: it then measures M0 as always, and the "
+           "Measure log says why. On the i1iO 2 table the dual scan is a "
+           "first try."),
         tr("**Which instrument.** The dual scan is for the i1Pro 2 only. "
            "Before a measurement ChromIQ finds out which instrument is "
            "connected without sending it anything: from the USB connection, "

@@ -416,9 +416,16 @@ M-DUAL-MODEL-CORRECTED, M-DUAL-MODEL-NOTED, M-DUAL-FILTER-OFF-PARENT; M-DUAL-END
   (`doc/instruments.html` of the release, read 2026-11-18; the vendored sources in
   `native/instlib`): the i1Pro 2 is "AKA Eye-One Pro Rev E"; "There have been four revisions of the
   Eye-One Pro, Rev. A, B, D and E (AKA Eye-One Pro2)"; the EFI ES-1000 is "a re-badged Eye-One
-  Pro"; the OEM i1Pro 2 EFI ES-2000 (part number EO2-XR-UF, the retail one EO2-XR-ULZW) is "fitted
+  Pro"; the retail i1Pro 2 has the part number EO2-XR-ULZW, and "a number of OEM Eye-One Pro2's
+  (i.e. The EFI ES-2000) that appear from time to time with the part number EO2-XR-UF" are "fitted
   with an Ultra Violet filter", "missing the UV illumination LED" and "the Zebra stripe ruler
-  sensor"; the i1Pro 3 and i1Pro 3 Plus, and OEM i1Pro 3s such as the EFI ES-3000; the cheapest
+  sensor". **Corrected 2026-11-19 (table safety review, MUST-B1):** this ties the missing UV light
+  and ruler to the part number EO2-XR-UF, not to every ES-2000 (a tester's ES-2000, issue 216,
+  firmware 634, reported itself as "i1Pro2" and gave a clean ruler stream on 80 of 80 swipes). The
+  texts now say: an OEM i1Pro 2 such as the EFI ES-2000 usually works like an i1Pro 2; a few OEM
+  units were built without the UV light, and ChromIQ notices that by itself (at the start, from the
+  factory data, or at the calibration, from the dark UV tile) and keeps M0 only; the 4.3.45 text
+  "neither has the OEM i1Pro 2 sold as the EFI ES-2000 ... Choose Another instrument" is gone; the i1Pro 3 and i1Pro 3 Plus, and OEM i1Pro 3s such as the EFI ES-3000; the cheapest
   package was named i1Basic Pro 2. `insttypes.c` (USB ids, above; `inst_name`: "i1Pro", "i1Pro2",
   "i1Pro3"), `i1pro_imp.h` (firmware 629 = Rev E), `i1pro_imp.c` / `i1pro3_imp.c` ("Instrument
   Type:" line, " Plus" from the aperture). NOT verified, and the window says so: what is printed

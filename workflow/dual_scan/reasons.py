@@ -150,9 +150,10 @@ REASONS: "dict[str, str]" = {
     # cq_cond_lose (mode, filter, files, instrument, resume, write, typed).
     "not_available": (
         "This i1Pro 2 does not offer what the dual scan needs, so ChromIQ "
-        "does not try the dual scan with it. Some versions have no UV light "
-        "at all, for example the OEM version EFI ES-2000. M0 is measured as "
-        "always."),
+        "does not try the dual scan with it. According to ArgyllCMS, a few "
+        "OEM units of the i1Pro 2 (part number EO2-XR-UF) were built without "
+        "the UV light, while an OEM i1Pro 2 such as the EFI ES-2000 usually "
+        "has it. M0 is measured as always."),
     "record": (
         "ChromIQ lost track of which reading belongs to which patch for M1 "
         "and M2, so it stops working them out for this measurement."),
