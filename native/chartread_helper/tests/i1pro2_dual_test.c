@@ -50,6 +50,7 @@ static volatile int rdir = 1;		/* +1 forward (lamp pass), -1 back (UV pass) */
 static volatile long rpos = 0;		/* the count, one step per 7 samples */
 static volatile unsigned int end_at = 0;	/* msec_time() the UV scan ends the stream */
 static int scan_ms = 0;			/* how long a lit scan lasts (the ruler streams meanwhile) */
+static volatile int cancelled = 0;	/* the close cancels a stream still drained */
 static const unsigned char quad[4] = { 0, 1, 3, 2 };
 
 static void hex(const unsigned char *b, int n) {
@@ -125,6 +126,10 @@ static int fake_read(icoms *p, usb_cancelt *c, int ep, unsigned char *buf,
 			*bread = 0;
 			return ICOM_SHORT;
 		}
+		if (cancelled) {
+			*bread = 0;
+			return ICOM_CANC;
+		}
 		if (end_pending && (int)(msec_time() - end_at) >= 0) {	/* the "ruler end" scan is over */
 			end_pending = 0;
 			stream_over = 1;
@@ -149,6 +154,12 @@ static int fake_read(icoms *p, usb_cancelt *c, int ep, unsigned char *buf,
 	fflush(stdout);
 	memset(buf, 0, bsize);
 	*bread = bsize;
+	return ICOM_OK;
+}
+
+static int fake_cancel_io(icoms *p, usb_cancelt *c) {
+	(void)p; (void)c;
+	cancelled = 1;
 	return ICOM_OK;
 }
 
@@ -182,6 +193,7 @@ static i1pro *make(devType dtype, int caps2, int scan) {
 	ic->usb_write = fake_write;
 	ic->usb_read = fake_read;
 	ic->usb_wait_io = fake_wait_io;
+	ic->usb_cancel_io = fake_cancel_io;
 	p->log = new_a1log_d(NULL);
 	p->dtype = dtype;
 	p->icom = ic;
@@ -393,19 +405,101 @@ int main(int argc, char *argv[]) {
 	scan_ms = 0;
 	close_it(p);
 
-	/* (d) the UV LED off again after a failing UV trigger */
+	/* (d) the UV LED off again after a failing UV trigger: a paired UV pass
+	 * (0x0209, after a lamp pass with "ruler start") whose trigger fails on
+	 * the USB; the helper disarms on every way out, the next strip's lamp
+	 * pass is a plain lamp scan (the stream of the failed pair is still
+	 * drained, so no "ruler start"), and its UV pass may not be asked for. */
 	scn = "uv-error";
-	stream_over = 1;
-	p = make(instI1Pro2, I1PRO_CAP2_UV_LED, 1);
+	stream_over = 0; end_pending = 0; rsamples = 0; rdir = 1; rpos = 0; cancelled = 0;
+	scan_ms = 100;
+	p = make(instI1Pro2, I1PRO_CAP2_UV_LED | I1PRO_CAP2_ZEB_RUL, 1);
 	opts(p);
+	step("lamp-pass");
+	i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_LAMP);
+	reading(p, 5, i1p_dark_cal, 5);
+	reading(p, 10, i1p_norm, 40);
+	printf("%s READY-AFTER-LAMP %d\n", scn, i1pro2_cq_dual_uv_pass_ready(p));
+	i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_OFF);
 	step("uv-pass-fails");
 	i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_UV);
 	fail_d4 = 1;
 	reading(p, 10, i1p2_UV, 0);
 	i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_OFF);	/* the helper, on every way out */
 	printf("%s AFTER uv_en %d lit %d\n", scn, ((i1proimp *)p->m)->uv_en, i1pro2_cq_dual_uv_lit(p));
+	end_pending = 0;					/* the failed trigger never ended the stream */
 	step("next-lamp-strip");
-	reading(p, 10, ((i1proimp *)p->m)->uv_en ? i1p2_UV : i1p_norm, 0);
+	i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_LAMP);
+	reading(p, 10, ((i1proimp *)p->m)->uv_en ? i1p2_UV : i1p_norm, 40);
+	printf("%s READY %d\n", scn, i1pro2_cq_dual_uv_pass_ready(p));
+	i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_OFF);
+	scan_ms = 0;
+	close_it(p);
+
+	/* (e) safety review 2026-11-18, M2: the UV pass of a lamp pass that
+	 * counted no readings in a running stream is never asked for, and if it
+	 * were, its trigger (0x0201: UV + scan, no "ruler end", never recorded)
+	 * is refused before anything is sent. (1) the lamp pass's trigger fails
+	 * (the ruler is given up); (2) a UV pass abandoned with Esc, then the
+	 * next strip's lamp pass gets no "ruler start" over the stream still
+	 * drained. */
+	scn = "uv-unpaired";
+	stream_over = 0; end_pending = 0; rsamples = 0; rdir = 1; rpos = 0; cancelled = 0;
+	scan_ms = 100;
+	p = make(instI1Pro2, I1PRO_CAP2_UV_LED | I1PRO_CAP2_ZEB_RUL, 1);
+	opts(p);
+	step("lamp-trigger-fails");
+	i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_LAMP);
+	reading(p, 5, i1p_dark_cal, 5);
+	fail_d4 = 1;
+	reading(p, 10, i1p_norm, 0);
+	printf("%s READY-1 %d\n", scn, i1pro2_cq_dual_uv_pass_ready(p));
+	i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_UV);	/* what the helper no longer does */
+	printf("%s FORCED-1 %d\n", scn, reading(p, 10, i1p2_UV, 0));
+	i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_OFF);
+	printf("%s AFTER-1 uv_en %d lit %d\n", scn, ((i1proimp *)p->m)->uv_en, i1pro2_cq_dual_uv_lit(p));
+	close_it(p);
+	stream_over = 0; end_pending = 0; rsamples = 0; rdir = 1; rpos = 0; cancelled = 0;
+	p = make(instI1Pro2, I1PRO_CAP2_UV_LED | I1PRO_CAP2_ZEB_RUL, 1);
+	opts(p);
+	step("uv-pass-esc");
+	i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_LAMP);
+	reading(p, 5, i1p_dark_cal, 5);
+	reading(p, 10, i1p_norm, 40);
+	printf("%s READY-2a %d\n", scn, i1pro2_cq_dual_uv_pass_ready(p));
+	i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_OFF);	/* Esc: the UV pass never triggered */
+	step("next-strip");
+	i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_LAMP);
+	reading(p, 5, i1p_dark_cal, 5);
+	reading(p, 10, i1p_norm, 40);
+	printf("%s READY-2b %d\n", scn, i1pro2_cq_dual_uv_pass_ready(p));
+	i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_UV);	/* what the helper no longer does */
+	printf("%s FORCED-2 %d\n", scn, reading(p, 10, i1p2_UV, 0));
+	i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_OFF);
+	printf("%s AFTER-2 uv_en %d lit %d\n", scn, ((i1proimp *)p->m)->uv_en, i1pro2_cq_dual_uv_lit(p));
+	scan_ms = 0;
+	close_it(p);
+
+	/* (f) safety review 2026-11-18, S3: a UV pass longer than 4000 readings
+	 * (about 20 s) is refused whole, never half-used */
+	scn = "uv-too-long";
+	p = make(instI1Pro2, I1PRO_CAP2_UV_LED, 1);
+	opts(p);
+	{
+		cq_dual_uv u;
+		double **mm;
+		int k;
+		for (k = 0; k < 2; k++) {
+			int n = k == 0 ? 4000 : 4001;
+			i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_UV);
+			mm = dmatrix(0, n - 1, -1, 128);
+			(void)i1pro2_cq_dual_readings(p, mm, n, mm, 1);
+			free_dmatrix(mm, 0, n - 1, -1, 128);
+			i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_OFF);
+			printf("%s TAKE %d n %d nread %d\n", scn, i1pro2_cq_dual_take_uv(p, &u), u.n, u.nread);
+			free(u.U);
+		}
+	}
 	close_it(p);
 
 	/* (g) where it is not offered */

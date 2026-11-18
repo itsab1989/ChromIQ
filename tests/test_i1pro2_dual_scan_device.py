@@ -71,8 +71,7 @@ def test_a_the_dual_calibration_is_the_recorded_tail(trace):
     assert (dark["flags"], dark["nummeas"], dark["lampclocks"]) == (0x0000, 10, 0)
     assert (uv["flags"], uv["nummeas"]) == (0x0200, 5)
     assert uv["intclocks"] == dark["intclocks"] == 139           # the white's own exposure
-    lamp = _requests(trace, "single")[1]
-    assert uv["lampclocks"] == lamp["lampclocks"] > 0           # the lamp's pre-delay
+    assert uv["lampclocks"] == 41                                # as recorded (safety review, M3)
     t = _value(trace, "tile", "TILE")
     assert "ev 0 ok 1 lamp_clocks 139 uv_clocks 139" in t and "uv_en 0" in t
 
@@ -82,7 +81,7 @@ def test_b_a_dual_spot_is_one_unit_lamp_then_uv_then_volts(trace):
     assert [(r["req"], r.get("flags")) for r in reqs] == [
         ("0xD4", 0x0000), ("0xD4", 0x0100), ("0xD4", 0x0000), ("0xD4", 0x0200), ("0xD8", None)]
     assert {r["intclocks"] for r in reqs if "intclocks" in r} == {517}   # calibration = reading
-    assert reqs[3]["lampclocks"] == reqs[1]["lampclocks"]
+    assert reqs[3]["lampclocks"] == 41                           # as recorded, not the spot lamp's
     assert reqs[2]["nummeas"] == reqs[3]["nummeas"]
     s = _value(trace, "spot", "SPOTUV")
     assert "ev 0 n 1 clocks 517 triggers 1" in s and "uv_en 0 lit 0" in s
@@ -95,7 +94,7 @@ def test_c_a_hand_strip_is_two_passes_in_one_ruler_stream(trace):
         (w["req"], int(w["flags"], 16) if "flags" in w else None) for w in shape]
     lamp, uv = reqs[1], reqs[3]
     assert lamp["intclocks"] == uv["intclocks"] == 139
-    assert uv["lampclocks"] == lamp["lampclocks"]
+    assert uv["lampclocks"] == 41                                # as recorded, not the scan lamp's 102
     assert "reader running count 40" in _value(trace, "strip", "AFTER-LAMP")   # the stream runs on
     assert "uv_en 1" in _value(trace, "strip", "ARMED-UV")
     assert "uv_en 0 lit 0" in _value(trace, "strip", "AFTER-UV")
@@ -107,21 +106,50 @@ def test_c_a_hand_strip_is_two_passes_in_one_ruler_stream(trace):
 
 
 def test_d_the_uv_led_is_off_on_every_way_out(trace):
-    """A UV trigger that fails: the helper disarms on every way out, the
-    driver's UV switch is off, and the next reading is a lamp reading."""
+    """A paired UV trigger (0x0209) that fails on the USB: the helper disarms
+    on every way out, the driver's UV switch is off, the next strip's lamp
+    pass is a plain lamp scan (no "ruler start" over the stream still
+    drained) and its UV pass may not be asked for (safety review, M2)."""
     reqs = _requests(trace, "uv-error")
-    assert [r["flags"] for r in reqs] == [0x0201, 0x0101]
+    assert [r["flags"] for r in reqs if r["req"] == "0xD4"] == [0x0000, 0x0105, 0x0209, 0x0101]
+    assert "READY-AFTER-LAMP 1" in _value(trace, "uv-error", "READY-AFTER-LAMP")
     assert "uv_en 0 lit 0" in _value(trace, "uv-error", "AFTER")
+    assert _value(trace, "uv-error", "READY ") == "READY 0"
     # exactly one UV-LED trigger per armed reading, and none anywhere else
-    for scn, n in (("single", 0), ("single-on", 0), ("tile", 1), ("spot", 1), ("strip", 1), ("uv-error", 1)):
+    for scn, n in (("single", 0), ("single-on", 0), ("tile", 1), ("spot", 1), ("strip", 1), ("uv-error", 1),
+                   ("uv-unpaired", 0)):
         assert sum(1 for q in _requests(trace, scn) if q.get("flags", 0) & 0x0300 == 0x0200) == n, scn
+
+
+def test_d2_a_uv_pass_without_its_lamp_pass_is_never_sent(trace):
+    """Safety review 2026-11-18, M2: the two ways to an unrecorded 0x0201 (UV scan without
+    "ruler end"): the lamp pass's trigger failed, or the previous UV pass was abandoned (Esc)
+    and the next lamp pass got no "ruler start". The UV pass is then not ready (the helper does
+    not ask for it), and a UV trigger forced anyway is refused by the driver before anything is
+    sent: I1PRO_INT_ILLEGALMODE (0x57), no 0xD4 with the UV flag on the wire."""
+    reqs = [r for r in _requests(trace, "uv-unpaired") if r["req"] == "0xD4"]
+    assert [r["flags"] for r in reqs] == [0x0000, 0x0105, 0x0000, 0x0105, 0x0000, 0x0101]
+    v = {k: _value(trace, "uv-unpaired", k) for k in ("READY-1", "READY-2a", "READY-2b",
+                                                       "FORCED-1", "FORCED-2", "AFTER-1", "AFTER-2")}
+    assert v["READY-1"] == "READY-1 0" and v["READY-2b"] == "READY-2b 0"
+    assert v["READY-2a"] == "READY-2a 1"           # the good lamp pass: its UV pass may come
+    assert v["FORCED-1"] == "FORCED-1 87" and v["FORCED-2"] == "FORCED-2 87"
+    assert "uv_en 0 lit 0" in v["AFTER-1"] and "uv_en 0 lit 0" in v["AFTER-2"]
+
+
+def test_d3_a_uv_pass_over_4000_readings_is_refused_whole(trace):
+    """Safety review 2026-11-18, S3: a UV pass longer than 4000 readings (about 20 s) used to be
+    cut to its FIRST 4000 while the ruler positions came from the stream's LAST ones; now it is
+    refused whole (the helper says uv_pass_too_long: move a little faster)."""
+    t = [ln for ln in _lines(trace, "uv-too-long") if ln.startswith("TAKE")]
+    assert t == ["TAKE 1 n 4000 nread 4000", "TAKE 0 n 0 nread 4001"]
 
 
 def test_e_no_request_beyond_triggers_and_the_volts(trace):
     """No EEPROM write (0xC3), no read of it, no indicator program (0xD6), no
     0xD7, no bulk write: i1Profiler's usage log and light programs are not
     sent. Only 0xD4 and 0xD8."""
-    for scn in ("single-on", "tile", "spot", "strip", "uv-error"):
+    for scn in ("single-on", "tile", "spot", "strip", "uv-error", "uv-unpaired", "uv-too-long"):
         reqs = {r["req"] for r in _requests(trace, scn)}
         assert reqs <= {"0xD4", "0xD8"}, (scn, reqs)
         assert not [ln for ln in _lines(trace, scn) if ln.startswith("WR ")], scn
@@ -176,7 +204,7 @@ def test_the_helper_reports_the_device_word_and_the_new_build():
     src = (HELPER / "chromiq_chartread.c").read_text(encoding="utf-8", errors="replace")
     assert '\\"i1pro2_dual_conditions\\",\\"i1pro2_dual_scan\\"]' in src
     h = (HELPER / "chromiq_ext.h").read_text(encoding="utf-8")
-    assert "chromiq-chartread 2026-11-18c " in h and "+i1pro2-dual-device\"" in h
+    assert "chromiq-chartread 2026-11-18d " in h and "+i1pro2-dual-device+i1pro2-dual-safety\"" in h
 
 
 def test_a_failed_pass_is_read_again_and_a_session_failure_keeps_m0():
@@ -193,3 +221,56 @@ def test_a_failed_pass_is_read_again_and_a_session_failure_keeps_m0():
         assert f'"{w}"' not in body
     j = src.index("rv2 = it->read_strip(")
     assert src.index("i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_OFF);", j) < src.index("(void)i1pro2_cq_dual_take_uv(", j)
+
+
+# ------------------------------------------- the safety review's fixes (2026-11-18, helper side)
+
+def test_m2_the_uv_pass_is_asked_for_only_when_its_trigger_can_carry_ruler_end():
+    """cq_dd_strip asks the driver (i1pro2_cq_dual_uv_pass_ready) BEFORE it announces or arms
+    the UV pass; when it may not come, M1 / M2 end for the session (M0 goes on) and nothing more
+    is read for the strip."""
+    src = _code((HELPER / "chromiq_dualdev.c").read_text(encoding="utf-8"))
+    i = src.index("static void cq_dd_strip(")
+    body = src[i:src.index("\n}\n", i)]
+    ready = body.index("if (!i1pro2_cq_dual_uv_pass_ready(it)) {")
+    assert ready < body.index('\\"event\\":\\"dual_pass\\"') < body.index("i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_UV);")
+    block = body[ready:body.index("return;", ready)]
+    for w in ("i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_OFF);", "cq_dd.on = 0;",
+              'cq_cond_lose("dual_dual_needs_ruler");'):
+        assert w in block, w
+    # the driver side: the same rule gives "ruler end", and the gate refuses anything else
+    drv = _code((INSTLIB / "cq_i1pro2_dual.h").read_text(encoding="utf-8"))
+    j = drv.index("int i1pro2_cq_dual_ruler_bits(")
+    assert "cq_dual_uv_ready(p, st)" in drv[j:drv.index("\n}\n", j)]
+    c = (INSTLIB / "i1pro_imp.c").read_text(encoding="utf-8", errors="replace")
+    k = c.index("measmodeflags2 |= i1pro2_cq_dual_ruler_bits(p, mmodif);")
+    assert c.index("if (i1pro2_cq_dual_form_refused(p, measmodeflags2, lampclocks))", k) \
+        < c.index("m->c_measmodeflags2 = measmodeflags2;", k)       # before anything is sent
+
+
+def test_m3_the_uv_lamp_clocks_are_the_recorded_41_and_never_touch_the_lamp_time():
+    h = (INSTLIB / "cq_dual.h").read_text(encoding="utf-8")
+    assert re.search(r"#define CQ_DUAL_UV_LAMPCLOCKS 41\b", h)
+    c = (INSTLIB / "i1pro_imp.c").read_text(encoding="utf-8", errors="replace")
+    i = c.index("\tif (s->reflective && (mmodif & 0x10)) {\n\t\tdlampclocks = floor(s->lamptime")
+    block = c[i:c.index("\tif (nummeas > 65535)", i)]
+    # ArgyllCMS's own lamp branch is upstream's again; the hook sits only where it gives 0
+    assert "i1pro2_cq_dual_lamp_delay" not in block.split("} else {")[0]
+    assert "lampclocks = i1pro2_cq_dual_lamp_delay(p, mmodif);" in block.split("} else {")[1]
+
+
+def test_s3_a_too_long_uv_pass_is_its_own_pass_failure():
+    src = _code((HELPER / "chromiq_dualdev.c").read_text(encoding="utf-8"))
+    assert "u.nread > CQ_DUAL_MAX_UV_READINGS" in src and '"uv_pass_too_long"' in src
+
+
+def test_every_reason_the_device_side_gives_has_a_sentence():
+    from workflow.dual_scan.reasons import REASONS
+    internal = {"lamp", "record", "memory", "conversion", "checked", "pairing_not_checked", "strip",
+                "spot", "uv", "scan", "true", "false", "STRIP", "dual_dual_needs_ruler"}
+    text = (HELPER / "chromiq_dualdev.c").read_text(encoding="utf-8")
+    text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+    ids = set(re.findall(r'"([a-z][a-z0-9_]+)"', text)) - internal
+    ids |= set(re.findall(r'return "([a-z_]+)"', (HELPER / "chromiq_dualscan.c").read_text(encoding="utf-8")))
+    missing = sorted(i for i in ids if i not in REASONS and not i.startswith("dual_") and i != "ok")
+    assert not missing, missing

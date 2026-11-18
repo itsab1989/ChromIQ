@@ -15,12 +15,20 @@
  *     same patch (one unit: either failing = the patch again).
  * (c) A hand strip: the lamp pass (ruler start) as always, then the helper
  *     asks for the UV pass itself (event dual_pass) and reads it (ruler
- *     end), each pass with its own verdict. The UV pass is cut into the lamp
- *     pass's patches by the ruler (cq_dual_cut, with the travel and
- *     alignment gates). A pass that fails makes the strip a misread: both
- *     passes are read again (on the instrument a UV pass can only be lined up
- *     with the lamp pass of the same ruler stream: the recorded wire has no
- *     other form, see docs/design/i1pro2_dual_scan.md section 7).
+ *     end), each pass with its own verdict. The UV pass is asked for only
+ *     when the lamp pass counted readings in a ruler stream that still runs
+ *     (i1pro2_cq_dual_uv_pass_ready); otherwise its trigger could not carry
+ *     "ruler end" (0x0201, never recorded), so M1 / M2 end for the session
+ *     and M0 goes on (safety review 2026-11-18, M2). The UV pass is cut into
+ *     the lamp pass's patches by the ruler (cq_dual_cut, with the travel and
+ *     alignment gates) and must then be proved to belong to the strip
+ *     (cq_dual_pairing, the twin of workflow/dual_scan/pairing.py; safety
+ *     review M1: a pass over the neighbouring row passes every ruler gate).
+ *     A UV pass longer than CQ_DUAL_MAX_UV_READINGS is refused whole (S3).
+ *     A pass that fails makes the strip a misread: both passes are read
+ *     again (on the instrument a UV pass can only be lined up with the lamp
+ *     pass of the same ruler stream: the recorded wire has no other form;
+ *     provisional for the first Beta, docs/design/i1pro2_dual_scan.md).
  * M1 / M2 go through the driver's own output conversion, exactly as M0.
  *
  * AGPL-3.0 - see ../instlib/License.txt. */
@@ -104,7 +112,9 @@ static void cq_dd_after_cal(inst *p) {
 static int cq_dd_pass_level(const char *why) {
 	static const char *pass[] = { "lamp", "uv_pass_missing", "uv_pass_short",
 	                              "uv_pass_stalled", "uv_pass_too_fast",
-	                              "uv_pass_misaligned", "uv_pass_count", "no_ruler", NULL };
+	                              "uv_pass_misaligned", "uv_pass_count", "no_ruler",
+	                              "uv_pass_wrong_strip", "uv_pass_no_uv_light",
+	                              "uv_pass_too_long", "uv_spot_failed", NULL };
 	int i;
 	for (i = 0; why != NULL && pass[i] != NULL; i++)
 		if (strcmp(why, pass[i]) == 0)
@@ -162,8 +172,9 @@ static const char *cq_dd_fits(int scan, int clocks) {
 	return NULL;
 }
 
+/* pairing: "checked", "pairing_not_checked" (too dark to judge: the note) or "" */
 static void cq_dd_result(const char *what, const char *strip, const char *why, int nuv,
-                         const int *counts, int npatch, const cq_dual_uv *u) {
+                         const int *counts, int npatch, const cq_dual_uv *u, const char *pairing) {
 	char sb[64];
 	int i, mn = -1;
 	cq_json_escape(sb, sizeof(sb), strip != NULL ? strip : "");
@@ -172,10 +183,11 @@ static void cq_dd_result(const char *what, const char *strip, const char *why, i
 			mn = counts[i];
 	cq_emit_raw("{\"event\":\"dual_pass_result\",\"what\":\"%s\",\"strip\":\"%s\",\"ok\":%s,"
 	            "\"why\":\"%s\",\"uv_readings\":%d,\"fewest_per_patch\":%d,\"uv_triggers\":%d,"
-	            "\"volts\":[%d,%d]}",
+	            "\"volts\":[%d,%d],\"pairing\":\"%s\"}",
 	            what, sb, why == NULL ? "true" : "false", why != NULL ? why : "", nuv, mn,
 	            u != NULL ? u->uv_triggers : 0,
-	            u != NULL ? u->volts_before : -1, u != NULL ? u->volts_after : -1);
+	            u != NULL ? u->volts_before : -1, u != NULL ? u->volts_after : -1,
+	            pairing != NULL ? pairing : "");
 }
 
 /* (b) a spot reading: after read_sample. A failing UV half makes the patch
@@ -198,12 +210,12 @@ static void cq_dd_spot(inst_code *rv) {
 	i1pro2_cq_dual_arm(cq_dd.it, CQ_DUAL_PHASE_OFF);
 	if (why == NULL && (why = cq_dd_fits(0, 0)) == NULL) {
 		if (i1pro2_cq_dual_spot_uv(cq_dd.it, &u) != 0 || u.n != 1)
-			why = "uv_pass_missing";
+			why = "uv_spot_failed";	/* one unit: lamp and UV half again */
 		else if ((why = cq_dd_fits(0, u.clocks)) == NULL)
 			why = cq_dd_compute(l.L, u.U, 1, l.clamp);
 	}
 	i1pro2_cq_dual_arm(cq_dd.it, CQ_DUAL_PHASE_OFF);
-	cq_dd_result("spot", "", why, u.n, NULL, 0, &u);
+	cq_dd_result("spot", "", why, u.n, NULL, 0, &u, "");
 	free(l.L);
 	free(u.U);
 	cq_dd.why = why;
@@ -235,7 +247,7 @@ static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, 
 	int *counts = NULL;
 	inst_code rv2;
 	int lamp_ok, got_r = 0;
-	const char *why = NULL;
+	const char *why = NULL, *pairing = "";
 	char sb[64];
 
 	cq_dd.n = 0;
@@ -254,10 +266,27 @@ static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, 
 		free(l.L);
 		return;
 	}
-	/* pass 2 of 2: the helper asks for it itself; it also closes the ruler
-	 * stream the lamp pass opened, so it is read even after a failed lamp
-	 * pass (then both are read again) */
 	cq_json_escape(sb, sizeof(sb), strip);
+	/* pass 2 of 2 only as a RECORDED form (safety review 2026-11-18, M2): the
+	 * lamp pass counted readings in a ruler stream that still runs, so the UV
+	 * trigger carries "ruler end" (0x0209) and closes it. Otherwise (the lamp
+	 * pass's trigger or read failed, the ruler was given up, or a UV pass was
+	 * left with Esc and this lamp pass could not start a stream) no UV pass
+	 * can be lined up with this or any later lamp pass: M1 / M2 end for the
+	 * session, M0 goes on; a stream left running is drained until the close,
+	 * as the ruler check does. The driver refuses such a UV trigger too. */
+	if (!i1pro2_cq_dual_uv_pass_ready(it)) {
+		i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_OFF);
+		free(l.L);
+		cq_dd_result("strip", strip, "dual_needs_ruler", 0, NULL, 0, NULL, "");
+		cq_dd.why = "dual_needs_ruler";
+		cq_dd.on = 0;
+		cq_cond_lose("dual_dual_needs_ruler");
+		return;
+	}
+	/* the helper asks for it itself; it is asked for also after a lamp pass
+	 * ArgyllCMS did not recognise (it closes the ruler stream; then both
+	 * passes are read again) */
 	cq_emit_raw("{\"event\":\"dual_pass\",\"strip\":\"%s\",\"pass\":\"uv\",\"of\":2,"
 	            "\"lamp_ok\":%s}", sb, lamp_ok ? "true" : "false");
 	i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_UV);
@@ -275,7 +304,9 @@ static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, 
 	else if ((rv2 & inst_mask) == inst_user_abort) {
 		*rv = rv2;				/* the loop handles the key or command */
 		why = "uv_pass_missing";
-	} else if (rv2 != inst_ok || u.n <= 0)
+	} else if (u.nread > CQ_DUAL_MAX_UV_READINGS)
+		why = "uv_pass_too_long";	/* refused whole (S3): move a little faster */
+	else if (rv2 != inst_ok || u.n <= 0)
 		why = "uv_pass_missing";
 	else if ((why = cq_dd_fits(1, u.clocks)) != NULL)
 		;
@@ -308,11 +339,21 @@ static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, 
 				free(cells);
 			}
 		}
+		/* the UV pass belongs to THIS strip (safety review 2026-11-18, M1):
+		 * a pass over the neighbouring row, or set down one patch further,
+		 * passes every ruler gate; only its LED light at 380-400 nm, which
+		 * must follow (T / W) x this lamp pass, tells it apart */
+		if (why == NULL) {
+			cq_dual_pairing_ev pe;
+			why = cq_dual_pairing(&cq_dd.cal, npatch, l.L, cutv, &pe);
+			if (why == NULL)
+				pairing = pe.checked ? "checked" : "pairing_not_checked";
+		}
 		if (why == NULL)
 			why = cq_dd_compute(l.L, cutv, npatch, l.clamp);
 	}
 	cq_dd_result("strip", strip, why, u.n, why == NULL || counts != NULL ? counts : NULL,
-	             counts != NULL ? npatch : 0, &u);
+	             counts != NULL ? npatch : 0, &u, pairing);
 	free(l.L);
 	free(u.U);
 	free(lp);

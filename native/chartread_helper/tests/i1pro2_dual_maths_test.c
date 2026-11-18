@@ -5,6 +5,7 @@
  * AGPL-3.0 - see ../../instlib/License.txt. */
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "chromiq_dualscan.h"
 
@@ -38,6 +39,58 @@ static void patch(int p, double *L, double *U) {
 		U[j] = 0.0005 * (p + 1) * exp(-0.5 * pow((wl - 440.0) / 25.0, 2.0))
 		     + 0.012 * exp(-(wl - 380.0) / 25.0) * L[j];
 	}
+}
+
+/* The pairing check (safety review 2026-11-18, M1) on cases from a file named
+ * by CQ_DUAL_PAIRING_CASES (tests/test_i1pro2_dual_scan_pairing_c.py writes
+ * it): per case "case <name> <n>", then lines "W", "T", "E" and n lines "L",
+ * n lines "U" of 36 numbers each; the tables are the invented ones. Prints
+ * "pairing <name> <ok|reason> <checked> <usable> <patches> <corr> <err>". */
+static int read_vec(FILE *f, const char *tag, double *v) {
+	char t[8];
+	int j;
+	if (fscanf(f, "%7s", t) != 1 || strcmp(t, tag) != 0)
+		return 0;
+	for (j = 0; j < CQ_DUAL_NB; j++)
+		if (fscanf(f, "%lf", &v[j]) != 1)
+			return 0;
+	return 1;
+}
+
+static void pairing_cases(const char *path) {
+	FILE *f = fopen(path, "r");
+	char kw[16], name[128];
+	int n, i;
+	if (f == NULL) {
+		printf("pairing_cases unreadable\n");
+		return;
+	}
+	while (fscanf(f, "%15s %127s %d", kw, name, &n) == 3 && strcmp(kw, "case") == 0 && n > 0) {
+		cq_dual_cal c;
+		cq_dual_pairing_ev ev;
+		double *L = (double *)malloc(sizeof(double) * CQ_DUAL_NB * (size_t)n);
+		double *U = (double *)malloc(sizeof(double) * CQ_DUAL_NB * (size_t)n);
+		const char *why;
+		int ok = L != NULL && U != NULL;
+		invented(&c);
+		ok = ok && read_vec(f, "W", c.W) && read_vec(f, "T", c.T) && read_vec(f, "E", c.E);
+		for (i = 0; ok && i < n; i++)
+			ok = read_vec(f, "L", L + i * CQ_DUAL_NB);
+		for (i = 0; ok && i < n; i++)
+			ok = read_vec(f, "U", U + i * CQ_DUAL_NB);
+		if (!ok) {
+			printf("pairing %s unreadable\n", name);
+			free(L);
+			free(U);
+			break;
+		}
+		why = cq_dual_pairing(&c, n, L, U, &ev);
+		printf("pairing %s %s %d %d %d %.17g %.17g\n", name, why == NULL ? "ok" : why, ev.checked,
+		       ev.usable, ev.patches, ev.correlation, ev.median_ratio_error);
+		free(L);
+		free(U);
+	}
+	fclose(f);
 }
 
 int main(void) {
@@ -135,6 +188,8 @@ int main(void) {
 		                  CQ_DUAL_TRIM, CQ_DUAL_MIN_UV, out, counts);
 		printf("cut_half_pitch %s\n", why == NULL ? "ok" : why);
 	}
+	if (getenv("CQ_DUAL_PAIRING_CASES") != NULL)
+		pairing_cases(getenv("CQ_DUAL_PAIRING_CASES"));
 	printf("ALL DONE\n");
 	return 0;
 }

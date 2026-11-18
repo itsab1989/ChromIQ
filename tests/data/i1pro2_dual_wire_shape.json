@@ -5,7 +5,7 @@
     "source": "instrument 1, hand-held session 204244 step 2 (and 210339); instrument 2 on the i1iO 2 table, 22:14:49 (the same tail at 139 clocks)",
     "after_the_white": [
       {"req": "0xD4", "flags": "0x0000", "nummeas": 10, "intclocks": "the white's", "lampclocks": 0},
-      {"req": "0xD4", "flags": "0x0200", "nummeas": 5, "intclocks": "the white's", "lampclocks": "the lamp's (41)"},
+      {"req": "0xD4", "flags": "0x0200", "nummeas": 5, "intclocks": "the white's", "lampclocks": 41},
       {"req": "0xD8"}
     ],
     "i1profiler_also_sends_which_chromiq_does_not": ["0xC4 / 0xC3: 2 EEPROM reads and 10 EEPROM writes (its usage log)", "0xD6 + bulk 0x03: an 18-byte light program before and a 2,306-byte one after the calibration"]
@@ -31,6 +31,7 @@
       {"req": "0xD4", "flags": "0x0200", "nummeas": 1, "intclocks": 1443, "lampclocks": 41},
       {"req": "0xD8"}
     ],
+    "lamp_clocks_note": "41 lamp clocks on every recorded UV-LED trigger of both instruments (76: four 5-reading white-tile triggers at 139 clocks, two per instrument; 51 single readings on the table at 1183-1443 clocks, 48 of them the spot patches; 21 hand UV passes); ChromIQ sends a fixed 41 on every UV-LED trigger (ArgyllCMS's own lamp time would give 102 in scan mode, 51 in spot mode)",
     "chromiq_differs": "ChromIQ reads the UV half at the lamp half's integration (the one its own calibration read the tile with the UV LED at): the recordings show the UV-tile level per unit of integration the same at 139, 1183, 1440 and 1443 clocks, so the exposure rule (calibration = reading, per light source) holds either way"
   }
 }

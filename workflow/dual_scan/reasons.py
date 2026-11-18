@@ -22,6 +22,14 @@ NOTES: "dict[str, str]" = {
         "were made and passed."),
 }
 
+#: what a hand strip's failed pass means on the instrument path: both
+#: passes again (the helper's cq_dd_strip; provisional for the first Beta)
+_BOTH_AGAIN = (
+    "Read this strip once more, both passes: the first pass with the lamp "
+    "as usual, then the second pass with the UV light right after it, "
+    "without lifting the instrument. For now ChromIQ always reads the two "
+    "passes of a strip together, so the first pass is read again too.")
+
 #: id -> draft English sentence (for the UI step; not shown by this package)
 REASONS: "dict[str, str]" = {
     "no_dual_calibration": (
@@ -47,49 +55,61 @@ REASONS: "dict[str, str]" = {
         "The instrument's factory data for M1 and M2 is not in the form "
         "ChromIQ knows, so ChromIQ does not use it. M0 can be measured as "
         "always."),
+    # The pass refusals below: on the instrument path (helper, a hand strip)
+    # a failed pass makes the strip a misread and BOTH passes are read again
+    # (provisional rule for the first Beta, docs/design/i1pro2_dual_scan.md),
+    # so every sentence says that, through _BOTH_AGAIN.
     "uv_pass_missing": (
-        "The second pass (UV light) of this strip is missing, so M1 and M2 "
-        "cannot be worked out for it. Read the second pass; the first pass "
-        "is kept."),
+        "The second pass (UV light) of this strip is missing or could not be "
+        "read, so M1 and M2 cannot be worked out for it. " + _BOTH_AGAIN),
     "uv_pass_count": (
         "The second pass (UV light) does not hold the same number of "
         "patches as the first pass (lamp), so ChromIQ cannot tell which UV "
-        "reading belongs to which patch. Read the second pass of this strip "
-        "again; the first pass is kept."),
+        "reading belongs to which patch. " + _BOTH_AGAIN),
     "uv_pass_short": (
-        "The second pass (UV light) did not cover the whole strip. Read the "
-        "second pass of this strip again, over every patch; the first pass "
-        "is kept."),
+        "The second pass (UV light) did not cover the whole strip. Make sure "
+        "it runs over every patch, from the first to the last. " + _BOTH_AGAIN),
     "uv_pass_too_fast": (
         "The second pass (UV light) was read in a way that left too few "
-        "readings per patch: move a little slower. Read the second pass of "
-        "this strip again; the first pass is kept."),
+        "readings per patch: move a little slower. " + _BOTH_AGAIN),
+    "uv_pass_too_long": (
+        "The second pass (UV light) took too long: it gave more than 4000 "
+        "readings (about 20 seconds), more than ChromIQ can line up with the "
+        "ruler, so none of it is used. Move a little faster, at an even "
+        "speed. " + _BOTH_AGAIN),
     "uv_pass_stalled": (
         "The second pass (UV light) stopped or jumped part of the way along "
-        "the strip, so some patches have no reading. Read the second pass of "
-        "this strip again at an even speed; the first pass is kept."),
+        "the strip, so some patches have no reading. Move at an even speed. "
+        + _BOTH_AGAIN),
     "uv_pass_wrong_strip": (
         "The second pass (UV light) does not seem to belong to this strip: "
-        "its readings do not follow the first pass. Read the second pass of "
-        "this strip again, on the same strip; the first pass is kept."),
+        "its readings do not follow the first pass. Perhaps it was read over "
+        "the next row, or the instrument was set down one patch further "
+        "along. " + _BOTH_AGAIN),
     "uv_pass_no_uv_light": (
         "The second pass (UV light) brought back almost no light from this "
         "strip: either the UV light did not light, or the pass was read over "
-        "a much darker strip than the first pass. Read the second pass of "
-        "this strip again, on the same strip; the first pass is kept."),
+        "a much darker strip than the first pass. " + _BOTH_AGAIN),
     "uv_pass_misaligned": (
         "The second pass (UV light) does not line up with the first pass: "
         "the instrument was probably lifted or moved off the ruler between "
-        "the two passes. Read the second pass of this strip again without "
-        "lifting the instrument; the first pass is kept."),
+        "the two passes. " + _BOTH_AGAIN),
     "lamp_pass_changed": (
         "The first pass of this strip was read again, and the second pass "
         "taken earlier does not fit it any more. Read the second pass "
         "again too."),
     "dual_needs_ruler": (
-        "A dual scan by hand needs the instrument's position ruler, to match "
-        "the two passes patch by patch, and it gave no usable positions. "
-        "M0 can still be measured as always."),
+        "A dual scan by hand needs the instrument's position ruler to match "
+        "the two passes patch by patch, and the ruler cannot be used for the "
+        "rest of this measurement: it gave no usable positions, or a second "
+        "pass was left unread, so the ruler could not start again for the "
+        "next strip. ChromIQ therefore stops working out M1 and M2 for this "
+        "measurement; M0 goes on as always."),
+    "uv_spot_failed": (
+        "The reading of this patch with the UV light failed, so M1 and M2 "
+        "cannot be worked out for it. Read the patch again: ChromIQ reads it "
+        "with the lamp and then with the UV light in one go, so both "
+        "readings are made again."),
     "no_ruler": (
         "The instrument's position ruler gave no usable positions for this "
         "dual scan, so the two passes cannot be matched patch by patch. "

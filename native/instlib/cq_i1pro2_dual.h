@@ -21,8 +21,16 @@
  *     light source (i1Profiler's own b1 file shows the cost of not doing so).
  *   * 10 dark + 5 UV-LED readings of the tile, then the volts: i1Profiler's
  *     dual calibration as recorded (work-folder analysis, F6).
- *   * the UV readings' pre-delay: the lamp's (s->lamptime -> lamp clocks),
- *     as i1Profiler sends 41 clocks for its lamp AND its UV readings.
+ *   * the UV readings' pre-delay: a FIXED 41 lamp clocks (CQ_DUAL_UV_LAMPCLOCKS)
+ *     on every UV-LED trigger, tile, spot and pass alike: what X-Rite
+ *     i1Profiler sent on every one of the 76 UV-LED triggers recorded from two
+ *     instruments (safety review 2026-11-18, M3). ArgyllCMS's own lamp time
+ *     would give 102 clocks in scan mode and 51 in spot mode, neither recorded.
+ *
+ * ONLY RECORDED FORMS (safety review 2026-11-18, M2): every UV-LED trigger
+ * goes through i1pro2_cq_dual_form_refused before anything is sent; a form
+ * other than 0x0200 / 0x0209 with 41 lamp clocks is refused (an error, nothing
+ * on the wire), so 0x0201 (a UV scan without "ruler end") cannot go out.
  *
  * AGPL-3.0 like the rest of ChromIQ's helper code (see License.txt). */
 
@@ -47,6 +55,7 @@ typedef struct {
 	double *L;
 	int lclamp;
 	int lamp_readings;		/* the lamp pass's readings (its ruler share) */
+	int unread;				/* readings the last UV pass gave (also when refused) */
 } cq_dual_state;
 
 static cq_dual_state *cq_dual_s(void *pp) {
@@ -125,6 +134,7 @@ void i1pro2_cq_dual_arm(void *pp, int phase) {
 		free(st->U);
 		st->U = NULL;
 		st->un = 0;
+		st->unread = 0;
 	}
 	if (phase == CQ_DUAL_PHASE_OFF)
 		st->uv_lit = 0;
@@ -142,16 +152,54 @@ int i1pro2_cq_dual_uv_lit(void *pp) {
 
 /* ---- the driver's hooks (i1pro_imp.c, CHROMIQ PATCH: dual scan) ---- */
 
-/* i1pro_trigger_one_measure: the lamp pre-delay for a UV-LED reading of the
- * dual scan (as recorded: i1Profiler sends the lamp's 41 clocks with its UV
- * readings too). Counts the UV triggers. */
+/* i1pro_trigger_one_measure, where ArgyllCMS gives a reading without the
+ * lamp 0 lamp clocks: the recorded 41 for a UV-LED reading of the dual scan
+ * (i1Profiler's on every recorded UV-LED trigger), 0 for anything else and
+ * whenever the dual scan is off. Never touches s->lamptime. */
 int i1pro2_cq_dual_lamp_delay(void *pp, int mmodif) {
+	i1pro *p = (i1pro *)pp;
 	cq_dual_state *st = cq_dual_s(pp);
+	i1proimp *m;
 	if (st == NULL || (mmodif != i1p2_UV && mmodif != i1p2_cq_UV_cal))
 		return 0;
+	m = (i1proimp *)p->m;
+	if (!m->ms[m->mmode].reflective)
+		return 0;
+	return CQ_DUAL_UV_LAMPCLOCKS;
+}
+
+/* i1pro_trigger_one_measure, after the flags and before anything is sent:
+ * 1 = REFUSE this trigger (the caller returns an error, nothing goes on the
+ * wire). With the dual scan on, a UV-LED trigger must be one of the recorded
+ * forms: 0x0200 (the tile, a spot) or 0x0209 (the hand UV pass: scan + ruler
+ * end), each with the recorded 41 lamp clocks. Counts the UV triggers that
+ * go out. Off: 0, always (ArgyllCMS's own UV mode is untouched). */
+int i1pro2_cq_dual_form_refused(void *pp, int flags2, int lampclocks) {
+	cq_dual_state *st = cq_dual_s(pp);
+	if (st == NULL || (flags2 & (I1PRO2_MMF_UV_LED | I1PRO2_MMF_LAMP)) != I1PRO2_MMF_UV_LED)
+		return 0;
+	if ((flags2 != CQ_DUAL_FORM_UV_TILE && flags2 != CQ_DUAL_FORM_UV_PASS)
+	 || lampclocks != CQ_DUAL_UV_LAMPCLOCKS)
+		return 1;
 	st->uv_triggers++;
 	st->uv_lit = 1;
-	return 1;
+	return 0;
+}
+
+/* The UV pass of a hand strip may be asked for (and its trigger carry "ruler
+ * end"): the lamp pass counted readings in a ruler stream that still runs and
+ * the ruler is in use. The helper asks for the UV pass only then; otherwise
+ * M1 / M2 end for the session and M0 goes on. */
+static int cq_dual_uv_ready(i1pro *p, cq_dual_state *st) {
+	i1proimp *m = (i1proimp *)p->m;
+	i1pro_state *s = &m->ms[m->mmode];
+	return st != NULL && st->lamp_readings > 0 && m->cq_ruler_on && !m->cq_ruler_given_up
+	    && m->cq_ruler_th != NULL && s->scan && s->reflective;
+}
+
+int i1pro2_cq_dual_uv_pass_ready(void *pp) {
+	cq_dual_state *st = cq_dual_s(pp);
+	return st != NULL && cq_dual_uv_ready((i1pro *)pp, st);
 }
 
 /* The ruler flags of the dual scan's two passes: the lamp pass "ruler
@@ -175,8 +223,7 @@ int i1pro2_cq_dual_ruler_bits(void *pp, int mmodif) {
 		m->cq_ruler_inscan = 1;
 		return I1PRO2_MMF_RULER_START;
 	}
-	if (st->phase == CQ_DUAL_PHASE_UV && mmodif == i1p2_UV && m->cq_ruler_th != NULL
-	 && st->lamp_readings > 0) {
+	if (st->phase == CQ_DUAL_PHASE_UV && mmodif == i1p2_UV && cq_dual_uv_ready(p, st)) {
 		m->cq_ruler_inscan = 1;
 		return I1PRO2_MMF_RULER_END;
 	}
@@ -218,7 +265,11 @@ int i1pro2_cq_dual_readings(void *pp, double **multimes, int nmeas, double **abs
 	m = (i1proimp *)p->m;
 	s = &m->ms[m->mmode];
 	st->uv_lit = 0;				/* the reading is over */
-	n = nmeas < CQ_DUAL_MAX_UV_READINGS ? nmeas : CQ_DUAL_MAX_UV_READINGS;
+	st->unread = nmeas;
+	/* a pass longer than CQ_DUAL_MAX_UV_READINGS (about 20 s) is refused
+	 * whole, never half-used: its readings and the ruler's positions (the
+	 * stream's LAST n x clocks samples) would no longer belong together */
+	n = nmeas <= CQ_DUAL_MAX_UV_READINGS ? nmeas : 0;
 	free(st->U);
 	st->U = NULL;
 	st->un = 0;
@@ -238,7 +289,7 @@ int i1pro2_cq_dual_readings(void *pp, double **multimes, int nmeas, double **abs
 	}
 	for (i = 0; i < npatch && !i1pro2_cq_dual_noproc_for_test; i++)	/* placeholders: the first reading */
 		for (j = -1; j < m->nraw; j++)
-			absraw[i][j] = n > 0 ? multimes[0][j] : 0.0;
+			absraw[i][j] = nmeas > 0 ? multimes[0][j] : 0.0;
 	return 1;
 }
 
@@ -443,6 +494,10 @@ int i1pro2_cq_dual_take_uv(void *pp, cq_dual_uv *out) {
 		return 0;
 	memset(out, 0, sizeof(*out));
 	out->volts_before = out->volts_after = -1;
+	if (st != NULL) {
+		out->nread = st->unread;
+		st->unread = 0;
+	}
 	if (st == NULL || st->U == NULL || st->un <= 0)
 		return 0;
 	out->n = st->un;

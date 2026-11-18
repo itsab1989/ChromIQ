@@ -736,7 +736,7 @@ static const char *cq_cond_name[3] = { "M0", "M1", "M2" };
  * so: CHROMIQ_DUAL_SCAN, CHROMIQ_DUAL_SCALE, CHROMIQ_DUAL_SCALE_SOURCE,
  * CHROMIQ_DUAL_WHITE (workflow/dual_scan/storage.py). */
 static int cq_dual_req = 0;			/* --dual-scale given */
-static double cq_dual_scale = 0.0;
+static double cq_dual_scale = 0.0; static int cq_dd_this_strip = 0;	/* the factor; the strip being read is a dual strip */
 static const char *cq_dual_source = "standard";	/* --dual-scale-source */
 static const char *cq_dual_white = "instrument";	/* --dual-white */
 static const char *cq_dual_chosen = "M0";	/* --dual-chosen: the Measure tab's choice */
@@ -4434,18 +4434,18 @@ a1log *log			/* verb, debug & error log */
 					cq_cal_gate_set(1);
 				cq_press_listen(0);		/* CHROMIQ_EXT: a fresh group */
 				cq_lights_prompt();		/* CHROMIQ_EXT: lights (Beta) */
-				if (cq_dd.on && cq_cond_active)	/* CHROMIQ_EXT: i1Pro 2 dual scan, pass 1 of 2 */
+				if ((cq_dd_this_strip = cq_dd.on && cq_cond_active))	/* CHROMIQ_EXT: i1Pro 2 dual scan, pass 1 of 2 */
 					i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_LAMP);
 				else
 					cq_ruler_arm(1);		/* CHROMIQ_EXT: ruler check (Beta) */
 				cq_cond_arm(1);			/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
 				cq_usbwatch_begin();	/* CHROMIQ_EXT 4.3.36: a reading begins */
 				rv = it->read_strip(it, "STRIP", stipa+nextrap, nn, guide, plen, glen, tlen, vals);
-				if (cq_dd.on && cq_cond_active)	/* CHROMIQ_EXT: i1Pro 2 dual scan, pass 2 of 2 */
+				if (cq_dd_this_strip)	/* CHROMIQ_EXT: i1Pro 2 dual scan, pass 2 of 2 */
 					cq_dd_strip(it, nn, &rv, stipa+nextrap, guide, plen, glen, tlen);
 				cq_margin_set(vals, stipa+nextrap, scols, stipa, totpa, npat, oroi,
 				              skipp != 0 || nextrap != 0);	/* CHROMIQ_EXT: margin tolerance (Beta) */
-				if (!cq_dd.on)
+				if (!cq_dd_this_strip)	/* a dual strip was armed for the dual scan, never for the ruler check */
 					cq_ruler_after_strip(nn, &rv);	/* CHROMIQ_EXT: ruler check (Beta); may rescue (margin tolerance) */
 				cq_cond_after_read(rv, stipa+nextrap);	/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
 				cq_cond_arm(0);

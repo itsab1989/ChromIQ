@@ -6128,8 +6128,7 @@ i1pro_trigger_one_measure(
 	intclocks = (int)dintclocks;
 	*inttime = (double)intclocks * m->intclkp;		/* Quantized integration time */
 
-	if (s->reflective && ((mmodif & 0x10)
-	 || i1pro2_cq_dual_lamp_delay(p, mmodif))) {	/* CHROMIQ PATCH: dual scan, no-op unless on */
+	if (s->reflective && (mmodif & 0x10)) {
 		dlampclocks = floor(s->lamptime/(m->subclkdiv * m->intclkp) + 0.5);
 		if (dlampclocks > 256.0)		/* Clip - not sure why. Silly value anyway */
 			dlampclocks = 256.0;
@@ -6137,7 +6136,7 @@ i1pro_trigger_one_measure(
 		s->lamptime = dlampclocks * m->subclkdiv * m->intclkp;	/* Quantized lamp time */
 	} else {
 		dlampclocks = 0.0;
-		lampclocks = 0;
+		lampclocks = i1pro2_cq_dual_lamp_delay(p, mmodif);	/* CHROMIQ PATCH: dual scan, the recorded 41 for a UV-LED reading, 0 unless on */
 	}
 
 	if (nummeas > 65535)
@@ -6171,6 +6170,8 @@ i1pro_trigger_one_measure(
 
 		measmodeflags2 |= i1pro2_cq_ruler_bits(p, mmodif);	/* CHROMIQ PATCH: ruler check (Beta), a no-op unless armed */
 		measmodeflags2 |= i1pro2_cq_dual_ruler_bits(p, mmodif);	/* CHROMIQ PATCH: dual scan, no-op unless armed */
+		if (i1pro2_cq_dual_form_refused(p, measmodeflags2, lampclocks))	/* CHROMIQ PATCH: dual scan, only a recorded UV-LED form, */
+			return I1PRO_INT_ILLEGALMODE;					/* refused before anything is sent; no-op unless on */
 	}
 
 	a1logd(p->log,2,"i1pro: Int time %f msec, delay %f msec, no readings %d, expect %f msec\n",

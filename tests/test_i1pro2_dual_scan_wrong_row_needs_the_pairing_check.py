@@ -11,8 +11,9 @@ alignment gate (0.01) all accept it. The only gate that tells the rows apart is 
 
 The first test proves, on the Python twin of the cut (held bit-equal to the C cut by
 tests/test_i1pro2_dual_scan_engine.py), that the cut accepts such a pass and that the pairing
-check refuses it, and how wrong M2 then is. The second is a strict xfail until the helper's strip
-path applies the pairing check; it turns red (XPASS) when it does, so remove the mark then.
+check refuses it, and how wrong M2 then is. The second was a strict xfail until the helper's strip
+path applied the pairing check (safety fix round, 2026-11-18: ``cq_dual_pairing`` right after the
+cut, held to the Python check by tests/test_i1pro2_dual_scan_pairing_c.py).
 """
 from __future__ import annotations
 
@@ -93,8 +94,6 @@ def _code(path: Path) -> str:
     return re.sub(r"/\*.*?\*/", "", path.read_text(encoding="utf-8", errors="replace"), flags=re.S)
 
 
-@pytest.mark.xfail(strict=True, reason="safety review 2026-11-18, MUST: the instrument path's hand "
-                   "strip (cq_dd_strip) has no pairing check; remove this mark when it has")
 def test_the_instrument_path_checks_that_the_uv_pass_belongs_to_the_strip():
     src = _code(ROOT / "native" / "chartread_helper" / "chromiq_dualdev.c")
     i = src.index("static void cq_dd_strip(")

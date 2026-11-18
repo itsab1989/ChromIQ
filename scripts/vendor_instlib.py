@@ -1856,19 +1856,22 @@ I1PRO_IMP_H_DUAL = [
     ('\n}; typedef struct _i1proimp i1proimp;\n',
      "\n\t/* CHROMIQ PATCH: the i1Pro 2 dual scan (2026-11-18), cq_i1pro2_dual.h. */\n\tint cq_dual_on;\t\t\t/* the helper's option, this session (0 = no hook does anything) */\n\tvoid *cq_dual_rec;\t\t/* cq_dual_state (cq_i1pro2_dual.h) */\n\n}; typedef struct _i1proimp i1proimp;\n"),
     ('\ti1p2_wl_cal      = 0x24\t\t/* No scan, wavelength reference LED illumination (Rev E) */\n} i1p_mmodif;',
-     "\ti1p2_wl_cal      = 0x24,\t\t/* No scan, wavelength reference LED illumination (Rev E) */\n\ti1p2_cq_UV_cal   = 0x21\t\t/* CHROMIQ PATCH: dual scan, UV LED on the tile, no scan */\n} i1p_mmodif;\n\n/* CHROMIQ PATCH: the i1Pro 2 dual scan's hooks (cq_i1pro2_dual.h), no-ops unless on. */\nint i1pro2_cq_dual_lamp_delay(void *pp, int mmodif);\nint i1pro2_cq_dual_ruler_bits(void *pp, int mmodif);\nint i1pro2_cq_dual_ruler_phase(void *pp);\nvoid i1pro2_cq_dual_lamp_readings(void *pp, int nreadings);\nint i1pro2_cq_dual_readings(void *pp, double **multimes, int nmeas, double **absraw, int npatch);\nvoid i1pro2_cq_dual_keep_lamp(void *pp, double **specrd, int nvals, int clamp);"),
+     "\ti1p2_wl_cal      = 0x24,\t\t/* No scan, wavelength reference LED illumination (Rev E) */\n\ti1p2_cq_UV_cal   = 0x21\t\t/* CHROMIQ PATCH: dual scan, UV LED on the tile, no scan */\n} i1p_mmodif;\n\n/* CHROMIQ PATCH: the i1Pro 2 dual scan's hooks (cq_i1pro2_dual.h), no-ops unless on. */\nint i1pro2_cq_dual_lamp_delay(void *pp, int mmodif);\nint i1pro2_cq_dual_form_refused(void *pp, int flags2, int lampclocks);\nint i1pro2_cq_dual_ruler_bits(void *pp, int mmodif);\nint i1pro2_cq_dual_ruler_phase(void *pp);\nvoid i1pro2_cq_dual_lamp_readings(void *pp, int nreadings);\nint i1pro2_cq_dual_readings(void *pp, double **multimes, int nmeas, double **absraw, int npatch);\nvoid i1pro2_cq_dual_keep_lamp(void *pp, double **specrd, int nvals, int clamp);"),
 ]
 I1PRO_IMP_C_DUAL = [
-    ("\tif (s->reflective && (mmodif & 0x10)) {\n",
-     "\tif (s->reflective && ((mmodif & 0x10)\n"
-     "\t || i1pro2_cq_dual_lamp_delay(p, mmodif))) {\t/* CHROMIQ PATCH: dual scan, no-op unless on */\n"),
+    ("\t\tdlampclocks = 0.0;\n\t\tlampclocks = 0;\n\t}\n",
+     "\t\tdlampclocks = 0.0;\n"
+     "\t\tlampclocks = i1pro2_cq_dual_lamp_delay(p, mmodif);\t/* CHROMIQ PATCH: dual scan, the recorded 41 for a UV-LED reading, 0 unless on */\n"
+     "\t}\n"),
     ("\t\tif (mmodif == i1p2_UV)\n\t\t\tmeasmodeflags2 |= I1PRO2_MMF_UV_LED;",
      "\t\tif (mmodif == i1p2_UV\n"
      "\t\t || mmodif == i1p2_cq_UV_cal)\t\t/* CHROMIQ PATCH: dual scan, the UV LED on the tile */\n"
      "\t\t\tmeasmodeflags2 |= I1PRO2_MMF_UV_LED;"),
     ("\t\tmeasmodeflags2 |= i1pro2_cq_ruler_bits(p, mmodif);\t/* CHROMIQ PATCH: ruler check (Beta), a no-op unless armed */\n",
      "\t\tmeasmodeflags2 |= i1pro2_cq_ruler_bits(p, mmodif);\t/* CHROMIQ PATCH: ruler check (Beta), a no-op unless armed */\n"
-     "\t\tmeasmodeflags2 |= i1pro2_cq_dual_ruler_bits(p, mmodif);\t/* CHROMIQ PATCH: dual scan, no-op unless armed */\n"),
+     "\t\tmeasmodeflags2 |= i1pro2_cq_dual_ruler_bits(p, mmodif);\t/* CHROMIQ PATCH: dual scan, no-op unless armed */\n"
+     "\t\tif (i1pro2_cq_dual_form_refused(p, measmodeflags2, lampclocks))\t/* CHROMIQ PATCH: dual scan, only a recorded UV-LED form, */\n"
+     "\t\t\treturn I1PRO_INT_ILLEGALMODE;\t\t\t\t\t/* refused before anything is sent; no-op unless on */\n"),
     ("\tif (!s->scan) {\n\t\tif (numpatches != 1) {",
      "\t/* CHROMIQ PATCH: the dual scan's UV pass keeps every reading, no-op unless armed */\n"
      "\tif (i1pro2_cq_dual_readings(p, multimes, nmeasuered, absraw, numpatches)) {\n"
@@ -2166,12 +2169,17 @@ prov.write_text(
     "- **`i1pro_imp.c`, `i1pro_imp.h`: the i1Pro 2 dual scan** (2026-11-18,\n"
     "  step 2; not yet in ChromIQ's UI). One `#include \"cq_i1pro2_dual.h\"` at\n"
     "  the end of the file (ChromIQ's own code, API in `cq_dual.h`; this script\n"
-    "  never writes either) and seven one-line hooks, each a no-op unless the\n"
+    "  never writes either) and eight short hooks, each a no-op unless the\n"
     "  helper switched the dual scan on (`i1pro2_cq_dual_options`, only for an\n"
     "  inited i1Pro 2 whose EEPROM reports the UV LED and holds the factory\n"
     "  tables 0x2f77 / 0x2f76, read-only, not in high resolution): the lamp\n"
-    "  pre-delay for a UV-LED trigger (i1Profiler sends 41 clocks with its lamp\n"
-    "  and its UV readings); one new measurement modifier, `i1p2_cq_UV_cal`\n"
+    "  pre-delay of a UV-LED trigger, a fixed 41 lamp clocks (what i1Profiler\n"
+    "  sent on every recorded UV-LED trigger, tile, spot and pass; ArgyllCMS's\n"
+    "  lamp time would give 102 in scan mode and 51 in spot mode); a gate that\n"
+    "  refuses, before anything is sent, every UV-LED trigger that is not one of\n"
+    "  the two recorded forms (0x0200, 0x0209) with 41 lamp clocks, so a UV scan\n"
+    "  without \"ruler end\" (0x0201) cannot go out; one new measurement\n"
+    "  modifier, `i1p2_cq_UV_cal`\n"
     "  (0x21: the UV LED on the white tile, no scan bit, flags 0x0200, as\n"
     "  recorded); the ruler flags split over the two passes of a hand strip\n"
     "  (lamp pass \"ruler start\" 0x0105, UV pass \"ruler end\" 0x0209, as\n"

@@ -3,6 +3,7 @@
  * AGPL-3.0 - see ../instlib/License.txt. */
 #include <math.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include "chromiq_dualscan.h"
 
 static int cq_dual_isfinite(double v) {
@@ -280,4 +281,126 @@ int cq_dual_positions(int first, int nch, const int *gaps, const unsigned char *
 		return 0;
 	return cq_dual_window(first, nch, gaps, codes, 0, need1, n1, clk, lp)
 	    && cq_dual_window(first, nch, gaps, codes, total - need2, need2, n2, clk, up);
+}
+
+/* ---- the pairing check (safety review 2026-11-18, M1) ---------------------
+ * workflow/dual_scan/pairing.py::check_pairing, line for line: the LED bands'
+ * mean of (T / W) x L (predicted) and of U (observed) per patch; a patch takes
+ * part when its prediction reaches (T / W) x LEVEL_FLOOR or its observation
+ * twice that; fewer than MIN_USABLE such patches: not judged (accepted); the
+ * median observed / predicted below MIN_LIGHT_RATIO: no UV light; the median
+ * |ratio - 1| above MAX_RATIO_ERROR, or (with enough patches that differ
+ * enough) the correlation below MIN_CORRELATION: the wrong strip. */
+static int cq_dual_cmp(const void *a, const void *b) {
+	double x = *(const double *)a, y = *(const double *)b;
+	return x < y ? -1 : x > y ? 1 : 0;
+}
+
+static double cq_dual_median(double *v, int n) {	/* sorts v; numpy's median */
+	qsort(v, (size_t)n, sizeof(double), cq_dual_cmp);
+	if (n % 2)
+		return v[n / 2];
+	return (v[n / 2 - 1] + v[n / 2]) / 2.0;
+}
+
+/* the LED bands' mean of x[j] * f[j] (f NULL: of x[j]), as pairing._led */
+static double cq_dual_led(const cq_dual_cal *c, const double *x, const double *f) {
+	double s = 0.0;
+	int j, k = 0;
+	for (j = 0; j < c->nb; j++) {
+		double wl = cq_dual_wl(c, j);
+		if (wl >= CQ_DUAL_PAIR_LO - 1e-6 && wl <= CQ_DUAL_PAIR_HI + 1e-6) {
+			double v = f != NULL ? x[j] * f[j] : x[j];
+			s = k == 0 ? v : s + v;
+			k++;
+		}
+	}
+	return k > 0 ? s / (double)k : (double)NAN;
+}
+
+const char *cq_dual_pairing(const cq_dual_cal *c, int n, const double *L, const double *U,
+                            cq_dual_pairing_ev *ev) {
+	double tw[CQ_DUAL_NB], twf[CQ_DUAL_NB], floor_, *p = NULL, *o = NULL, *r = NULL;
+	double med, err, corr = (double)NAN;
+	int i, j, k = 0;
+	const char *why = NULL;
+	if (ev != NULL) {
+		ev->correlation = ev->median_ratio_error = (double)NAN;
+		ev->patches = n;
+		ev->usable = 0;
+		ev->checked = 0;
+	}
+	if ((why = cq_dual_check(c)) != NULL)
+		return why;
+	if (n <= 0 || L == NULL || U == NULL)
+		return "uv_pass_count";
+	for (j = 0; j < c->nb; j++) {
+		tw[j] = c->T[j] / c->W[j];
+		twf[j] = tw[j] * CQ_DUAL_PAIR_LEVEL_FLOOR;
+	}
+	floor_ = cq_dual_led(c, twf, NULL);
+	p = (double *)malloc(sizeof(double) * (size_t)n);
+	o = (double *)malloc(sizeof(double) * (size_t)n);
+	r = (double *)malloc(sizeof(double) * (size_t)n);
+	if (p == NULL || o == NULL || r == NULL) {
+		why = "memory";
+		goto done;
+	}
+	for (i = 0; i < n; i++) {
+		double pr = cq_dual_led(c, L + i * c->nb, tw), ob = cq_dual_led(c, U + i * c->nb, NULL);
+		if (!cq_dual_isfinite(pr) || !cq_dual_isfinite(ob)) {
+			why = "bad_values";
+			goto done;
+		}
+		if (pr >= floor_ || ob >= 2.0 * floor_) {
+			p[k] = pr > 1e-12 ? pr : 1e-12;
+			o[k] = ob;
+			k++;
+		}
+	}
+	if (ev != NULL)
+		ev->usable = k;
+	if (k < CQ_DUAL_PAIR_MIN_USABLE)
+		goto done;					/* not judged: accepted, checked 0 */
+	for (i = 0; i < k; i++)
+		r[i] = o[i] / p[i];
+	med = cq_dual_median(r, k);
+	if (med < CQ_DUAL_PAIR_MIN_LIGHT_RATIO) {
+		why = "uv_pass_no_uv_light";
+		goto done;
+	}
+	for (i = 0; i < k; i++)
+		r[i] = fabs(o[i] / p[i] - 1.0);
+	err = cq_dual_median(r, k);
+	if (k >= CQ_DUAL_PAIR_MIN_FOR_CORRELATION) {
+		double mp = 0.0, mo = 0.0, vp = 0.0, vo = 0.0, cv = 0.0;
+		for (i = 0; i < k; i++) {
+			mp += p[i];
+			mo += o[i];
+		}
+		mp /= (double)k;
+		mo /= (double)k;
+		for (i = 0; i < k; i++) {
+			vp += (p[i] - mp) * (p[i] - mp);
+			vo += (o[i] - mo) * (o[i] - mo);
+			cv += (p[i] - mp) * (o[i] - mo);
+		}
+		if (sqrt(vp / (double)k) / mp >= CQ_DUAL_PAIR_MIN_SPREAD) {
+			corr = cv / sqrt(vp * vo);
+			if (corr > 1.0) corr = 1.0;
+			if (corr < -1.0) corr = -1.0;
+		}
+	}
+	if (ev != NULL) {
+		ev->checked = 1;
+		ev->median_ratio_error = err;
+		ev->correlation = corr;
+	}
+	if (err > CQ_DUAL_PAIR_MAX_RATIO_ERROR || (corr == corr && corr < CQ_DUAL_PAIR_MIN_CORRELATION))
+		why = "uv_pass_wrong_strip";
+done:
+	free(p);
+	free(o);
+	free(r);
+	return why;
 }

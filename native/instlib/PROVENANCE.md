@@ -163,12 +163,17 @@ stops if one no longer applies.
 - **`i1pro_imp.c`, `i1pro_imp.h`: the i1Pro 2 dual scan** (2026-11-18,
   step 2; not yet in ChromIQ's UI). One `#include "cq_i1pro2_dual.h"` at
   the end of the file (ChromIQ's own code, API in `cq_dual.h`; this script
-  never writes either) and seven one-line hooks, each a no-op unless the
+  never writes either) and eight short hooks, each a no-op unless the
   helper switched the dual scan on (`i1pro2_cq_dual_options`, only for an
   inited i1Pro 2 whose EEPROM reports the UV LED and holds the factory
   tables 0x2f77 / 0x2f76, read-only, not in high resolution): the lamp
-  pre-delay for a UV-LED trigger (i1Profiler sends 41 clocks with its lamp
-  and its UV readings); one new measurement modifier, `i1p2_cq_UV_cal`
+  pre-delay of a UV-LED trigger, a fixed 41 lamp clocks (what i1Profiler
+  sent on every recorded UV-LED trigger, tile, spot and pass; ArgyllCMS's
+  lamp time would give 102 in scan mode and 51 in spot mode); a gate that
+  refuses, before anything is sent, every UV-LED trigger that is not one of
+  the two recorded forms (0x0200, 0x0209) with 41 lamp clocks, so a UV scan
+  without "ruler end" (0x0201) cannot go out; one new measurement
+  modifier, `i1p2_cq_UV_cal`
   (0x21: the UV LED on the white tile, no scan bit, flags 0x0200, as
   recorded); the ruler flags split over the two passes of a hand strip
   (lamp pass "ruler start" 0x0105, UV pass "ruler end" 0x0209, as
@@ -186,8 +191,8 @@ stops if one no longer applies.
 | `rspl1.c` | `5c7b0509abf97f44…` | `d53a8d37b30b6e14…` |
 | `conv.c` | `c6b04014888cb6f4…` | `1b88327ee6e6d9df…` |
 | `i1pro.c` | `ac75b6e3f47537b8…` | `833d46b27134f93e…` |
-| `i1pro_imp.h` | `c37813e4b43a9bff…` | `8c7e1b250c1d568a…` |
-| `i1pro_imp.c` | `8b8516cdd89e21de…` | `680a9d6506147007…` |
+| `i1pro_imp.h` | `c37813e4b43a9bff…` | `81624521811bea08…` |
+| `i1pro_imp.c` | `8b8516cdd89e21de…` | `94b93fd79e6d59d3…` |
 | `i1pro3.c` | `9c4b1ac9f8af507a…` | `347235c6d10f9677…` |
 | `i1pro3_imp.h` | `190cceb46fe8bc33…` | `ef7245eb1a92eb5e…` |
 | `i1pro3_imp.c` | `42c684afa3bbb15d…` | `d78f1a6596886bf6…` |

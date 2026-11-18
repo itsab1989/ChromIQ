@@ -760,6 +760,7 @@ typedef enum {
 
 /* CHROMIQ PATCH: the i1Pro 2 dual scan's hooks (cq_i1pro2_dual.h), no-ops unless on. */
 int i1pro2_cq_dual_lamp_delay(void *pp, int mmodif);
+int i1pro2_cq_dual_form_refused(void *pp, int flags2, int lampclocks);
 int i1pro2_cq_dual_ruler_bits(void *pp, int mmodif);
 int i1pro2_cq_dual_ruler_phase(void *pp);
 void i1pro2_cq_dual_lamp_readings(void *pp, int nreadings);

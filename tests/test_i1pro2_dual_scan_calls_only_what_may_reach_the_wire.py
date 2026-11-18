@@ -49,9 +49,14 @@ HELPER_MAY_CALL = _LIBC | {
     "i1pro2_cq_dual_options", "i1pro2_cq_dual_tile", "i1pro2_cq_dual_arm",
     "i1pro2_cq_dual_spot_uv", "i1pro2_cq_dual_take_uv", "i1pro2_cq_dual_take_lamp",
     "i1pro2_cq_dual_conv", "i1pro2_cq_dual_lamp_count", "i1pro2_cq_ruler_take",
+    "i1pro2_cq_dual_uv_pass_ready",    # reads the driver's state, sends nothing (M2 fix)
     # arithmetic and output, no instrument
     "cq_dual_check", "cq_dual_cut", "cq_dual_patch", "cq_dual_positions", "cq_cx_from_ipatch",
+    "cq_dual_pairing",                 # the pairing check (M1 fix), arithmetic only
     "cq_emit_raw", "cq_json_escape", "cq_ruler_rec_clear",
+    # the conditions event "active: false" (chromiq_chartread.c); its only instrument call is
+    # the i1Pro 3's own conditions switch, never reached for an i1Pro 2
+    "cq_cond_lose",
 }
 
 

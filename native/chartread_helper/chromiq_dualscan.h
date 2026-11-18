@@ -64,6 +64,36 @@ double cq_dual_flatness(int nb, int ncell, const int (*cells)[2],
                         const double *lamp_pos, int nuv, const double *uv_pos,
                         const double *uv, double trim);
 
+/* DOES THIS UV PASS BELONG TO THIS LAMP PASS? (safety review 2026-11-18,
+ * M1): the C twin of workflow/dual_scan/pairing.py::check_pairing, the same
+ * rule and the same numbers (tests/test_i1pro2_dual_scan_pairing_c.py holds
+ * the two together). At 380-400 nm nothing glows, so the UV reading there
+ * is only the LED light the patch reflects, (T / W) x L of the SAME strip.
+ * L[n][nb] the lamp pass's patches, U[n][nb] the UV pass cut into them, both
+ * in lamp-white units. NULL = accepted (ev->checked 0 when the strip is too
+ * dark to judge: the note pairing_not_checked), else "uv_pass_wrong_strip",
+ * "uv_pass_no_uv_light", "bad_values" or the calibration's reason. */
+#define CQ_DUAL_PAIR_LO 380.0				/* pairing.LED_BANDS_NM */
+#define CQ_DUAL_PAIR_HI 400.0
+#define CQ_DUAL_PAIR_MIN_CORRELATION 0.95	/* pairing.MIN_CORRELATION */
+#define CQ_DUAL_PAIR_MAX_RATIO_ERROR 0.10	/* pairing.MAX_MEDIAN_RATIO_ERROR */
+#define CQ_DUAL_PAIR_MIN_SPREAD 0.05		/* pairing.MIN_SPREAD */
+#define CQ_DUAL_PAIR_LEVEL_FLOOR 0.05		/* pairing.LEVEL_FLOOR */
+#define CQ_DUAL_PAIR_MIN_USABLE 2			/* pairing.MIN_USABLE */
+#define CQ_DUAL_PAIR_MIN_FOR_CORRELATION 3	/* pairing.MIN_FOR_CORRELATION */
+#define CQ_DUAL_PAIR_MIN_LIGHT_RATIO 0.3	/* pairing.MIN_LIGHT_RATIO */
+
+typedef struct {
+	double correlation;			/* NAN when not asked */
+	double median_ratio_error;	/* NAN when not checked */
+	int patches;
+	int usable;					/* patches above the signal floor */
+	int checked;				/* 0: too dark to judge (accepted, note pairing_not_checked) */
+} cq_dual_pairing_ev;
+
+const char *cq_dual_pairing(const cq_dual_cal *c, int n, const double *L, const double *U,
+                            cq_dual_pairing_ev *ev);
+
 /* Ruler positions of a hand dual strip's two passes (step 2): see
  * chromiq_dualscan.c. lp[n1], up[n2]; 1 = ok. */
 #define CQ_DUAL_MAXCHG 20000

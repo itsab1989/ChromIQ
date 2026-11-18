@@ -7,10 +7,15 @@
  * WHAT IT SENDS TO THE INSTRUMENT (nothing that ArgyllCMS's own i1Pro 2 code
  * or X-Rite i1Profiler's recorded dual sessions do not send; see
  * docs/design/i1pro2_dual_scan.md section 7 and the safety brief):
- *   * measurement triggers (request 0xD4) with the UV-LED flag 0x0200, the
- *     same request ArgyllCMS's own UV mode (inst_mode_ref_uv, i1p2_UV) sends,
- *     with the lamp pre-delay the lamp readings use (i1Profiler: 41 clocks
- *     for both), at the integration the mode's own white calibration chose;
+ *   * measurement triggers (request 0xD4) with the UV-LED flag, the same
+ *     request ArgyllCMS's own UV mode (inst_mode_ref_uv, i1p2_UV) sends, in
+ *     the two recorded forms only: 0x0200 (the white tile; the UV half of a
+ *     spot) and 0x0209 (the hand UV pass: scan + ruler end), always with a
+ *     FIXED 41 lamp clocks as i1Profiler sent on every recorded UV-LED
+ *     trigger (ArgyllCMS's lamp time would give 102 in scan mode, 51 in spot
+ *     mode), at the integration the mode's own white calibration chose. Any
+ *     other UV-LED form is refused before it is sent (an error, nothing on
+ *     the wire): 0x0201, a UV scan without "ruler end", cannot go out;
  *   * dark triggers (flags 0x0000) as ArgyllCMS sends before every reading;
  *   * the UV LED's voltage query (request 0xD8, ArgyllCMS's
  *     i1pro2_getUVvolts), read only;
@@ -29,7 +34,10 @@
 #define CQ_DUAL_TABLE_N 18			/* kA / kD: 380-550 nm */
 #define CQ_DUAL_TILE_DARK 10		/* i1Profiler's dual calibration: 10 dark ... */
 #define CQ_DUAL_TILE_UV 5			/* ... and 5 UV-LED readings of the tile */
-#define CQ_DUAL_MAX_UV_READINGS 4000	/* a UV pass longer than this is cut short */
+#define CQ_DUAL_MAX_UV_READINGS 4000	/* a UV pass longer than this (about 20 s) is refused whole */
+#define CQ_DUAL_UV_LAMPCLOCKS 41		/* every recorded UV-LED trigger (i1Profiler, two instruments) */
+#define CQ_DUAL_FORM_UV_TILE 0x0200		/* UV LED, no scan: the tile, a spot's UV half */
+#define CQ_DUAL_FORM_UV_PASS 0x0209		/* UV LED + scan + ruler end: the hand UV pass */
 
 /* Why the dual scan is not available (i1pro2_cq_dual_options). */
 #define CQ_DUAL_NA_OK          0
@@ -60,6 +68,7 @@ typedef struct {
 	int clocks;
 	int volts_before, volts_after;
 	int uv_triggers;		/* UV-LED triggers this reading sent (1 expected) */
+	int nread;				/* readings the pass gave, also when refused (too long) */
 } cq_dual_uv;
 
 /* The lamp reading's patch spectra BEFORE ArgyllCMS's output conversion
@@ -86,5 +95,6 @@ int i1pro2_cq_dual_take_lamp(void *pp, cq_dual_lamp *out);
 int i1pro2_cq_dual_conv(void *pp, void *vals, int n, const double *spec, int clamp);	/* ipatch *vals */
 int i1pro2_cq_dual_uv_lit(void *pp);	/* 1 while a UV-LED trigger may be running */
 int i1pro2_cq_dual_lamp_count(void *pp);	/* readings of the last lamp pass (its ruler share) */
+int i1pro2_cq_dual_uv_pass_ready(void *pp);	/* 1 = the UV pass may be asked for (ruler stream of a lamp pass runs) */
 
 #endif /* CQ_DUAL_H */
