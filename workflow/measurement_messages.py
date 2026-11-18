@@ -11751,6 +11751,159 @@ M_FILTER_REFUSED = _m(
     approved=False)
 
 
+# --- PROPOSED: the X-Rite i1Pro 2 dual scan (Preferences > Beta, 2026-11-18)
+#: `workflow/dual_scan/session.py` decides which applies; the Measure tab
+#: shows them. Every one is §M-PROPOSED, shown in the Beta while awaiting
+#: review. {reason} is a sentence of `workflow/dual_scan/reasons.REASONS`.
+
+#: M-FILTER-REFUSED's variant for an i1Pro 2 when the dual scan could give
+#: M1 / M2 but is switched off.
+M_DUAL_FILTER_OFF = _m(
+    "M-DUAL-FILTER-OFF",
+    "The i1Pro 2 gives M1 and M2 only with a dual scan",
+    "The measurement did not start. On the Measure tab, “Spectral filter "
+    "type (-F)” is set to “{setting}”, and the i1Pro 2 reads M0 in a single "
+    "scan: it has no filter that ArgyllCMS could switch.\n\n"
+    "The i1Pro 2 can also give M1 and M2 with a dual scan: each strip is "
+    "read twice, first with the lamp and then with the instrument's UV "
+    "light, and ChromIQ works out M1 and M2 from the two passes. To use it, "
+    "switch on “{option}” in {where}, then press “{start}” again: ChromIQ "
+    "asks you to calibrate, and the calibration then reads the white tile "
+    "with the UV light as well.\n\n"
+    "Or choose “M0: no filter (lamp as it is)”, or switch the row off, to "
+    "measure M0 now.\n\n"
+    "Nothing has been measured or changed.",
+    approved=False)
+
+#: The dual scan is on and the row asks for the polariser or the D65 filter.
+M_DUAL_FILTER_NOT_DUAL = _m(
+    "M-DUAL-FILTER-NOT-DUAL",
+    "The i1Pro 2 has no polarising filter and no D65 mode",
+    "The measurement did not start. “Spectral filter type (-F)” is set to "
+    "“{setting}”, and the i1Pro 2 has neither. With the dual scan, which is "
+    "switched on in Preferences > Beta, it gives M0, M1 and M2: choose one "
+    "of those in the row (or switch the row off for M0), then press "
+    "“{start}” again.\n\n"
+    "Nothing has been measured or changed.",
+    approved=False)
+
+#: The Measure tab before START, while the dual scan applies.
+M_DUAL_BEFORE_START = _m(
+    "M-DUAL-BEFORE-START",
+    "Dual scan (beta, first try): each strip is read twice",
+    "Each strip is read twice: first as usual with the lamp, then once more "
+    "over the same strip with the UV light, without lifting the instrument. "
+    "From the two passes ChromIQ works out M1 and M2 besides M0, and the "
+    "profile is made from {chosen}. This needs the ruler (the guide the "
+    "i1Pro 2 slides along): without it only M0 is measured. Not yet tried "
+    "on a real instrument; M1 and M2 are calculated.",
+    approved=False)
+
+#: Shown in the calibration window and under the chart while the dual
+#: calibration reads the tile with the UV light (safety review S5), until
+#: the helper's cal_done.
+M_DUAL_CAL_TILE = _m(
+    "M-DUAL-CAL-TILE",
+    "Keep the instrument on its white tile",
+    "Keep the instrument on its white tile: ChromIQ is now reading the tile "
+    "with the UV light as well. This takes a few seconds; ChromIQ tells you "
+    "when you can lift it.",
+    approved=False)
+
+#: In "Calibration Complete" after a dual calibration.
+M_DUAL_CAL_DONE = _m(
+    "M-DUAL-CAL-DONE",
+    "Dual scan: the white tile was read with the UV light too",
+    "The white tile was read with the lamp and with the UV light. You can "
+    "lift the instrument now.",
+    approved=False)
+
+#: In "Calibration Complete" when the dual calibration gave no M1 / M2.
+M_DUAL_CAL_REFUSED = _m(
+    "M-DUAL-CAL-REFUSED",
+    "M1 and M2 cannot be worked out from this calibration",
+    "{reason}\n\n"
+    "You can lift the instrument now. M0 is measured as always; to have M1 "
+    "and M2 as well, calibrate again (press K or the Calibrate button) "
+    "before the next strip.",
+    approved=False)
+
+#: Above the chart while the first pass of a strip is due.
+M_DUAL_PASS_ONE = _m(
+    "M-DUAL-PASS-ONE",
+    "Strip {strip}, pass 1 of 2 (lamp)",
+    "Read strip {strip} as usual. ChromIQ then asks for its second pass, "
+    "with the UV light.",
+    approved=False)
+
+#: Above the chart while the second pass of a strip is due.
+M_DUAL_PASS_TWO = _m(
+    "M-DUAL-PASS-TWO",
+    "Strip {strip}, pass 2 of 2 (UV light)",
+    "Now read strip {strip} once more, without lifting the instrument off "
+    "the ruler: from the white paper before the first patch to the white "
+    "paper after the last, at an even speed, in either direction. This time "
+    "the instrument reads with its UV light.",
+    approved=False)
+
+#: The same, when ArgyllCMS did not recognise the first pass.
+M_DUAL_PASS_TWO_UNREAD = _m(
+    "M-DUAL-PASS-TWO-UNREAD",
+    "Strip {strip}, pass 2 of 2 (UV light)",
+    "The first pass of this strip did not read. Read the second pass anyway "
+    "(it closes the strip), then both passes of strip {strip} again.",
+    approved=False)
+
+#: In "Strip Read Failed" / "Patch Read Failed" when the second pass (or a
+#: spot's UV half) was refused: the strip came back as a misread.
+M_DUAL_PASS_FAILED = _m(
+    "M-DUAL-PASS-FAILED",
+    "The second pass of strip {strip} failed",
+    "{reason}",
+    approved=False)
+
+#: The same for a patch read patch by patch.
+M_DUAL_SPOT_FAILED = _m(
+    "M-DUAL-SPOT-FAILED",
+    "The UV reading of this patch failed",
+    "{reason}",
+    approved=False)
+
+#: Under the chart and in the log when M1 / M2 end for the session and M0
+#: goes on (the helper's conditions event, why dual_*).
+M_DUAL_ENDED = _m(
+    "M-DUAL-ENDED",
+    "Dual scan: M1 and M2 stop for this measurement",
+    "{reason} M0 goes on as always: carry on measuring.",
+    approved=False)
+
+#: In the log when a session keeps all three conditions from dual scans.
+M_DUAL_ON = _m(
+    "M-DUAL-ON",
+    "Dual scan (beta, first try)",
+    "Every strip is read twice, with the lamp and with the UV light. This "
+    "measurement is saved in M0 as usual, and M1 and M2, worked out from "
+    "the two passes with the {source} factor {factor}, are kept beside it. "
+    "Build Profile is set to {chosen} once every strip has both passes.",
+    approved=False)
+
+#: In the log for a second pass that was accepted with something unchecked.
+M_DUAL_PASS_NOTE = _m(
+    "M-DUAL-PASS-NOTE",
+    "Strip {strip}, second pass accepted",
+    "{note}",
+    approved=False)
+
+#: Before START: a dual measurement continued as a single scan, or the
+#: other way round (`storage.start_guard`).
+M_DUAL_START_REFUSED = _m(
+    "M-DUAL-START-REFUSED",
+    "This measurement cannot be continued this way",
+    "{reason}\n\n"
+    "Nothing has been measured or changed.",
+    approved=False)
+
+
 #: The ruler check (Preferences > Beta, 2026-11-14; §M-PROPOSED): an
 #: accepted strip that the instrument's ruler says was clearly not read all
 #: the way. Re-read Strip (the default) / Continue Anyway, as "Strip Read
@@ -12744,6 +12897,11 @@ CATALOGUE = {m.id: m for m in (
     M_STRIP_RULER_NOT_COVERED,
     M_I1PRO2_LIGHTS_LEFT_ON,
     M_FILTER_REFUSED,
+    M_DUAL_FILTER_OFF, M_DUAL_FILTER_NOT_DUAL, M_DUAL_BEFORE_START,
+    M_DUAL_CAL_TILE, M_DUAL_CAL_DONE, M_DUAL_CAL_REFUSED,
+    M_DUAL_PASS_ONE, M_DUAL_PASS_TWO, M_DUAL_PASS_TWO_UNREAD,
+    M_DUAL_PASS_FAILED, M_DUAL_SPOT_FAILED, M_DUAL_ENDED, M_DUAL_ON,
+    M_DUAL_PASS_NOTE, M_DUAL_START_REFUSED,
     M_STRIP_FAILED_COMS_DETAIL,
     M_RESUME_RESOLUTION,
     M_RESUME_RESOLUTION_INSTRUMENT,

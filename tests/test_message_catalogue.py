@@ -207,6 +207,23 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-I1IO-DRIVE-END-CHOICES",
     # 4.3.45 (dpreview #349): the instrument refused the -F choice.
     "M-FILTER-REFUSED",
+    # 2026-11-18: the X-Rite i1Pro 2 dual scan's UI step (Preferences >
+    # Beta), the hand measurement in the Measure tab
+    "M-DUAL-FILTER-OFF",
+    "M-DUAL-FILTER-NOT-DUAL",
+    "M-DUAL-BEFORE-START",
+    "M-DUAL-CAL-TILE",
+    "M-DUAL-CAL-DONE",
+    "M-DUAL-CAL-REFUSED",
+    "M-DUAL-PASS-ONE",
+    "M-DUAL-PASS-TWO",
+    "M-DUAL-PASS-TWO-UNREAD",
+    "M-DUAL-PASS-FAILED",
+    "M-DUAL-SPOT-FAILED",
+    "M-DUAL-ENDED",
+    "M-DUAL-ON",
+    "M-DUAL-PASS-NOTE",
+    "M-DUAL-START-REFUSED",
     # 4.3.45: Windows, switch the driver's colour management off first.
     "M-PRINT-WIN-DRIVER-CM",
     # 2026-11-16: the Beta "Custom page size in inches or pixels, and high

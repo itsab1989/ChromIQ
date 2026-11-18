@@ -66,6 +66,7 @@ def extract_keys() -> set[str]:
                 keys.add(consts[arg.id])
     keys |= _message_catalogue_keys()
     keys |= _compliance_set_keys()
+    keys |= _dual_scan_reason_keys()
     keys |= _report_type_keys()
     keys |= _reference_set_keys()
     keys |= _parameter_file_filter_keys()
@@ -124,6 +125,23 @@ def _reference_set_keys() -> set[str]:
         if s.blurb:
             out.add(s.blurb)
     return out
+
+
+def _dual_scan_reason_keys() -> set[str]:
+    """The X-Rite i1Pro 2 dual scan's reason and note sentences (UI step,
+    2026-11-18): drafts in `workflow/dual_scan/reasons.py` (no tr() there on
+    purpose), shown through `session.reason_sentence`'s `tr(REASONS[id])`,
+    which the AST walk cannot see. Only the ids the Measure tab can show
+    (`session.SHOWN_REASONS`, `SHOWN_NOTES`)."""
+    try:
+        from workflow.dual_scan import reasons as r
+        from workflow.dual_scan import session as s
+    except Exception as exc:  # noqa: BLE001
+        print(f"warning: could not import workflow.dual_scan ({exc})",
+              file=sys.stderr)
+        return set()
+    return ({r.REASONS[k] for k in s.SHOWN_REASONS}
+            | {r.NOTES[k] for k in s.SHOWN_NOTES})
 
 
 def _compliance_set_keys() -> set[str]:

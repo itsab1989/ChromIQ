@@ -322,6 +322,11 @@ class MeasureParams:
     #: "X-Rite i1Pro 3: keep M0, M1 and M2" (Beta): the run's conditions/
     #: folder, or None (off, or not a profiling run): no --condition-dir.
     engine_condition_dir: "Path | None" = None
+    #: The X-Rite i1Pro 2 dual scan (Preferences > Beta, 2026-11-18): the
+    #: engine's --dual-* arguments (`workflow.dual_scan.session.Plan.args`),
+    #: passed only beside --condition-dir and only to a helper whose caps
+    #: name both dual words. Empty: the command line is exactly the one it was.
+    engine_dual_args: "list[str] | None" = None
     #: Preferences ▸ Measurement ▸ "Pause after each page so I can check it"
     #: (jctay, forum 149802; Basti 2026-10-23). Off by default. Engine strip
     #: reading only: the manager asks the engine to hold after a strip
@@ -565,6 +570,15 @@ class MeasureManager(QObject):
     ccmx_load_failed           = pyqtSignal(str)    # CCMX/CCSS load failed
     mode_set_failed            = pyqtSignal(str)    # setting instrument mode failed
     filter_refused             = pyqtSignal(str)    # -F refused (M-FILTER-REFUSED)
+    # The X-Rite i1Pro 2 dual scan (Preferences > Beta, 2026-11-18): the
+    # engine's own events, as it emits them (chromiq_dualdev.c,
+    # chromiq_chartread.c); never a reading, only what the tab says.
+    dual_session               = pyqtSignal(dict)   # conditions active, dual
+    dual_ended                 = pyqtSignal(str)    # conditions inactive, why dual_*
+    dual_calibration           = pyqtSignal(dict)   # after every calibration
+    dual_pass                  = pyqtSignal(dict)   # pass 2 of 2 is due
+    dual_pass_result           = pyqtSignal(dict)   # a pass's verdict
+    dual_start_refused         = pyqtSignal(str)    # mixed_scan_kind / mixed_factor
 
     # B-status. Non-blocking informational messages
     info_message               = pyqtSignal(str, str)  # (category, text)
@@ -1009,6 +1023,7 @@ class MeasureManager(QObject):
         #: (`_check_startup_failures`); stock chartread refuses it the same
         #: way, so never a reason to fall back.
         self._filter_refused = False
+        self._dual_refused = ""
         self._user_quit = False
         self._reset_requested_calibration()
         # The user can raise this for an ageing instrument (Settings → Beta);
@@ -1215,6 +1230,16 @@ class MeasureManager(QObject):
                         self._conditions_verify = (
                             Path(params.engine_condition_dir).parent.name
                             == "verifications")
+                        # The i1Pro 2 dual scan (Beta, 2026-11-18): only
+                        # beside --condition-dir, only to a helper that names
+                        # both dual words; nothing at all otherwise.
+                        if params.engine_dual_args:
+                            from workflow.dual_scan.session import helper_can
+                            if helper_can(helper_caps(params.engine_helper)):
+                                eargs += list(params.engine_dual_args)
+                            else:
+                                log.info("dual scan: this helper cannot do "
+                                         "it; not passed")
                     except OSError as exc:
                         log.warning("M0/M1/M2: no folder %s (%s); not passed",
                                     params.engine_condition_dir, exc)
@@ -1507,6 +1532,10 @@ class MeasureManager(QObject):
             return False        # 4.3.37: stock chartread stops the same way
         if getattr(self, "_filter_refused", False):
             return False        # 4.3.45: stock chartread refuses -F the same way
+        if getattr(self, "_dual_refused", ""):
+            # the dual scan (2026-11-18): stock chartread would continue a
+            # dual measurement with single scans, which the engine refused
+            return False
         if self._engine_fallback_used or self._cal_request_used:
             return False
         if self._chart_unreadable is not None or self._stock_cannot_read_chart:
@@ -4156,7 +4185,34 @@ class MeasureManager(QObject):
             # "X-Rite i1Pro 3: keep M0, M1 and M2" (Preferences > Beta,
             # 2026-11-15): one line when the session keeps them, one when it
             # stops; never a window, never a reading.
-            self._on_conditions_event(ev, on_line)
+            from workflow.dual_scan import session as _dual
+            if _dual.is_dual_conditions_event(ev):
+                # the i1Pro 2 dual scan (2026-11-18): the tab says it
+                log.info("engine: dual scan on: %s", ev)
+                self.dual_session.emit(dict(ev))
+            elif _dual.ends_dual(ev):
+                log.warning("engine: dual scan: M1 and M2 end for this "
+                            "measurement (%s); M0 goes on", ev.get("why"))
+                self.dual_ended.emit(str(ev.get("why") or ""))
+            else:
+                self._on_conditions_event(ev, on_line)
+
+        elif kind == "dual_calibration":
+            # The i1Pro 2 dual scan: the tile read with the UV light after a
+            # calibration (chromiq_dualdev.c cq_dd_after_cal); cal_done
+            # follows it.
+            log.info("engine: dual calibration %s", ev)
+            self.dual_calibration.emit(dict(ev))
+
+        elif kind == "dual_pass":
+            # pass 2 of 2 of a hand strip is due (cq_dd_strip)
+            log.info("engine: dual scan, second pass of strip %s due "
+                     "(first pass read: %s)", ev.get("strip"), ev.get("lamp_ok"))
+            self.dual_pass.emit(dict(ev))
+
+        elif kind == "dual_pass_result":
+            log.info("engine: dual scan pass result %s", ev)
+            self.dual_pass_result.emit(dict(ev))
 
         elif kind in ("ruler", "ruler_strip"):
             # The ruler check (Preferences > Beta, 2026-11-14): lines for the
@@ -4802,6 +4858,16 @@ class MeasureManager(QObject):
                 detail = ev.get("detail", "")
                 self._engine_fatal = detail or "calibration failed"
                 self._handle_cal_failed(detail, on_line)
+            elif ekind in ("mixed_scan_kind", "mixed_factor"):
+                # The i1Pro 2 dual scan (review of 2026-11-18): the engine
+                # refused to continue a dual measurement as a single scan or
+                # with another factor, before reading anything. Never a
+                # fallback (stock chartread would mix them); the tab says why
+                # when the read ends.
+                self._dual_refused = str(ekind)
+                log.warning("engine: refused to continue this measurement "
+                            "(%s)", ekind)
+                self.dual_start_refused.emit(str(ekind))
 
         elif kind == "cal_required":
             if ev.get("requested"):

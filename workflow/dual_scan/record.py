@@ -56,6 +56,7 @@ import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Iterable
 
 import numpy as np
 
@@ -122,6 +123,9 @@ class PassRecord:
     _lamp_values: "dict[str, list]" = field(default_factory=dict)
     #: the condition chosen in the Measure tab (the main file stays M0)
     chosen: str = "M0"
+    #: Build Profile's "Build from" was pre-set to :attr:`chosen` once (the
+    #: UI step): never again, so a later choice of the person's stands
+    preset_done: bool = False
     #: this sitting's full calibrations, in memory only (never saved)
     _full: "dict[str, DualCalibration]" = field(default_factory=dict)
 
@@ -252,6 +256,43 @@ class PassRecord:
                                    ue[:, _KEPT].tolist(), notes)
         return OK
 
+    # ---- the instrument path (the UI step, 2026-11-18): the helper works
+    # M1 / M2 out itself and writes them into the conditions files; the app
+    # hears only its events (dual_calibration, dual_pass_result), which carry
+    # no spectra. So the record keeps the states, reasons and calibrations of
+    # the passes, never data it was not given.
+    def helper_calibration(self, cal_id: str, lamp_clocks=None,
+                           uv_clocks=None) -> None:
+        """A dual calibration the helper reported (event dual_calibration,
+        ok). No Te: the helper keeps it."""
+        self.calibrations[cal_id] = {"te": [], "lamp_clocks": lamp_clocks,
+                                     "uv_clocks": uv_clocks}
+
+    def helper_strip(self, strip: str, ok: bool, reason: str = "",
+                     cal_id: str = "", notes: "Iterable[str]" = ()) -> None:
+        """A strip the helper read as a dual scan. *ok*: both passes good
+        (the conditions files hold its M1 / M2). Not ok: the strip was a
+        misread and BOTH passes are read again (provisional for the first
+        Beta, docs/design/i1pro2_dual_scan.md section 0 (a)); a strip read
+        well before keeps its good passes, as its readings stay in the file."""
+        self._strip(strip)
+        if ok:
+            self.lamp[strip] = PassState(OK, "", cal_id)
+            self.uv[strip] = PassState(OK, "", cal_id, "", None,
+                                       [n for n in notes if n in NOTES])
+            return
+        if self.uv[strip].state != OK:
+            self.uv[strip] = PassState(FAILED, reason if reason in REASONS
+                                       else "uv_pass_missing", cal_id)
+
+    def helper_lamp_only(self, strip: str, reason: str, cal_id: str = "") -> None:
+        """A strip read as M0 only, after M1 / M2 ended for the session
+        (*reason*, e.g. ``dual_needs_ruler``): its first pass is good, its
+        second is due."""
+        self._strip(strip)
+        self.lamp[strip] = PassState(OK, "", cal_id)
+        self.uv[strip] = PassState(MISSING, reason if reason in REASONS else "")
+
     # ---- what the record says
     def missing(self) -> "list[tuple[str, str]]":
         """Every pass still due, strip by strip, lamp before UV."""
@@ -285,6 +326,7 @@ class PassRecord:
     # ---- on disk
     def to_json(self) -> dict:
         return {"version": VERSION, "strips": list(self.strips), "chosen": self.chosen,
+                "preset_done": bool(self.preset_done),
                 "calibrations": self.calibrations,
                 "lamp": {s: p.to_json() for s, p in self.lamp.items()},
                 "uv": {s: p.to_json() for s, p in self.uv.items()},
@@ -298,7 +340,8 @@ class PassRecord:
                     "uv_clocks": v.get("uv_clocks")}
                 for k, v in dict(d.get("calibrations") or {}).items()
                 if isinstance(v, dict) and "te" in v}
-        r = cls(list(d["strips"]), cals, chosen=str(d.get("chosen") or "M0").upper())
+        r = cls(list(d["strips"]), cals, chosen=str(d.get("chosen") or "M0").upper(),
+                preset_done=bool(d.get("preset_done", False)))
         for s, p in (d.get("lamp") or {}).items():
             r.lamp[s] = PassState.from_json(p)
         for s, p in (d.get("uv") or {}).items():

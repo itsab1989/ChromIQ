@@ -883,6 +883,14 @@ class TabProfile(QWidget):
         fg.addWidget(self._cond_combo)
         fg.addWidget(self._cond_tip)
         cc.addWidget(file_grp)
+        # The i1Pro 2 dual scan (Beta, 2026-11-18): why "Build from" is still
+        # M0 for a dual measurement whose chosen condition is not there yet.
+        self._dual_note_lbl = QLabel("", colprof_container)
+        self._dual_note_lbl.setObjectName("dual_build_from_note")
+        self._dual_note_lbl.setWordWrap(True)
+        _paint_note(self._dual_note_lbl)
+        self._dual_note_lbl.setVisible(False)
+        cc.addWidget(self._dual_note_lbl)
         # A measurement dropped from the file manager on this box is loaded
         # as the header's load icon loads the file chosen with it (4.3.33).
         from ui.file_drop import CONTEXT, FileDropTarget
@@ -3158,6 +3166,7 @@ class TabProfile(QWidget):
         if combo is None:
             return
         on = self._conditions_on() and self._ti3_path is not None
+        self._dual_preset_once(on)
         choices = self._build_from_choices() if on else []
         self._cond_lbl.setVisible(bool(choices))
         combo.setVisible(bool(choices))
@@ -3191,6 +3200,44 @@ class TabProfile(QWidget):
         finally:
             combo.blockSignals(False)
         self._apply_build_from_state(choices)
+
+    def _dual_preset_once(self, on: bool) -> None:
+        """The X-Rite i1Pro 2 dual scan (Beta, 2026-11-18): "Build from" is
+        set to the condition chosen in the Measure tab ONCE, when every strip
+        has both passes (`storage.build_from_preset`); a later choice of the
+        person's stands (the pass record's ``preset_done``). Until then the
+        line under the box says why it is M0. Nothing for any other
+        measurement."""
+        lbl = getattr(self, "_dual_note_lbl", None)
+        text = ""
+        try:
+            if on:
+                from workflow.dual_scan import storage
+                main = Path(self._ti3_path)
+                if storage.read_dual_record(main).dual:
+                    cond, reason = storage.build_from_preset(main)
+                    rec = storage.pass_record_of(main)
+                    if cond != "M0" and rec is not None and not rec.preset_done:
+                        from core.file_manager import Run
+                        rec.preset_done = True
+                        rec.save(Run.dual_pass_record(main))
+                        self._build_from = cond
+                        log.info("Build Profile: build from %s, as chosen in "
+                                 "the Measure tab for this dual scan", cond)
+                        from PyQt6.QtCore import QTimer
+                        QTimer.singleShot(0, self.save_target_settings)
+                    elif cond == "M0" and reason and \
+                            storage.chosen_condition(main) != "M0":
+                        text = tr(
+                            "Dual scan: {chosen} was chosen in the Measure "
+                            "tab. {reason}").format(
+                                chosen=storage.chosen_condition(main),
+                                reason=reason)
+        except Exception:      # noqa: BLE001 - a note never breaks the tab
+            log.debug("dual scan: no Build from pre-set", exc_info=True)
+        if lbl is not None:
+            lbl.setText(text)
+            lbl.setVisible(bool(text))
 
     def _apply_build_from_state(self, choices=None) -> None:
         if choices is None:

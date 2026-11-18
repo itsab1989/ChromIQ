@@ -333,6 +333,14 @@ DEFAULTS: dict[str, Any] = {
     #: new is sent to the instrument. Off = the helper is started without
     #: --condition-dir. Read at every Start.
     "i1pro3_conditions_beta":    False,
+    #: Beta (Settings -> Beta, 2026-11-18): the X-Rite i1Pro 2 dual scan
+    #: (`workflow.dual_scan.session`), under the switch above and only with
+    #: it on. Each strip is read twice by hand, with the lamp and then with
+    #: the UV light, and the engine works out M1 and M2 beside M0 into the
+    #: same files the i1Pro 3 Beta uses. Off = the helper is started without
+    #: --dual-scale and the Measure tab is exactly as before. Read at every
+    #: Start.
+    "i1pro2_dual_scan_beta":     False,
     #: Beta (Settings -> Beta): also write the "turned" i1Profiler chart files
     #: (`workflow.i1profiler_turned`) into a chart's exports/ folder, so the
     #: printed ChromIQ sheet can be read in i1Profiler too after a quarter

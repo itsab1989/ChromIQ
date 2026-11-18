@@ -3724,6 +3724,26 @@ class SettingsDialog(QDialog):
         _condrow.addWidget(cond_tip)
         _beta.addLayout(_condrow)
         self._i1pro3_conditions_tip = cond_tip
+        # THE i1Pro 2 DUAL SCAN (2026-11-18, workflow/dual_scan/session.py):
+        # under the switch above, greyed (keeping its value) while that is
+        # off, because it ends in that Beta's files. Read at every Start: the
+        # helper is given --dual-scale ... beside --condition-dir. Off = the
+        # base command line and the Measure tab as before.
+        from workflow.dual_scan.session import switch_label as _dual_label
+        self._i1pro2_dual_check = QCheckBox(_dual_label(), self)
+        self._i1pro2_dual_check.setObjectName("i1pro2_dual_scan_beta")
+        dual_tip = TooltipButton(
+            tr("i1Pro 2 dual scan (beta)"), i1pro2_dual_scan_help(), self,
+            min_width=680)
+        self._i1pro2_dual_check.clicked.connect(self._on_i1pro2_dual_clicked)
+        _dualrow = QHBoxLayout()
+        _dualrow.setContentsMargins(28, 0, 0, 0)
+        _dualrow.addWidget(self._i1pro2_dual_check)
+        _dualrow.addStretch()
+        _dualrow.addWidget(dual_tip)
+        _beta.addLayout(_dualrow)
+        self._i1pro2_dual_tip = dual_tip
+        self._i1pro3_conditions_check.toggled.connect(self._dual_follows)
 
         # Konica Minolta FD-9 support (PR #213, written and contributed by
         # lessbones). Restart-to-apply: `workflow.fd9.support` reads it once
@@ -4835,6 +4855,54 @@ class SettingsDialog(QDialog):
         keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         if box.exec() != QMessageBox.StandardButton.Ok:
             self._i1pro3_conditions_check.setChecked(False)
+
+    def _dual_follows(self, *_a) -> None:
+        """The dual scan is greyed (keeping its value) while the i1Pro 3
+        option it belongs to is off."""
+        on = self._i1pro3_conditions_check.isChecked()
+        self._i1pro2_dual_check.setEnabled(on)
+        self._i1pro2_dual_check.setToolTip("" if on else tr(
+            "Switch on “X-Rite i1Pro 3: keep M0, M1 and M2 from every scan” "
+            "above to choose this: the dual scan keeps its M1 and M2 in the "
+            "same files."))
+
+    def _on_i1pro2_dual_clicked(self, checked: bool) -> None:
+        """The i1Pro 2 dual scan (beta): the own-risk confirmation, as the
+        other instrument options' (Cancel is the default and leaves it off)."""
+        if not checked:
+            return
+        from PyQt6.QtWidgets import QMessageBox, QSpacerItem, QSizePolicy
+        box = QMessageBox(self)
+        box.setObjectName("i1pro2_dual_scan_confirmation")
+        box.setWindowTitle(tr("i1Pro 2 dual scan (beta)"))
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setText(i1pro2_dual_scan_confirmation())
+        box.setStandardButtons(QMessageBox.StandardButton.Ok
+                               | QMessageBox.StandardButton.Cancel)
+        ok_btn = box.button(QMessageBox.StandardButton.Ok)
+        cancel_btn = box.button(QMessageBox.StandardButton.Cancel)
+        ok_btn.setText(tr("Turn it on"))
+        from ui.default_button import mark_destructive
+        mark_destructive(ok_btn)
+        cancel_btn.setText(tr("Keep it off"))
+        from PyQt6.QtGui import QFontMetrics
+        from PyQt6.QtWidgets import QDialogButtonBox
+        for b in (ok_btn, cancel_btn):
+            w = QFontMetrics(b.font()).horizontalAdvance(b.text()) + 44
+            b.setMinimumWidth(w)
+        bbox = box.findChild(QDialogButtonBox)
+        if bbox is not None:
+            bbox.setCenterButtons(True)
+        grid = box.layout()
+        if grid is not None:
+            spacer = QSpacerItem(620, 1, QSizePolicy.Policy.Minimum,
+                                 QSizePolicy.Policy.Minimum)
+            grid.addItem(spacer, grid.rowCount(), 0, 1, grid.columnCount())
+        box.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        if box.exec() != QMessageBox.StandardButton.Ok:
+            self._i1pro2_dual_check.setChecked(False)
 
     def _on_ruler_check_clicked(self, checked: bool) -> None:
         """The ruler check (beta): the own-risk confirmation, as the lights'
@@ -6725,6 +6793,9 @@ class SettingsDialog(QDialog):
             bool(s.get("margin_tolerance_beta", False)))
         self._i1pro3_conditions_check.setChecked(
             bool(s.get("i1pro3_conditions_beta", False)))
+        self._i1pro2_dual_check.setChecked(
+            bool(s.get("i1pro2_dual_scan_beta", False)))
+        self._dual_follows()
         self._lights_signals_combo.setCurrentIndex(
             1 if bool(s.get("i1pro2_lights_signals", True)) else 0)
         self._lights_reading_combo.setCurrentIndex(
@@ -8356,6 +8427,7 @@ class SettingsDialog(QDialog):
               self._margin_tolerance_check.isChecked())
         s.set("i1pro3_conditions_beta",
               self._i1pro3_conditions_check.isChecked())
+        s.set("i1pro2_dual_scan_beta", self._i1pro2_dual_check.isChecked())
         s.set("i1pro2_lights_signals",
               bool(self._lights_signals_combo.currentData()))
         s.set("i1pro2_lights_during_reading",
@@ -10042,6 +10114,80 @@ def i1pro3_conditions_help() -> str:
            "measurement."),
         tr("**Default:** off."),
     ))
+
+
+def i1pro2_dual_scan_help() -> str:
+    """The ⓘ of Preferences ▸ Beta ▸ the i1Pro 2 dual scan (2026-11-18).
+    Checked against docs/design/i1pro2_dual_scan.md (the confirmed factor
+    and its cost, sections 0, 2a, 6 and 7) and workflow/dual_scan/."""
+    return "\n\n".join((
+        tr("**A first try.** The i1Pro 2 dual scan has not yet been tried on "
+           "a real instrument: it was built from recordings of X-Rite's "
+           "i1Profiler and tested with those recordings. M1 and M2 are "
+           "calculated by ChromIQ, not measured directly. If you try it, "
+           "please tell the ChromIQ project what you saw."),
+        tr("**What it does.** An X-Rite i1Pro 2 has a lamp and a small UV "
+           "light. With this option on, ChromIQ reads every strip twice: "
+           "first as usual with the lamp, then once more over the same strip "
+           "with the UV light. From the two passes and the data X-Rite "
+           "stored in your instrument, ChromIQ works out M1 and M2 besides "
+           "M0. Read patch by patch, one press reads the patch with the lamp "
+           "and then with the UV light."),
+        tr("**The ruler is needed.** By hand, ChromIQ matches the two passes "
+           "patch by patch with the instrument's position ruler, so read "
+           "both passes on the ruler, without lifting the instrument between "
+           "them. Without the ruler only M0 is measured."),
+        tr("**Which condition the profile is made from.** In the Measure "
+           "tab, “Spectral filter type (-F)” then chooses M0, M1 or M2 for "
+           "your profile instead of being sent to the instrument (an "
+           "i1Pro 2 accepts no filter choice). The measurement itself is "
+           "saved in M0, and M1 and M2 beside it, in the same files the "
+           "i1Pro 3 option above uses. Build Profile is set to your choice "
+           "once every strip has both passes."),
+        tr("**Calibration.** The calibration also reads the white tile with "
+           "the UV light, which takes a few seconds more: keep the "
+           "instrument on its tile until ChromIQ says you can lift it."),
+        tr("**If a pass fails.** For now, when either pass of a strip fails, "
+           "both passes of that strip are read again."),
+        tr("**How close it comes to i1Profiler.** M1 and M2 from an i1Pro 2 "
+           "are calculated with a standard factor (1.156) found on two "
+           "instruments (the second on the i1iO 2 table's tile). On strongly "
+           "brightened papers M2 can differ from i1Profiler's by about 0.1 "
+           "to 0.25 ΔE00 on average and up to about 0.5, M1 by less. Papers "
+           "without optical brightener should not be affected (M0, M1 and M2 "
+           "are expected to be the same; not yet measured on such a paper). "
+           "You do not need i1Profiler or any other X-Rite software for "
+           "this."),
+        tr("**What is sent to the instrument.** Only readings with the UV "
+           "light, in the forms i1Profiler was recorded using: the UV light "
+           "is on only while a reading with it is taken. Nothing is written "
+           "into the instrument."),
+        tr("**Not covered yet.** The i1iO 2 table, high resolution mode, "
+           "and i1Pro 2 versions without the UV light or its factory data "
+           "(some OEM versions): they measure M0 as always, and the Measure "
+           "log says why."),
+        tr("It works only with “X-Rite i1Pro 3: keep M0, M1 and M2 from every "
+           "scan” switched on, and with ChromIQ's chart-reading engine. The "
+           "option is read each time you start a measurement."),
+        tr("**Default:** off."),
+    ))
+
+
+def i1pro2_dual_scan_confirmation() -> str:
+    """The window shown when the i1Pro 2 dual scan is switched on."""
+    return tr(
+        "You are switching on the i1Pro 2 dual scan. Here is what that "
+        "means.\n\n"
+        "•  Every strip is read twice by hand, with the lamp and then with "
+        "the UV light, on the ruler, and ChromIQ works out M1 and M2 besides "
+        "M0.\n\n"
+        "•  It has not yet been tried on a real instrument: it was built "
+        "from recordings of X-Rite's i1Profiler. M1 and M2 are calculated "
+        "with a standard factor and can differ from i1Profiler's by up to "
+        "about 0.5 ΔE00 on strongly brightened papers.\n\n"
+        "•  You use it at your own risk, and you can switch it off again at "
+        "any time.\n\n"
+        "Would you like to turn it on?")
 
 
 def i1pro3_conditions_confirmation() -> str:

@@ -2080,6 +2080,21 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._manager.mode_set_failed.connect(self._on_mode_set_failed)
         if hasattr(self._manager, "filter_refused"):
             self._manager.filter_refused.connect(self._on_filter_refused)
+        # The X-Rite i1Pro 2 dual scan (Preferences > Beta, 2026-11-18): the
+        # engine's events only ever come with the Beta on (--dual-scale).
+        for _sig, _slot in (("dual_session", self._on_dual_session),
+                            ("dual_ended", self._on_dual_ended),
+                            ("dual_calibration", self._on_dual_calibration),
+                            ("dual_pass", self._on_dual_pass),
+                            ("dual_pass_result", self._on_dual_pass_result),
+                            ("dual_start_refused", self._on_dual_start_refused)):
+            if hasattr(self._manager, _sig):
+                getattr(self._manager, _sig).connect(_slot)
+        if hasattr(self._manager, "readings_saved"):
+            self._manager.readings_saved.connect(self._dual_flush)
+        if hasattr(self._manager, "strip_measured"):
+            self._manager.strip_measured.connect(self._dual_strip_measured)
+        self._dual_reset()
         # B-status. Non-blocking informational messages
         self._manager.info_message.connect(self._on_info_message)
         self._manager.engine_fell_back.connect(self._on_engine_fell_back)
@@ -5211,6 +5226,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._apply_cr30_dead_options()
         # FD-9 (Beta): its panel follows the chart; nothing when it is off.
         _fd9_ask(self, "_refresh_fd9_panel")
+        # The i1Pro 2 dual scan (Beta): its note follows the chart.
+        self._refresh_dual_note()
         # #134 / K1 (Knut): the overlay auto-offer is a MEASURE-tab feature, but
         # set_ti1_path is also driven cross-tab — the Print tab's ti2_loaded, the
         # Check tab's ti2_found, project open, session restore and Profile-run /
@@ -6987,6 +7004,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             or {new_k, prev_k} == {"i1pro3", "i1pro3plus"})
         if model and refines(new_k, prev_k):
             self._reported_instrument = model
+        if model:
+            # the i1Pro 2 dual scan: the model this app run has seen, kept
+            # across sessions (`_reported_instrument` is per session)
+            self._dual_last_model = self._reported_instrument or model
         self._detected_instrument = self._reported_instrument or model or ""
         self._pace = None            # rebuild the tracker with that model's rate
         if repeat:
@@ -9425,7 +9446,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             before = read_condition(ti3)
             if before is None:
                 return False
-            code = self._measure_filter_code()
+            code = self._dual_effective_filter_code()
             now = condition_for_filter(code)
             if now == before:
                 return False
@@ -9733,6 +9754,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # rewrites the header on a resume, so the mixed file would say
         # nothing, or the new half's condition, about readings of both.
         if self._blocked_by_a_differing_condition():
+            return
+        # …and the X-Rite i1Pro 2 dual scan (Preferences > Beta, 2026-11-18):
+        # a filter it has nothing for, or a measurement it must not continue.
+        # Nothing at all with the Beta off and no dual measurement here.
+        if self._blocked_by_dual_scan():
             return
         # …and when it was measured at another spectral resolution than
         # "High resolution spectral mode (-H)" gives now (4.3.37): the reader
@@ -10183,6 +10209,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._saw_instrument = False
         self._reported_instrument = None
         self._no_instrument = False
+        self._dual_reset()
         # …AND THE WINDOW IS ALLOWED TO APPEAR AGAIN.
         #
         # `_no_instrument_shown` is the once-per-session guard that stops the
@@ -12184,6 +12211,499 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         (`_filter_refused_window`), which it does at once."""
         self._filter_refused = True
 
+    # ------------------------------------------------------------------
+    # The X-Rite i1Pro 2 dual scan (Preferences > Beta, 2026-11-18;
+    # docs/design/i1pro2_dual_scan.md section 8, workflow/dual_scan/session.py).
+    # Every entry point below does nothing unless the engine was started with
+    # --dual-scale, which needs the Beta on: with it off the tab is unchanged.
+    # ------------------------------------------------------------------
+    def _dual_reset(self) -> None:
+        """A fresh session: nothing of the last one's dual scan is kept."""
+        self._dual_live = False          # the engine said: dual session on
+        self._dual_started = False       # ...at some point in this session
+        self._dual_buffer = []           # record entries until the next save
+        self._dual_record = None         # the pass record being kept
+        self._dual_failed = None         # (what, strip, why) for the window
+        self._dual_cal_ev = None         # the last dual_calibration event
+        self._dual_cal_id = ""           # its id, while it is usable
+        self._dual_cal_n = 0
+        self._dual_tile_wait = False     # "keep it on the tile" is up
+        self._dual_ended_text = ""       # M1 / M2 ended for the session
+        self._dual_end_reason = ""
+        try:
+            self._preview.set_banner(None)
+        except Exception:      # noqa: BLE001 - a half-built tab
+            pass
+
+    def _dual_caps(self) -> frozenset:
+        try:
+            from workflow.chartread_engine import helper_caps, helper_path
+            return helper_caps(helper_path())
+        except Exception:      # noqa: BLE001 - no engine: no dual scan
+            return frozenset()
+
+    def _dual_plan_now(self):
+        """What START would do about the dual scan now (session.plan_for)."""
+        from workflow.dual_scan import session as D
+        if not D.switched_on(self._settings) or not self._engine_selected():
+            return D.Plan(False, why_not="off")
+        ti1 = getattr(self, "_ti1_path", None)
+        if ti1 is None or Path(ti1).parent.name == "cal" or _fd9_ask(
+                self, "_is_fd9_target") or self._chart_is_cr30():
+            return D.Plan(False, why_not="not_this_chart")
+        try:
+            main = self._measurement_to_continue()
+        except Exception:      # noqa: BLE001
+            main = None
+        return D.plan_for(self._settings, self._dual_caps(),
+                          getattr(self, "_dual_last_model", None),
+                          self._measure_filter_code(), main)
+
+    def _dual_effective_filter_code(self) -> "str | None":
+        """The -F this read really sends: none while the dual scan applies
+        (the row's choice is recorded instead)."""
+        code = self._measure_filter_code()
+        try:
+            if self._dual_plan_now().dual:
+                return None
+        except Exception:      # noqa: BLE001 - never block a read on this
+            pass
+        return code
+
+    def _blocked_by_dual_scan(self) -> bool:
+        """Before START: the polariser or D65 with the dual scan on
+        (M-DUAL-FILTER-NOT-DUAL), or a measurement that must not be
+        continued this way (M-DUAL-START-REFUSED)."""
+        from workflow import measurement_messages as M
+        from workflow.dual_scan import session as D
+        try:
+            plan = self._dual_plan_now()
+            refusal = plan.refusal
+            if not plan.dual and not refusal and self._engine_selected():
+                refusal = D.single_scan_refusal(
+                    self._settings, self._dual_caps(),
+                    getattr(self, "_dual_last_model", None),
+                    self._measurement_to_continue())
+        except Exception:      # noqa: BLE001 - never block a read on this
+            log.debug("dual scan: no START check", exc_info=True)
+            return False
+        if not refusal:
+            return False
+        if refusal == "filter_not_dual":
+            title, body = M.M_DUAL_FILTER_NOT_DUAL.render(
+                setting=self._filter_label(self._measure_filter_code()),
+                start=self._start_button_name())
+        else:
+            title, body = M.M_DUAL_START_REFUSED.render(
+                reason=D.reason_sentence(refusal))
+        log.warning("dual scan: START refused (%s)", refusal)
+        self._log.appendPlainText(f"[{title}]\n{body}")
+        self._log.ensureCursorVisible()
+        if getattr(self, "_sound", None) is not None:
+            try:
+                self._sound.disarm()
+            except Exception:      # noqa: BLE001
+                pass
+        self._say_on_screen(title, body)
+        return True
+
+    def _apply_dual_scan(self, p) -> None:
+        """At START: the engine's --dual-* arguments, and no -F, while the
+        dual scan applies; nothing at all otherwise."""
+        p.engine_dual_args = None
+        self._dual_chosen = "M0"
+        try:
+            plan = self._dual_plan_now()
+        except Exception:      # noqa: BLE001 - never stop a Start
+            log.warning("dual scan: no plan", exc_info=True)
+            return
+        if not plan.dual:
+            if plan.why_not not in ("off", ""):
+                log.info("dual scan: not used for this read (%s)",
+                         plan.why_not)
+            return
+        from workflow.dual_scan import session as D
+        p.extra_args = D.without_filter(p.extra_args)
+        p.engine_condition_dir = self._condition_dir_for(p)
+        if p.engine_condition_dir is None:
+            log.info("dual scan: no conditions folder for this read; not used")
+            return
+        p.engine_dual_args = plan.args()
+        self._dual_chosen = plan.chosen
+        log.info("dual scan: %s (the row's choice, recorded; no -F)",
+                 " ".join(p.engine_dual_args))
+
+    def _dual_before_start_text(self) -> str:
+        """M-DUAL-BEFORE-START while the dual scan applies, else ""."""
+        from workflow import measurement_messages as M
+        from workflow.measurement_condition import condition_name
+        try:
+            plan = self._dual_plan_now()
+        except Exception:      # noqa: BLE001
+            return ""
+        if not plan.dual:
+            return ""
+        title, body = M.M_DUAL_BEFORE_START.render(
+            chosen=condition_name(plan.chosen))
+        return f"<b>{html.escape(title)}</b><br>{html.escape(body)}"
+
+    def _refresh_dual_note(self, *_a) -> None:
+        """The note above the chart before START (the ruler, the two passes),
+        shown only while the dual scan applies and no session runs."""
+        self._dual_watch_filter_row()
+        if getattr(self, "_session_live", False) or self._runner.is_running:
+            return
+        try:
+            text = self._dual_before_start_text()
+            self._preview.set_banner(text or None)
+        except Exception:      # noqa: BLE001 - a note never breaks the tab
+            log.debug("dual scan: no note", exc_info=True)
+
+    def _dual_watch_filter_row(self) -> None:
+        """The note names the row's choice, so it follows the row."""
+        if getattr(self, "_dual_filter_watched", False):
+            return
+        rows = [o for o in ((getattr(self, "_chartread_opts", None) or [])
+                            + (getattr(self, "_m_chartread_opts", None) or []))
+                if getattr(o, "key", "") == "filter"]
+        if not rows:
+            return
+        for o in rows:
+            if o.checkbox is not None:
+                o.checkbox.toggled.connect(self._refresh_dual_note)
+            if isinstance(o.widget, QComboBox):
+                o.widget.currentIndexChanged.connect(self._refresh_dual_note)
+        self._dual_filter_watched = True
+
+    def _on_dual_session(self, ev: dict) -> None:
+        """The engine keeps M0, M1 and M2 from dual scans (M-DUAL-ON)."""
+        from workflow import measurement_messages as M
+        from workflow.dual_scan import session as D
+        from workflow.measurement_condition import condition_name
+        self._dual_live = True
+        self._dual_started = True
+        chosen = str(ev.get("chosen") or "M0").upper()
+        self._dual_buffer.append(("choose", chosen))
+        try:
+            factor = f"{float(ev.get('scale')):.3f}"
+        except (TypeError, ValueError):
+            factor = str(ev.get("scale") or "")
+        title, body = M.M_DUAL_ON.render(
+            source=D.source_word(str(ev.get("scale_source") or "")),
+            factor=factor, chosen=condition_name(chosen))
+        self._log.appendPlainText(f"[Engine] {title}: {body}")
+        self._log.ensureCursorVisible()
+
+    def _on_dual_ended(self, why: str) -> None:
+        """M1 / M2 end for this session, M0 goes on (M-DUAL-ENDED): under the
+        chart until the session ends, and in the log."""
+        from workflow import measurement_messages as M
+        from workflow.dual_scan import session as D
+        self._dual_live = False
+        self._dual_end_reason = D.reason_id(why)
+        title, body = M.M_DUAL_ENDED.render(reason=D.reason_sentence(why))
+        self._dual_ended_text = f"{title}. {body}"
+        self._log.appendPlainText(f"[{title}]\n{body}")
+        self._log.ensureCursorVisible()
+        self._preview.set_banner(None)
+        self._preview.set_notice(self._dual_ended_text, warn=True)
+
+    def _dual_notice_shown(self) -> bool:
+        """The ended line keeps its place under the chart (the autosave line
+        would replace it after every strip)."""
+        text = getattr(self, "_dual_ended_text", "")
+        if text:
+            self._preview.set_notice(text, warn=True)
+            return True
+        if getattr(self, "_dual_tile_wait", False):
+            return True
+        return False
+
+    def _on_dual_calibration(self, ev: dict) -> None:
+        """The tile read with the UV light (it comes before cal_done)."""
+        self._dual_cal_ev = dict(ev)
+        if ev.get("ok"):
+            import time as _t
+            self._dual_cal_n += 1
+            self._dual_cal_id = f"cal{self._dual_cal_n}-{int(_t.time())}"
+            self._dual_buffer.append(("cal", self._dual_cal_id,
+                                      ev.get("lamp_clocks"),
+                                      ev.get("uv_clocks")))
+        else:
+            self._dual_cal_id = ""
+
+    def _dual_calibration_note(self, layout, dlg) -> None:
+        """In the calibration window: the tile is read with the UV light
+        too, so the instrument stays on it until ChromIQ says otherwise."""
+        if not getattr(self, "_dual_live", False):
+            return
+        from PyQt6.QtWidgets import QLabel
+        from workflow import measurement_messages as M
+        title, body = M.M_DUAL_CAL_TILE.render()
+        lbl = QLabel(f"<b>{html.escape(title)}</b><br>{html.escape(body)}",
+                     dlg)
+        lbl.setObjectName("dual_cal_tile")
+        lbl.setTextFormat(Qt.TextFormat.RichText)
+        lbl.setWordWrap(True)
+        layout.addWidget(lbl)
+
+    def _dual_calibrating(self) -> None:
+        """Calibration started: "keep it on the tile" stays under the chart
+        until the engine's cal_done (safety review S5: the UV tile reading
+        runs 2 to 3 s after ArgyllCMS's own calibration)."""
+        if not getattr(self, "_dual_live", False):
+            return
+        from workflow import measurement_messages as M
+        title, body = M.M_DUAL_CAL_TILE.render()
+        self._dual_tile_wait = True
+        self._preview.set_notice(f"{title}. {body}", warn=True)
+        self._flash_status(title, 30000)
+
+    def _dual_tile_released(self) -> None:
+        if not getattr(self, "_dual_tile_wait", False):
+            return
+        self._dual_tile_wait = False
+        self._hide_status_flash()
+        if getattr(self, "_dual_ended_text", ""):
+            self._preview.set_notice(self._dual_ended_text, warn=True)
+        else:
+            self._set_autosave_banner()
+
+    def _dual_calibration_parts(self) -> "tuple[str, str] | None":
+        """(title, body) for the calibration's end, or None."""
+        from workflow import measurement_messages as M
+        from workflow.dual_scan import session as D
+        ev = getattr(self, "_dual_cal_ev", None)
+        if ev is None or not (getattr(self, "_dual_live", False)
+                              or getattr(self, "_dual_tile_wait", False)):
+            return None
+        if ev.get("ok"):
+            return M.M_DUAL_CAL_DONE.render()
+        return M.M_DUAL_CAL_REFUSED.render(
+            reason=D.reason_sentence(str(ev.get("why") or "")))
+
+    def _dual_calibration_done(self, layout, dlg) -> None:
+        """Calibration Complete: the tile was read with the UV light, you can
+        lift the instrument now (or why there are no M1 / M2)."""
+        parts = self._dual_calibration_parts()
+        self._dual_tile_released()
+        self._dual_calibration_log(parts)
+        if parts is None:
+            return
+        from PyQt6.QtWidgets import QLabel
+        title, body = parts
+        lbl = QLabel(f"<b>{html.escape(title)}</b><br>"
+                     + html.escape(body).replace("\n", "<br>"), dlg)
+        lbl.setObjectName("dual_cal_done")
+        lbl.setTextFormat(Qt.TextFormat.RichText)
+        lbl.setWordWrap(True)
+        layout.addWidget(lbl)
+
+    def _dual_calibration_log(self, parts=None) -> None:
+        if parts is None:
+            parts = self._dual_calibration_parts()
+        if parts is None or getattr(self, "_dual_cal_logged", None) is \
+                getattr(self, "_dual_cal_ev", None):
+            return
+        self._dual_cal_logged = getattr(self, "_dual_cal_ev", None)
+        title, body = parts
+        self._log.appendPlainText(f"[{title}]\n{body}")
+        self._log.ensureCursorVisible()
+
+    def _dual_banner(self, title: str, body: str) -> None:
+        self._preview.set_banner(
+            f"<b>{html.escape(title)}</b><br>{html.escape(body)}")
+
+    def _dual_pass_one(self, strip_id: str) -> None:
+        """At strip_ready: "Strip A, pass 1 of 2 (lamp)" above the chart."""
+        if not getattr(self, "_dual_live", False) or bool(
+                getattr(self, "_spot_session", False)):
+            return
+        from workflow import measurement_messages as M
+        name = self._strip_name(strip_id) or str(strip_id)
+        title, body = M.M_DUAL_PASS_ONE.render(strip=name)
+        self._dual_banner(title, body)
+        self._log.appendPlainText(f"[{title}]")
+
+    def _on_dual_pass(self, ev: dict) -> None:
+        """Pass 2 of 2 is due (the engine waits for the UV pass)."""
+        from workflow import measurement_messages as M
+        name = self._strip_name(str(ev.get("strip") or "")) or str(
+            ev.get("strip") or "")
+        msg = (M.M_DUAL_PASS_TWO if ev.get("lamp_ok", True)
+               else M.M_DUAL_PASS_TWO_UNREAD)
+        title, body = msg.render(strip=name)
+        self._dual_banner(title, body)
+        self._log.appendPlainText(f"[{title}]\n{body}")
+        self._log.ensureCursorVisible()
+        self._flash_status(title, 20000)
+
+    def _on_dual_pass_result(self, ev: dict) -> None:
+        """A pass's verdict. A refused second pass makes the strip a misread
+        (both passes again): the window that follows says why."""
+        from workflow import measurement_messages as M
+        from workflow.dual_scan import session as D
+        what = str(ev.get("what") or "strip")
+        strip = str(ev.get("strip") or "")
+        why = str(ev.get("why") or "")
+        self._preview.set_banner(None)
+        if ev.get("ok"):
+            self._dual_failed = None
+            notes = []
+            if str(ev.get("pairing") or "") == "pairing_not_checked":
+                notes.append("pairing_not_checked")
+            if what == "strip" and strip:
+                self._dual_buffer.append(("strip", strip, True, "",
+                                          self._dual_cal_id, tuple(notes)))
+            for n in notes:
+                title, body = M.M_DUAL_PASS_NOTE.render(
+                    strip=self._strip_name(strip) or strip,
+                    note=D.note_sentence(n))
+                self._log.appendPlainText(f"[{title}]\n{body}")
+            self._hide_status_flash()
+            return
+        if why == "lamp":
+            # the first pass was not recognised: ArgyllCMS's own misread
+            # window says so; both passes are read again
+            self._dual_failed = None
+            return
+        rid = D.reason_id(why)
+        pass_level = rid.startswith("uv_pass_") or rid in (
+            "uv_spot_failed", "no_ruler")
+        if pass_level:
+            self._dual_failed = (what, strip, why)
+            if what == "strip" and strip:
+                self._dual_buffer.append(("strip", strip, False, rid,
+                                          self._dual_cal_id, ()))
+        elif what == "strip" and strip:
+            # a session-level end (the conditions event follows): the strip
+            # itself is kept as M0
+            self._dual_buffer.append(("lamp_only", strip, rid))
+        log.info("dual scan: %s %s refused (%s)", what, strip, why)
+
+    def _dual_failure_html(self) -> str:
+        """M-DUAL-PASS-FAILED / M-DUAL-SPOT-FAILED for the failure window,
+        once, or ""."""
+        failed = getattr(self, "_dual_failed", None)
+        self._dual_failed = None
+        if not failed:
+            return ""
+        from workflow import measurement_messages as M
+        from workflow.dual_scan import session as D
+        what, strip, why = failed
+        if what == "spot":
+            title, body = M.M_DUAL_SPOT_FAILED.render(
+                reason=D.reason_sentence(why))
+        else:
+            title, body = M.M_DUAL_PASS_FAILED.render(
+                strip=self._strip_name(strip) or strip,
+                reason=D.reason_sentence(why))
+        self._log.appendPlainText(f"[{title}]\n{body}")
+        return (f"<b>{html.escape(title)}</b><br><br>{html.escape(body)}"
+                "<br><br>")
+
+    def _on_dual_start_refused(self, kind: str) -> None:
+        """The engine refused to continue this measurement (the START check
+        should have caught it first): said at once, the read ends."""
+        from workflow import measurement_messages as M
+        from workflow.dual_scan import session as D
+        title, body = M.M_DUAL_START_REFUSED.render(
+            reason=D.reason_sentence(kind))
+        self._log.appendPlainText(f"[{title}]\n{body}")
+        self._log.ensureCursorVisible()
+        QTimer.singleShot(0, lambda: self._say_on_screen(title, body))
+
+    def _dual_strip_measured(self, ev: dict) -> None:
+        """A strip read after M1 / M2 ended: M0 only, its second pass due."""
+        if not getattr(self, "_dual_started", False) or getattr(
+                self, "_dual_live", False):
+            return
+        strip = str((ev or {}).get("strip") or "")
+        if strip:
+            self._dual_buffer.append(("lamp_only", strip,
+                                      getattr(self, "_dual_end_reason", "")))
+
+    def _dual_strip_labels(self) -> "list[str]":
+        out = []
+        for st in (getattr(self._manager, "_session_strips", None) or []):
+            lab = str((st or {}).get("strip") or "").strip() if isinstance(
+                st, dict) else str(st)
+            if lab:
+                out.append(lab)
+        return out
+
+    def _dual_flush(self, path: str, _n: int = 0) -> None:
+        """After every save: the pass record beside the measurement's
+        conditions folder (`Run.dual_pass_record`), from the events since."""
+        if not getattr(self, "_dual_started", False) or not path:
+            return
+        from core.file_manager import Run
+        from workflow.dual_scan import storage
+        from workflow.dual_scan.record import PassRecord
+        try:
+            main = Path(path)
+            rec = getattr(self, "_dual_record", None)
+            if rec is None or getattr(self, "_dual_record_for", None) != main:
+                rec = storage.pass_record_of(main)
+                labels = self._dual_strip_labels()
+                if rec is None or (labels and set(labels) - set(rec.strips)):
+                    rec = PassRecord(labels or [])
+                self._dual_record = rec
+                self._dual_record_for = main
+            for entry in self._dual_buffer:
+                try:
+                    if entry[0] == "choose":
+                        rec.choose(entry[1])
+                    elif entry[0] == "cal":
+                        rec.helper_calibration(entry[1], entry[2], entry[3])
+                    elif entry[0] == "strip":
+                        rec.helper_strip(entry[1], entry[2], entry[3],
+                                         entry[4], entry[5])
+                    elif entry[0] == "lamp_only":
+                        rec.helper_lamp_only(entry[1], entry[2])
+                except (KeyError, ValueError):
+                    log.debug("dual scan: record entry %r skipped", entry)
+            self._dual_buffer = []
+            rec.save(Run.dual_pass_record(main))
+        except Exception:      # noqa: BLE001 - never stop a measurement
+            log.warning("dual scan: the pass record was not written",
+                        exc_info=True)
+
+    def _dual_session_over(self) -> None:
+        """The read ended: the prompts go, the note before START comes back."""
+        self._dual_live = False
+        self._dual_tile_wait = False
+        self._dual_ended_text = ""
+        try:
+            self._preview.set_banner(None)
+        except Exception:      # noqa: BLE001
+            pass
+        QTimer.singleShot(0, self._refresh_dual_note)
+
+    def _dual_filter_refused_variant(self, setting: str):
+        """M-FILTER-REFUSED's variant for an i1Pro 2 whose dual scan is
+        available but switched off and M1 / M2 was chosen
+        (M-DUAL-FILTER-OFF), or None for today's text."""
+        from workflow import measurement_messages as M
+        from workflow.dual_scan import session as D
+        try:
+            from core.measure_pace import model_key
+            model = (getattr(self, "_reported_instrument", None)
+                     or getattr(self, "_dual_last_model", None))
+            if model_key(model) != "i1pro2":
+                return None
+            if D.switched_on(self._settings) or not D.helper_can(
+                    self._dual_caps()):
+                return None
+            if D.FILTER_CHOICE.get(self._measure_filter_code()) not in (
+                    "M1", "M2"):
+                return None
+            return M.M_DUAL_FILTER_OFF.render(
+                setting=setting, option=D.switch_label(),
+                where=D.where_label(), start=self._start_button_name())
+        except Exception:      # noqa: BLE001 - today's text then
+            return None
+
     def _filter_refused_window(self) -> None:
         """M-FILTER-REFUSED (§M-PROPOSED), titled
         "The instrument does not accept this filter choice" (its row in the
@@ -12204,6 +12724,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             setting = "-F"
         title, body = M.M_FILTER_REFUSED.render(
             setting=setting, start=self._start_button_name())
+        _variant = self._dual_filter_refused_variant(setting)
+        if _variant is not None:
+            title, body = _variant
         box = QMessageBox(self)
         box.setObjectName("filter_refused")
         box.setIcon(QMessageBox.Icon.NoIcon)
@@ -13296,6 +13819,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             advice += self._inconsistent_again_html(reason)
             if button:
                 advice += _strip_failed_button_html()
+        # The i1Pro 2 dual scan: a refused second pass (or UV half of a
+        # patch) made this a misread; say why, in place of the driver's word.
+        _dual_html = self._dual_failure_html()
+        if _dual_html and not is_coms:
+            advice = _dual_html
 
         # Worked out before the text, because the second choice changes both
         # its name and what it does when this is the only unread stripe.
@@ -14195,6 +14723,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 "without it."), dlg)
             note.setWordWrap(True)
             layout.addWidget(note)
+        self._dual_calibration_note(layout, dlg)
 
         btn_box = QDialogButtonBox()
         ok_btn = btn_box.addButton(tr("Start Calibration"), QDialogButtonBox.ButtonRole.AcceptRole)
@@ -14254,6 +14783,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             self._manager.send_key("\r")
             self._arm_key_watchdog()
             QApplication.instance().installEventFilter(self)
+            self._dual_calibrating()
         else:
             # The user dismissed the prompt with the window's close button (or
             # Esc) instead of starting calibration. Esc at chartread's
@@ -14453,6 +14983,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             note = QLabel(self._optional_calibration_note(), dlg)
             note.setWordWrap(True)
             layout.addWidget(note)
+        self._dual_calibration_note(layout, dlg)
 
         btn_box = QDialogButtonBox()
         ok_btn = btn_box.addButton(tr("Start Calibration"),
@@ -14484,6 +15015,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         elif result == QDialog.DialogCode.Accepted:
             self._manager.send_key("\r")
             self._arm_key_watchdog()
+            self._dual_calibrating()
         else:
             # Cancel, Esc or the title-bar X: keep measuring.
             self._manager.cancel_requested_calibration()
@@ -14494,10 +15026,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         """One per request: done, cancelled, failed or unavailable."""
         self._refresh_calibrate_btn_state()
         self._key_watchdog.stop()
+        self._dual_tile_released()
         if result == "done":
             self._calibrate_log(tr(
                 "Calibration complete. Measuring carries on where you were."),
                 flash=not prompted)
+            self._dual_calibration_log()
             if prompted:
                 self._show_requested_calibration_done()
             return
@@ -14611,6 +15145,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         msg = QLabel(body, dlg)
         msg.setWordWrap(True)
         layout.addWidget(msg)
+        self._dual_calibration_done(layout, dlg)
 
         mode = resolve_mode(self._settings.get("appearance", "auto"))
         if mode == APPEARANCE_NEUTRAL:
@@ -14798,6 +15333,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             _dial_row.addLayout(_text_col, 1)
             layout.addLayout(_dial_row)
             layout = _text_col
+        self._dual_calibration_done(layout, dlg)
 
         if self._spot_session:
             dlg.setWindowTitle(tr("Calibration Complete — How to Measure"))
@@ -18219,6 +18755,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._close_cr30_bridge()
         self._close_measurement_windows()
         self._end_page_pause()
+        self._dual_session_over()
         # #131: leave measurement mode. Any completion sound (played via
         # measure_finished, below) is exempt from the at-rest gate, so it still
         # fires; per-patch/strip sounds can no longer sound outside a read.
@@ -19532,6 +20069,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
     def _on_stripe_changed(self, strip_id: str) -> None:
         self._log.appendPlainText(f"[→ strip {strip_id}]")
         self._log.ensureCursorVisible()
+        self._dual_pass_one(strip_id)
         # The strip's own LABEL, which may be a number (#182 5965589190):
         # keeping only its letters dropped every numbered strip on the floor.
         letter = self._strip_name(strip_id)
@@ -19603,6 +20141,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         this only syncs the visible chrome (the "Live preview" view groups)."""
         on = self._engine_selected()
         self._sync_calibrate_btn_visible()
+        if not initial:
+            self._refresh_dual_note()
         for grp in (getattr(self, "_g_view_grp", None),
                     getattr(self, "_m_view_grp", None)):
             if grp is not None:
@@ -24299,6 +24839,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if not self._manager.engine_active:
             self._preview.set_notice(None)
             return
+        if self._dual_notice_shown():
+            return
         if saved and saved > 0:
             self._preview.set_notice(tr(
                 "Auto-save on — {count} patches already safe on disk. Every "
@@ -24361,6 +24903,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         p.engine_margin_tolerance = bool(
             self._settings.get("margin_tolerance_beta", False))
         p.engine_condition_dir = self._condition_dir_for(p)
+        self._apply_dual_scan(p)
         p.cal_auto_retries = int(self._settings.get("cal_auto_retries", 3))
         import os as _os
         replay = _os.environ.get("CHROMIQ_REPLAY")
