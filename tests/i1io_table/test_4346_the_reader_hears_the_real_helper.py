@@ -414,3 +414,36 @@ def test_the_strip_readers_arm_and_lights_off_read_the_helpers_own_fields(tmp_pa
     assert s.arm(520, 3000)["ready"] is True
     assert s.proc.sent == [{"cmd": "tscan_lights_off"},
                            {"cmd": "tscan_arm", "n": 520, "wait_ms": 3000}]
+
+
+# ---- the job's calibration step itself, with the job's own reader on the real helper ---------
+
+def test_the_jobs_calibration_step_succeeds_on_the_real_helper(tmp_path, monkeypatch):
+    """The volunteer's two refusals of 18 Nov 2026, as a test: the job's C1 (reader consent,
+    the place, the instrument's own calibration) with job._default_reader's SpotReader on the
+    committed helper. Only the table is simulated; on 4.3.45 this ends 'calibration not
+    confirmed'."""
+    from tests.i1io_table.test_job_reading import job_for
+    from workflow.i1io.table import job as J
+    helper = _real_helper()
+    monkeypatch.setenv("CHROMIQ_REPLAY_INSTRUMENT", "i1pro2")
+    monkeypatch.setenv("CHROMIQ_ENGINE_MUTE", "1")
+    monkeypatch.setenv("CHROMIQ_REPLAY_NEEDCAL", "1")
+    replay = tmp_path / "replay.txt"
+    replay.write_text("PATCHES 1\nSTRIP A\n50 50 50\n", encoding="utf-8")
+    monkeypatch.setattr(rd, "helper_path", lambda pkg=None: helper)
+    job, sim, _h, _run, p = job_for(tmp_path)
+    started = []
+
+    def real(folder, name, patches, calibrate, extra_args, log):
+        r = J._default_reader(folder, name, patches, calibrate,
+                              ("--replay", str(replay), *extra_args), log)
+        started.append(r)
+        return r
+    job._reader_factory = real
+    assert p.drive(job.open()).ok
+    r = p.drive(job.calibrate())
+    assert r.ok, (r.reason, r.detail)
+    assert job.calibration is not None and job.calibration["kind"] == "spot"
+    assert len(started) == 1 and started[0].calibrated is True
+    assert not started[0].proc.alive()
