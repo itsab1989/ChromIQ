@@ -195,7 +195,7 @@ def run(lang: str) -> "list[str]":
     #    certificate paragraph under it, and both buttons.
     staged = _staged("WinUSB")
     print(f"  staged WinUSB -> has_winusb={[d.has_winusb for d in staged]}")
-    udi.enumerate_connected = lambda: staged
+    udi.enumerate_connected = lambda **_kw: staged
     rp.resource_path = lambda p: (Path(__file__)
                                   if "wdi_simple" in p else Path("/nonexistent"))
     w = Walk((f"02-install-with-certificate-{lang}", "cert"),

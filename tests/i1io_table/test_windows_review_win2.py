@@ -317,3 +317,31 @@ def test_the_fake_speaks_ctypes_like_windows():
     buf = ctypes.create_unicode_buffer(size.value)
     assert fake.CM_Get_Device_ID_ListW(None, buf, size, None) == 0
     assert buf[:size.value] == "A\0\0"
+
+
+# ---- N4 / N5: the self-test's docstring and two old drivers -----------------------------------
+
+def test_the_selftest_docstring_says_what_usb_get_version_opens():
+    """N4: libusb-win32's usb_get_version opens the first libusb0 device object it finds; the
+    docstring may not say that nothing is opened."""
+    import core.usb_library as ul
+    doc = " ".join(ul.libusb0_selftest_field.__doc__.split())
+    assert "no device is listed or opened" not in doc
+    assert "libusb0-NNNN" in doc and "GET_VERSION" in doc and "CHROMIQ_SELFTEST=1" in doc
+
+
+@pytest.mark.parametrize("script", ["scripts/drive_a10_libusb_only.py",
+                                    "scripts/drive_a11_certificate_text.py"])
+def test_the_old_drivers_fake_the_list_as_the_window_now_calls_it(script):
+    """N5: with the Beta on, the window calls `enumerate_connected(include_table=True)`; a fake
+    that takes no arguments raises TypeError there."""
+    import ast
+    from pathlib import Path
+    src = (Path(__file__).resolve().parents[2] / script).read_text(encoding="utf-8")
+    fakes = [node.value for node in ast.walk(ast.parse(src))
+             if isinstance(node, ast.Assign) and isinstance(node.value, ast.Lambda)
+             and any(isinstance(t, ast.Attribute) and t.attr == "enumerate_connected"
+                     for t in node.targets)]
+    assert fakes
+    for fake in fakes:
+        assert fake.args.kwarg is not None, script

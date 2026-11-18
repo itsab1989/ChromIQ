@@ -263,8 +263,13 @@ def table_drive_impossible_here() -> bool:
 def libusb0_selftest_field(dll_path=None) -> str:
     """Windows only: one token for the start-up self-test line about the TABLE's route,
     libusb-win32's libusb0.dll in System32 (the driver package installs it). ``libusb0=<dll
-    version>`` when it loads into this process (``usb_init`` and ``usb_get_version``: no device
-    is listed or opened), ``libusb0=absent`` when no driver was ever installed (normal, and
+    version>`` when it loads into this process (``usb_init`` and ``usb_get_version``; no USB
+    transfer is made and no device is listed, but ``usb_get_version`` asks the libusb-win32
+    kernel driver for ITS version by opening the first ``\\\\.\\libusb0-NNNN`` device object
+    it finds and sending it a GET_VERSION request, so where an instrument or the table already
+    has the driver, that device's driver object is opened for a moment; run only under
+    ``CHROMIQ_SELFTEST=1``, review WIN2, N4), ``libusb0=absent`` when no driver was ever
+    installed (normal, and
     always so on a build machine), ``libusb0=does-not-load`` when it is there and does not load
     (expected for an x64 build on an ARM PC, a broken package for an ARM64 build). "" off
     Windows, so the macOS and Linux lines stay as they were."""
