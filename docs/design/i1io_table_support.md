@@ -761,3 +761,46 @@ which now behaves as the real one did; the in-app drive itself has still not run
 * **Texts:** the consent (version 2), the start-up, the button, the reader consent on a Mac, the
   calibration place, the check at mark 3, the Beta's (i) and the release notes say what is now
   true.
+
+### ⏳ Awaiting confirmation: the final fix round, review 13 (2026-11-18)
+
+**Confirmed by:** *nobody yet.*
+
+Built and tested against the simulated table; the in-app drive has still not run on a real
+table.
+
+* **The hands-off confirmation after every question (M-1).** After ANY question the person
+  answers, the job's or the panel's own, the next motor move waits for the hands-off
+  confirmation. Either the GO page ("The arm is about to move"), or the question's own answer is
+  that confirmation, and then its page says "take your hands away from the table and the arm"
+  and names the move that follows: "The page is laid, and my hands are away from the table"
+  (the homing and the drive out to the aiming place; no GO is asked before the sheet is laid
+  any more), "Make this move, my hands are away" (a first visit), "Start the table, my hands are
+  away" (the start-up), "As described, my hands are away" (the report after a step; the page
+  names the panel's next step) and "Yes, it is centred, my hands are away" (the mark-3 check;
+  the rows follow). Every other answer (the reader consent inside a row, the calibration
+  questions, the aims, Go on, Carry on, the problem page, ...) makes the next movement ask GO
+  first. The table module refuses a movement line while a confirmation is owed (a guard: the
+  session stops, nothing moves, nothing more is sent); the table tests fail if it ever fires.
+  A Stop pressed on the mark-3 check or the next-page question takes effect once.
+* **Where the white is made, and its level (S-1).** The white calibration is made only with the
+  arm in the recorded resting box over the tile (Y up to 48 units, where every recorded
+  calibration was made); from the wider rest guard (Y 49..80) the recorded homing at rest is
+  sent first, after GO. After a white on the instrument's own tile, the table's tile is read once
+  at rest with it: its Y must be 82..97 (the volunteer's table read Y 89.78 there; the values
+  stored in the table give about 87.6), else the white is refused in plain words, nothing is
+  read with it and the calibration can be made again. The same check is made on the tile
+  reading of the stored-white option. After a white on the table's tile a reading at the same
+  place cannot show a white made partly off the tile; there the resting box is the protection.
+* **No reader while the button wait holds the i1Pro 2 (S-2):** a reader starts only after the
+  wait has let go (at most 12 s); else the step is refused truthfully and nothing moves.
+* **No text below the scroll edge while its answers are in view (S-3):** a question longer than
+  the room above the answers scrolls with its answers after it; the failed strip's page names
+  the hands-off rule first. The ending's answers stay pinned (nothing moves on them).
+* **A held "-p" value never reaches another target (S-5):** a target's stored value loaded while
+  a table or CR30 chart's value is held becomes what comes back with that target's own chart.
+* **Windows: decided by what loads (S-6):** the bundled libusb-1.0 and, on Windows, libusb0.dll
+  are loaded to decide; only a library that truly does not load gets a message (on an ARM64 PC
+  the one that says the drive cannot run there yet).
+* **Preferences and the completion window (S-8):** the calibration place has its (i); after a
+  table measurement the completion window says "saved" once and Close only stays on the tab.
