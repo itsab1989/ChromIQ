@@ -12294,15 +12294,18 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
 
     def _dual_status_style(self, on: bool) -> None:
         """The pass line is the instruction of the moment: as readable as
-        the tab's own text (bold, the text colour, the body size), not the
-        small grey status type (review of 2026-11-18, NOTE). Only on this
-        label and only while a dual line is up; nothing with the Beta off."""
+        the tab's own text (bold, the text colour, a point above the body
+        size), not the small grey status type (review of 2026-11-18, NOTE).
+        Added to the style the main window gives the line (its padding stays,
+        photographed 2026-11-18), and that style is given back unchanged when
+        the dual line goes. Nothing with the Beta off."""
         lbl = getattr(self, "_status_bar_lbl", None)
         if lbl is None:
             return
         if not on:
             if getattr(self, "_dual_status_styled", False):
-                lbl.setStyleSheet("")
+                if lbl.styleSheet() == getattr(self, "_dual_status_sheet", ""):
+                    lbl.setStyleSheet(getattr(self, "_dual_status_prev", ""))
                 self._dual_status_styled = False
             return
         if getattr(self, "_dual_status_styled", False):
@@ -12311,8 +12314,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             pt = max(QApplication.font().pointSizeF(), 11.0) + 1.0
         except Exception:      # noqa: BLE001 - a style never breaks the tab
             pt = 13.0
-        lbl.setStyleSheet("QLabel { font-weight: 600; font-size: %.1fpt; "
-                          "color: palette(window-text); }" % pt)
+        prev = lbl.styleSheet() or ""
+        sheet = (prev.rstrip() + (" " if prev.strip() else "")
+                 + "font-weight: 600; font-size: %.1fpt; "
+                   "color: palette(window-text);" % pt)
+        self._dual_status_prev = prev
+        self._dual_status_sheet = sheet
+        lbl.setStyleSheet(sheet)
         self._dual_status_styled = True
 
     def _dual_caps(self) -> frozenset:
@@ -12478,6 +12486,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                         "%r: goes on as started", assumed, model)
         self._log.appendPlainText(f"[{title}]\n{body}")
         self._log.ensureCursorVisible()
+        # under the chart until the first strip is read (the calibration's
+        # lines would otherwise replace it at once; photographed 2026-11-18)
+        self._dual_model_notice = body
         try:
             self._preview.set_notice(body, warn=True)
         except Exception:      # noqa: BLE001
@@ -12584,6 +12595,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # what this START assumes about the instrument, and the read as it
         # would be without the Beta, for `_dual_check_reported`
         self._dual_master = (p.extra_args, p.engine_condition_dir)
+        self._dual_ended_before = False
         self._dual_params = p
         self._dual_assumed = ""
         self._dual_model_checked = False
@@ -12612,6 +12624,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return
         p.engine_dual_args = plan.args()
         self._dual_chosen = plan.chosen
+        self._dual_ended_before = bool(plan.ended_before)
         from workflow.dual_scan import instrument_model as IM
         self._dual_assumed = IM.I1PRO2
         log.info("dual scan: %s (the row's choice, recorded; no -F)",
@@ -12697,6 +12710,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # read from now on are recorded as M0 only
         self._dual_started = True
         self._dual_failed = None
+        if getattr(self, "_dual_ended_before", False) and why in (
+                "mixed", "resume"):
+            # a Continue after M1 / M2 ended: the engine says "resume", or
+            # "mixed" when it had rewritten the header on an earlier one
+            why = "resume"
         self._dual_end_reason = D.reason_id(why)
         title, body = M.M_DUAL_ENDED.render(reason=D.reason_sentence(why))
         self._dual_ended_text = f"{title}. {body}"
@@ -12713,6 +12731,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             self._preview.set_notice(text, warn=True)
             return True
         if getattr(self, "_dual_tile_wait", False):
+            return True
+        notice = getattr(self, "_dual_model_notice", "")
+        if notice:
+            self._preview.set_notice(notice, warn=True)
             return True
         return False
 
@@ -12931,6 +12953,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
 
     def _dual_strip_measured(self, ev: dict) -> None:
         """A strip read after M1 / M2 ended: M0 only, its second pass due."""
+        self._dual_model_notice = ""      # the first strip: the notice goes
         if not getattr(self, "_dual_started", False) or getattr(
                 self, "_dual_live", False):
             return
@@ -12990,6 +13013,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         """The read ended: the prompts go, the note before START comes back."""
         self._dual_assume_once = None
         self._dual_params = None
+        self._dual_model_notice = ""
         self._dual_live = False
         self._dual_tile_wait = False
         self._dual_ended_text = ""

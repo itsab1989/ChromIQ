@@ -272,6 +272,38 @@ def test_m1_and_m2_that_ended_are_never_promised_back(qapp, tmp_path):
     assert "each strip is read twice" not in title
 
 
+def test_after_a_continue_the_engine_rewrote_the_header_it_stays_ended(
+        qapp, tmp_path):
+    """Measured on screen (2026-11-18, en-ended): a Continue after M1 / M2
+    ended makes the real helper write the main file again WITHOUT its dual
+    record. A third START must not be refused as "started as a single
+    scan", and no text may call it an i1Pro 3 matter."""
+    from core.file_manager import Run
+    from workflow import i1pro3_conditions as ic
+    from workflow.dual_scan.record import PassRecord
+    main = _dual_main(tmp_path)
+    text = main.read_text(encoding="latin-1")
+    main.write_text("\n".join(ln for ln in text.splitlines()
+                              if "CHROMIQ_DUAL" not in ln) + "\n",
+                    encoding="latin-1")
+    assert not storage.read_dual_record(main).dual
+    rec = PassRecord(["A", "B"], chosen="M2")
+    rec.helper_strip("A", True, "", "c1")
+    rec.helper_lamp_only("B", "dual_needs_ruler")
+    rec.save(Run.dual_pass_record(main))
+    plan = D.plan_for(_on(), CAPS, None, "u", main)
+    assert plan.dual and plan.ended_before and plan.refusal == ""
+    why = ic.no_file_reason(main)
+    assert "Only an X-Rite i1Pro 3" not in why
+    assert "measure the chart again" in why
+    from ui.tabs.tab_measure import TabMeasure
+    fake, logged, *_ = _fake(tmp_path)
+    TabMeasure._dual_reset(fake)
+    fake._dual_ended_before = True
+    TabMeasure._on_dual_ended(fake, "mixed")
+    assert REASONS["resume"].split(":")[0] in fake._dual_ended_text
+
+
 def test_a_measurement_stopped_early_with_its_files_in_step_continues_dual(
         qapp, tmp_path, monkeypatch):
     from core.file_manager import Run
@@ -385,19 +417,23 @@ def test_after_a_refused_calibration_the_pass_prompts_say_what_counts(
 def test_the_pass_line_is_as_readable_as_the_tabs_text(qapp, tmp_path):
     from tests.test_b202_the_i1pro_generation_is_read_right import _tab
     tab = _tab(tmp_path)
+    # the main window's own style of the line (MainWindow._set_tab_status)
+    base = "color: #909090; font-size: 11px; padding: 4px 16px 8px 16px;"
+    tab._status_bar_lbl.setStyleSheet(base)
     tab._dual_reset()
     tab._dual_live = True
     tab._on_dual_pass({"strip": "A", "pass": "uv", "of": 2, "lamp_ok": True})
     sheet = tab._status_bar_lbl.styleSheet()
     assert "font-weight: 600" in sheet and "palette(window-text)" in sheet
+    assert sheet.startswith(base), "its padding stays"
     # a flashed line looks as always, and the pass line comes back bold
     tab._flash_status("an unrelated line", 60000)
-    assert tab._status_bar_lbl.styleSheet() == ""
+    assert tab._status_bar_lbl.styleSheet() == base
     tab._hide_status_flash()
     assert "font-weight: 600" in tab._status_bar_lbl.styleSheet()
     tab._on_dual_pass_result({"what": "strip", "strip": "A", "ok": True,
                               "why": "", "pairing": "checked"})
-    assert tab._status_bar_lbl.styleSheet() == ""
+    assert tab._status_bar_lbl.styleSheet() == base, "given back unchanged"
     tab.close()
 
 
@@ -624,6 +660,12 @@ def test_an_i1pro3_found_at_the_start_is_started_again_as_on_master(
     # the second report of the same device (JSON after the prose): nothing
     TabMeasure._dual_check_reported(fake, "i1Pro3")
     assert len(relaunched) == 1
+    # the sentence keeps its place under the chart until a strip is read
+    assert TabMeasure._dual_notice_shown(fake) is True
+    assert notices[-1] == fake._dual_model_notice
+    fake._dual_started = False
+    TabMeasure._dual_strip_measured(fake, {"strip": "A"})
+    assert TabMeasure._dual_notice_shown(fake) is False
 
 
 def test_an_i1pro2_found_after_a_start_without_it_is_started_as_dual(

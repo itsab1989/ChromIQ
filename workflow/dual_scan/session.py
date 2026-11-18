@@ -151,6 +151,14 @@ def plan_for(settings: Any, caps: Iterable[str], reported_model: "str | None",
     chosen = FILTER_CHOICE.get(code, "M0")
     choice = choice or ScaleChoice.standard()
     white = "instrument"
+    if ended_before(main_ti3) and not storage.read_dual_record(
+            main_ti3).dual:
+        # a dual measurement whose header the engine rewrote without the
+        # dual record on a Continue after M1 / M2 ended (measured on screen,
+        # 2026-11-18): not a single-scan measurement to refuse; it goes on as
+        # M0 (the engine's own "mixed"), and the note says so
+        return Plan(True, chosen, choice=choice, white=white,
+                    ended_before=True)
     guard = storage.start_guard(main_ti3, True, choice, white)
     if guard == "mixed_factor":
         cont = storage.continuation_choice(main_ti3)
@@ -176,7 +184,10 @@ def ended_before(main_ti3) -> bool:
         if not main.is_file() or not storage._has_readings(main):
             return False
         if not storage.read_dual_record(main).dual:
-            return False
+            # the engine rewrites the header without the dual record when a
+            # Continue finds M1 / M2 ended (why "resume"); the measurement's
+            # pass record still says it was a dual scan
+            return storage.pass_record_of(main) is not None
         return any(ic.condition_file(main, c) is None for c in ("M1", "M2"))
     except Exception:  # noqa: BLE001 - unreadable: say nothing new
         return False

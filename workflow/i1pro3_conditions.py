@@ -278,15 +278,15 @@ def no_file_reason(main: Path) -> str:
     from core.measure_pace import model_key
     from workflow.measurement_condition import read_header_keyword
     from workflow.dual_scan import storage as dual
-    if dual.read_dual_record(main).dual:
+    from workflow.dual_scan.session import ended_before as _ended
+    if dual.read_dual_record(main).dual or _ended(main):
         # The i1Pro 2 dual scan (review of 2026-11-18): its M1 and M2 come
         # from a second pass per strip, and exist only once every strip has it.
         # Review of 2026-11-18, M-1: Continue Measurement reads only the
         # strips not read yet, and it cannot take M1 and M2 up again once
         # they ended (the engine's condition files no longer belong to the
         # readings), so it is promised only where it is true.
-        from workflow.dual_scan.session import ended_before
-        if ended_before(main):
+        if _ended(main):
             return tr(
                 "This dual scan has no M1 and M2 that belong to its readings "
                 "any more: they ended during the measurement, so its "
