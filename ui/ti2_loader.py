@@ -643,7 +643,8 @@ def resolve_ti2(
         if inside_root is not None:
             return _handle_inside(parent, ti2_path, working_dir)
         return _handle_outside(parent, ti2_path, working_dir,
-                               controller=controller)
+                               controller=controller,
+                               bin_dir=_bin_dir(settings))
     except ReplaceFailed as exc:
         # ONLY a failed archive. Any other OSError is a different fault and
         # must not be reported as "the existing project could not be moved
@@ -1400,7 +1401,8 @@ def resolve_ti3(
         if sibling_ti2 is not None:
             result = _handle_outside(parent, sibling_ti2, working_dir,
                                      name=name,
-                                     measurement_copy=measurement_copy)
+                                     measurement_copy=measurement_copy,
+                                     bin_dir=_bin_dir(settings))
             if result is None:
                 return None
             new_ti2, _tiffs = result
@@ -1493,6 +1495,7 @@ def _handle_outside(
     name: str | None = None,
     controller=None,
     measurement_copy: "Path | None" = None,
+    bin_dir: "Path | None" = None,
 ) -> tuple[Path, list[Path]] | None:
     ti1, tiffs = _related_files(ti2_path)
     if name and _name_is_free(working_dir, name):
@@ -1504,7 +1507,8 @@ def _handle_outside(
         return None
     new_name, overwrite = result
     out = _copy_files(ti2_path, ti1, tiffs, working_dir, new_name,
-                      overwrite=overwrite, measurement_copy=measurement_copy)
+                      overwrite=overwrite, measurement_copy=measurement_copy,
+                      bin_dir=bin_dir)
     if overwrite:
         _say_where_the_old_project_went(parent, new_name, working_dir / new_name)
     # …and the project the person has just named is the one they are now in.
@@ -1902,8 +1906,15 @@ def _copy_files(
     new_name: str,
     overwrite: bool = False,
     measurement_copy: "Path | None" = None,
+    bin_dir: "Path | None" = None,
 ) -> tuple[Path, list[Path]]:
     """Import an external chart into a fresh project as run1.
+
+    The chart's side files are copied from the list the import into an open
+    project copies (`workflow.chart_import.CHART_IMPORT_SIDE_FILES`). Given
+    *bin_dir* (the ArgyllCMS binaries) and no page bitmaps, the pages are
+    drawn from what the chart itself records, as that import does
+    (`rebuild_missing_pages`, Knut 2026-09-11); omitted, nothing is drawn.
 
     Builds the per-run layout (see docs/dev_folder_layout.md): a project at
     ``working_dir/<new_name>/`` with ``project.json`` and the imported chart
@@ -1948,13 +1959,14 @@ def _copy_files(
     if ti1:
         shutil.copy2(ti1, run.chart_ti1)
 
-    # Chart recognition + channels sidecar travel with the chart when present.
-    cht = ti2_path.with_suffix(".cht")
-    if cht.exists():
-        shutil.copy2(cht, run.chart_cht)
-    channels = ti2_path.with_name(f"{old_stem}.channels.json")
-    if channels.exists():
-        shutil.copy2(channels, run.chart_channels_json)
+    # Every side file travels with the chart, from THE list the import into an
+    # open project copies (4.3.47: this route copied only .cht and
+    # .channels.json, so a table chart lost the side file the table is driven by).
+    from workflow.chart_import import CHART_IMPORT_SIDE_FILES
+    for ext in CHART_IMPORT_SIDE_FILES:
+        side = ti2_path.with_name(f"{old_stem}{ext}")
+        if side.exists():
+            shutil.copy2(side, run.artefact(ext))
 
     # Pages are renumbered <stem>_01.tif, <stem>_02.tif, … in sorted order.
     new_tiffs: list[Path] = []
@@ -1962,6 +1974,11 @@ def _copy_files(
         new_tiff = run.dir / f"{run.stem}_{i:02d}.tif"
         shutil.copy2(tiff, new_tiff)
         new_tiffs.append(new_tiff)
+    if bin_dir and not new_tiffs:
+        # the same call, and the same condition, as the import into an open
+        # project: pages drawn from the chart's own record, the .ti2 untouched
+        from workflow import chart_import as _ci
+        new_tiffs = list(_ci.rebuild_missing_pages(run.chart_ti2, bin_dir))
 
     # The measurement beside the chart, or the copy the import door already
     # put in the chart's order (`resolve_ti3`'s *measurement_copy*).

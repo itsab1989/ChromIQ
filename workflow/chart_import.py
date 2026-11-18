@@ -33,8 +33,17 @@ log = get_logger(__name__)
 # `.control-strip.json` travels too (#182, beta 22): it is the chart's own
 # declaration of which patches make up its control strip, and leaving it behind
 # would silently discard a declaration the user or another tool wrote.
-_CHART_EXTS = (".cht", ".channels.json", ".strips.json", ".cie", ".pdf",
-               ".control-strip.json", ".fd9.json", ".i1io.json", ".isis.json")
+#
+# THE ONE LIST BOTH IMPORT ROUTES COPY (4.3.47): this function's (a chart into
+# the OPEN project) and `ui.ti2_loader._copy_files` (a chart with no project
+# open, into a new one). The second used to copy only `.cht` and
+# `.channels.json`, so an i1iO chart lost its `.i1io.json` and with it the
+# table drive, an i1iSis chart its `.isis.json`, a layout-engine chart its
+# strip map. `tests/test_both_import_routes_carry_the_same_side_files.py`.
+CHART_IMPORT_SIDE_FILES = (".cht", ".channels.json", ".strips.json", ".cie",
+                           ".pdf", ".control-strip.json", ".fd9.json",
+                           ".i1io.json", ".isis.json")
+_CHART_EXTS = CHART_IMPORT_SIDE_FILES
 
 
 def resolve_import_run(project: Project, target) -> Run:
