@@ -39,7 +39,7 @@ is one press (lamp + UV); ``"uv_fault": "uv_spot_failed"`` refuses it.
 LIMITS (said, not hidden): the replay instrument computes M1 / M2 for every
 strip it reads, so after ``needs_ruler`` the files still hold M1 / M2 where
 the real helper would hold none; patch by patch the replay has no dual
-record, so its conditions end with ``dual_record`` after the first patch;
+record, so its conditions end (``record``) after the first patch;
 the simulation swallows that event (the device path computes M1 / M2 for a
 patch, cq_dd_spot), so the tab behaves as with the real helper while the
 files of a patch-by-patch run hold no M1 / M2.
@@ -117,7 +117,7 @@ def main(argv: "list[str]") -> int:
             if kind == "conditions" and ev.get("active") and ev.get("dual"):
                 st["dual"] = True
             if (kind == "conditions" and not ev.get("active") and st["spot"]
-                    and ev.get("why") == "dual_record"):
+                    and ev.get("why") in ("record", "dual_record")):
                 # the replay has no dual record for a patch; the device path
                 # works M1 / M2 out for it (cq_dd_spot): the session goes on
                 continue
