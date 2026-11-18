@@ -73,6 +73,8 @@ def test_the_c_arithmetic_is_the_python_module(tmp_path_factory):
         te = cal.te()
     for key, want in (("scale_nan", "bad_scale"), ("scale_big", "bad_scale"),
                       ("no_uv_tile", "no_dual_calibration"),
+                      ("tile_dark", "uv_tile_dark"),
+                      ("cut_aligned", "ok"), ("cut_half_pitch", "uv_pass_misaligned"),
                       ("table_out_of_band", "bad_uv_tables"),
                       ("no_tables", "no_uv_tables"), ("nan_value", "bad_values"),
                       ("cut_half", "uv_pass_short"),
@@ -214,7 +216,8 @@ def test_the_three_conditions_go_into_the_i1pro3_betas_files(tmp_path, monkeypat
     ev = [e for e in s.events if e.get("event") == "conditions"]
     assert ev == [{"event": "conditions", "active": True, "instrument": "i1pro2",
                    "dual": True, "scale": round(S, 4), "scale_source": "standard",
-                   "white": "instrument", "main": "M0", "extra": ["M1", "M2"]}]
+                   "white": "instrument", "main": "M0", "extra": ["M1", "M2"],
+                   "chosen": "M0"}]
     _check(base, cdir, truth)
     # Build Profile's choice, the i1Pro 3 Beta's own code, offers all three
     from workflow import i1pro3_conditions as c
@@ -374,14 +377,15 @@ def test_the_helper_arguments_and_the_refined_store():
             self[k] = v
 
     st = Store()
-    key = storage.instrument_key("i1Pro 2", "1234567")
+    key = storage.instrument_key("i1Pro 2", "1234567", st)
     assert "1234567" not in key and len(key) == 20
     assert storage.scale_for(st, key) == ScaleChoice.standard()
     storage.store_refined(st, key, ScaleChoice(1.2, "refined"))
     assert storage.scale_for(st, key) == ScaleChoice(1.2, "refined")
     assert "1234567" not in json.dumps(st)
     assert storage.helper_args(storage.scale_for(st, key), "table") == [
-        "--dual-scale", "1.2000", "--dual-scale-source", "refined", "--dual-white", "table"]
+        "--dual-scale", "1.2000", "--dual-scale-source", "refined", "--dual-white", "table",
+        "--dual-chosen", "M0"]
     st[storage.REFINED_SETTING] = json.dumps({key: {"value": 7}})
     assert storage.scale_for(st, key) == ScaleChoice.standard()      # nonsense ignored
     storage.forget_refined(st, key)

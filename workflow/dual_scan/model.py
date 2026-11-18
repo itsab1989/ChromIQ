@@ -41,9 +41,12 @@ reflectance rms). ``M1 - M0 = (kD/kA - 1)(M0 - M2)`` holds in every
 i1Profiler file of both instruments to 1e-6.
 
 WHAT IS REFUSED (:class:`~workflow.dual_scan.reasons.DualScanRefused`):
-a calibration without the UV-LED tile reading (a dual scan on a single-scan
-calibration came out 15 % too bright in i1Profiler too), a calibration made
-at another exposure than the reading, missing or malformed tables, a UV
+a calibration without the UV-LED tile reading (a single-scan calibration:
+no T, so no M1 / M2 at all; its M0 is as good as ever), a calibration whose
+UV-LED tile reading is too dark to be a lit LED (:data:`MIN_UV_TILE_TE`), a
+calibration made at another exposure than the reading (i1Profiler's own b1
+file shows what that does: the white read at 154 clocks, the strip at 139,
+every value about 15 % too bright), missing or malformed tables, a UV
 reading that does not match the lamp reading patch for patch, values that
 are not finite, and a scale that is not a sensible number.
 """
@@ -62,6 +65,15 @@ WAVELENGTHS = np.arange(380, 731, 10)
 GLOW_BAND_NM = (410, 550)
 #: Sensible range of the glow scale (two instruments: 1.08-1.21).
 SCALE_RANGE = (0.5, 2.0)
+#: The UV LED really lit at calibration: Te = (T / W) * EMIS averaged over
+#: 380-410 nm must reach this many emission units. MEASURED on the two
+#: instruments' recorded dual calibrations: 207 (instrument 2, the table's
+#: tile) and 292-295 (instrument 1, five calibrations), stable to 0.1 % over
+#: 8 minutes; an LED that did not fire gives about 0 (only the dark noise).
+#: The floor is about half the lower recorded value: an aged or warm LED
+#: still passes, a dark one does not.
+MIN_UV_TILE_TE = 100.0
+UV_TILE_CHECK_NM = (380, 410)
 
 
 @dataclass(frozen=True)
@@ -141,6 +153,11 @@ class DualCalibration:
         w, t, e = out
         if np.any(w <= 0) or np.any(e <= 0):
             raise DualScanRefused("no_dual_calibration", "white / emis not positive")
+        if nbands == WAVELENGTHS.size:
+            m = (WAVELENGTHS >= UV_TILE_CHECK_NM[0]) & (WAVELENGTHS <= UV_TILE_CHECK_NM[1])
+            te = float((t / w * e)[m].mean())
+            if not te >= MIN_UV_TILE_TE:
+                raise DualScanRefused("uv_tile_dark", f"Te {te:.1f} < {MIN_UV_TILE_TE}")
         return DualCalibration(w, t, e, self.lamp_clocks, self.uv_clocks)
 
     def te(self) -> np.ndarray:

@@ -42,7 +42,8 @@ const char *cq_dual_patch(const cq_dual_cal *c, double s, const double *L,
  * [ncell] = {first lamp reading, count}; lamp_pos[nlamp], uv_pos[nuv],
  * uv[nuv][nb]; out[ncell][nb], counts[ncell]. NULL on success, else a
  * reason id ("no_ruler", "uv_pass_count", "uv_pass_short",
- * "uv_pass_stalled", "uv_pass_too_fast": cut.py::travel_verdict). */
+ * "uv_pass_stalled", "uv_pass_too_fast": cut.py::travel_verdict;
+ * "uv_pass_misaligned": the alignment gate, cut.py::_flatness). */
 const char *cq_dual_cut(int nb, int ncell, const int (*cells)[2],
                         int nlamp, const double *lamp_pos,
                         int nuv, const double *uv_pos, const double *uv,
@@ -51,5 +52,16 @@ const char *cq_dual_cut(int nb, int ncell, const int (*cells)[2],
 
 #define CQ_DUAL_TRIM 0.2
 #define CQ_DUAL_MIN_UV 3
+/* review 2026-11-18 (S2 / S3), the same numbers as model.py / cut.py */
+#define CQ_DUAL_MIN_TILE_TE 100.0	/* the UV LED lit: Te 380-410 nm, emission units */
+#define CQ_DUAL_TILE_LO 380.0
+#define CQ_DUAL_TILE_HI 410.0
+#define CQ_DUAL_MAX_FLATNESS 0.01	/* an aligned UV pass */
+#define CQ_DUAL_MIN_ALIGN_SPREAD 0.05	/* the cells differ enough to judge */
+
+/* The alignment measure (cut.py::_flatness): NAN when not judged. */
+double cq_dual_flatness(int nb, int ncell, const int (*cells)[2],
+                        const double *lamp_pos, int nuv, const double *uv_pos,
+                        const double *uv, double trim);
 
 #endif /* CHROMIQ_DUALSCAN_H */

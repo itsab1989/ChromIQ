@@ -16,6 +16,16 @@ inside the carried-over cells against between them) in place against
 0.09-0.35 half a pitch off; at least 4-5 UV readings per patch at normal
 speed, 9-10 slow.
 
+ALIGNMENT (review of 2026-11-18, S3). The same analysis's alignment measure
+(:func:`_flatness`) is now a gate: above :data:`MAX_FLATNESS` the UV pass
+does not line up with the lamp pass (the instrument lifted between the
+passes, the ruler's count lost, half a pitch off) and is refused with
+``uv_pass_misaligned``. Measured: 0.00001-0.00004 in place, 0.09-0.35 half a
+pitch off; the gate sits 250 times above the first and 9 times below the
+second. It is asked only when the strip's patches differ enough to tell
+(:data:`MIN_ALIGN_SPREAD`, at least 3 patches); otherwise
+``CutResult.aligned_checked`` is False (note ``alignment_not_checked``).
+
 On the i1iO 2 table in spot mode there is nothing to cut: one lamp and one
 UV reading per patch (:func:`pair_spot`).
 """
@@ -31,6 +41,10 @@ from workflow.dual_scan.reasons import DualScanRefused
 TRIM = 0.2
 #: fewest UV readings a patch may be averaged from (recordings: 4 or more)
 MIN_UV_READINGS = 3
+#: largest within-cell / between-cell variance of an aligned pass
+MAX_FLATNESS = 0.01
+#: fewest relative spread (std / mean) of the cells' UV signal to judge it
+MIN_ALIGN_SPREAD = 0.05
 
 
 @dataclass
@@ -38,6 +52,7 @@ class CutResult:
     uv: np.ndarray            # [P, bands] the UV pass per patch
     counts: "list[int]"       # UV readings averaged per patch
     flatness: float           # within-cell / between-cell variance (small = aligned)
+    aligned_checked: bool = True   # False: the patches hardly differ, not judged
 
 
 def reading_positions(step_samples: np.ndarray, positions: np.ndarray,
@@ -92,7 +107,10 @@ def cut_uv_pass(cells, lamp_pos, uv_pos, uv_readings, *, trim: float = TRIM,
     if verdict is not None:
         raise DualScanRefused(verdict, f"UV readings per patch {counts}")
     flat = _flatness(spans, up, ur, trim)
-    return CutResult(uv=np.array(out), counts=counts, flatness=flat)
+    if flat == flat and flat > MAX_FLATNESS:
+        raise DualScanRefused("uv_pass_misaligned", f"flatness {flat:.5f}")
+    return CutResult(uv=np.array(out), counts=counts, flatness=flat,
+                     aligned_checked=flat == flat)
 
 
 def travel_verdict(counts: "list[int]", min_readings: int = MIN_UV_READINGS
@@ -139,7 +157,10 @@ def _flatness(spans, up, ur, trim) -> float:
             continue
         within.append(sig[m].var())
         means.append(sig[m].mean())
-    if len(means) < 2:
+    if len(means) < 3:
+        return float("nan")
+    mu = float(np.mean(means))
+    if not (abs(mu) > 0 and np.std(means) / abs(mu) >= MIN_ALIGN_SPREAD):
         return float("nan")
     return float(np.mean(within) / max(np.var(means), 1e-30))
 

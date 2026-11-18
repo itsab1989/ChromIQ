@@ -9,13 +9,33 @@ this step adds no user-facing string).
 """
 from __future__ import annotations
 
+#: Notes that are NOT refusals: a pass was accepted, and this says what
+#: could not be checked (the UI step shows them beside the strip).
+NOTES: "dict[str, str]" = {
+    "pairing_not_checked": (
+        "The second pass of this strip could not be checked against the "
+        "first one: its patches are too dark at 380 to 400 nm to compare "
+        "(nothing to see there). The ruler checks were made and passed."),
+    "alignment_not_checked": (
+        "The second pass of this strip could not be checked for lining up "
+        "with the first one: its patches hardly differ. The other checks "
+        "were made and passed."),
+}
+
 #: id -> draft English sentence (for the UI step; not shown by this package)
 REASONS: "dict[str, str]" = {
     "no_dual_calibration": (
-        "This instrument was not calibrated for a dual scan. A dual scan "
-        "needs a calibration that also reads the white tile with the UV "
-        "light; without it the values come out about 15 % too bright. "
-        "Calibrate again with dual scan switched on."),
+        "This calibration was made for single scans, so it did not read the "
+        "white tile with the UV light, and ChromIQ cannot work out M1 and M2 "
+        "from it. M0 is not affected. Calibrate again with dual scan "
+        "switched on: the calibration and the reading must be made in the "
+        "same mode and at the same exposure."),
+    "uv_tile_dark": (
+        "During the calibration the UV light did not seem to light: the "
+        "white tile gave back almost none of its light. ChromIQ does not "
+        "work out M1 and M2 from this calibration. M0 is not affected. "
+        "Calibrate again; if it happens again, the instrument's UV light "
+        "may need a service."),
     "calibration_mismatch": (
         "The calibration was made at another exposure than this reading, so "
         "it does not fit the reading. Calibrate again before measuring."),
@@ -28,12 +48,14 @@ REASONS: "dict[str, str]" = {
         "ChromIQ knows, so ChromIQ does not use it. M0 can be measured as "
         "always."),
     "uv_pass_missing": (
-        "The second pass with the UV light is missing for this reading, so "
-        "M1 and M2 cannot be worked out. Read it again."),
+        "The second pass (UV light) of this strip is missing, so M1 and M2 "
+        "cannot be worked out for it. Read the second pass; the first pass "
+        "is kept."),
     "uv_pass_count": (
-        "The UV pass does not hold the same number of patches as the lamp "
-        "pass, so ChromIQ cannot tell which UV reading belongs to which "
-        "patch. Read the strip again."),
+        "The second pass (UV light) does not hold the same number of "
+        "patches as the first pass (lamp), so ChromIQ cannot tell which UV "
+        "reading belongs to which patch. Read the second pass of this strip "
+        "again; the first pass is kept."),
     "uv_pass_short": (
         "The second pass (UV light) did not cover the whole strip. Read the "
         "second pass of this strip again, over every patch; the first pass "
@@ -50,6 +72,16 @@ REASONS: "dict[str, str]" = {
         "The second pass (UV light) does not seem to belong to this strip: "
         "its readings do not follow the first pass. Read the second pass of "
         "this strip again, on the same strip; the first pass is kept."),
+    "uv_pass_no_uv_light": (
+        "The second pass (UV light) brought back almost no light from this "
+        "strip: either the UV light did not light, or the pass was read over "
+        "a much darker strip than the first pass. Read the second pass of "
+        "this strip again, on the same strip; the first pass is kept."),
+    "uv_pass_misaligned": (
+        "The second pass (UV light) does not line up with the first pass: "
+        "the instrument was probably lifted or moved off the ruler between "
+        "the two passes. Read the second pass of this strip again without "
+        "lifting the instrument; the first pass is kept."),
     "lamp_pass_changed": (
         "The first pass of this strip was read again, and the second pass "
         "taken earlier does not fit it any more. Read the second pass "
@@ -77,6 +109,17 @@ REASONS: "dict[str, str]" = {
         "cannot be continued with single scans, or the other way round: "
         "the readings would not belong together. Continue it the way it "
         "was started, or start a new measurement."),
+    "mixed_factor": (
+        "This measurement was started with another factor for M1 and M2, or "
+        "with another white reference, than the one in use now. Readings "
+        "made with two factors must not share one file, so continue it with "
+        "the factor and white reference it was started with, or start a new "
+        "measurement."),
+    "dual_high_resolution": (
+        "A dual scan is not available in high resolution mode: the "
+        "instrument's factory data for M1 and M2 is given only at 10 nm "
+        "steps. Switch high resolution off for a dual scan, or measure M0 "
+        "in high resolution."),
     # refining the factor from an i1Profiler file (optional)
     "refine_no_conditions": (
         "The i1Profiler file does not hold M0, M1 and M2. Measure the strip "
@@ -97,6 +140,11 @@ REASONS: "dict[str, str]" = {
         "This paper has (almost) no optical brightener, so there is nothing "
         "to learn the factor from. Use a strip printed on a brightened "
         "paper (most bright white papers are)."),
+    "refine_conditions_swapped": (
+        "In the i1Profiler file M2 is brighter than M0 in the blue, which a "
+        "paper never does: the file's M1 and M2 (or M0 and M2) seem to be "
+        "swapped. Save the file again from i1Profiler with each condition "
+        "in its own place."),
     "refine_poor_fit": (
         "The factor could not be found cleanly from these readings (the "
         "readings and i1Profiler's values do not agree well enough). The "

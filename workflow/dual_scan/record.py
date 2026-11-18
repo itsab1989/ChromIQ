@@ -25,6 +25,29 @@ WHERE: in the run, beside the conditions folder
 no serial number. A spot dual reading (lamp + UV on one patch in one press)
 is one unit and does not use this record's split states (a failure reads the
 patch again).
+
+WHAT IT KEEPS, AND NOTHING MORE (review of 2026-11-18, S5: run folders are
+what people zip and send, and a calibration's white, UV-tile and emission
+vectors would fingerprint an instrument across shared projects). Recomputing
+M1 / M2 of a strip, and proving a UV pass belongs to a lamp pass, needs only:
+
+* per calibration ``Te = (T / W) * EMIS`` at 380-550 nm (18 numbers; beyond
+  550 nm the tables are zero and nothing is computed), and its clocks;
+* per UV pass the UV readings already in the same emission units
+  (``U * EMIS``) at 380-550 nm, per patch;
+* per lamp pass its readings (M0, which the main file holds anyway).
+
+The formula is unchanged by this: with ``W = 1`` and ``EMIS = 1`` in the
+compact calibration, ``Ue`` and ``Te`` are exactly the stored numbers
+(:meth:`PassRecord.strip_conditions`). The white (W), the tile under the UV
+LED (T) and EMIS are never written; the full calibration lives only in
+memory for the sitting that made it, because a UV pass must be converted
+with the calibration it was read after.
+
+THE PERSON'S CHOICE (the coordinator's decision of 2026-11-18): the main file
+stays physically M0 (the lamp passes); the condition chosen in the Measure
+tab's filter row is recorded here (:attr:`PassRecord.chosen`) and in the
+files' header (``CHROMIQ_DUAL_CHOSEN``, :mod:`workflow.dual_scan.storage`).
 """
 from __future__ import annotations
 
@@ -36,10 +59,26 @@ from pathlib import Path
 
 import numpy as np
 
-from workflow.dual_scan.model import DualCalibration
-from workflow.dual_scan.reasons import REASONS, DualScanRefused
+from workflow.dual_scan.model import WAVELENGTHS, DualCalibration
+from workflow.dual_scan.reasons import NOTES, REASONS, DualScanRefused
 
-VERSION = 1
+VERSION = 2
+#: the bands the record keeps (380-550 nm: the LED bands and the glow bands)
+KEPT_NM = (380, 550)
+_KEPT = (WAVELENGTHS >= KEPT_NM[0]) & (WAVELENGTHS <= KEPT_NM[1])
+CHOICES = ("M0", "M1", "M2")
+
+
+def _pad(v) -> np.ndarray:
+    """A kept 380-550 nm vector (or rows) back on the 36 bands, zeros beyond."""
+    a = np.asarray(v, dtype=float)
+    if a.ndim == 1:
+        out = np.zeros(WAVELENGTHS.size)
+        out[_KEPT] = a
+        return out
+    out = np.zeros((a.shape[0], WAVELENGTHS.size))
+    out[:, _KEPT] = a
+    return out
 OK, FAILED, MISSING, STALE = "ok", "failed", "missing", "stale"
 LAMP, UV = "lamp", "uv"
 
@@ -55,19 +94,23 @@ class PassState:
     reason: str = ""
     calibration: str = ""
     lamp_hash: str = ""            # lamp: its readings; uv: the lamp pass it was proved against
-    data: "list | None" = None     # uv only: [patches][bands]
+    data: "list | None" = None     # uv only: [patches][380-550 nm], emission units (U * EMIS)
+    notes: "list[str]" = field(default_factory=list)   # NOTES ids: what could not be checked
 
     def to_json(self) -> dict:
         d = {"state": self.state, "reason": self.reason, "calibration": self.calibration,
              "lamp_hash": self.lamp_hash}
         if self.data is not None:
             d["data"] = self.data
+        if self.notes:
+            d["notes"] = list(self.notes)
         return d
 
     @classmethod
     def from_json(cls, d: dict) -> "PassState":
         return cls(str(d.get("state", MISSING)), str(d.get("reason", "")),
-                   str(d.get("calibration", "")), str(d.get("lamp_hash", "")), d.get("data"))
+                   str(d.get("calibration", "")), str(d.get("lamp_hash", "")), d.get("data"),
+                   [str(n) for n in (d.get("notes") or []) if str(n) in NOTES])
 
 
 @dataclass
@@ -77,29 +120,59 @@ class PassRecord:
     lamp: "dict[str, PassState]" = field(default_factory=dict)
     uv: "dict[str, PassState]" = field(default_factory=dict)
     _lamp_values: "dict[str, list]" = field(default_factory=dict)
+    #: the condition chosen in the Measure tab (the main file stays M0)
+    chosen: str = "M0"
+    #: this sitting's full calibrations, in memory only (never saved)
+    _full: "dict[str, DualCalibration]" = field(default_factory=dict)
 
     def __post_init__(self):
         for s in self.strips:
             self.lamp.setdefault(s, PassState())
             self.uv.setdefault(s, PassState())
+        if self.chosen not in CHOICES:
+            raise ValueError(self.chosen)
+
+    # ---- the person's choice
+    def choose(self, cond: str) -> None:
+        """The condition chosen in the Measure tab (M0, M1 or M2)."""
+        c = str(cond).upper()
+        if c not in CHOICES:
+            raise ValueError(cond)
+        self.chosen = c
 
     # ---- calibrations
     def add_calibration(self, cal_id: str, calibration: DualCalibration) -> None:
-        """A dual calibration (the UV-LED tile reading included); its values
-        are kept so M1 / M2 of a strip can be worked out with the calibration
-        its UV pass came from."""
+        """A dual calibration (the UV-LED tile reading included). Kept: Te at
+        380-550 nm and the clocks (see the module docstring); the full
+        calibration stays in memory for this sitting's UV passes."""
         cal = calibration.checked(len(np.asarray(calibration.white).ravel()))
+        if np.asarray(cal.white).size != WAVELENGTHS.size:
+            raise DualScanRefused("no_dual_calibration", "bands")
+        self._full[cal_id] = cal
         self.calibrations[cal_id] = {
-            "white": np.asarray(cal.white).tolist(), "uv_tile": np.asarray(cal.uv_tile).tolist(),
-            "emis": np.asarray(cal.emis).tolist(),
+            "te": np.asarray(cal.te())[_KEPT].tolist(),
             "lamp_clocks": cal.lamp_clocks, "uv_clocks": cal.uv_clocks}
 
     def calibration(self, cal_id: str) -> DualCalibration:
+        """The COMPACT calibration (W = 1, T = Te, EMIS = 1): what the stored
+        UV passes (emission units) are computed and checked with."""
         c = self.calibrations.get(cal_id)
-        if c is None:
+        if c is None or "te" not in c:
             raise DualScanRefused("no_dual_calibration", cal_id)
-        return DualCalibration(np.array(c["white"]), np.array(c["uv_tile"]), np.array(c["emis"]),
+        n = WAVELENGTHS.size
+        return DualCalibration(np.ones(n), _pad(c["te"]), np.ones(n),
                                c.get("lamp_clocks"), c.get("uv_clocks"))
+
+    def strip_conditions(self, strip: str, tables, s: float):
+        """M0, M1, M2 of *strip* from the record alone (both passes good),
+        with the calibration its UV pass came from."""
+        from workflow.dual_scan.model import compute
+        self._strip(strip)
+        if self.lamp[strip].state != OK or self.uv[strip].state != OK:
+            raise DualScanRefused("uv_pass_missing", strip)
+        u = self.uv[strip]
+        return compute(self._lamp_values[strip], _pad(u.data), self.calibration(u.calibration),
+                       tables, s)
 
     # ---- the passes
     def _strip(self, strip: str) -> None:
@@ -118,7 +191,9 @@ class PassRecord:
         if u.state == OK and u.lamp_hash != h:
             try:
                 from workflow.dual_scan.pairing import check_pairing
-                check_pairing(lamp, u.data, self.calibration(u.calibration))
+                ev = check_pairing(lamp, _pad(u.data), self.calibration(u.calibration))
+                if not ev.checked:
+                    raise DualScanRefused("lamp_pass_changed", "too dark to prove")
                 u.lamp_hash = h                  # proved to belong to the new lamp pass
             except DualScanRefused:
                 self.uv[strip] = PassState(STALE, "lamp_pass_changed", u.calibration, "", None)
@@ -144,27 +219,37 @@ class PassRecord:
         else:
             raise ValueError(which)
 
-    def uv_read(self, strip: str, uv, cal_id: str, *, glowing: bool = True) -> str:
-        """A UV pass of *strip*, already cut into its patches. Refused (state
-        ``failed`` with the reason, previous good UV pass kept) when there is
-        no good lamp pass, no dual calibration, or it does not belong to the
-        lamp pass. Returns its state."""
+    def uv_read(self, strip: str, uv, cal_id: str, *, glowing: bool = True,
+                aligned_checked: bool = True) -> str:
+        """A UV pass of *strip*, already cut into its patches, in lamp-white
+        units, read after calibration *cal_id* of THIS sitting. Refused
+        (state ``failed`` with the reason, previous good UV pass kept) when
+        there is no good lamp pass, no dual calibration, or it does not
+        belong to the lamp pass. Accepted with a note when the pairing or the
+        alignment could not be judged (*aligned_checked* False: the cut's
+        ``CutResult.aligned_checked``). Returns its state."""
         from workflow.dual_scan.pairing import check_pairing
         self._strip(strip)
         if self.lamp[strip].state != OK:
             raise DualScanRefused("uv_pass_missing", "no lamp pass for this strip")
+        notes: "list[str]" = [] if aligned_checked else ["alignment_not_checked"]
         try:
-            cal = self.calibration(cal_id)
-            check_pairing(self._lamp_values[strip], uv, cal)
+            full = self._full.get(cal_id)
+            if full is None:
+                raise DualScanRefused("no_dual_calibration", f"{cal_id}: not of this sitting")
+            ue = np.atleast_2d(np.asarray(uv, dtype=float)) * np.asarray(full.emis)[None, :]
+            ev = check_pairing(self._lamp_values[strip], ue, self.calibration(cal_id))
+            if not ev.checked:
+                notes.insert(0, "pairing_not_checked")
         except DualScanRefused as e:
-            if not glowing and e.reason == "uv_pass_wrong_strip":
-                pass                     # no glow: a mix-up cannot change M1 / M2
+            if not glowing and e.reason in ("uv_pass_wrong_strip", "uv_pass_no_uv_light"):
+                ue = np.atleast_2d(np.asarray(uv, dtype=float)) * np.asarray(full.emis)[None, :]
             else:
                 if self.uv[strip].state != OK:
                     self.uv[strip] = PassState(FAILED, e.reason, cal_id)
                 return FAILED
         self.uv[strip] = PassState(OK, "", cal_id, self.lamp[strip].lamp_hash,
-                                   np.asarray(uv, dtype=float).tolist())
+                                   ue[:, _KEPT].tolist(), notes)
         return OK
 
     # ---- what the record says
@@ -199,7 +284,8 @@ class PassRecord:
 
     # ---- on disk
     def to_json(self) -> dict:
-        return {"version": VERSION, "strips": list(self.strips), "calibrations": self.calibrations,
+        return {"version": VERSION, "strips": list(self.strips), "chosen": self.chosen,
+                "calibrations": self.calibrations,
                 "lamp": {s: p.to_json() for s, p in self.lamp.items()},
                 "uv": {s: p.to_json() for s, p in self.uv.items()},
                 "lamp_values": self._lamp_values}
@@ -208,7 +294,11 @@ class PassRecord:
     def from_json(cls, d: dict) -> "PassRecord":
         if int(d.get("version", 0)) != VERSION:
             raise ValueError("unknown pass record version")
-        r = cls(list(d["strips"]), dict(d.get("calibrations") or {}))
+        cals = {k: {"te": list(v["te"]), "lamp_clocks": v.get("lamp_clocks"),
+                    "uv_clocks": v.get("uv_clocks")}
+                for k, v in dict(d.get("calibrations") or {}).items()
+                if isinstance(v, dict) and "te" in v}
+        r = cls(list(d["strips"]), cals, chosen=str(d.get("chosen") or "M0").upper())
         for s, p in (d.get("lamp") or {}).items():
             r.lamp[s] = PassState.from_json(p)
         for s, p in (d.get("uv") or {}).items():

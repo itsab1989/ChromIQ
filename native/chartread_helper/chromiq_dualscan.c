@@ -40,6 +40,21 @@ const char *cq_dual_check(const cq_dual_cal *c) {
 	}
 	if (!any)
 		return "no_uv_tables";
+	/* the UV LED lit at calibration: Te = T / W * E over 380-410 nm
+	 * (model.py MIN_UV_TILE_TE, from the two recorded instruments) */
+	{
+		double sum = 0.0;
+		int n = 0;
+		for (j = 0; j < c->nb; j++) {
+			double wl = cq_dual_wl(c, j);
+			if (wl >= CQ_DUAL_TILE_LO - 1e-6 && wl <= CQ_DUAL_TILE_HI + 1e-6) {
+				sum += c->T[j] / c->W[j] * c->E[j];
+				n++;
+			}
+		}
+		if (!(n > 0 && sum / (double)n >= CQ_DUAL_MIN_TILE_TE))
+			return "uv_tile_dark";
+	}
 	return NULL;
 }
 
@@ -143,5 +158,55 @@ const char *cq_dual_cut(int nb, int ncell, const int (*cells)[2],
 		if (few)
 			return "uv_pass_too_fast";
 	}
+	/* the alignment gate (cut.py::_flatness, MAX_FLATNESS): the 400-500 nm
+	 * UV signal's variance inside the cells against between them */
+	{
+		double f = cq_dual_flatness(nb, ncell, cells, lamp_pos, nuv, uv_pos, uv, trim);
+		if (f == f && f > CQ_DUAL_MAX_FLATNESS)
+			return "uv_pass_misaligned";
+	}
 	return NULL;
+}
+
+double cq_dual_flatness(int nb, int ncell, const int (*cells)[2],
+                        const double *lamp_pos, int nuv, const double *uv_pos,
+                        const double *uv, double trim) {
+	double within = 0.0, msum = 0.0, m2sum = 0.0, mu, var;
+	int k, i, j, nm = 0;
+	int b0 = nb > 13 ? 2 : 0, b1 = nb > 13 ? 13 : nb;
+	for (k = 0; k < ncell; k++) {
+		int s = cells[k][0], n = cells[k][1], cnt = 0;
+		double a = lamp_pos[s], b = lamp_pos[s + n - 1];
+		double lo = a < b ? a : b, hi = a < b ? b : a, w = hi - lo;
+		double sum = 0.0, sq = 0.0;
+		for (i = 0; i < nuv; i++) {
+			if (uv_pos[i] >= lo + trim * w && uv_pos[i] <= hi - trim * w) {
+				double sig = 0.0;
+				for (j = b0; j < b1; j++)
+					sig += uv[i * nb + j];
+				sig /= (double)(b1 - b0);
+				sum += sig;
+				sq += sig * sig;
+				cnt++;
+			}
+		}
+		if (cnt < 2)
+			continue;
+		{
+			double m = sum / (double)cnt;
+			within += sq / (double)cnt - m * m;
+			msum += m;
+			m2sum += m * m;
+			nm++;
+		}
+	}
+	if (nm < 3)
+		return (double)NAN;
+	mu = msum / (double)nm;
+	var = m2sum / (double)nm - mu * mu;
+	if (var < 0.0)
+		var = 0.0;
+	if (!(fabs(mu) > 0.0 && sqrt(var) / fabs(mu) >= CQ_DUAL_MIN_ALIGN_SPREAD))
+		return (double)NAN;
+	return (within / (double)nm) / (var > 1e-30 ? var : 1e-30);
 }

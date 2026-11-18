@@ -74,6 +74,12 @@ int main(void) {
 	invented(&c);
 	L[3] = NAN;
 	printf("nan_value %s\n", cq_dual_patch(&c, 1.1, L, U, m1, m2));
+	/* review 2026-11-18 S2: the UV LED did not light at calibration */
+	invented(&c);
+	for (j = 0; j < CQ_DUAL_NB; j++)
+		c.T[j] *= 0.001;
+	printf("tile_dark %s\n", cq_dual_check(&c));
+	invented(&c);
 
 	/* the cut: 12 patches of 10 lamp readings, a UV pass of 6 per patch back */
 	{
@@ -101,6 +107,33 @@ int main(void) {
 		why = cq_dual_cut(CQ_DUAL_NB, 12, (const int (*)[2])cells, nl, lp, nu, up, uv,
 		                  CQ_DUAL_TRIM, CQ_DUAL_MIN_UV, out, counts);
 		printf("cut_no_ruler %s\n", why == NULL ? "ok" : why);
+		/* review 2026-11-18 S3: the alignment measure and its gate. A
+		 * little invented noise inside each cell; then the same pass half a
+		 * pitch off (the instrument lifted between the passes). */
+		for (k = 0; k < nu; k++) {
+			int pp;
+			up[k] = (nu - 1 - k + 0.5) * (70.0 / 6.0);
+			pp = (int)(up[k] / 70.0);
+			if (pp > 11) pp = 11;
+			for (j = 0; j < CQ_DUAL_NB; j++)
+				uv[k * CQ_DUAL_NB + j] = (pp % 2 ? 3.0 : 1.0) + 0.5 * pp + 0.01 * sin(k * 1.7 + j);
+		}
+		printf("flat %.17g\n", cq_dual_flatness(CQ_DUAL_NB, 12, (const int (*)[2])cells, lp, nu, up, uv,
+		                                        CQ_DUAL_TRIM));
+		why = cq_dual_cut(CQ_DUAL_NB, 12, (const int (*)[2])cells, nl, lp, nu, up, uv,
+		                  CQ_DUAL_TRIM, CQ_DUAL_MIN_UV, out, counts);
+		printf("cut_aligned %s\n", why == NULL ? "ok" : why);
+		for (k = 0; k < nu; k++) {	/* what is under the aperture is half a pitch on */
+			int pp = (int)((up[k] + 35.0) / 70.0);
+			if (pp > 11) pp = 11;
+			for (j = 0; j < CQ_DUAL_NB; j++)
+				uv[k * CQ_DUAL_NB + j] = (pp % 2 ? 3.0 : 1.0) + 0.5 * pp + 0.01 * sin(k * 1.7 + j);
+		}
+		printf("flat_half %.17g\n", cq_dual_flatness(CQ_DUAL_NB, 12, (const int (*)[2])cells, lp, nu, up, uv,
+		                                             CQ_DUAL_TRIM));
+		why = cq_dual_cut(CQ_DUAL_NB, 12, (const int (*)[2])cells, nl, lp, nu, up, uv,
+		                  CQ_DUAL_TRIM, CQ_DUAL_MIN_UV, out, counts);
+		printf("cut_half_pitch %s\n", why == NULL ? "ok" : why);
 	}
 	printf("ALL DONE\n");
 	return 0;

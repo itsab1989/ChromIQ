@@ -277,6 +277,22 @@ def no_file_reason(main: Path) -> str:
     from core.i18n import tr
     from core.measure_pace import model_key
     from workflow.measurement_condition import read_header_keyword
+    from workflow.dual_scan import storage as dual
+    if dual.read_dual_record(main).dual:
+        # The i1Pro 2 dual scan (review of 2026-11-18): its M1 and M2 come
+        # from a second pass per strip, and exist only once every strip has it.
+        due = dual.strips_without_second_pass(main)
+        if due:
+            return tr(
+                "M1 and M2 are not available yet: the second pass (UV light) "
+                "of these strips is missing: {strips}. Continue Measurement "
+                "reads them; until then this measurement is M0."
+                ).format(strips=", ".join(due))
+        return tr(
+            "There are no M1 and M2 readings for this dual scan as it is now. "
+            "They exist only once every strip has its second pass (UV light), "
+            "and only until the readings are changed in another way (for "
+            "example averaged, imported or replaced).")
     inst = (read_header_keyword(main, "TARGET_INSTRUMENT") or "").strip()
     if inst and model_key(inst) not in ("i1pro3", "i1pro3plus"):
         return tr(
@@ -422,6 +438,14 @@ def average_conditions(result: "str | Path", reads: "list[Path]",
     if key is None or len(reads) < 2:
         return out
     own = file_condition(result)
+    from workflow.dual_scan.storage import average_guard
+    mixed = average_guard(reads)
+    if mixed:
+        # i1Pro 2 dual scans made with different factors (or dual and single
+        # reads together): their M1 / M2 must not be averaged into one file.
+        # Reported as "average" (not averaged), the honest sentence the
+        # caller has today; the UI step may name the factor.
+        return {c: "average" for c in CONDITIONS if c != own}
     from core.file_manager import Run
     from workflow.ti3_merge import _resolve_average
     exe = _resolve_average(bin_dir)

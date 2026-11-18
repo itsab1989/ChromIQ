@@ -739,7 +739,9 @@ static int cq_dual_req = 0;			/* --dual-scale given */
 static double cq_dual_scale = 0.0;
 static const char *cq_dual_source = "standard";	/* --dual-scale-source */
 static const char *cq_dual_white = "instrument";	/* --dual-white */
+static const char *cq_dual_chosen = "M0";	/* --dual-chosen: the Measure tab's choice */
 static int cq_cond_dual = 0;			/* the record comes from dual readings */
+static int cq_resuming = 0;			/* -r: this session continues the main file */
 
 static int cq_dual_word_ok(const char *w) {
 	int i;
@@ -1386,6 +1388,57 @@ static int cq_dual_main_kind(const char *mainfile) {
 	return kind;
 }
 
+/* The value of header keyword *kw* in the main file's text ("" when none):
+ * the line `KW "value"` (not KEYWORD "KW"). */
+static void cq_dual_kw(const char *buf, const char *kw, char *out, size_t outlen) {
+	const char *q = buf;
+	size_t kl = strlen(kw);
+	out[0] = '\0';
+	while (q != NULL && (q = strstr(q, kw)) != NULL) {
+		if ((q == buf || q[-1] == '\n') && q[kl] == ' ' && q[kl + 1] == '"') {
+			const char *a = q + kl + 2, *e = strchr(a, '"');
+			size_t n = e != NULL ? (size_t)(e - a) : 0;
+			if (n >= outlen)
+				n = outlen - 1;
+			memcpy(out, a, n);
+			out[n] = '\0';
+			return;
+		}
+		q += kl;
+	}
+}
+
+/* REVIEW 2026-11-18 (M1, S1): a dual measurement is continued only as a
+ * dual scan with the factor, its source and the white reference it was
+ * started with. Asked once per session before anything is read, for a
+ * resumed main file that holds dual readings; NULL = may go on, else the
+ * error kind (workflow/dual_scan/reasons.py): "mixed_scan_kind" (continued
+ * as a single scan) or "mixed_factor". The main file is not touched. */
+static const char *cq_dual_resume_refusal(void) {
+	char *buf;
+	long len;
+	const char *why = NULL;
+	if (!cq_resuming || cq_sctx.outname == NULL
+	 || cq_dual_main_kind(cq_sctx.outname) != 2)
+		return NULL;
+	if (!cq_dual_req)
+		return "mixed_scan_kind";
+	if ((buf = cq_read_all(cq_sctx.outname, &len)) == NULL)
+		return "mixed_factor";
+	{
+		char sv[40], src[40], wh[40], now[40];
+		cq_dual_kw(buf, "CHROMIQ_DUAL_SCALE", sv, sizeof(sv));
+		cq_dual_kw(buf, "CHROMIQ_DUAL_SCALE_SOURCE", src, sizeof(src));
+		cq_dual_kw(buf, "CHROMIQ_DUAL_WHITE", wh, sizeof(wh));
+		snprintf(now, sizeof(now), "%.4f", cq_dual_scale);
+		if (strcmp(sv, now) != 0 || strcmp(src, cq_dual_source) != 0
+		 || strcmp(wh, cq_dual_white) != 0)
+			why = "mixed_factor";
+	}
+	free(buf);
+	return why;
+}
+
 static int cq_cond_resume(const char *mainfile, chcol *cols, int npat) {
 	char hash[64];
 	int c, any = 0, i;
@@ -1485,10 +1538,12 @@ static void cq_cond_for_session(inst *it, int rmode, int emis, int trans,
 		cq_sctx.ocg->add_kword(cq_sctx.ocg, 0, "CHROMIQ_DUAL_SCALE", sb, NULL);
 		cq_sctx.ocg->add_kword(cq_sctx.ocg, 0, "CHROMIQ_DUAL_SCALE_SOURCE", cq_dual_source, NULL);
 		cq_sctx.ocg->add_kword(cq_sctx.ocg, 0, "CHROMIQ_DUAL_WHITE", cq_dual_white, NULL);
+		/* the person's choice: recorded, the main file stays M0 */
+		cq_sctx.ocg->add_kword(cq_sctx.ocg, 0, "CHROMIQ_DUAL_CHOSEN", cq_dual_chosen, NULL);
 		cq_emit_raw("{\"event\":\"conditions\",\"active\":true,\"instrument\":\"i1pro2\","
 		            "\"dual\":true,\"scale\":%s,\"scale_source\":\"%s\",\"white\":\"%s\","
-		            "\"main\":\"M0\",\"extra\":[\"M1\",\"M2\"]}",
-		            sb, cq_dual_source, cq_dual_white);
+		            "\"main\":\"M0\",\"extra\":[\"M1\",\"M2\"],\"chosen\":\"%s\"}",
+		            sb, cq_dual_source, cq_dual_white, cq_dual_chosen);
 		return;
 	}
 	cq_emit_raw("{\"event\":\"conditions\",\"active\":true,\"instrument\":\"i1pro3\","
@@ -3689,6 +3744,19 @@ a1log *log			/* verb, debug & error log */
 	/* CHROMIQ_EXT: the ruler check (Beta). Without --ruler nothing at all. */
 	if (xtern == 0)
 		cq_ruler_for_session(it, rmode, emis, trans, displ);
+	/* CHROMIQ_EXT: the i1Pro 2 dual scan (review 2026-11-18): a dual
+	 * measurement is never continued as a single scan or with another
+	 * factor. Stops the session before anything is read or written. */
+	if (xtern == 0 && cq_json) {
+		const char *mx = cq_dual_resume_refusal();
+		if (mx != NULL) {
+			cq_emit_error(mx, "");
+			it->del(it);
+			if (pfname != NULL)
+				free(pfname);
+			return -1;
+		}
+	}
 	/* CHROMIQ_EXT: M0/M1/M2 (Beta). Without --condition-dir nothing at all. */
 	if (xtern == 0)
 		cq_cond_for_session(it, rmode, emis, trans, displ, fe);
@@ -6380,6 +6448,13 @@ int main(int argc, char *argv[]) {
 				if (cq_dual_word_ok(argv[ai + 1]))
 					cq_dual_white = argv[ai + 1];
 				eat = 2;
+			} else if (strcmp(argv[ai], "--dual-chosen") == 0 && ai + 1 < argc) {
+				/* the Measure tab's M0 / M1 / M2 for a dual scan: recorded
+				 * in the files (CHROMIQ_DUAL_CHOSEN), never sent as -F */
+				if (strcmp(argv[ai + 1], "M0") == 0 || strcmp(argv[ai + 1], "M1") == 0
+				 || strcmp(argv[ai + 1], "M2") == 0)
+					cq_dual_chosen = argv[ai + 1];
+				eat = 2;
 			} else if (strcmp(argv[ai], "--ruler") == 0) {
 				/* CHROMIQ_EXT: Preferences > Beta, the ruler check. */
 				cq_ruler = 1;
@@ -6630,8 +6705,10 @@ int main(int argc, char *argv[]) {
 				dolab = 2;
 
 			/* Resume reading a chart */
-			else if (argv[fa][1] == 'r')
+			else if (argv[fa][1] == 'r') {
 				doresume = 1;
+				cq_resuming = 1;	/* CHROMIQ_EXT: the dual scan's resume rule */
+			}
 
 			/* Printer calibration info */
 			else if (argv[fa][1] == 'I') {

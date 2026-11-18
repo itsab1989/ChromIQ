@@ -31,9 +31,18 @@ from workflow.dual_scan.model import (
     SCALE_RANGE, DualCalibration, UVTables, _patches, check_scale, glow)
 from workflow.dual_scan.reasons import DualScanRefused
 
-#: The built-in factor: the middle of the two instruments' fitted values on
-#: ChromIQ's own lamp readings (1.100 and 1.212), see the module docstring
-#: and the cost table in docs/design/i1pro2_dual_scan.md.
+#: The built-in factor, PROVISIONAL (accepted by the owner on 2026-11-18 as
+#: provisional): the middle of the two instruments' fitted values on
+#: ChromIQ's own lamp readings (1.100 and 1.212), "middle" in the RELATIVE
+#: sense: their geometric mean sqrt(1.100 x 1.212) = 1.1547 makes the worst
+#: relative error over the two instruments smallest (5.0 % either side).
+#: The dE00 a factor error costs is proportional to the relative error times
+#: the paper's glow, so this choice does not depend on the papers measured
+#: (a minimax in dE00 on these two papers, about 1.12, would bake the
+#: papers into the constant: independent review of 2026-11-18). 1.156 and
+#: 1.1547 differ by 0.003 dE00. Re-fit when a third instrument, or
+#: instrument 2 on its own tile, is measured. See
+#: docs/design/i1pro2_dual_scan.md.
 STANDARD_SCALE = 1.156
 #: Where it comes from (recorded in every measurement that uses it).
 STANDARD_SOURCE = "standard"
@@ -145,6 +154,12 @@ def refine_scale(lamp, uv, calibration: DualCalibration, tables: UVTables,
         raise DualScanRefused("refine_m0_differs", f"mean {d0.mean():.3f}")
     band = tables.band
     dg = (I0 - I2)[:, band]
+    # M2 is the glow taken away, so M0 - M2 is mostly >= 0 where it glows; a
+    # file whose M0 - M2 is mostly NEGATIVE has its conditions swapped (review
+    # of 2026-11-18, S6: such a file was told "no optical brightener")
+    big = np.abs(dg) > MIN_GLOW / 4
+    if big.sum() >= 3 and (dg[big] < 0).mean() > 0.5:
+        raise DualScanRefused("refine_conditions_swapped")
     if dg.mean(axis=0).max() < MIN_GLOW:
         raise DualScanRefused("refine_no_glow")
     x, y = dg, (I1 - I0)[:, band]
