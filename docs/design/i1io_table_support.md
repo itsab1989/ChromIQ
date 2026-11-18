@@ -1006,5 +1006,6 @@ is his; the behaviour below is what was built from it and awaits his confirmatio
 * **Windows for ARM computer.** No install is offered for the table there (neither in the window
   nor at START), because the drive cannot run there: the window says so in one sentence, and START
   shows M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM.
-* **Not tried with a real table on Windows.** Tried in a Windows 11 ARM virtual machine without a
-  table and on the Mac with the platform patched; the install itself was not run for the table.
+* **Not tried on Windows, nor with a real table.** Tried on the Mac in real windows with the
+  platform patched and a simulated table; the install itself was not run for the table. A run of
+  the built Windows app in the Windows 11 virtual machine is still owed.
