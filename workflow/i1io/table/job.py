@@ -313,7 +313,7 @@ STAGE_KEY = {"park": "park", "align": "d1", "creep": "dz", "check_move": "d2", "
 #: the step caps the tester used for its own stages (lines, movements)
 DZ_CAPS = cp.CREEP
 D1_CAPS = (8, 0)
-D2_CAPS = (5, 1)
+D2_CAPS = (6, 1)       # 4.3.47 MUST-1: +1, the arm read again after a first-visit question
 
 # The recorded part B steps part C uses, each allowed from the states part C leaves (C_HOME:
 # the homing only from "warm", "homed", "b_done": the needs-conditions before homing).
@@ -553,6 +553,12 @@ class TableJob:
         #: confirmation; the next movement asks GO first (True from the start: the first
         #: question, READY_TO_OPEN, is answered before anything can move)
         self._hands_off_due = True
+        #: 4.3.47 MUST-1: the table's line count when the person last answered a question (the
+        #: job's, a report, or the window's own): a computed move is never sent from a reading
+        #: taken before it (``_read_again_if_asked``)
+        self._answered_at_line: "int | None" = None
+        #: the 0-based line numbers of those extra readings in this sitting
+        self.reads_after_question: "list[int]" = []
         self.notes: "list[tuple[str, str]]" = []
         self._gen = None
         self._gen_step: "str | None" = None
@@ -806,6 +812,7 @@ class TableJob:
         if self._block is not None:
             self._block["answers"].append((BLOCK_LABEL.get(kind, kind), value))
         self._pending = None
+        self._mark_answered()
         # final fix round, M-1: the person was at the screen, and maybe at the table, for this
         # question; unless the answer is itself the hands-off confirmation, the next movement
         # asks GO first
@@ -1354,6 +1361,7 @@ class TableJob:
         # final fix round, M-1: "As described" is the hands-off confirmation (its page says so
         # and names the move that follows); any other answer makes the next movement ask GO
         self._hands_off_due = (Confirm.REPORT_AFTER_STEP, value) not in HANDS_OFF_ANSWERS
+        self._mark_answered()
         self.reports.append((step, value))
         self.notes.append((f"{step}: report", value))
         self.diag.log("ANSWER", f"{step}: report_after_step -> {value}")
@@ -1457,6 +1465,7 @@ class TableJob:
             self.diag.log("ANSWER", f"{question_id} -> {answer} (while a step runs)")
             return
         self._hands_off_due = (question_id, answer) not in HANDS_OFF_WINDOW_ANSWERS
+        self._mark_answered()
         self.diag.log("ANSWER", f"{question_id} -> {answer}"
                       + ("" if self._hands_off_due else " (the hands-off confirmation)"))
 
@@ -1597,9 +1606,49 @@ class TableJob:
             raise StageFailed("free_arm_moved_between_two_readings", first=a, second=b)
         return b
 
+    def _mark_answered(self) -> None:
+        d = self._table
+        self._answered_at_line = d.lines_sent if d is not None else 0
+
+    def _reading_is_stale(self) -> bool:
+        """4.3.47 MUST-1: True when ``position_now`` was read before the person's last answer
+        or before the motors last let the arm go (f1), so it cannot say where the arm is now."""
+        d = self._table
+        r = getattr(d, "read_at_line", None)
+        if d.position_now is None or r is None:
+            return True
+        q = self._answered_at_line
+        f = getattr(d, "freed_at_line", None)
+        return (q is not None and r <= q) or (f is not None and r <= f)
+
+    def _read_again_if_asked(self, a, what: str):
+        """4.3.47 MUST-1 (safety review): the reading *a* a computed move is judged from was
+        taken before the last question (or the last release of the arm): the arm is read once
+        more (the recorded ``;p025``). Moved by more than STILL_UNITS (free arm) or by more than
+        the arrival tolerance (held arm) since *a*: the step stops before the move (nothing
+        moves; trying the step again reads the arm afresh). Otherwise the move is judged from
+        the new reading. Returns the reading to use."""
+        if not self._reading_is_stale():
+            return a
+        d = self._table
+        free = bool(d.arm_free)
+        b = d.position()
+        # the line's number in this sitting (0-based), for the diagnostics and the wire tests
+        self.reads_after_question.append(d.lines_sent - 1)
+        d.log("DATA", f"{what}: read again after the last question: {b} (before it: {a}; "
+                      f"arm {'free' if free else 'held'})")
+        tol = tbl.STILL_UNITS if free else 5
+        if abs(a[0] - b[0]) > tol or abs(a[1] - b[1]) > tol:
+            raise StageFailed("free_arm_moved_while_asked" if free else "arm_moved_while_asked",
+                              first=a, second=b)
+        # a problem reported while this line was on its way is honoured before the move
+        self._soft_stop()
+        return b
+
     def _move_to(self, target, what: str):
         """One computed m0 from the position just read, checked, timed and arrival-checked (a
-        generator: the first-visit confirmation may be asked)."""
+        generator: the first-visit confirmation may be asked). 4.3.47 MUST-1: never from a
+        reading taken before the last question or the last release of the arm."""
         self._soft_stop()
         d = self._table
         a = d.position_now
@@ -1611,6 +1660,16 @@ class TableJob:
         if not ok:
             raise PersonStopped("first_visit_declined")
         yield from self._hands_off(self._gen_step or "move")
+        b = self._read_again_if_asked(a, what)
+        if b is not a:
+            # judged again, in full, from where the arm stands now (no question can follow:
+            # the new reading lies within 5 units of a part just confirmed, widened by 10)
+            self._free_arm_inside(b)
+            geo.check_path(b, target, what, d.front_y)
+            if not self._seg_visited(b, target):
+                raise StageFailed("free_arm_moved_while_asked" if d.arm_free
+                                  else "arm_moved_while_asked", first=a, second=b)
+            a = b
         win = geo.move_window(a, target)
         try:
             d.c_exchange(geo.m0_line(target[0], target[1]), 0, window=win,
@@ -1780,7 +1839,7 @@ class TableJob:
             if n > cp.CREEP_STEPS_MAX:
                 raise StageFailed("more_creep_steps_than_allowed")
             yield from self._hands_off("creep")
-            here = d.position_now
+            here = self._read_again_if_asked(d.position_now, "creep")
             target = (x, min(here[1] + geo.CREEP_STEP, self.front_reached() + geo.CREEP_STEP,
                              need))
             win = geo.move_window(here, target)

@@ -9,6 +9,7 @@ E1 (the RECORDED i1Profiler row of 14 November) has no situation in the app."""
 from __future__ import annotations
 
 from tests.i1io_table import job_harness as H
+from tests.i1io_table import must1_wire as M1
 from tests.i1io_table import part_c_sim as csim
 from tests.i1io_table import reader_sim as RS
 from workflow.i1io.table import job as J
@@ -56,10 +57,12 @@ def job_run(case: dict, tmp_path, ask_after_each_step: bool = True):
     sim = csim.CSimTable(part_c=True, aims=list(H.demo_aims()))
     if "fault" in case:
         i, kind = case["fault"]
-        sim.inject_at(i, kind, 30.0 if kind == "late" else 1.0)
+        # 4.3.47 MUST-1: tester line i is the job's line job_index(i) (must1_wire)
+        sim.inject_at(M1.job_index(i, M1.EXTRA_IN_STRIP_E2_SITTING), kind, 30.0 if kind == "late" else 1.0)
     holder = {}
     if "cancel_at" in case:
-        sim.on_command = (lambda k, i=case["cancel_at"]: holder["job"].cancel()
+        sim.on_command = (lambda k, i=M1.job_index(case["cancel_at"], M1.EXTRA_IN_STRIP_E2_SITTING):
+                          holder["job"].cancel()
                           if k == i else None)
     faults = {"scan": dict(case["scan_faults"]), "scan_at": 2} if case.get("scan_faults") \
         else None
@@ -68,6 +71,7 @@ def job_run(case: dict, tmp_path, ask_after_each_step: bool = True):
         instrument=lambda: us.Check("ok", {"i1pro_devices": 1}),
         ask_after_each_step=ask_after_each_step)
     holder["job"] = job
+    sim.job = job          # 4.3.47 MUST-1: its own record of the extra readings
     assert job.set_options(STRIP_ARGS).ok
     script = dict(case.get("job_script") or {})
     person = H.Person(job, sim, script)

@@ -5,6 +5,7 @@ situation; ``job_lines(case)`` runs the job on the simulator and returns what it
 from __future__ import annotations
 
 from tests.i1io_table import job_harness as H
+from tests.i1io_table import must1_wire as M1
 from tests.i1io_table import part_c_sim as csim
 from workflow.i1io.table import job as J
 
@@ -37,7 +38,8 @@ def cases(base_len: int = 54):
     for name, rows in (("S2 684.0", 18), ("R1 401.6", 17)):
         out[f"C {name} d1 dz d2 f"] = dict(steps=["open", "align", "creep", "check_move", "home"],
                                            recorded=(name, rows),
-                                           script={J.Confirm.FRONT_CHOICE: "go on"})
+                                           script={J.Confirm.FRONT_CHOICE: "go on"},
+                                           must1=M1.EXTRA_IN_CREEP_SITTINGS[name])
         out[f"D {name} d1 back f"] = dict(steps=["open", "align", "home"], recorded=(name, rows))
     for wname, aims in _wrong().items():
         out[f"E wrong {wname} d1 f"] = dict(steps=["open", "align", "home"], aims=aims)
@@ -58,16 +60,21 @@ def job_lines(case: dict, ask_after_each_step: bool = True):
         aims = case["aims"]
     sim = csim.CSimTable(part_c=True, aims=list(aims or H.demo_aims()),
                          **case.get("simkw", {}))
+    if "must1" in case:
+        M1.rng_neutral_at(sim, case["must1"])
     if "fault" in case:
         i, kind = case["fault"]
-        sim.inject_at(i, kind, 30.0 if kind == "late" else 1.0)
+        # 4.3.47 MUST-1: tester line i is the job's line job_index(i) (must1_wire)
+        sim.inject_at(M1.job_index(i, M1.EXTRA_IN_ALIGN_SITTING), kind, 30.0 if kind == "late" else 1.0)
     holder = {}
     if "cancel_at" in case:
-        sim.on_command = (lambda k, i=case["cancel_at"]: holder["job"].cancel()
+        sim.on_command = (lambda k, i=M1.job_index(case["cancel_at"], M1.EXTRA_IN_ALIGN_SITTING):
+                          holder["job"].cancel()
                           if k == i else None)
     job, sim, _t = H.make_job(sim=sim, sheet=sheet, aims=aims,
                               ask_after_each_step=ask_after_each_step)
     holder["job"] = job
+    sim.job = job          # 4.3.47 MUST-1: its own record of the extra readings
     person = H.Person(job, sim, case.get("script"))
     results = []
     for s in case["steps"]:

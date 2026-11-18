@@ -16,6 +16,7 @@ import json
 import pytest
 
 from tests.i1io_table import job_wire_cases as W
+from tests.i1io_table import must1_wire as M1
 from tests.i1io_table.job_harness import HERE
 
 TESTER = json.loads((HERE / "data" / "tester_060_part_c_wire.json").read_text(encoding="utf-8"))
@@ -33,6 +34,10 @@ def test_the_job_sends_what_tester_060_sends(name, asking):
     """Both modes of the owner's ruling: asking after each step (the person answers "as
     described" every time, as the tester's automatic person did) and not asking."""
     got, results, sim = W.job_lines(CASES[name], ask_after_each_step=asking)
+    # 4.3.47 MUST-1: the job's extra position queries after a question, each checked, out
+    if "must1" in CASES[name]:
+        assert sim.job.reads_after_question == list(CASES[name]["must1"])
+    got = M1.without_must1(got, sim.job)
     want = TESTER["sittings"][name]
     if isinstance(want, list):
         assert got == want

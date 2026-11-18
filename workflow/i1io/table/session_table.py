@@ -1033,6 +1033,9 @@ class Table:
         self.busy = 0
         self.stop_requested = False
         self.position_now: "tuple[int, int] | None" = None
+        #: 4.3.47 MUST-1: lines_sent when position_now was read, and when f1 last let the arm go
+        self.read_at_line: "int | None" = None
+        self.freed_at_line: "int | None" = None
         self.last_read: "tuple[int, int] | None" = None
         self.motion_unconfirmed = False
         self.arrival_unknown = False
@@ -1474,6 +1477,9 @@ class Table:
     def position(self) -> "tuple[int, int]":
         p = self.exchange("position").xy()
         self.position_now = p
+        #: 4.3.47 MUST-1: the line number this reading came with (the job compares it with the
+        #: last question and the last release of the arm before a computed move)
+        self.read_at_line = self.lines_sent
         self.last_read = p
         self.last_read_t = self.t.now()
         self.arrival_unknown = False
@@ -1710,6 +1716,7 @@ class Table:
                 if kind == "x":
                     self.exchange(op[1])
                     if op[1] == "free":
+                        self.freed_at_line = self.lines_sent
                         self.freed = True
                         self.mode_on = True
                         self.arm_free = True

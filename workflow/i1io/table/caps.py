@@ -41,7 +41,9 @@ LAYOUT_MAXIMA = {"per_row": 33, "rows": 30, "per_page": 990, "pages": 667}
 CREEP_STEPS_MAX = 10
 CREEP_PAUSE_S = 0.5
 #: S-7 (owner-results round): +1 line, the arrival of the move to the front edge read once more
-CREEP = (2 * CREEP_STEPS_MAX + 8 + 1, CREEP_STEPS_MAX + 1)
+#: 4.3.47 MUST-1 (safety review): +1 line, the arm read again after the creep's first-visit
+#: question, before its first move
+CREEP = (2 * CREEP_STEPS_MAX + 8 + 1 + 1, CREEP_STEPS_MAX + 1)
 
 #: Part C's own per-stage numbers (0.6.0), each pinned by a test.
 OPEN = (len(tbl.OPEN_KEYS), 0)                                           # 11 / 0
@@ -49,7 +51,8 @@ PARK = (tbl.STEP_MAX_LINES["b_home"], tbl.STEP_MAX_MOTIONS["b_home"])    # the h
 APPROACH = (sum(tbl.STEP_MAX_LINES[k] for k in ("b_home", "b_align")),
             sum(tbl.STEP_MAX_MOTIONS[k] for k in ("b_home", "b_align")))
 AIMS = (8, 0)              # three p1, s0, f4 x 4 (stage D1)
-CHECK_MOVE = (5, 1)        # stage D2: p0 (twice if free), m0, p0 (+1: S-7, the arrival read again)
+CHECK_MOVE = (6, 1)        # stage D2: p0 (twice if free), m0, p0 (+1: S-7, the arrival read again)
+#                            (+1: 4.3.47 MUST-1, read again after a first-visit question)
 HOME = (8, 1)              # stage F: s0 p0 i1 s0 f0 f4 f4 p0
 #: One alignment cycle: the way out, the aims, the creep, the check move and the homing.
 ALIGN_CYCLE = tuple(sum(v) for v in zip(APPROACH, AIMS, CREEP, CHECK_MOVE, HOME))
