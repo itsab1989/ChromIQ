@@ -410,7 +410,7 @@ M-DUAL-MODEL-CORRECTED, M-DUAL-MODEL-NOTED, M-DUAL-FILTER-OFF-PARENT; M-DUAL-END
      other instrument gets exactly the read it gets without the Beta (the row's `-F`, no `--dual-*`,
      so an i1Pro 2 refusing a filter still gets M-FILTER-REFUSED); an i1Pro 2 found after a start
      without the dual scan gets the dual read when the plan applies. One sentence says so in the
-     log and under the chart (M-DUAL-MODEL-CORRECTED). When it cannot start again (something was
+     log and under the chart until the first strip is read (M-DUAL-MODEL-CORRECTED). When it cannot start again (something was
      read), it goes on as started and says that (M-DUAL-MODEL-NOTED).
 * **How a person tells the instruments apart: verified, with sources.** ArgyllCMS 3.5.0
   (`doc/instruments.html` of the release, read 2026-11-18; the vendored sources in
@@ -430,7 +430,11 @@ M-DUAL-MODEL-CORRECTED, M-DUAL-MODEL-NOTED, M-DUAL-FILTER-OFF-PARENT; M-DUAL-END
   passed (the engine refuses a dual measurement continued without them), the engine's
   `why: "resume"` arrives as M-DUAL-ENDED with its own sentence, and no text promises M1 / M2 back
   ("For M1 and M2, measure the chart again as a new measurement"). A measurement stopped early
-  with its files in step continues with both passes for the strips not read yet.
+  with its files in step continues with both passes for the strips not read yet. Measured on
+  screen: after such a Continue the engine writes the main file again WITHOUT its dual record; the
+  measurement is still known as an ended dual scan by its pass record (`session.ended_before`),
+  so a later START is not refused as "started as a single scan" (the engine then says "mixed",
+  shown with the same sentence as "resume"), and Build Profile does not call it an i1Pro 3 matter.
 * **A new measurement into the same file starts a fresh pass record (review M-2)**; only Continue
   Measurement (`-r`) takes the old one up again.
 * **Texts (review M-3).** The calibration and session-level reason sentences say what happened and
