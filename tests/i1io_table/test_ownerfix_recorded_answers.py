@@ -263,10 +263,16 @@ def ss_lines():
     return {v.decode().rstrip("\r") for v in tbl.WIRE.values()}
 
 
-@pytest.mark.parametrize("offsets,ok,reread", [([-5], True, False), ([-6, -4], True, True),
-                                               ([-6, -6], False, True)])
+@pytest.mark.parametrize("offsets,ok,reread,closed", [
+    ([-5], True, False, False), ([-6, -4], True, True, False),
+    # 4.3.47 fix2 (safety review, suspect 4): read twice beside the target by at most 1 mm, the
+    # step ends CLEANLY (nothing more is sent in it; the person may try again); beyond 1 mm on
+    # either reading it is a doubt, as before (nothing more is sent at all)
+    ([-6, -6], False, True, False), ([-10, -10], False, True, False),
+    ([-11, -11], False, True, True), ([-6, -11], False, True, True),
+    ([-11, -6], False, True, True), ([-40, -40], False, True, True)])
 def test_an_arrival_off_by_six_is_read_once_more_before_any_doubt(tmp_path, offsets, ok,
-                                                                  reread):
+                                                                  reread, closed):
     job, sim, helper, run, p = job_for(tmp_path)
     sim.jitter = False
     for s in ("open", "calibrate", "align"):
@@ -280,8 +286,12 @@ def test_an_arrival_off_by_six_is_read_once_more_before_any_doubt(tmp_path, offs
     after = sim.received[n:]
     moves_after = [ln for ln in after if ln[1:3] in ("m0", "m1", "m2", "i1", "i0")]
     assert len(moves_after) == 1                       # the check move only, nothing more
-    if not ok:
+    if closed:
         assert job._table.closed_reason is not None and "twice" in log
+    elif not ok:
+        assert job._table.closed_reason is None
+        assert r.kind == "refused" and r.reason == "arrived_beside_the_target", r
+        assert "the step ends cleanly" in log
 
 
 # ---- analysis 2 (REC2 single scan, REC3 the first SPOT recording), test data A4 1-6 -------------

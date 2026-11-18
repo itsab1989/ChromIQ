@@ -297,6 +297,14 @@ class StageFailed(Exception):
         self.reason, self.detail = reason, detail
 
 
+class _ArrivedBeside(StageFailed):
+    """4.3.47 fix2 (safety review, suspect 4): a finished computed move whose arm read, twice,
+    0.3 s apart, beside its target by more than the arrival tolerance (5 units) but within
+    ARRIVAL_BESIDE_UNITS (1 mm). Nothing is pending (the move ended with status 0 inside its
+    time window) and nothing more is sent in the step: a clean failure the person can answer
+    (read the row again), never a reading taken there."""
+
+
 class PersonStopped(Exception):
     """The person chose not to go on (a clean stop; the sitting goes on)."""
 
@@ -392,6 +400,12 @@ def area_id(reason: str) -> str:
 
 #: S-7: the wait before an arrival that read outside the tolerance is read once more
 ARRIVAL_RECHECK_S = 0.3
+#: 4.3.47 fix2 (safety review, suspect 4): i1Profiler's own arrivals on the volunteer's table
+#: reach 5 units (dy -5 of 48, 17 Nov), the edge of the tolerance. An arrival read twice beside
+#: the target by 6..10 units (at most 1 mm) after a move that ended normally stops the step
+#: CLEANLY (the row is read again by the person's choice, from a fresh reading), instead of
+#: ending the measurement; beyond 1 mm it stays a doubt (nothing more is sent), as before.
+ARRIVAL_BESIDE_UNITS = 10
 
 
 def _near(p, q, d=5) -> bool:
@@ -1694,6 +1708,13 @@ class TableJob:
                           f"(target {target}); read again once")
             if not _near(got, target):
                 d.outside_at = got
+                if _near(got, target, ARRIVAL_BESIDE_UNITS) and _near(first, target,
+                                                                       ARRIVAL_BESIDE_UNITS):
+                    d.log("DATA", f"{what}: the arm stands beside the target by "
+                                  f"({got[0] - target[0]:+d}, {got[1] - target[1]:+d}) units "
+                                  f"(within {ARRIVAL_BESIDE_UNITS}): the step ends cleanly, "
+                                  "nothing is read there")
+                    raise _ArrivedBeside("arrived_beside_the_target", target=target, read=got)
                 raise d._doubt(f"{what}: the arm reads {got}, not {target} (twice)")
         self.driven.append((a, target))
         return got
@@ -2838,7 +2859,11 @@ class TableJob:
                 # fix round 10 (review 10, S-4): announced when the arm really goes there,
                 # after the stop check and the pause, never while it still waits at the last one
                 self._progress(event="patch_next", row=plan.index + 1, loc=p.loc, index=i)
-                yield from self._move_to(p.target, f"the move to patch {p.loc}")
+                try:
+                    yield from self._move_to(p.target, f"the move to patch {p.loc}")
+                except _ArrivedBeside as exc:
+                    # fix2: the row fails cleanly; the person may read it again (fresh reading)
+                    raise _RowFailed(exc.reason, p.loc) from None
                 self._arrival = (d.lines_sent, d.position_now)
                 got = self._patch(reader, p, rec, readings)
                 if got.get("plausible"):
@@ -2988,8 +3013,11 @@ class TableJob:
                 a = d.position()
                 if d.arm_free:
                     self._still(a)
-                yield from self._move_to(scan_plan.start, f"row {plan.index + 1}'s start")
-                yield from self._move_to(scan_plan.end, f"row {plan.index + 1}'s end")
+                try:
+                    yield from self._move_to(scan_plan.start, f"row {plan.index + 1}'s start")
+                    yield from self._move_to(scan_plan.end, f"row {plan.index + 1}'s end")
+                except _ArrivedBeside as exc:
+                    raise _RowFailed(exc.reason, "") from None
                 rec["front_row_ends_confirmed"] = True
             if self._hands_off_due:
                 # final fix round, M-1 (never expected: every question of this row is asked
@@ -3754,6 +3782,7 @@ _STRIP_CLEAN_IDS = (
     ("the instrument's lights-off failed", "strip_lights_off_failed"),
     ("c4 answered", "strip_c4_not_recorded"),
     ("the move to the row start took", "movement_late_but_arrived"),
+    ("the arm stands beside the row start", "arrived_beside_the_target"),
     ("the instrument is not ready to fire", "strip_instrument_not_ready"),
     ("the scan move was refused by the program's own checks", "strip_move_refused_here"),
     ("scan move refused", "strip_move_refused_by_the_table"),

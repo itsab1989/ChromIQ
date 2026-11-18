@@ -617,6 +617,12 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
             "touches the arm or the sheet, and press Carry on: ChromIQ then reads again where "
             "the arm stands and tries this step once more from there. If this happens again, "
             "please end the measurement and send us its diagnostics file."),
+        # 4.3.47 fix2 (suspect 4): read twice beside the target by 0.6 to 1 mm, the step ended
+        "arrived_beside_the_target": tr(
+            "The arm stopped a little beside the place it was sent to (less than 1 mm away, "
+            "read twice), so ChromIQ took no reading there and did not move on from there. The "
+            "table finished the move normally. You can simply try again: ChromIQ then reads "
+            "where the arm stands and moves it from there."),
         "arm_did_not_give_way_at_the_alignment_start": tr(
             "The arm did not move freely when you pushed it, so ChromIQ does not aim with it."),
         "stopped_during_the_aims": tr("You chose Stop while aiming."),
