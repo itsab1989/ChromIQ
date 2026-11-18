@@ -339,6 +339,8 @@ _DOUBT_IDS = (
     ("the start-up", "start_up_out_of_order"),
     ("the free arm was not inside", "free_arm_not_in_box"),
     ("after m1", "arm_not_where_m1_puts_it"),
+    # 4.3.47: the freed arm shifted further than settling explains (RELEASE_SETTLE_UNITS)
+    ("the free arm at the alignment start", "free_arm_moved_at_the_alignment_start"),
     ("a scan move may be pending", "strip_move_may_be_pending"),
 )
 

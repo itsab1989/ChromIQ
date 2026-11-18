@@ -504,6 +504,23 @@ RECORDED_FIRST_STARTS = ((-1297, 2681), (-1303, 2689), (-1283, 2677), (-1210, 26
 #: The two readings right before the first patch move must agree this closely (the arm is
 #: free: a hand still on it would show as a difference).
 STILL_UNITS = 2
+#: 4.3.47: how far the arm may shift when f1 lets it go at the alignment start (b_align), from
+#: the reading after m1 (held) to the one read after f1 (free). MEASURED on the volunteer's
+#: i1iO 2 on 18 Nov 2026 (ChromIQ 4.3.46): (2506, 1429) held, (2501, 1441) free 0.8 s later,
+#: nothing sent in between but the recorded s0 f4 f4 f3 f4 f4 f1 f4 f4, nobody asked to touch
+#: it: the freed arm SETTLES by about (-5, +12) units (against the direction m1 and the move
+#: before it had driven it). i1Profiler never reads the arm between f1 and the person's first
+#: aim, so the recordings hold no such pair; until then this check allowed 5 units, a held
+#: arm's arrival tolerance, written against a simulated table whose freed arm never moved,
+#: and it stopped the first real run here. What the check is for: a table that DRIVES the arm
+#: after f1 (the motors running on although every movement has reported its end) must not be
+#: followed by the question that asks the person to touch the arm. At the slowest speed this
+#: table ever moved under m0 or m1 (m1: 69 units in 0.40 s) a motor covers more than 100 units
+#: in the 0.8 s between the two reads; a settling arm moves a few. 50 units (5 mm, four times
+#: the measured settling) separates the two. Nothing that is sent later depends on this
+#: reading: the person then moves the free arm by hand to the marks, and every later motor
+#: move reads the arm afresh (twice, within STILL_UNITS, while it is free).
+RELEASE_SETTLE_UNITS = 50
 #: How many times the person may place the free arm by hand in step B3 (each try: he
 #: pushes, presses Enter, one position read). Reads only; nothing moves under motor.
 PLACE_TRIES = 6
@@ -729,7 +746,8 @@ B_STEPS = (
           ("move", "m1", "m1"), ("p0m1",),
           ("x", "status"), ("f4", "00"), ("f4", "00"), ("x", "f3"), ("f4", "00"),
           ("f4", "00"), ("x", "free"), ("f4", "01"), ("f4", "01"),
-          ("p0still", 5, "the free arm at the alignment start"), ("touch_out",)),
+          ("p0freed", RELEASE_SETTLE_UNITS, "the free arm at the alignment start"),
+          ("touch_out",)),
          "medium",
          "The arm drives straight out from its resting place by 150 mm (about 1.7 s), then "
          "140 mm sideways to the far side, towards the left as you see the table when you lay "
@@ -881,7 +899,7 @@ def step_lines(step: Step) -> "list[str]":
             out.append(op[1])
         elif op[0] == "f4":
             out.append("arm_mode")
-        elif op[0] in ("p0", "p0m1", "p0still", "p0spot", "p0last"):
+        elif op[0] in ("p0", "p0m1", "p0still", "p0freed", "p0spot", "p0last"):
             out.append("position")
         elif op[0] == "home_rest":
             out.append("home")
@@ -1581,6 +1599,25 @@ class Table:
                 OFF_PLACE_TEXT.format(x=pos[0], y=pos[1], what="after the short move m1",
                                       box=AT_M1.text()))
 
+    def _p0_freed(self, units: int, what: str) -> None:
+        """b_align after f1: the free arm read once more (the same single p0 as before 4.3.47).
+        It may have settled when the motors let it go (RELEASE_SETTLE_UNITS); a larger shift
+        stops as before: nothing more is sent."""
+        before = self.position_now
+        if before is None:
+            raise self._doubt(f"{what}: no reading to compare with (a bug)")
+        pos = self.position()
+        dx, dy = pos[0] - before[0], pos[1] - before[1]
+        self.log("DATA", f"{what}: the arm reports {pos} (held before f1: {before}; "
+                         f"settled by ({dx:+d}, {dy:+d}) units, at most {units} allowed)")
+        if abs(dx) > units or abs(dy) > units:
+            self.outside_at = pos
+            raise self._doubt(
+                f"{what}: the arm moved from {before} to {pos} (more than {units} units)",
+                f"The arm reports table position X {pos[0]}, Y {pos[1]}, but right before the "
+                f"motors let it go it reported X {before[0]}, Y {before[1]}: it moved further "
+                f"than a freed arm settles by itself ({what}). So nothing more is sent.")
+
     def _p0_still(self, units: int, what: str) -> None:
         before = self.position_now
         if before is None:
@@ -1700,6 +1737,8 @@ class Table:
                     self._p0_after_m1()
                 elif kind == "p0still":
                     self._p0_still(op[1], op[2])
+                elif kind == "p0freed":
+                    self._p0_freed(op[1], op[2])
                 elif kind == "touch_out":
                     self.busy -= 1
                     try:
