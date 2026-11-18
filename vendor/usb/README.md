@@ -18,8 +18,10 @@ complete source is libusb 1.0.30 as published by the libusb project
 (https://github.com/libusb/libusb/releases/tag/v1.0.30)
 and, as packaged, the `libusb-package` project's tag v1.0.30.1 (https://github.com/pyocd/libusb-package/tree/v1.0.30.1), which builds it from libusb's unmodified v1.0.30 source (included there as a submodule).
 
-Not bundled: Windows on ARM64 (`libusb-package` publishes no wheel for it); that build has no table
-drive and says so.
+Not bundled: Windows on ARM64 (`libusb-package` publishes no wheel for it), and that build needs
+none: on Windows the table drive lists devices through Windows' cfgmgr32 and opens the table through
+libusb-win32's `libusb0.dll`, which ChromIQ's driver installer puts into System32 (ARM64 there,
+measured 2026-11-18). Nothing more is bundled for it.
 
 sha256 of the files here: see `tests/test_usb_library.py`, which pins them.
 

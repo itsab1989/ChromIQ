@@ -177,6 +177,11 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM",
     "M-I1IO-DRIVE-USB-WINDOWS-DRIVER",
     "M-I1IO-DRIVE-TABLE-DRIVER",
+    # release after 4.3.45 (the owner, 2026-11-18): the i1Pro 2 in the table's arm without the
+    # Windows driver, offered the install like any instrument
+    "M-I1IO-DRIVE-I1PRO2-DRIVER",
+    # review 446, W-S3: the table's driver listed by Windows, its libusb0.dll missing
+    "M-I1IO-DRIVE-TABLE-DRIVER-FILE",
     "M-I1IO-DRIVE-USB-LINUX-PERMISSION",
     "M-I1IO-DRIVE-USB-LINUX-KERNEL-DRIVER",
     "M-I1IO-DRIVE-USB-GONE",

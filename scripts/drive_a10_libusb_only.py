@@ -165,7 +165,7 @@ def run(lang: str) -> None:
     winusb = _staged("WinUSB")
     print(f"  staged WinUSB -> has_winusb={[d.has_winusb for d in winusb]}"
           "   (False is the fix)")
-    udi.enumerate_connected = lambda: winusb
+    udi.enumerate_connected = lambda **_kw: winusb
     rp.resource_path = lambda p: (Path(__file__)          # pretend wdi is here
                                   if "wdi_simple" in p else Path("/nonexistent"))
     g = Grab(f"02-winusb-user-{lang}")

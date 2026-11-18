@@ -3083,6 +3083,8 @@ class TableMeasureWindow(QFrame):
             self._call(self.job.save)
             return
         if res.step == "open" and reason in ("usb_open_refused", "driver_not_installed_for_table",
+                                             "driver_not_installed_for_instrument",
+                                             "driver_file_missing_for_table",
                                              "i1profiler_running",
                                              "table_held_by_another_program",
                                              "table_held_by_a_kernel_driver") \
@@ -3098,13 +3100,27 @@ class TableMeasureWindow(QFrame):
         from workflow import measurement_messages as M
         d, reason = res.detail, res.reason
         logname = self._log_name
+        if reason == "usb_open_refused" and \
+                M.I1IO_DRIVE_USB_MESSAGE.get(d.get("message_id", "")) is M.M_I1IO_DRIVE_TABLE_DRIVER:
+            # the opening itself found the table without the driver: the same offer as before
+            # the opening. Review 446, W-S3: libusb0.dll missing while Windows lists the driver
+            # is not "no driver" (the Instrument drivers window shows it installed): its own words
+            reason = ("driver_file_missing_for_table" if d.get("problem") == "no-libusb0-dll"
+                      else "driver_not_installed_for_table")
+        if reason in _DRIVER_OFFERS and self._x64_build_on_an_arm_pc():
+            # review 446, W-M1 (revised 2026-11-18): EVERY way into the offer passes here, and the
+            # x64 build on a Windows for ARM computer never gets it (it cannot drive the table
+            # there, so an install cannot help it): the truthful message, which names the ARM64
+            # version. The ARM64 build there is offered the install like x64 on x64.
+            reason, d = "usb_open_refused", {"message_id": "M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM"}
+        if reason in _DRIVER_OFFERS:
+            self._show_driver_offer(reason)
+            return
         if reason == "usb_open_refused":
             mid = d.get("message_id", "")
             msg = (M.I1IO_DRIVE_USB_MESSAGE.get(mid)
                    or M.CATALOGUE.get(mid) or M.M_I1IO_DRIVE_USB_UNEXPECTED)
             title, body = msg.render(**_fill(msg, log=logname))
-        elif reason == "driver_not_installed_for_table":
-            title, body = M.M_I1IO_DRIVE_TABLE_DRIVER.render()
         elif reason == "i1profiler_running":
             title, body = M.M_I1IO_DRIVE_I1PROFILER_OPEN.render()
         elif reason == "table_held_by_another_program":
@@ -3117,6 +3133,76 @@ class TableMeasureWindow(QFrame):
         self._moving_controls(False)
         self._end_btn.setVisible(False)
         self._show("open_refused", title, body, [(tr("Close"), self._close_job_then_finish)])
+
+    def _x64_build_on_an_arm_pc(self) -> bool:
+        """Whether this is an x64 ChromIQ under emulation on a Windows for ARM computer, the one
+        combination that cannot drive the table (2026-11-18), as the job's own check before the
+        opening read it (`Preflight.x64_on_arm64`); without that reading, asked of this process
+        and machine on Windows only. The ARM64 build on an ARM PC is not this. Read only."""
+        pf = getattr(self.job, "preflight_seen", None) if self.job is not None else None
+        if pf is not None:
+            return pf.system == "windows" and bool(getattr(pf, "x64_on_arm64", False))
+        import sys
+        if sys.platform != "win32":
+            return False
+        try:
+            import core.usb_library as usb_library
+            return bool(usb_library.table_drive_impossible_here())
+        except Exception:      # noqa: BLE001 - cannot tell: the job's own checks decided
+            return False
+
+    def _show_driver_offer(self, reason: str) -> None:
+        """4.3.46 (the owner, 2026-11-18): the table, and the i1Pro 2 in its arm, are helped to
+        the driver as every instrument is. "Not now" ends as Close did; the install answer opens
+        the same Instrument drivers window Preferences opens, where nothing is installed until
+        the person presses its install button and allows Windows' permission prompt. Nothing
+        has been sent to the table: the driver is checked before the table is opened."""
+        from ui.dialogs.settings_dialog import _label_install_driver
+        from workflow import measurement_messages as M
+        if reason == "driver_file_missing_for_table":
+            # review 446, W-S3: Windows lists the driver, its file is missing: the window will
+            # show the table "driver installed" with its Reinstall button, and this says so
+            msg, install = (M.M_I1IO_DRIVE_TABLE_DRIVER_FILE,
+                            tr("Install the driver for the table again"))
+            button = tr("Reinstall Driver for the Table")
+        elif reason == "driver_not_installed_for_table":
+            msg, install = (M.M_I1IO_DRIVE_TABLE_DRIVER,
+                            tr("Install the driver for the table now"))
+            button = tr("Install Driver for the Table")
+        else:
+            msg, install = (M.M_I1IO_DRIVE_I1PRO2_DRIVER,
+                            tr("Install the driver for the i1Pro 2 now"))
+            button = _label_install_driver()
+        title, body = msg.render(**_fill(msg, install=install, window=tr("Instrument drivers"),
+                                         button=button))
+        self._moving_controls(False)
+        self._end_btn.setVisible(False)
+        self._why_not = "driver_offer_declined"
+        self._show("driver_offer", title, body,
+                   [(tr("Not now"), self._close_job_then_finish),
+                    (install, self._on_install_driver_pressed)])
+
+    def _on_install_driver_pressed(self) -> None:
+        """The driver offer's install answer: this window lets go (nothing was opened: the
+        driver is checked before the table is), and the Measure tab then opens the Instrument
+        drivers window (`finished_with("install_driver")`), where the person chooses the
+        install themselves."""
+        if self._busy:
+            return
+        self._why_not = "install_driver"
+        if self.job is None or self._closed_job:
+            self._finish("install_driver")
+            return
+        self._call(self.job.close, then=self._after_close_for_driver)
+
+    def _after_close_for_driver(self, res) -> None:
+        self._closed_job = True
+        if getattr(res, "way_back", "none") not in ("none", "home_offered"):
+            # never expected before the table was opened; if it ever is, the usual ending
+            # says what is true about the table first, and nothing else opens
+            self._after_close(res)
+            return
+        self._finish("install_driver")
 
     def _show_refusal(self, res, after=None) -> None:
         from workflow import measurement_messages as M
@@ -3739,6 +3825,11 @@ class _Report:
 def _refused(M, why: str) -> "tuple[str, str]":
     """M-I1IO-DRIVE-REFUSED with the reason; the true state is the panel under it."""
     return M.M_I1IO_DRIVE_REFUSED.render(why=why)
+
+
+#: the refusals that become the offer to open the Instrument drivers window (never on ARM)
+_DRIVER_OFFERS = ("driver_not_installed_for_table", "driver_not_installed_for_instrument",
+                  "driver_file_missing_for_table")
 
 
 def _fill(msg, **kw) -> dict:

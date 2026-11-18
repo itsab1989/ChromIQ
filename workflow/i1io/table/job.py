@@ -1058,11 +1058,33 @@ class TableJob:
         pf = self._preflight()
         self.preflight_seen = pf
         self.diag.log("INFO", "before opening: " + json.dumps(pf.as_dict(), default=str))
+        if pf.system == "windows" and pf.x64_on_arm64:
+            # review WIN2, F-S1: an x64 ChromIQ on a Windows for ARM computer can never drive the
+            # table (it cannot load the ARM64 libusb0.dll), whatever the drivers' states: the
+            # truthful message (use the ARM64 version) here, BEFORE the READY_TO_OPEN question,
+            # never after the person has prepared the table for an opening that cannot come
+            raise StageFailed("usb_open_refused",
+                              message_id="M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM",
+                              problem="windows-x64-on-arm64")
+        if pf.system == "windows" and pf.table_driver.state == "none" and (
+                pf.table_driver.detail.get("seen") is False
+                or pf.table_driver.detail.get("present") is False):
+            # review WIN2, F-M2: no table attached (never seen, or only remembered by Windows)
+            # is "ChromIQ did not find the table", the same words as the opening's; an install
+            # offer would lead into a window that lists no table
+            raise StageFailed("usb_open_refused", message_id=tbl.NO_TABLE,
+                              problem="windows-table-not-connected")
         if pf.system == "windows" and pf.table_driver.state != "libusb0":
             # the owner's ruling: on Windows the table is reached like ArgyllCMS's instruments,
-            # through libusb-win32, which only the person's explicit choice installs for it
+            # through libusb-win32, which only the person's explicit choice installs for it.
+            # 4.3.46 (owner, 2026-11-18): the window then offers that install (the ARM64 build
+            # like x64; the x64 build on an ARM PC was refused above)
             raise StageFailed("driver_not_installed_for_table",
                               driver_state=pf.table_driver.state, **pf.table_driver.detail)
+        if pf.system == "windows" and pf.instrument_driver.state == "none":
+            # 4.3.46: the i1Pro 2 in the arm is its own USB device and needs the same driver
+            # (ArgyllCMS reads it through libusb-win32); the window offers that install too
+            raise StageFailed("driver_not_installed_for_instrument")
         if pf.instrument.state != "ok":
             raise StageFailed(f"instrument_{pf.instrument.state}", **pf.instrument.detail)
         if pf.i1profiler is True:
@@ -1082,8 +1104,21 @@ class TableJob:
         try:
             self.transport = self._open_transport()
         except tbl.NotAvailable as exc:
-            raise StageFailed("usb_open_refused", message_id=getattr(exc, "message_id", ""),
-                              problem=getattr(exc, "problem", "")) from None
+            mid, problem = getattr(exc, "message_id", ""), getattr(exc, "problem", "")
+            if pf.system == "windows" and pf.x64_on_arm64 and mid == tbl.DRIVER_NOT_INSTALLED:
+                # review 446, W-M1, as revised 2026-11-18: the opening found the table without its
+                # driver (or its libusb0.dll missing) in an x64 ChromIQ on a Windows for ARM
+                # computer. An install cannot help that process: the truthful message instead
+                raise StageFailed("usb_open_refused",
+                                  message_id="M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM",
+                                  problem="windows-x64-on-arm64-" + str(problem)) from None
+            if pf.system == "windows" and mid == tbl.DRIVER_NOT_INSTALLED \
+                    and problem == "no-libusb0-dll":
+                # review 446, W-S3: Windows lists the table with libusb-win32 (the check before
+                # the opening said so), but the driver's libusb0.dll is missing or gives no
+                # backend: not "no driver", and the window says which
+                raise StageFailed("driver_file_missing_for_table", problem=problem) from None
+            raise StageFailed("usb_open_refused", message_id=mid, problem=problem) from None
         except tbl.TransportError as exc:
             raise StageFailed("usb_open_failed", error=type(exc).__name__) from None
         self.diag.log("INFO", tbl.usb_summary(self.transport))

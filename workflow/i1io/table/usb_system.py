@@ -11,10 +11,12 @@ Per system (the owner's ruling: the drive ships on macOS, Windows and Linux):
 ==================  ===================================  =====================================
 check               macOS                                Windows / Linux
 ==================  ===================================  =====================================
-instrument          ``ioreg`` device entries (tester     pyusb's enumeration through ChromIQ's
-(exactly one        0.5.1's fix: interface entries are   own libusb (core.usb_library.backend):
-0971:2000, no       not devices)                         the cached device descriptors only
-other instrument)
+instrument          ``ioreg`` device entries (tester     Windows: cfgmgr32's list of present USB
+(exactly one        0.5.1's fix: interface entries are   device instances (no USB library; the
+0971:2000, no       not devices)                         ARM64 build has no libusb-1.0). Linux:
+other instrument)                                        pyusb through ChromIQ's own libusb
+                                                         (core.usb_library.backend), the cached
+                                                         device descriptors only
 who holds the       ``ioreg`` UsbExclusiveOwner /        Linux: sysfs names the kernel driver
 table               IOUserClientCreator (tester)         bound to the table's interface, and
                                                          /proc names the programs holding its
@@ -76,13 +78,67 @@ def devices_from_pyusb(found) -> "list[dict]":
     return out
 
 
-def list_devices(system: str, backend=None, ioreg_roots=None, pyusb_find=None
-                 ) -> "list[dict] | None":
+def devices_from_instance_ids(instance_ids, hub_ids=None) -> "list[dict] | None":
+    r"""Windows: cfgmgr32's present USB device INSTANCE ids -> the reader's device records.
+
+    2026-11-18 (the owner: "many modern pcs use arm processors so this should work for them"):
+    the ARM64 build has no libusb-1.0 to list devices with, and Windows answers the same question
+    without any USB library. One record per INSTANCE, never per (vid, pid), so two i1Pro 2 stay
+    two and the check still says "several instruments". Composite children
+    (``USB\VID_0971&PID_2000&MI_00\...``) are interfaces of a device already counted, and ids
+    without VID/PID (``USB\ROOT_HUB30\...``) are root hubs: both skipped.
+
+    ``hub`` is True for the instances in *hub_ids* (`core.usb_driver_installer.
+    usb_hub_instance_ids`: a hub driver's service or a hub-class compatible id). Review WIN2,
+    F-M1: a hub chip can carry an instrument maker's vendor id (WCH's 1A86:8091, Microchip's
+    04D8, even X-Rite's 0971), and unmarked it would be counted as "another measuring
+    instrument" and START refused, where the libusb route (bDeviceClass 9) and macOS ignore it.
+    *hub_ids* None (the registry could not be read) marks no hub: the behaviour before.
+    None for *instance_ids* stays None (the list could not be read: cannot tell)."""
+    if instance_ids is None:
+        return None
+    from core.usb_driver_installer import usb_ids_in_instance
+    hubs = {str(h).upper() for h in (hub_ids or ())}
+    out = []
+    for one in sorted(str(i) for i in instance_ids):
+        parts = one.split("\\")
+        if len(parts) < 2 or "&MI_" in parts[1].upper():
+            continue
+        ids = usb_ids_in_instance(one)
+        if ids is None:
+            continue
+        try:
+            vid, pid = int(ids[0], 16), int(ids[1], 16)
+        except ValueError:
+            continue
+        out.append({"vid": vid, "pid": pid, "place": None, "hub": one.upper() in hubs,
+                    "interfaces": 0})
+    return out
+
+
+def list_devices(system: str, backend=None, ioreg_roots=None, pyusb_find=None,
+                 instance_ids=None, hub_ids=None) -> "list[dict] | None":
     """Every USB device once, as the reader counts them; None when the system's list cannot be
-    read. *ioreg_roots* / *pyusb_find* are for tests (recorded answers, no device)."""
+    read. *ioreg_roots* / *pyusb_find* / *instance_ids* are for tests (recorded answers, no
+    device). Windows lists through cfgmgr32 (`devices_from_instance_ids`), on x64 and ARM64
+    alike, and never through a USB library."""
     if system == "macos":
         return rd.usb_devices(ioreg_roots)
-    if system in ("windows", "linux"):
+    if system == "windows":
+        if instance_ids is None:
+            try:
+                from core.usb_driver_installer import present_usb_instance_ids
+                instance_ids = present_usb_instance_ids()
+            except Exception:      # noqa: BLE001 - the list could not be read: cannot tell
+                return None
+            if hub_ids is None:
+                try:
+                    from core.usb_driver_installer import usb_hub_instance_ids
+                    hub_ids = usb_hub_instance_ids()
+                except Exception:      # noqa: BLE001 - no hub flag: none marked, as before
+                    hub_ids = None
+        return devices_from_instance_ids(instance_ids, hub_ids)
+    if system == "linux":
         try:
             if pyusb_find is None:
                 if backend is None:
@@ -257,6 +313,42 @@ def table_driver_check(system: str, state_now=None) -> Check:
     return Check(state, dict(detail))
 
 
+def instrument_driver_check(system: str, connected=None) -> Check:
+    """Windows only (4.3.46, the owner's ruling of 2026-11-18): whether the i1Pro 2 (0971:2000,
+    its own USB device in the table's arm) has the libusb-win32 driver ArgyllCMS reads it
+    through. "libusb0" = it has; "none" = it is connected without it (X-Rite's driver, WinUSB or
+    none); "not_seen" = not connected (the instrument check says that); elsewhere
+    "not_applicable". *connected* is `core.usb_driver_installer.enumerate_connected` (tests).
+    Read only. UNTESTED ON REAL WINDOWS HARDWARE WITH A TABLE."""
+    if system != "windows":
+        return Check("not_applicable")
+    try:
+        if connected is None:
+            import core.usb_driver_installer as inst
+            connected = inst.enumerate_connected
+        pros = [d for d in connected() if (d.vid, d.pid) == ("0971", "2000")]
+    except Exception as exc:      # noqa: BLE001 - read only: cannot tell, the reader decides
+        return Check("cannot_tell", {"why": type(exc).__name__})
+    if not pros:
+        return Check("not_seen")
+    return Check("libusb0" if all(d.has_winusb for d in pros) else "none")
+
+
+def x64_build_on_arm64(system: str) -> bool:
+    """An x64 ChromIQ running under emulation on a Windows for ARM PC, the one combination that
+    cannot drive the table (it cannot load the ARM64 libusb0.dll the driver installs there):
+    no driver install is offered there, and the message says to use the ARM64 version. The ARM64
+    build on that PC is NOT this (2026-11-18, the owner: Windows on ARM shall be supported):
+    decided by the process (`core.usb_library.table_drive_impossible_here`)."""
+    if system != "windows":
+        return False
+    try:
+        import core.usb_library as usb_library
+        return bool(usb_library.table_drive_impossible_here())
+    except Exception:      # noqa: BLE001 - cannot tell: the existing checks decide
+        return False
+
+
 @dataclass(frozen=True)
 class Preflight:
     system: str
@@ -265,24 +357,30 @@ class Preflight:
     holders: Check
     i1profiler: "bool | None"
     table_driver: Check = Check("not_applicable")
+    instrument_driver: Check = Check("not_applicable")
+    x64_on_arm64: bool = False
 
     def as_dict(self) -> dict:
         return {"system": self.system, "usb": self.usb,
                 "instrument": {"state": self.instrument.state, **self.instrument.detail},
                 "holders": {"state": self.holders.state, **self.holders.detail},
                 "i1profiler_running": self.i1profiler,
-                "table_driver": {"state": self.table_driver.state, **self.table_driver.detail}}
+                "table_driver": {"state": self.table_driver.state, **self.table_driver.detail},
+                "instrument_driver": {"state": self.instrument_driver.state,
+                                      **self.instrument_driver.detail},
+                "x64_on_arm64": self.x64_on_arm64}
 
 
 def preflight(platform: "str | None" = None) -> Preflight:
     """The read-only checks before the table is opened (nothing is opened or sent)."""
     import core.usb_library as usb_library
     system = system_of(platform)
-    backend = usb_library.backend() if system in ("windows", "linux") else None
+    backend = usb_library.backend() if system == "linux" else None
     devices = list_devices(system, backend=backend)
     return Preflight(system, usb_library.diagnostics(), instrument_check(devices),
                      holders_check(system), i1profiler_running(system),
-                     table_driver_check(system))
+                     table_driver_check(system), instrument_driver_check(system),
+                     x64_build_on_arm64(system))
 
 
 def instrument_now(platform: "str | None" = None) -> Check:
@@ -291,5 +389,5 @@ def instrument_now(platform: "str | None" = None) -> Check:
     Read only; the table the job holds is not looked at."""
     import core.usb_library as usb_library
     system = system_of(platform)
-    backend = usb_library.backend() if system in ("windows", "linux") else None
+    backend = usb_library.backend() if system == "linux" else None
     return instrument_check(list_devices(system, backend=backend))

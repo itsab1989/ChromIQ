@@ -8,8 +8,15 @@ pyusb on top of libusb-1.0. The app bundles both on every platform it is built f
   (Apache 2.0 for its Python part), found here by path, never from the system, so that the frozen
   app on macOS, Windows and Linux uses the library it ships;
 * not in the Windows on ARM64 build, for which ``libusb-package`` publishes no wheel: there
-  :func:`status` says so (``"not-bundled"``). On Windows the table itself is reached through
-  libusb-win32's libusb0.dll, not libusb-1.0 (:func:`table_backend`).
+  :func:`status` says so (``"not-bundled"``), and that build needs none. On Windows the table is
+  reached through libusb-win32's own libusb0.dll, which the driver package installs into System32
+  (:func:`table_backend`), and the devices are LISTED through Windows' cfgmgr32
+  (`workflow/i1io/table/usb_system.py::list_devices`), so no libusb-1.0 is used on Windows at all.
+  Measured 2026-11-18 in a Windows 11 ARM64 virtual machine: the libusb0.dll the driver package
+  puts there is a plain ARM64 build (libusb-win32 1.4.0.0) and loads in an ARM64 process. The
+  x64 build under emulation on an ARM PC cannot load it, and only that combination is refused
+  (:func:`table_drive_impossible_here`; the owner, 2026-11-18: "many modern pcs use arm
+  processors so this should work for them").
 
 Availability is decided by what can actually be LOADED, never by the machine type alone (review
 13, S-6: an x64 ChromIQ under emulation on an ARM64 PC): :func:`status` loads the bundled file
@@ -241,6 +248,55 @@ def load_libusb0(path) -> "str | None":
     return None
 
 
+def table_drive_impossible_here() -> bool:
+    """True only for an x64 (or x86) ChromIQ running under emulation on a Windows for ARM PC:
+    that process cannot load the ARM64 libusb0.dll the driver package installs there, so it
+    cannot drive the table (measured 2026-11-18). The ARM64 build on the same PC can, and x64
+    on an x64 PC can: both False. Decided by the PROCESS, with the machine naming why. Read
+    only; False wherever it cannot be told."""
+    try:
+        return bool(machine_is_arm64()) and not process_is_windows_arm64()
+    except Exception:      # noqa: BLE001 - cannot tell: the loading decides later
+        return False
+
+
+def libusb0_selftest_field(dll_path=None) -> str:
+    """Windows only: one token for the start-up self-test line about the TABLE's route,
+    libusb-win32's libusb0.dll in System32 (the driver package installs it). ``libusb0=<dll
+    version>`` when it loads into this process (``usb_init`` and ``usb_get_version``; no USB
+    transfer is made and no device is listed, but ``usb_get_version`` asks the libusb-win32
+    kernel driver for ITS version by opening the first ``\\\\.\\libusb0-NNNN`` device object
+    it finds and sending it a GET_VERSION request, so where an instrument or the table already
+    has the driver, that device's driver object is opened for a moment; run only under
+    ``CHROMIQ_SELFTEST=1``, review WIN2, N4), ``libusb0=absent`` when no driver was ever
+    installed (normal, and
+    always so on a build machine), ``libusb0=does-not-load`` when it is there and does not load
+    (expected for an x64 build on an ARM PC, a broken package for an ARM64 build). "" off
+    Windows, so the macOS and Linux lines stay as they were."""
+    if sys.platform != "win32":
+        return ""
+    path = dll_path if dll_path is not None else libusb0_dll_path()
+    if path is None:
+        return "libusb0=absent"
+    if load_libusb0(path) is not None:
+        return "libusb0=does-not-load"
+    try:
+        lib = getattr(ctypes, "WinDLL", ctypes.CDLL)(str(path))
+
+        class _Part(ctypes.Structure):
+            _fields_ = [("major", ctypes.c_int), ("minor", ctypes.c_int),
+                        ("micro", ctypes.c_int), ("nano", ctypes.c_int)]
+
+        class _UsbVersion(ctypes.Structure):
+            _fields_ = [("dll", _Part), ("driver", _Part)]
+        lib.usb_init()
+        lib.usb_get_version.restype = ctypes.POINTER(_UsbVersion)
+        v = lib.usb_get_version().contents.dll
+        return f"libusb0={v.major}.{v.minor}.{v.micro}.{v.nano}"
+    except Exception:      # noqa: BLE001 - it loaded; the version could not be read
+        return "libusb0=loads"
+
+
 def machine_is_arm64() -> bool:
     """The MACHINE is an ARM64 PC (the machine-wide registry value, as the CH34x gate reads
     it), for the words of a message only; False when it cannot be told."""
@@ -269,8 +325,10 @@ def table_backend(system: "str | None" = None, dll_path=None) -> TableBackend:
         why = load_libusb0(path)
         if why is not None:
             # review 13, S-6: the file is there and does not load into this process
+            # 2026-11-18: "-arm64" (the truthful "use the ARM64 version") only for the x64
+            # build on an ARM PC; the ARM64 build whose file does not load has a broken package
             return TableBackend(None, "libusb0", "libusb0-does-not-load-arm64"
-                                if machine_is_arm64() else "libusb0-does-not-load")
+                                if table_drive_impossible_here() else "libusb0-does-not-load")
         import usb.backend.libusb0
         be = usb.backend.libusb0.get_backend(find_library=lambda _name, p=str(path): p)
         return TableBackend(be, "libusb0", "" if be is not None else "no-libusb0-dll")

@@ -981,3 +981,116 @@ and the reviewer's own walker and probes, copied as `test_review14_walker.py` an
 * In a main window lower than 800 px the tab's mode buttons and chart file box (locked during the
   session) give their room to the panel: at 900 x 650 the ending shows its three answers and at
   least three lines of its explanation.
+
+### Confirmed behaviour: Windows on ARM is supported (2026-11-18)
+
+**Confirmed by:** Sebastian, 2026-11-18 (this one sentence only, his ruling of that day: *"many
+modern pcs use arm processors so this should work for them"*)
+
+* Windows on ARM shall be supported: the i1iO table drive is meant to run on a Windows for ARM
+  computer too.
+
+### Confirmed behaviour: on Windows the table is treated like the instruments (2026-11-18)
+
+**Confirmed by:** Sebastian, 2026-11-18 (this one sentence only, his ruling of that day: *"the
+same issue exists with any other xrite instrument that is held by argylls driver. so nothing
+special here and it should be allowed to install it and the app shall help with it."*)
+
+* On Windows, the i1iO table is treated like any X-Rite instrument that ArgyllCMS's driver
+  holds: ChromIQ may install that driver for the table, and helps the person to do it.
+
+### ⏳ Awaiting confirmation: the Windows driver for the table, offered like an instrument's (2026-11-18)
+
+**Confirmed by:** *nobody yet.* (The owner's ruling, 2026-11-18, overruling the 4.3.45 rule that
+the table's driver was never offered: *"why dont we allow to install the driver on windows? [...]
+the same issue exists with any other xrite instrument that is held by argylls driver. so nothing
+special here and it should be allowed to install it and the app shall help with it."* The ruling
+is his; the behaviour below is what was built from it and awaits his confirmation.)
+
+* **Preferences, Instrument drivers (Windows, the Beta on).** The i1iO 2 table (USB 0971:2004) has
+  a section of its own, "The i1iO table (beta)", below the instruments: its line with its driver
+  state, a paragraph and its OWN button, "Install Driver for the Table" ("Reinstall Driver for
+  the Table" when it has the driver). That button installs for the table alone, with the same
+  certificate disclosure and the same permission prompt as an instrument; the instruments'
+  "Install Driver" never includes the table (review 446, W-S1), so the i1Pro 2 can get the driver
+  while the table keeps X-Rite's, and the reverse. The paragraph says the table is listed because
+  of the Beta, that ChromIQ drives the table itself (it is not called a colorimeter that ArgyllCMS
+  talks to, W-S2), that while the table has this driver i1Profiler cannot use the table, and the
+  way back. The i1Pro 2 in the arm (0971:2000) keeps its own line among the instruments. The
+  person's choice for the table is attached only after the table's own button was pressed, built
+  from the listed table's own id (`install_winusb` refuses a table device without it). Beta off:
+  the window makes exactly the call it always made and never lists the table.
+* **START (Windows).** A table without the libusb-win32 driver: M-I1IO-DRIVE-TABLE-DRIVER, with
+  "Not now" (installs nothing) and "Install the driver for the table now" (the table window lets
+  go, then the same Instrument drivers window opens). The i1Pro 2 in the arm without the driver:
+  M-I1IO-DRIVE-I1PRO2-DRIVER, the same two answers. Checked before the table is opened: nothing is
+  sent to the table. Afterwards the person presses START MEASUREMENT again.
+* **START (Windows, x64), the driver listed but its file missing (review 446, W-S3).** Windows
+  lists the table with libusb-win32 and the opening finds the driver's libusb0.dll missing (or
+  without a backend): M-I1IO-DRIVE-TABLE-DRIVER-FILE, "Not now" / "Install the driver for the
+  table again". It says the window will show the table "driver installed" and names the table's
+  "Reinstall Driver for the Table" button, so the offer and the window agree.
+* **The way back to i1Profiler (review 446, W-M2).** Said as ArgyllCMS's own installation guide
+  documents it for instruments (`doc/Installing_MSWindows.html` of ArgyllCMS 3.5.0, "Using Argyll
+  drivers with existing OEM drivers", Windows 8, 8.1, 10 & 11): Device Manager (Control Panel >
+  Hardware and Sound > Device Manager), right-click the device, "Update Driver Software...",
+  "let me pick from a list of device drivers on my computer", X-Rite's driver from the list,
+  "Next", "Close"; the guide's tip of a different USB port for each driver. The menu names are
+  quoted exactly as the guide gives them (English in every language, with a note that a Windows
+  in another language shows them translated). Said plainly: not tried with a table.
+  Re-running X-Rite's installer is not said, because the guide does not document it. The same
+  steps in the window's table section, in M-I1IO-DRIVE-TABLE-DRIVER and in
+  M-I1IO-DRIVE-I1PRO2-DRIVER.
+* **Windows for ARM computer (revised 2026-11-18 after the owner's ruling above).** Decided by
+  the PROCESS, not the machine. The ARM64 build (the download ChromIQ-Windows-arm64) lists the
+  devices through Windows' cfgmgr32 (no USB library; one entry per device instance, composite
+  `&MI_xx` children and hubs skipped, so two i1Pro 2 are still "several instruments"), opens the
+  table through the ARM64 `libusb0.dll` the driver package installs, and is offered the driver
+  install in the Instrument drivers window and at START exactly like x64. The x64 build running
+  there under emulation cannot load that file: no install is offered to it, the window says so
+  in one sentence naming the ARM64 version, and START shows M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM,
+  which says to use the ARM64 version. That holds on every path into the offer, before the
+  opening and at it (review 446, W-M1). The x64 build on an x64 PC lists through cfgmgr32 as well
+  (one path for all of Windows; in the virtual machine both lists gave the same answer); nothing
+  else changes for it. The self-test line carries `libusb0=<version>|absent|does-not-load` on
+  Windows.
+* **Not tried on Windows, nor with a real table.** Tried on the Mac in real windows with the
+  platform patched and a simulated table; the install itself was not run for the table. A run of
+  the built Windows app in the Windows 11 virtual machine is still owed. On Windows for ARM: tried
+  in a Windows 11 ARM64 virtual machine without a table or an i1Pro 2 (the ARM64 `libusb0.dll`
+  loads in an ARM64 process, pyusb's libusb0 backend starts on it, the cfgmgr32 list works); no
+  USB transfer to a table and no measurement has run on an ARM computer.
+
+### ⏳ Awaiting confirmation: review WIN2 of the Windows driver help (2026-11-18)
+
+**Confirmed by:** *nobody yet.*
+
+* **USB hubs are hubs (F-M1).** The cfgmgr32 list carries no device class, and a hub chip can
+  carry an instrument maker's vendor id (WCH's CH334/CH335 hubs are 1A86:8091, in very many cheap
+  hubs and docks; Microchip's carry 04D8; a hub could carry X-Rite's 0971). Such a hub was
+  counted as "another measuring instrument" and START was refused, on x64 Windows too. Hubs are
+  now named from the registry entry of each device instance (`Enum\USB\<ids>\<instance>`): a hub
+  driver's service (`usbhub`, `USBHUB3`, compared in any case, and the Windows 7 vendor USB 3 hub
+  drivers `iusb3hub`, `nusb3hub`, `amdhub30`, `amdhub31`, `asmthub3`), or a hub-class compatible
+  id (`USB\Class_09...`, Windows' copy of the device class 9 the libusb route and macOS already
+  used). The class test is the main one and catches any other hub driver. When the registry
+  cannot be read, no hub is marked (the behaviour before). Nothing here opens a device.
+* **A table that is not connected (F-M2).** On Windows, a table that is neither present nor ever
+  seen, or only remembered by Windows, gets M-I1IO-DRIVE-TABLE-NOT-FOUND ("ChromIQ did not find
+  the table"), not the driver offer, which would lead into an Instrument drivers window that
+  lists no table. A table whose USB ids cfgmgr32 lists, but under an instance id the registry
+  keys do not rebuild, still counts as present (as in the Instrument drivers window).
+* **The x64 build on a Windows for ARM computer is refused first (F-S1).** Before the "ready to
+  open" question and whatever the drivers' states: M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM. That
+  process can never drive the table, so the person is not asked to prepare the table first.
+* **M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM says what is untried (F-S3):** that neither version has
+  yet been tried with a table on an ARM computer, and asks to hear how it went.
+* **The way back, the Windows 10 and 11 step (F-S2, NOT verified on a real Windows).** The
+  Instrument drivers window's paragraph adds: if Windows asks how to search for drivers before
+  it offers the choice to pick from a list, choose "Browse my computer for drivers" first (on
+  some versions "Browse my computer for driver software"), and says that step is not in the
+  guide. Worded so that it is right whether or not Windows asks it; to be checked in the virtual
+  machine.
+* **cfgmgr32 asked again when the list grew (N1).** A device plugged in between the size call and
+  the list call (CR_BUFFER_SMALL) makes ChromIQ ask again, up to three times, instead of "cannot
+  tell" and a refused START.

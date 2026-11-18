@@ -117,7 +117,10 @@ if platform.machine().upper() in ('ARM64', 'AARCH64'):
 # in the frozen app as in a checkout. The start-up self-test (core/selftest.py)
 # proves it LOADS in the built app (`usb=pyusb-.../libusb-...`), touching no
 # device. Windows on ARM64 has no libusb-package wheel: nothing to bundle there,
-# and the app says the drive is not available on that system. The licences
+# and nothing is needed: on Windows the table is listed through cfgmgr32 and
+# opened through libusb-win32's libusb0.dll, which the driver package installs
+# into System32 (the self-test prints `libusb0=<version>|absent`). On every
+# Windows build the bundled libusb-1.0 has no job left for the table. The licences
 # travel under licenses/usb (vendor/usb/README.md, THIRD-PARTY-NOTICES.md).
 try:
     _usb_binaries = list(collect_dynamic_libs('libusb_package'))

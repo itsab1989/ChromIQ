@@ -12471,12 +12471,25 @@ M_I1IO_DRIVE_USB_MISSING = _m(
     "still work.",
     approved=False)
 
+# Revised 2026-11-18 (the owner: "many modern pcs use arm processors so this should work for
+# them"): the ARM64 build drives the table on a Windows for ARM computer; only the x64 build
+# running there under emulation cannot (it cannot load the ARM64 libusb0.dll the driver
+# installs), and this says what to do instead. The download's name is README.md's.
+# Review WIN2, F-S3: neither the ARM64 build's table install nor its opening of a table has been
+# tried yet, and the text says so, as the way back does.
 M_I1IO_DRIVE_USB_NOT_ON_THIS_SYSTEM = _m(
     "M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM",
-    "The table cannot be driven on this system yet",
-    "ChromIQ could not load the USB library it needs for the table on this "
-    "Windows for ARM computer, so it cannot drive the table here yet. Nothing "
-    "was sent. Measuring in i1Profiler 3.8.6 or older and IMPORT still work.",
+    "Use the ARM64 version of ChromIQ to drive the table on this computer",
+    "This is a Windows for ARM computer, and this copy of ChromIQ is the version for Intel "
+    "and AMD processors (x64), which Windows runs here through emulation. That version cannot "
+    "load the table's USB driver file on an ARM computer, so it cannot drive the table here. "
+    "Nothing was sent to the table.\n\n"
+    "Use the ARM64 version of ChromIQ on this computer instead: the download named "
+    "ChromIQ-Windows-arm64. It is made to reach the table through the same driver, and its "
+    "Instrument drivers window offers to install that driver for the table. ChromIQ has not "
+    "yet tried either version with a table on an ARM computer, so if you do, please tell us on "
+    "GitHub how it went.\n\n"
+    "Until then, measuring in i1Profiler 3.8.6 or older and IMPORT still work.",
     approved=False)
 
 M_I1IO_DRIVE_USB_WINDOWS_DRIVER = _m(
@@ -12489,16 +12502,73 @@ M_I1IO_DRIVE_USB_WINDOWS_DRIVER = _m(
     "in our guide: it tells us which driver your table uses.",
     approved=False)
 
+# 4.3.46 (the owner, 2026-11-18): "why dont we allow to install the driver on windows? [...] the
+# same issue exists with any other xrite instrument that is held by argylls driver. so nothing
+# special here and it should be allowed to install it and the app shall help with it." Revised:
+# the window now offers the install, through the same Instrument drivers window as an instrument.
 M_I1IO_DRIVE_TABLE_DRIVER = _m(
     "M-I1IO-DRIVE-TABLE-DRIVER",
     "The table does not have the driver ChromIQ uses on Windows",
-    "On Windows, ChromIQ reaches the table through the same kind of driver "
-    "it uses for your measuring instruments (libusb-win32). The table does "
-    "not have it yet. Installing it for the table must be your own choice, "
-    "because while the table has this driver, i1Profiler cannot use the "
-    "table until the driver is switched back; that choice is not offered in "
-    "this beta yet. Nothing was sent. You can measure in i1Profiler and use "
-    "IMPORT instead.",
+    "On Windows, ChromIQ reaches the table through the same driver it uses for your "
+    "measuring instruments (libusb-win32), and the table does not have it yet. ChromIQ can "
+    "install it for the table the same way as for an instrument.\n\n"
+    "\u201c{install}\u201d opens the window \u201c{window}\u201d, where the table has a "
+    "section and a button of its own, \u201c{button}\u201d. Nothing is installed until you "
+    "press that button and allow it when Windows asks for your permission. It installs the "
+    "driver for the table only; your instruments keep the drivers they have. When the driver "
+    "is installed, press START MEASUREMENT again.\n\n"
+    # review 446, W-M2: the way back as ArgyllCMS's guide documents it for instruments
+    # (doc/Installing_MSWindows.html, "Using Argyll drivers with existing OEM drivers"), its
+    # menu names quoted exactly; not tried with a table, and said so
+    "As with any X-Rite instrument that has this driver: while the table has it, i1Profiler "
+    "cannot use the table. ArgyllCMS's installation guide describes the way back for "
+    "instruments: in Device Manager, right-click the table, choose \u201cUpdate Driver "
+    "Software...\u201d, then \u201clet me pick from a list of device drivers on my "
+    "computer\u201d, and choose X-Rite's driver from the list. ChromIQ has not yet tried these "
+    "steps with a table. The window \u201c{window}\u201d describes them in full.\n\n"
+    "\u201cNot now\u201d installs nothing. Nothing was sent to the table. You can also "
+    "measure in i1Profiler 3.8.6 or older and use IMPORT.",
+    approved=False)
+
+# 4.3.46: the i1Pro 2 in the table's arm is its own USB device and needs the same driver
+M_I1IO_DRIVE_I1PRO2_DRIVER = _m(
+    "M-I1IO-DRIVE-I1PRO2-DRIVER",
+    "The i1Pro 2 does not have the driver ChromIQ uses on Windows",
+    "The i1Pro 2 in the table's arm is a USB device of its own. On Windows, ChromIQ reads it "
+    "through the same driver as your other measuring instruments (libusb-win32), the driver "
+    "ArgyllCMS reads instruments through, and the i1Pro 2 does not have it yet.\n\n"
+    "\u201c{install}\u201d opens the window \u201c{window}\u201d, where the i1Pro 2 is "
+    "listed among your instruments. Nothing is installed until you press \u201c{button}\u201d "
+    "there and allow it when Windows asks for your permission. That button installs the driver "
+    "for the instruments marked \u201cdriver not installed\u201d and never for the table, "
+    "which has a button of its own. When the driver is installed, press START MEASUREMENT "
+    "again.\n\n"
+    # review 446, W-M2: the way back as ArgyllCMS's guide documents it for instruments
+    "As with any X-Rite instrument that has this driver: while the i1Pro 2 has it, i1Profiler "
+    "cannot use the i1Pro 2. ArgyllCMS's installation guide describes the way back for "
+    "instruments: in Device Manager, right-click the i1Pro 2, choose \u201cUpdate Driver "
+    "Software...\u201d, then \u201clet me pick from a list of device drivers on my "
+    "computer\u201d, and choose X-Rite's driver from the list. The window \u201c{window}\u201d "
+    "describes these steps in full.\n\n"
+    "\u201cNot now\u201d installs nothing. Nothing was sent to the table.",
+    approved=False)
+
+# review 446, W-S3: Windows lists the table with libusb-win32, but the opening found the driver's
+# libusb0.dll missing (or it gave no backend). The Instrument drivers window then shows the table
+# "driver installed" with its Reinstall button, so the offer says that, not "no driver"
+M_I1IO_DRIVE_TABLE_DRIVER_FILE = _m(
+    "M-I1IO-DRIVE-TABLE-DRIVER-FILE",
+    "The table's driver is installed, but ChromIQ could not use it",
+    "Windows lists the table with the driver ChromIQ uses (libusb-win32), but ChromIQ could not "
+    "open the table through it: the driver's file libusb0.dll, which the driver's installation "
+    "puts into Windows, is missing or did not work. Nothing was sent to the table.\n\n"
+    "\u201c{install}\u201d opens the window \u201c{window}\u201d. The table is shown there as "
+    "\u201cdriver installed\u201d, because Windows still lists the driver, and its button is "
+    "\u201c{button}\u201d. Installing the driver again should put the missing file back. "
+    "Nothing is installed until you press that button and allow it when Windows asks for your "
+    "permission. Then press START MEASUREMENT again.\n\n"
+    "\u201cNot now\u201d installs nothing. You can also measure in i1Profiler 3.8.6 or older "
+    "and use IMPORT.",
     approved=False)
 
 M_I1IO_DRIVE_USB_LINUX_PERMISSION = _m(
@@ -12697,7 +12767,8 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_DONE, M_I1IO_DRIVE_NOT_I1IO2, M_I1IO_DRIVE_NOT_I1PRO2,
     M_I1IO_DRIVE_BUSY, M_I1IO_DRIVE_I1PROFILER_OPEN,
     M_I1IO_DRIVE_USB_MISSING, M_I1IO_DRIVE_USB_NOT_ON_THIS_SYSTEM,
-    M_I1IO_DRIVE_USB_WINDOWS_DRIVER, M_I1IO_DRIVE_TABLE_DRIVER,
+    M_I1IO_DRIVE_USB_WINDOWS_DRIVER, M_I1IO_DRIVE_TABLE_DRIVER, M_I1IO_DRIVE_I1PRO2_DRIVER,
+    M_I1IO_DRIVE_TABLE_DRIVER_FILE,
     M_I1IO_DRIVE_USB_LINUX_PERMISSION, M_I1IO_DRIVE_USB_LINUX_KERNEL_DRIVER,
     M_I1IO_DRIVE_USB_GONE, M_I1IO_DRIVE_USB_UNEXPECTED,
     M_I1IO_DRIVE_TABLE_NOT_FOUND, M_I1IO_DRIVE_SEVERAL_TABLES,
