@@ -639,6 +639,12 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
         "helper_error": tr("ChromIQ's reading program reported a fault."),
         "helper_gone": tr("ChromIQ's reading program stopped unexpectedly."),
         "calibration_failed": tr("The calibration on the white tile did not succeed."),
+        # final fix round, S-2
+        "button_wait_still_holds_the_instrument": tr(
+            "ChromIQ's wait for the button on the i1Pro 2 has not let go of the instrument, so "
+            "ChromIQ did not open it for reading. Nothing moved for this. Press Carry on to try "
+            "again in a moment; if this happens again, please end the measurement and send us "
+            "its diagnostics file."),
         # final fix round, S-1: where the white is made, and its level
         "arm_not_over_the_tile": tr(
             "After its homing the arm still does not stand where every recorded calibration "

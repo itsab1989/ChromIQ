@@ -244,12 +244,41 @@ def test_cancel_cancels_the_wait(tmp_path):
     assert not helper.press_procs[-1].alive()
 
 
+def _slow_closing_waits(job, delay_s: float, order: list):
+    """Final fix round, S-2: every button wait of *job* takes *delay_s* to let go of the
+    instrument; *order* gets ("closed", t) when it has, ("reader", t) when a reader starts."""
+    import time
+    make = job._press_factory
+
+    def factory(folder, log):
+        w = make(folder, log)
+        real_close = w.close
+
+        def close():
+            time.sleep(delay_s)
+            real_close()
+            order.append(("closed", time.monotonic()))
+        w.close = close
+        return w
+    job._press_factory = factory
+    real_reader = job._reader_factory
+
+    def reader(*a, **k):
+        order.append(("reader", time.monotonic()))
+        return real_reader(*a, **k)
+    job._reader_factory = reader
+
+
 def test_the_wait_is_closed_before_any_reader_opens(tmp_path):
+    """Review 13, S-2 (the planted fault F12, a reader that does not wait, survived): with a wait
+    that is slow to let go, the next reader starts only after it has."""
     job, sim, helper, _run = _job(tmp_path)
     p = ButtonPerson(job, sim, helper)
     _to_aims(job, p)
+    order = []
+    _slow_closing_waits(job, 0.4, order)
     seen = []
-    orig = helper.factory()
+    orig = job._reader_factory
 
     def factory(*a, **k):
         seen.append([pp.alive() for pp in helper.press_procs])
@@ -258,6 +287,34 @@ def test_the_wait_is_closed_before_any_reader_opens(tmp_path):
     assert p.drive(job.align()).ok
     read_page(job, p)
     assert seen and all(not any(s) for s in seen)
+    kinds = [k for k, _t in order]
+    assert kinds[0] == "closed" and "reader" in kinds, order
+    first_reader = kinds.index("reader")
+    assert order[0][1] <= order[first_reader][1]
+    job.close()
+
+
+def test_a_wait_that_does_not_let_go_opens_no_reader_and_says_so(tmp_path, monkeypatch):
+    """Review 13, S-2: past the bound, nothing is opened over a held instrument: the row is
+    refused truthfully before anything moves, and a later try works once it has let go."""
+    monkeypatch.setattr(J, "BUTTON_CLOSE_WAIT_S", 0.2)
+    job, sim, helper, _run = _job(tmp_path)
+    p = ButtonPerson(job, sim, helper)
+    _to_aims(job, p)
+    order = []
+    _slow_closing_waits(job, 1.5, order)
+    assert p.drive(job.align()).ok
+    assert p.drive(job.check_move()).ok
+    n = len(sim.received)
+    r = p.drive(job.read_row())
+    assert (r.kind, r.reason) == (J.Kind.REFUSED, J.BUTTON_WAIT_HOLDS)
+    assert "reader" not in [k for k, _t in order]
+    assert [ln for ln in sim.received[n:] if ln[1:3] in ("m0", "m2", "i1")] == []
+    assert "did not let go of the instrument" in _log(job)
+    import time
+    time.sleep(1.6)                              # it lets go after all
+    r = p.drive(job.read_row())
+    assert r.ok, (r.reason, r.detail)
     job.close()
 
 

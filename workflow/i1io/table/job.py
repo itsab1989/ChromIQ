@@ -168,6 +168,9 @@ BUTTON_WAIT_MS = 600000
 #: i1Pro 2 (the helper's own close plus the kill that follows a close that blocks)
 BUTTON_CLOSE_WAIT_S = 12.0
 BUTTON_IGNORED = "button_press_ignored"
+#: final fix round, S-2: the button wait has not let go of the i1Pro 2 within
+#: BUTTON_CLOSE_WAIT_S: no reader is opened (refused truthfully, nothing moves)
+BUTTON_WAIT_HOLDS = "button_wait_still_holds_the_instrument"
 #: review 8, S-1: the steps that move the arm (the homing is the way back and never refused
 #: for a stop); a stop pressed between steps or at a question ends them before their next move
 MOVING_STEPS = ("park", "align", "creep", "check_move", "read_row", "start_up")
@@ -1996,7 +1999,8 @@ class TableJob:
         reader starts), then the reader. A generator (the consent is a confirmation).
         *moves_next*: the arm moves once the reader is open (a row): a consent answered here
         is followed by the hands-off GO before the reader starts (final fix round, M-1)."""
-        self._press_join()
+        if not self._press_join():
+            raise StageFailed(BUTTON_WAIT_HOLDS)
         why = self._helper_check()
         if why:
             raise StageFailed(why)
@@ -2090,7 +2094,11 @@ class TableJob:
             self.diag.log("BUTTON", "the instrument's button is not offered for these aims: "
                                     "the reading program has not been agreed to yet")
             return
-        self._press_join()
+        if not self._press_join():
+            self.button_unavailable = BUTTON_WAIT_HOLDS
+            self.diag.log("BUTTON", "the instrument's button is not offered: the last wait "
+                                    "still holds the instrument")
+            return
         why = self._helper_check()
         if why:
             self.button_unavailable = why
@@ -2167,14 +2175,20 @@ class TableJob:
         self._press_closing = t
         t.start()
 
-    def _press_join(self) -> None:
+    def _press_join(self) -> bool:
+        """Final fix round, S-2: wait (at most BUTTON_CLOSE_WAIT_S) until the button wait has
+        let go of the i1Pro 2. False: it still holds it; the caller opens nothing (the wait is
+        asked again next time, never forgotten)."""
         t = self._press_closing
-        if t is not None:
-            t.join(BUTTON_CLOSE_WAIT_S)
-            if t.is_alive():
-                self.diag.log("BUTTON", "the button wait did not let go of the instrument in "
-                                        "time")
-            self._press_closing = None
+        if t is None:
+            return True
+        t.join(BUTTON_CLOSE_WAIT_S)
+        if t.is_alive():
+            self.diag.log("BUTTON", "the button wait did not let go of the instrument in "
+                                    f"{BUTTON_CLOSE_WAIT_S:.0f} s; no reader is opened")
+            return False
+        self._press_closing = None
+        return True
 
     def press_events(self) -> "list[dict]":
         """What the button wait has reported so far (display only; never acted on here)."""
@@ -2703,7 +2717,8 @@ class TableJob:
     def _start_scan(self, folder: Path):
         """The checks of every reader (helper, exactly one i1Pro 2, the consent), then the
         helper's table-scan reader. A generator."""
-        self._press_join()
+        if not self._press_join():
+            raise StageFailed(BUTTON_WAIT_HOLDS)
         why = self._helper_check()
         if why:
             raise StageFailed(why)
