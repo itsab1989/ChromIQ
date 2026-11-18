@@ -867,8 +867,9 @@ in-app drive has still not run on a real table.
   START / STOP row. The tab's Stop is the table's Stop (before the next move; its pop-up then
   offers Carry on, End measurement, Bring the arm home), live whenever anything can move, in the
   tab's own Stop look. While the session is open: "To stop the arm at once, switch the table off
-  at its power switch." above the buttons (where Guided's banner stands), and Report a problem
-  beside Stop.
+  at its power switch." above the buttons (where Guided's banner stands), with Report a problem at
+  its right end, directly above Stop (in the START / STOP row a third button cut the others at
+  every size the main window allows).
 * **One definition of every question.** The pop-ups host the panel's own page widgets, built by
   the same page builders: no title, text, answer or hands-off rule exists twice, and every row of
   QUESTIONS.md is a pop-up with the same words (tested walk by walk against the panel).
@@ -892,10 +893,11 @@ in-app drive has still not run on a real table.
 * **The look, as the hand path's windows.** The model windows: M-END ("Keep what you have measured
   so far?"), "All Strips Read", the unread-patches window. The same margins, a bold title above
   the text, no icon, the answers in a button box by role so the application's style
-  (`WinButtonLayoutStyle`) gives the platform's order, the confirming answer filled in the Measure
-  tab's accent through `tint_dialog_primary` (not while it cannot be pressed), Discard and Send
-  nothing more marked destructive (never filled), the rest plain; M-END's own roles for the
-  ending.
+  (`WinButtonLayoutStyle`) gives the platform's order, side by side when they fit and one above
+  the other when not, in the height the app's button style gives them; ONE confirming answer per
+  window filled in the Measure tab's accent through `tint_dialog_primary` (not while it cannot be
+  pressed), Discard and Send nothing more marked destructive (never filled), the rest plain;
+  M-END's own roles for the ending. The problem window shows its note field.
 * **Sounds** (`measurement_window_sounds.md`, rule W-1, at the moment the window opens): a row
   that could not be read plays "Strip read failed" (as "Patch read failed"); a refusal, a stop, a
   failed opening, an error, the stored-white notice and the switched-off-first question play
