@@ -70,6 +70,7 @@ def main(argv: "list[str]") -> int:
     child = subprocess.Popen([str(REAL), *argv], stdin=subprocess.PIPE,
                              stdout=subprocess.PIPE, bufsize=0)
     out_lock = threading.Lock()
+    ready = threading.Event()        # the replay's ready-to-scan beep
     st = {"dual": False, "strip": "", "phase": "lamp", "spot": False,
           "pending": None, "lamp_fault": "", "lamp_reason": "",
           "mode": "spot" if "-p" in argv else "scan"}
@@ -111,6 +112,8 @@ def main(argv: "list[str]") -> int:
                 except ValueError:
                     ev = None
             kind = (ev or {}).get("event")
+            if kind == "scan_ready":
+                ready.set()
             if kind == "conditions" and ev.get("active") and ev.get("dual"):
                 st["dual"] = True
             if (kind == "conditions" and not ev.get("active") and st["spot"]
@@ -202,7 +205,9 @@ def main(argv: "list[str]") -> int:
         # the second pass: the instrument's button, then the slide (the
         # replay's own trigger, so its scan time is the pass's, as by hand)
         st["phase"] = "lamp"
+        ready.clear()
         to_child({"cmd": "trigger"})
+        ready.wait(5.0)                  # the beep, then the slide
         time.sleep(PASS_S)
         if st["lamp_fault"]:
             st["pending"] = result("strip", strip, False, "lamp")
