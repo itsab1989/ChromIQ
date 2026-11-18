@@ -77,6 +77,13 @@ static volatile long r_total = 0, r_pos = 0;
 static volatile int r_reads = 0, r_maxsize = 0, r_cancels = 0, r_in_read = 0;
 static volatile int r_cancel_hit = 0;
 static volatile int r_clearhalts = 0;	/* macOS-like: IOKit's clear-halt after an aborted read */
+/* 4.3.47 (release review 4.3.46): a stream that does not end goes on not ending for
+ * the reader that met it, whatever ruler_mode says later. ruler_life switches
+ * ruler_mode to "clean" for strips 2 and 3, and the strip-1 reader, still
+ * draining, then read those strips' finite stream and ended by itself; under
+ * load it had ended before the close, so the close cancelled nothing
+ * ("on_noend CLOSED cancels=0"). */
+static volatile int r_noend_latched = 0;
 static int fail82 = 0;			/* the measurement read fails */
 
 static unsigned char ruler_code(long i, long total) {
@@ -151,7 +158,8 @@ static int ruler_read(unsigned char *buf, int bsize, int *bread, double tout) {
 		*bread = 77;
 		return ICOM_SHORT;
 	}
-	if (strcmp(ruler_mode, "noend") == 0) {
+	if (strcmp(ruler_mode, "noend") == 0 || r_noend_latched) {
+		r_noend_latched = 1;
 		r_in_read = 1;
 		for (i = 0; i < 50 && !r_cancel_hit; i++)
 			msec_sleep(1);
@@ -441,6 +449,7 @@ static void ruler_life(const char *name, devType dtype, int caps2,
 	ruler_mode = mode;
 	r_reads = r_maxsize = r_cancels = r_clearhalts = 0;
 	r_cancel_hit = 0;
+	r_noend_latched = 0;
 	p = make(dtype, caps2);
 	pace = 1;
 	if (lights) {
@@ -457,6 +466,16 @@ static void ruler_life(const char *name, devType dtype, int caps2,
 	pace = 0;
 	printf("%s READS85 %d max=%d\n", scn, r_reads > 0, r_maxsize);
 	printf("%s CLEARHALTS before close %d\n", scn, r_clearhalts);
+	/* 4.3.47: a close that is to cancel a pending read waits until that read
+	 * has started (the fake's reader is in it), as a real stalled or endless
+	 * stream is in its read when the instrument is let go. Bounded, and
+	 * outside the time measured for the close. */
+	if (strcmp(mode, "noend") == 0 || strcmp(mode, "stall") == 0
+	 || strcmp(mode, "stallnc") == 0) {
+		unsigned int t0w = msec_time();
+		while (!r_in_read && (msec_time() - t0w) < 10000)
+			msec_sleep(1);
+	}
 	{
 		unsigned int t0c = msec_time(), ms;
 		i1pro2_cq_ruler_close(p);
@@ -514,6 +533,7 @@ static void combo_life(const char *name, int lights, int ruler, int quiet_ms) {
 	ruler_mode = "clean";
 	r_reads = r_maxsize = r_cancels = r_clearhalts = 0;
 	r_cancel_hit = 0;
+	r_noend_latched = 0;
 	last_wr_end = 0;
 	in_reading = 0;
 	i1pro2_cq_lights_quiet_ms_for_test = quiet_ms;

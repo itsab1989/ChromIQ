@@ -212,10 +212,15 @@ class MastheadHeader(QWidget):
         self._load_ti2_btn.setToolTip(with_shortcut(tr(
             "Open Chart File (.ti2)\n\n"
             "Opens a laid-out chart to print or measure.\n\n"
-            "This is the laid-out chart ChromIQ made for you — the same one you "
-            "printed. Loading it here shows its pages in Create Chart, Print "
-            "Chart and Measure, so all three are working on the same chart. "
-            "Unavailable while a measurement is running."), "open_chart_file"))
+            "A chart file holds a chart's patches and where each one lies on "
+            "the printed sheet. It can be one ChromIQ made for you, or one "
+            "made by ArgyllCMS or another program that writes .ti2 files. "
+            "Open the one that belongs to the sheet you printed, or are going "
+            "to print. Loading it here shows its pages in Create Chart, Print "
+            "Chart and Measure, so all three are working on the same chart. A "
+            "chart file from outside your projects is first copied into a "
+            "project, and ChromIQ asks you before it does. Unavailable while "
+            "a measurement is running."), "open_chart_file"))
         self._load_ti2_btn.setFixedSize(QSize(44, 44))
         self._load_ti2_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._load_ti2_btn.clicked.connect(self.load_ti2_clicked)

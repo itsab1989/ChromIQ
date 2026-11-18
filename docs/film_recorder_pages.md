@@ -209,11 +209,45 @@ preview, and:
 ![The generated 35 mm chart in the preview: 576 patches, 16 per strip, 36 strips, Margins: OK](film_recorder/08-generated-35mm-frame.png)
 
 **Why there is a white band above the patches.** "Measured from Preview" shows
-"Top (to first patch)" **8.0 mm**, although the top margin is 1.0 mm. The
-SpectroScan layout keeps a fixed space at the top of every page, and no
-setting in Create Chart makes it smaller. On a frame only 25.4 mm high this
-costs about five rows of 1 mm patches, which is why the frame holds 576 and
-not more. Left, right and bottom follow your margins (1.0, 1.1 and 1.4 mm).
+"Top (to first patch)" **8.0 mm**, although the top margin is 1.0 mm. With
+"Create layout:" set to **"Prioritise patch size, then fit to page"** the
+layout keeps the room a strip reader needs to start and stop: a base border of
+6 mm at the top of every page, plus the SpectroScan's own run-up of 2 mm (with
+the strip and row indicators off). Your top margin counts only where it is
+larger than that. On a frame only 25.4 mm high this costs about seven rows of
+1 mm patches, which is why the frame holds 576 and not more. Left, right and
+bottom follow your margins (1.0, 1.1 and 1.4 mm).
+
+**How to use the whole frame.** Set "Create layout:" to **"Prioritise chart
+area, then fit patches to it"** instead. Then the four margins you type are
+exactly the area the patches are laid out in, with no band at the top, and
+ChromIQ fits as many patches into that area as it can:
+
+1. Under "Basic", "Layout", set **"Create layout:"** to **"Prioritise chart
+   area, then fit patches to it"**.
+2. Set **"Calculation method:"** to **"By patch width"**,
+   **"Minimum patch width (mm):"** to **1.0** and **"Minimum patch height
+   (% of width):"** to **100 %**. ("By columns / rows" works too, if you
+   would rather type the number of strips and of patches per strip.)
+3. Leave everything else as in steps 1 to 6 above: "Use instrument margins"
+   unticked, all four margins 1.0 mm, "Resolution:" 2731, no indicators, no
+   spacers, "Clip border:" off.
+4. Click **GENERATE CHART**.
+
+With these settings the 35 mm frame (4096 x 2730 pixels at 2731 ppi) holds
+**828 patches, 36 strips of 23**, each about 1.0 x 1.01 mm, and the patches
+start about 1.1 mm from the top instead of 8 mm. The patches grow a little to
+fill the area, which is why they are 1.01 mm and not exactly 1.0 mm high, and
+what is left over (less than one patch) is shared out at the top and the
+bottom. These numbers come from ChromIQ's layout engine itself, worked out
+with exactly these settings in ChromIQ 4.3.47 on a Mac; the pictures above
+show the "Prioritise patch size" way.
+
+(The run-up is also left out when **"Use instrument margins"** is ticked: the
+four margins then come from "Preferences", "Instrument Limits" for this
+instrument and paper, are locked, and are again exactly the patch area. For a
+frame, typing your own margins with "Prioritise chart area" is the simpler
+way.)
 
 **Where the file is.** The chart is saved in your project folder, which is
 `ChromIQ/Film-35mm/runs/run1/` in your home folder unless you chose another

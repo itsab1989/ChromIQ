@@ -90,8 +90,11 @@ VERSION = 1
 #: the tolerance decided for a strip ArgyllCMS refused) and
 #: "trigger_wait_ms" (how long the i1Pro 2 lights' quiet time held the
 #: trigger back), and the file's "i1pro2_lights_beta", "margin_tolerance" and
-#: "margin_summary" (at the top; see the module text).
-REVISION = 3
+#: "margin_summary" (at the top; see the module text); 4 = ChromIQ 4.3.47:
+#: the thresholds' "i1pro2_pair_tolerance" (64 samples) is replaced by
+#: "i1pro2_pair_tolerance_readings" (0.5: under half a reading), and
+#: "i1pro2_pair_offset" is 2, ChromIQ's own engine (`workflow.ruler_check`).
+REVISION = 4
 
 #: Keys of the engine's ruler record copied into the file. Anything else the
 #: engine might add is left out until it is reviewed for privacy.

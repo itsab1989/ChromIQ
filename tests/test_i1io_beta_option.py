@@ -67,7 +67,9 @@ def test_start_on_an_i1io_chart_says_it_cannot_measure_yet_and_starts_nothing(
         "Start went past the i1iO notice"))
     tab._on_start()
     assert shown == ["M-I1IO-NOT-YET"]
-    assert "not available in this version" in tab._log.toPlainText()
+    # 4.3.47: the line says why (no side file), not "not available yet"
+    assert ".i1io.json" in tab._log.toPlainText()
+    assert "not available" not in tab._log.toPlainText()
 
 
 def test_an_ordinary_chart_is_not_taken_for_an_i1io_one(measure_tab, tmp_path):
@@ -80,9 +82,12 @@ def test_an_ordinary_chart_is_not_taken_for_an_i1io_one(measure_tab, tmp_path):
 def test_the_notice_names_the_route_that_works_today():
     from workflow import measurement_messages as M
     title, body = M.M_I1IO_NOT_YET.render()
-    assert "not available yet" in title
-    for part in ("exports", "Convert i1Profiler → TI3", "3.8.6", ".mxf",
-                 "print the chart again"):
+    # 4.3.47: since 4.3.45 the table measures; the routes that work are a
+    # chart made for the table, or the same patches made for the i1Pro 2 by
+    # hand (tests/test_i1io_not_yet_says_the_side_file_is_missing.py)
+    assert "cannot measure this chart" in title
+    for part in (".i1io.json", "“i1iO 2 + i1Pro 2”", "“Load patch set”",
+                 "“i1Pro / i1Pro 2 / i1Pro 3”", "by hand"):
         assert part in body
     assert "—" not in title + body
     assert M.M_I1IO_NOT_YET.approved is False
