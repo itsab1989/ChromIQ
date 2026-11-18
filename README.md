@@ -796,6 +796,11 @@ the fastest way to diagnose a problem:
 > Most users don't need this section — the pre-built downloads above are all you
 > need. Continue here only to run or modify the source.
 
+**Looking for a tool?** Every developer script, on-screen driver, simulated device and checker
+in the repository is listed by purpose in
+[`docs/dev_tools_index.md`](docs/dev_tools_index.md); read
+[`scripts/README.md`](scripts/README.md) before you run one (sandbox the settings first).
+
 ### Run from source
 
 ```bash
