@@ -427,7 +427,7 @@ def test_nothing_open_a_loose_chart_is_unaffected(qapp, tmp_path, monkeypatch):
     ctl = _ctl_with_nothing_open(work)
     seen = {}
 
-    def _spy(parent, ti2, wd, *, name=None, controller=None):
+    def _spy(parent, ti2, wd, *, name=None, controller=None, bin_dir=None):
         # `controller` is #182's addition: the project this route CREATES is
         # the one the app must then be in, so the door is handed the bar.
         seen["called"] = True

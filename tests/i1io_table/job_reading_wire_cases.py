@@ -12,6 +12,7 @@ compare them with."""
 from __future__ import annotations
 
 from tests.i1io_table import job_harness as H
+from tests.i1io_table import must1_wire as M1
 from tests.i1io_table import part_c_sim as csim
 from tests.i1io_table import reader_sim as RS
 from workflow.i1io.table import job as J
@@ -64,13 +65,16 @@ def cases(base_len: "int | None" = BASE_LEN):
 
 def job_run(case: dict, tmp_path, ask_after_each_step: bool = True):
     """(lines sent, reader arguments without the program path, reader charts, results)."""
-    sim = csim.CSimTable(part_c=True, aims=list(H.demo_aims()))
+    # the ideal table: the frozen tester 0.6.0 captures were made on it (fix2: real_table)
+    sim = csim.CSimTable(part_c=True, aims=list(H.demo_aims()), real_table=False)
     if "fault" in case:
         i, kind = case["fault"]
-        sim.inject_at(i, kind, 30.0 if kind == "late" else 1.0)
+        # 4.3.47 MUST-1: tester line i is the job's line job_index(i) (must1_wire)
+        sim.inject_at(M1.job_index(i, M1.EXTRA_IN_READING_D3_SITTING), kind, 30.0 if kind == "late" else 1.0)
     holder = {}
     if "cancel_at" in case:
-        sim.on_command = (lambda k, i=case["cancel_at"]: holder["job"].cancel()
+        sim.on_command = (lambda k, i=M1.job_index(case["cancel_at"], M1.EXTRA_IN_READING_D3_SITTING):
+                          holder["job"].cancel()
                           if k == i else None)
     checks = [0]
 
@@ -83,6 +87,7 @@ def job_run(case: dict, tmp_path, ask_after_each_step: bool = True):
                                                  instrument=instrument,
                                                  ask_after_each_step=ask_after_each_step)
     holder["job"] = job
+    sim.job = job          # 4.3.47 MUST-1: its own record of the extra readings
     if "stop_after_reading" in case:
         helper.on_read = (lambda n, k=case["stop_after_reading"]: job.stop_at_next_pause()
                           if n == k else None)

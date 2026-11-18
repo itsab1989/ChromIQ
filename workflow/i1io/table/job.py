@@ -300,6 +300,14 @@ class StageFailed(Exception):
         self.reason, self.detail = reason, detail
 
 
+class _ArrivedBeside(StageFailed):
+    """4.3.47 fix2 (safety review, suspect 4): a finished computed move whose arm read, twice,
+    0.3 s apart, beside its target by more than the arrival tolerance (5 units) but within
+    ARRIVAL_BESIDE_UNITS (1 mm). Nothing is pending (the move ended with status 0 inside its
+    time window) and nothing more is sent in the step: a clean failure the person can answer
+    (read the row again), never a reading taken there."""
+
+
 class PersonStopped(Exception):
     """The person chose not to go on (a clean stop; the sitting goes on)."""
 
@@ -316,7 +324,7 @@ STAGE_KEY = {"park": "park", "align": "d1", "creep": "dz", "check_move": "d2", "
 #: the step caps the tester used for its own stages (lines, movements)
 DZ_CAPS = cp.CREEP
 D1_CAPS = (8, 0)
-D2_CAPS = (5, 1)
+D2_CAPS = (6, 1)       # 4.3.47 MUST-1: +1, the arm read again after a first-visit question
 
 # The recorded part B steps part C uses, each allowed from the states part C leaves (C_HOME:
 # the homing only from "warm", "homed", "b_done": the needs-conditions before homing).
@@ -342,6 +350,8 @@ _DOUBT_IDS = (
     ("the start-up", "start_up_out_of_order"),
     ("the free arm was not inside", "free_arm_not_in_box"),
     ("after m1", "arm_not_where_m1_puts_it"),
+    # 4.3.47: the freed arm shifted further than settling explains (RELEASE_SETTLE_UNITS)
+    ("the free arm at the alignment start", "free_arm_moved_at_the_alignment_start"),
     ("a scan move may be pending", "strip_move_may_be_pending"),
 )
 
@@ -393,6 +403,12 @@ def area_id(reason: str) -> str:
 
 #: S-7: the wait before an arrival that read outside the tolerance is read once more
 ARRIVAL_RECHECK_S = 0.3
+#: 4.3.47 fix2 (safety review, suspect 4): i1Profiler's own arrivals on the volunteer's table
+#: reach 5 units (dy -5 of 48, 17 Nov), the edge of the tolerance. An arrival read twice beside
+#: the target by 6..10 units (at most 1 mm) after a move that ended normally stops the step
+#: CLEANLY (the row is read again by the person's choice, from a fresh reading), instead of
+#: ending the measurement; beyond 1 mm it stays a doubt (nothing more is sent), as before.
+ARRIVAL_BESIDE_UNITS = 10
 
 
 def _near(p, q, d=5) -> bool:
@@ -562,6 +578,12 @@ class TableJob:
         #: confirmation; the next movement asks GO first (True from the start: the first
         #: question, READY_TO_OPEN, is answered before anything can move)
         self._hands_off_due = True
+        #: 4.3.47 MUST-1: the table's line count when the person last answered a question (the
+        #: job's, a report, or the window's own): a computed move is never sent from a reading
+        #: taken before it (``_read_again_if_asked``)
+        self._answered_at_line: "int | None" = None
+        #: the 0-based line numbers of those extra readings in this sitting
+        self.reads_after_question: "list[int]" = []
         self.notes: "list[tuple[str, str]]" = []
         self._gen = None
         self._gen_step: "str | None" = None
@@ -815,6 +837,7 @@ class TableJob:
         if self._block is not None:
             self._block["answers"].append((BLOCK_LABEL.get(kind, kind), value))
         self._pending = None
+        self._mark_answered()
         # final fix round, M-1: the person was at the screen, and maybe at the table, for this
         # question; unless the answer is itself the hands-off confirmation, the next movement
         # asks GO first
@@ -1071,11 +1094,33 @@ class TableJob:
         pf = self._preflight()
         self.preflight_seen = pf
         self.diag.log("INFO", "before opening: " + json.dumps(pf.as_dict(), default=str))
+        if pf.system == "windows" and pf.x64_on_arm64:
+            # review WIN2, F-S1: an x64 ChromIQ on a Windows for ARM computer can never drive the
+            # table (it cannot load the ARM64 libusb0.dll), whatever the drivers' states: the
+            # truthful message (use the ARM64 version) here, BEFORE the READY_TO_OPEN question,
+            # never after the person has prepared the table for an opening that cannot come
+            raise StageFailed("usb_open_refused",
+                              message_id="M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM",
+                              problem="windows-x64-on-arm64")
+        if pf.system == "windows" and pf.table_driver.state == "none" and (
+                pf.table_driver.detail.get("seen") is False
+                or pf.table_driver.detail.get("present") is False):
+            # review WIN2, F-M2: no table attached (never seen, or only remembered by Windows)
+            # is "ChromIQ did not find the table", the same words as the opening's; an install
+            # offer would lead into a window that lists no table
+            raise StageFailed("usb_open_refused", message_id=tbl.NO_TABLE,
+                              problem="windows-table-not-connected")
         if pf.system == "windows" and pf.table_driver.state != "libusb0":
             # the owner's ruling: on Windows the table is reached like ArgyllCMS's instruments,
-            # through libusb-win32, which only the person's explicit choice installs for it
+            # through libusb-win32, which only the person's explicit choice installs for it.
+            # 4.3.46 (owner, 2026-11-18): the window then offers that install (the ARM64 build
+            # like x64; the x64 build on an ARM PC was refused above)
             raise StageFailed("driver_not_installed_for_table",
                               driver_state=pf.table_driver.state, **pf.table_driver.detail)
+        if pf.system == "windows" and pf.instrument_driver.state == "none":
+            # 4.3.46: the i1Pro 2 in the arm is its own USB device and needs the same driver
+            # (ArgyllCMS reads it through libusb-win32); the window offers that install too
+            raise StageFailed("driver_not_installed_for_instrument")
         if pf.instrument.state != "ok":
             raise StageFailed(f"instrument_{pf.instrument.state}", **pf.instrument.detail)
         if pf.i1profiler is True:
@@ -1095,8 +1140,21 @@ class TableJob:
         try:
             self.transport = self._open_transport()
         except tbl.NotAvailable as exc:
-            raise StageFailed("usb_open_refused", message_id=getattr(exc, "message_id", ""),
-                              problem=getattr(exc, "problem", "")) from None
+            mid, problem = getattr(exc, "message_id", ""), getattr(exc, "problem", "")
+            if pf.system == "windows" and pf.x64_on_arm64 and mid == tbl.DRIVER_NOT_INSTALLED:
+                # review 446, W-M1, as revised 2026-11-18: the opening found the table without its
+                # driver (or its libusb0.dll missing) in an x64 ChromIQ on a Windows for ARM
+                # computer. An install cannot help that process: the truthful message instead
+                raise StageFailed("usb_open_refused",
+                                  message_id="M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM",
+                                  problem="windows-x64-on-arm64-" + str(problem)) from None
+            if pf.system == "windows" and mid == tbl.DRIVER_NOT_INSTALLED \
+                    and problem == "no-libusb0-dll":
+                # review 446, W-S3: Windows lists the table with libusb-win32 (the check before
+                # the opening said so), but the driver's libusb0.dll is missing or gives no
+                # backend: not "no driver", and the window says which
+                raise StageFailed("driver_file_missing_for_table", problem=problem) from None
+            raise StageFailed("usb_open_refused", message_id=mid, problem=problem) from None
         except tbl.TransportError as exc:
             raise StageFailed("usb_open_failed", error=type(exc).__name__) from None
         self.diag.log("INFO", tbl.usb_summary(self.transport))
@@ -1333,6 +1391,7 @@ class TableJob:
         # final fix round, M-1: "As described" is the hands-off confirmation (its page says so
         # and names the move that follows); any other answer makes the next movement ask GO
         self._hands_off_due = (Confirm.REPORT_AFTER_STEP, value) not in HANDS_OFF_ANSWERS
+        self._mark_answered()
         self.reports.append((step, value))
         self.notes.append((f"{step}: report", value))
         self.diag.log("ANSWER", f"{step}: report_after_step -> {value}")
@@ -1436,6 +1495,7 @@ class TableJob:
             self.diag.log("ANSWER", f"{question_id} -> {answer} (while a step runs)")
             return
         self._hands_off_due = (question_id, answer) not in HANDS_OFF_WINDOW_ANSWERS
+        self._mark_answered()
         self.diag.log("ANSWER", f"{question_id} -> {answer}"
                       + ("" if self._hands_off_due else " (the hands-off confirmation)"))
 
@@ -1576,9 +1636,49 @@ class TableJob:
             raise StageFailed("free_arm_moved_between_two_readings", first=a, second=b)
         return b
 
+    def _mark_answered(self) -> None:
+        d = self._table
+        self._answered_at_line = d.lines_sent if d is not None else 0
+
+    def _reading_is_stale(self) -> bool:
+        """4.3.47 MUST-1: True when ``position_now`` was read before the person's last answer
+        or before the motors last let the arm go (f1), so it cannot say where the arm is now."""
+        d = self._table
+        r = getattr(d, "read_at_line", None)
+        if d.position_now is None or r is None:
+            return True
+        q = self._answered_at_line
+        f = getattr(d, "freed_at_line", None)
+        return (q is not None and r <= q) or (f is not None and r <= f)
+
+    def _read_again_if_asked(self, a, what: str):
+        """4.3.47 MUST-1 (safety review): the reading *a* a computed move is judged from was
+        taken before the last question (or the last release of the arm): the arm is read once
+        more (the recorded ``;p025``). Moved by more than STILL_UNITS (free arm) or by more than
+        the arrival tolerance (held arm) since *a*: the step stops before the move (nothing
+        moves; trying the step again reads the arm afresh). Otherwise the move is judged from
+        the new reading. Returns the reading to use."""
+        if not self._reading_is_stale():
+            return a
+        d = self._table
+        free = bool(d.arm_free)
+        b = d.position()
+        # the line's number in this sitting (0-based), for the diagnostics and the wire tests
+        self.reads_after_question.append(d.lines_sent - 1)
+        d.log("DATA", f"{what}: read again after the last question: {b} (before it: {a}; "
+                      f"arm {'free' if free else 'held'})")
+        tol = tbl.STILL_UNITS if free else 5
+        if abs(a[0] - b[0]) > tol or abs(a[1] - b[1]) > tol:
+            raise StageFailed("free_arm_moved_while_asked" if free else "arm_moved_while_asked",
+                              first=a, second=b)
+        # a problem reported while this line was on its way is honoured before the move
+        self._soft_stop()
+        return b
+
     def _move_to(self, target, what: str):
         """One computed m0 from the position just read, checked, timed and arrival-checked (a
-        generator: the first-visit confirmation may be asked)."""
+        generator: the first-visit confirmation may be asked). 4.3.47 MUST-1: never from a
+        reading taken before the last question or the last release of the arm."""
         self._soft_stop()
         d = self._table
         a = d.position_now
@@ -1590,6 +1690,16 @@ class TableJob:
         if not ok:
             raise PersonStopped("first_visit_declined")
         yield from self._hands_off(self._gen_step or "move")
+        b = self._read_again_if_asked(a, what)
+        if b is not a:
+            # judged again, in full, from where the arm stands now (no question can follow:
+            # the new reading lies within 5 units of a part just confirmed, widened by 10)
+            self._free_arm_inside(b)
+            geo.check_path(b, target, what, d.front_y)
+            if not self._seg_visited(b, target):
+                raise StageFailed("free_arm_moved_while_asked" if d.arm_free
+                                  else "arm_moved_while_asked", first=a, second=b)
+            a = b
         win = geo.move_window(a, target)
         try:
             d.c_exchange(geo.m0_line(target[0], target[1]), 0, window=win,
@@ -1614,6 +1724,13 @@ class TableJob:
                           f"(target {target}); read again once")
             if not _near(got, target):
                 d.outside_at = got
+                if _near(got, target, ARRIVAL_BESIDE_UNITS) and _near(first, target,
+                                                                       ARRIVAL_BESIDE_UNITS):
+                    d.log("DATA", f"{what}: the arm stands beside the target by "
+                                  f"({got[0] - target[0]:+d}, {got[1] - target[1]:+d}) units "
+                                  f"(within {ARRIVAL_BESIDE_UNITS}): the step ends cleanly, "
+                                  "nothing is read there")
+                    raise _ArrivedBeside("arrived_beside_the_target", target=target, read=got)
                 raise d._doubt(f"{what}: the arm reads {got}, not {target} (twice)")
         self.driven.append((a, target))
         return got
@@ -1759,7 +1876,7 @@ class TableJob:
             if n > cp.CREEP_STEPS_MAX:
                 raise StageFailed("more_creep_steps_than_allowed")
             yield from self._hands_off("creep")
-            here = d.position_now
+            here = self._read_again_if_asked(d.position_now, "creep")
             target = (x, min(here[1] + geo.CREEP_STEP, self.front_reached() + geo.CREEP_STEP,
                              need))
             win = geo.move_window(here, target)
@@ -2820,7 +2937,11 @@ class TableJob:
                 # fix round 10 (review 10, S-4): announced when the arm really goes there,
                 # after the stop check and the pause, never while it still waits at the last one
                 self._progress(event="patch_next", row=plan.index + 1, loc=p.loc, index=i)
-                yield from self._move_to(p.target, f"the move to patch {p.loc}")
+                try:
+                    yield from self._move_to(p.target, f"the move to patch {p.loc}")
+                except _ArrivedBeside as exc:
+                    # fix2: the row fails cleanly; the person may read it again (fresh reading)
+                    raise _RowFailed(exc.reason, p.loc) from None
                 self._arrival = (d.lines_sent, d.position_now)
                 got = self._patch(reader, p, rec, readings)
                 if got.get("plausible"):
@@ -3026,8 +3147,11 @@ class TableJob:
                 a = d.position()
                 if d.arm_free:
                     self._still(a)
-                yield from self._move_to(scan_plan.start, f"row {plan.index + 1}'s start")
-                yield from self._move_to(scan_plan.end, f"row {plan.index + 1}'s end")
+                try:
+                    yield from self._move_to(scan_plan.start, f"row {plan.index + 1}'s start")
+                    yield from self._move_to(scan_plan.end, f"row {plan.index + 1}'s end")
+                except _ArrivedBeside as exc:
+                    raise _RowFailed(exc.reason, "") from None
                 rec["front_row_ends_confirmed"] = True
             if self._hands_off_due:
                 # final fix round, M-1 (never expected: every question of this row is asked
@@ -3158,8 +3282,13 @@ class TableJob:
                 a = d.position()
                 if d.arm_free:
                     self._still(a)
-                yield from self._move_to(lamp.start, f"row {plan.index + 1}'s start")
-                yield from self._move_to(lamp.end, f"row {plan.index + 1}'s end")
+                try:
+                    yield from self._move_to(lamp.start, f"row {plan.index + 1}'s start")
+                    yield from self._move_to(lamp.end, f"row {plan.index + 1}'s end")
+                except _ArrivedBeside as exc:
+                    # 4.3.47 fix2, as for a strip row: beside the target by at most 1 mm, read
+                    # twice: the row fails cleanly and may be read again
+                    raise _RowFailed(exc.reason, "") from None
                 rec["front_row_ends_confirmed"] = True
             if self._hands_off_due:
                 raise _RowFailed("strip_move_refused_here", "")
@@ -3173,6 +3302,14 @@ class TableJob:
                         self._pause_stop = False
                         raise PersonStopped("stopped_before_the_uv_pass")
                     self._step("row_uv", *cp.DUAL_UV_PASS)
+                    # 4.3.47 MUST-1: the UV pass's zero-length m0 and its scan move are judged
+                    # from the lamp pass's last reading only when no question was answered
+                    # (and the arm not let go) since it; otherwise the arm is read once more
+                    # first (the recorded ;p025), and a held arm that moved by more than the
+                    # arrival tolerance stops the step before anything moves
+                    if d.position_now is not None:
+                        self._read_again_if_asked(d.position_now, f"row {plan.index + 1}'s "
+                                                  "UV pass")
                 else:
                     self._step("row", 12, 2)
                 self._progress(event="strip_move", row=plan.index + 1, speed=pplan.speed,
@@ -3199,7 +3336,8 @@ class TableJob:
                 results[which] = res
                 rec.setdefault("scan", {})[which] = {
                     "kind": res.kind, "why": res.why, "notes": res.notes, "files": files,
-                    "c4": res.c4, "a3": res.a3,
+                    "c4": res.c4, "a3": res.a3, "start_read": res.start_read,
+                    "at_start": res.at_start, "end_xy": res.end_xy,
                     "fired": {k: (res.fired or {}).get(k) for k in
                               ("ok", "got", "lit_sent", "dark_sent", "ms_lit_trig", "pass",
                                "volts")}}
@@ -3208,8 +3346,10 @@ class TableJob:
                 if res.kind == "after_doubt":
                     raise Doubt(res.why)
                 if res.kind != "done":
-                    raise _RowFailed(("uv_pass_failed_clean" if which == "uv"
-                                      else _strip_clean_id(res.why)), "")
+                    cid = _strip_clean_id(res.why)
+                    if which == "uv" and cid != "arrived_beside_the_target":
+                        cid = "uv_pass_failed_clean"
+                    raise _RowFailed(cid, "")
                 self.driven.append((pplan.start, pplan.end))
             # both passes ran: cut both by position, then the helper's M1 / M2
             try:
@@ -4082,6 +4222,7 @@ _STRIP_CLEAN_IDS = (
     ("the instrument's lights-off failed", "strip_lights_off_failed"),
     ("c4 answered", "strip_c4_not_recorded"),
     ("the move to the row start took", "movement_late_but_arrived"),
+    ("the arm stands beside the row start", "arrived_beside_the_target"),
     ("the instrument is not ready to fire", "strip_instrument_not_ready"),
     ("the scan move was refused by the program's own checks", "strip_move_refused_here"),
     ("scan move refused", "strip_move_refused_by_the_table"),

@@ -150,7 +150,7 @@ def test_the_diagnostics_file_keeps_the_new_fields(tmp_path):
     rs.on_strip_read(_strip_read("C"), other_question=False)
     rs.flush()
     doc = json.loads(rs.diag.path.read_text(encoding="utf-8"))
-    assert doc["revision"] == 3
+    assert doc["revision"] >= 3     # 4 since 4.3.47 (the pairing rule), additive
     assert doc["margin_tolerance"] == "on" and doc["i1pro2_lights_beta"] is True
     rec = doc["strips"][-1]["record"]
     assert rec["margin"] == KEPT and rec["trigger_wait_ms"] == 2104

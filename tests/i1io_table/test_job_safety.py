@@ -81,7 +81,9 @@ def test_the_per_step_numbers_are_the_testers():
     assert cp.OPEN == (11, 0)
     assert cp.PARK == (tbl.STEP_MAX_LINES["b_home"], tbl.STEP_MAX_MOTIONS["b_home"]) == (4, 1)
     assert cp.APPROACH == (4 + tbl.STEP_MAX_LINES["b_align"], 1 + 3)
-    assert (cp.AIMS, cp.CREEP, cp.CHECK_MOVE, cp.HOME) == ((8, 0), (29, 11), (5, 1), (8, 1))
+    # 4.3.47 MUST-1 (safety review): CREEP and CHECK_MOVE +1 line each, the arm read again
+    # after a first-visit question before the move it was asked for
+    assert (cp.AIMS, cp.CREEP, cp.CHECK_MOVE, cp.HOME) == ((8, 0), (30, 11), (6, 1), (8, 1))
     assert cp.spot_row(33) == (70, 33) and cp.STRIP_ROW == (19, 4)
     assert J.D1_CAPS == cp.AIMS and J.DZ_CAPS == cp.CREEP and J.D2_CAPS == cp.CHECK_MOVE
     assert (cp.ALLOWANCE_FRACTION, cp.ALLOWANCE_ROWS, cp.ALLOWANCE_ALIGNMENTS) == (0.10, 2, 1)
@@ -217,7 +219,9 @@ def test_the_creep_numbers_are_pinned():
     assert (cp.CREEP_STEPS_MAX, cp.CREEP_PAUSE_S, geo.CREEP_STEP) == (10, 0.5, 50)
     # enough for the whole front zone: it needs at most 8 steps
     assert (geo.FRONT_CAP_Y - A.ymax) / geo.CREEP_STEP < cp.CREEP_STEPS_MAX
-    assert cp.CREEP == (2 * 10 + 8 + 1, 10 + 1)      # +1: S-7, the first arrival read again
+    # +1: S-7, the first arrival read again; +1: 4.3.47 MUST-1, the arm read again after the
+    # creep's first-visit question
+    assert cp.CREEP == (2 * 10 + 8 + 1 + 1, 10 + 1)
 
 
 def _front_run(**kw):
@@ -694,7 +698,9 @@ def test_a_sheet_that_does_not_fit_names_its_rows_and_its_marks():
 
 
 def test_states_are_the_tables_answers_only():
-    res, job, sim, _p = H.run_steps(["open", "align", "check_move", "home"])
+    # jitter off: the simulated readings are then exactly where the simulated arm stands (with
+    # it on, the +-1 unit draw a reading gets depends on how many readings came before)
+    res, job, sim, _p = H.run_steps(["open", "align", "check_move", "home"], jitter=False)
     st = res[3].state
     assert st.at_rest and st.last_read == tuple(int(v) for v in sim.pos)
     assert not st.movement_may_be_unfinished and not st.strip_move_may_be_pending

@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-4.3.45-7c5cff">
+  <img alt="Version" src="https://img.shields.io/badge/version-4.3.47-7c5cff">
   <img alt="Downloads" src="https://img.shields.io/endpoint?url=https://itsab1989.github.io/github-traffic-downloads-dashboard/assets/badges/itsab1989_ChromIQ-downloads.json">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2a9d8f">
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-blue">
@@ -633,8 +633,19 @@ ways:
 >   switched on, the white calibration and one reading of the table's white
 >   tile. **The drive inside the app has so far run only against a simulated
 >   table, and has not yet read a chart on a real one.**
+> - 4.3.45 stopped at the white calibration on a real table, because of a
+>   fault of ours, which 4.3.46 fixes. The first real run of 4.3.46 then got
+>   past the calibration and stopped when the table let the arm go for the
+>   aiming, because a rule of ours was too strict for a real arm that settles
+>   a little; 4.3.47 corrects that. Everything after that point (the three aims
+>   and reading the rows) has still run only against a simulated table and may
+>   stop further on.
 > - Windows and Linux are untested. If it does not work there, ChromIQ stops
 >   with a message, and you can still measure in i1Profiler and use IMPORT.
+>   Since 4.3.46, ChromIQ on Windows offers to install the driver the table
+>   needs (Preferences → General → Instrument drivers…), and the ARM64
+>   version can drive the table on Windows for ARM computers; neither has
+>   been tried with a real table yet.
 > - ChromIQ sends the table only commands recorded from i1Profiler, never
 >   anything that writes into the memory of the table or of the instrument.
 >   X-Rite neither made nor approved this, and using it is at your own risk.

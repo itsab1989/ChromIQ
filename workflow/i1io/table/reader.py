@@ -408,6 +408,32 @@ def read_ti3_spectra(path: Path) -> "tuple[list[float], dict]":
     return wl, data
 
 
+#: 4.3.46 (fix round 2 of the first real-table run): the helper's events after which it waits
+#: for ONE key at a prompt of its own, outside the patch menu (chromiq_chartread.c's spot loop,
+#: chromiq_cal.c): a calibration it asks for (any key but Esc STARTS the calibration, on
+#: whatever lies under the instrument), a failed calibration (any key but Esc tries again), a
+#: failed reading ("Hit Esc or 'q' to give up, any other key to retry"), and the stop at a patch
+#: (Esc there gives "strip_interrupted" and asks once more).
+KEY_PROMPTS = ("cal_required", "error", "strip_interrupted")
+#: 4.3.47 (release review NOTE of 4.3.46): only THESE "error" kinds leave the helper waiting for
+#: a key, checked against its C sources: "misread" and "coms" (chromiq_chartread.c's spot loop,
+#: "Hit Esc or 'q' to give up, any other key to retry", cq_prompt_char), "cal_failed"
+#: (chromiq_cal.c, "Wait for retry (any command) or quit", cq_wait_char) and "read_error"
+#: (ierror(), cq_wait_char; not reached in spot mode, kept for safety). Every other kind is said
+#: and the helper carries on without a key: "autosave_rename" (the save after a reading could
+#: not replace the .ti3; Windows, a virus scanner holding the file), "patch_not_found" (a goto
+#: it could not follow). Before, any "error" counted as a prompt, so a failed autosave that was
+#: the newest event when a row ended made finish() send Esc instead of "done" and skipped the
+#: helper's final save.
+KEY_PROMPT_ERROR_KINDS = ("misread", "coms", "cal_failed", "read_error")
+#: the events after which the helper is back at its patch menu (or has ended)
+AT_THE_MENU = ("spot_ready", "cal_done", "cal_result", "patch_read", "saved", "unread_confirm",
+               "done")
+#: the error kinds of a failed READING, whose prompt takes "retry" (any other key) back to the
+#: same patch (chromiq_chartread.c: cq_emit_error("misread"), cq_emit_coms_error)
+RETRY_PROMPT_KINDS = ("misread", "coms")
+
+
 class SpotReader:
     """One spot-reading session of the helper over a small chart file (the stage's patches)."""
 
@@ -434,7 +460,8 @@ class SpotReader:
         must be); a request that is not answered True ends the reader."""
         end = time.monotonic() + timeout
         while True:
-            ev = self.proc.wait(("spot_ready", "cal_required", "cal_result", "instrument"),
+            ev = self.proc.wait(("spot_ready", "cal_required", "cal_done", "cal_result",
+                                 "instrument"),
                                 max(0.0, end - time.monotonic()))
             if ev is None:
                 raise ReaderFailed("the reader did not get ready within "
@@ -448,15 +475,93 @@ class SpotReader:
                     raise ReaderFailed("the calibration was not done")
                 self.proc.send({"cmd": "ok"})
                 end = time.monotonic() + 60.0
+            elif k == "cal_done":
+                # 4.3.46 (the first run of the drive on a real table, 18 Nov 2026): the
+                # calibration the instrument asks for when a session starts ends with the
+                # helper's "cal_done" (native/chartread_helper/chromiq_cal.c). This reader
+                # waited only for "cal_result", which the helper sends for a calibration the
+                # PERSON asked for, so on a real i1Pro 2 no white ever counted and every table
+                # measurement ended at the calibration (the job's "not confirmed" refusal). The
+                # simulated reader sent "cal_result", which is why no test saw it.
+                self.calibrated = True
             elif k == "cal_result":
                 if ev.get("result") != "done":
                     raise ReaderFailed(f"the calibration ended with '{ev.get('result')}'")
                 self.calibrated = True
+            elif k == "error" and ev.get("kind") == "cal_failed":
+                # the helper's own word for a calibration that failed at the start of a session
+                raise ReaderFailed("the calibration ended with 'failed'")
             elif k in ("helper_gone", "error"):
                 raise ReaderFailed(f"the reader reported {ev}")
 
+    def _prompt(self) -> "dict | None":
+        """The helper's own prompt it waits at for one key (the newest event that says where
+        the helper is, when it is one of :data:`KEY_PROMPTS`), else None (at its patch menu,
+        ended, or nothing said yet)."""
+        for ev in reversed(list(getattr(self.proc, "events", []) or [])):
+            k = ev.get("event")
+            if k in KEY_PROMPTS:
+                if k == "error" and ev.get("kind") == "patch_not_found":
+                    return None            # a goto it could not follow: back at the menu
+                if k == "error" and ev.get("kind") not in KEY_PROMPT_ERROR_KINDS:
+                    continue               # said, no key waited for: where it was before
+                return ev
+            if k in AT_THE_MENU:
+                return None
+        return None
+
+    def _quit(self, step: float = 3.0) -> None:
+        """End the helper through its own way out, so that it closes the instrument itself
+        (``it->del``) and ends: Esc ("quit"), and Esc once more whenever it asks again. At a
+        patch the first Esc only stops the reading ("strip_interrupted", then "Hit Esc or 'q'
+        to give up", chromiq_chartread.c's spot loop); at a calibration request, a failed
+        calibration, a failed reading or the unread-patches question one Esc ends it. Never
+        "done" or any other key at those prompts: there they mean "carry on". Every reading
+        the helper accepted is already in its .ti3 (it saves after every reading), so nothing
+        is lost by this ending. Before 4.3.46 close() sent one Esc and, at a patch, waited
+        5 s and killed the helper with the i1Pro 2 open."""
+        for _ in range(4):
+            if not self.proc.alive():
+                return
+            try:
+                self.proc.send({"cmd": "quit"})
+            except ReaderFailed:
+                return
+            if not self.proc.alive():
+                return
+            ev = self.proc.wait(("strip_interrupted", "unread_confirm", "abort_confirm",
+                                 "done"), step)
+            if ev is None or ev.get("event") in ("helper_gone", "done"):
+                return
+            if ev.get("event") == "abort_confirm":
+                try:
+                    self.proc.send({"cmd": "yes"})
+                except ReaderFailed:
+                    pass
+                self.proc.wait(("done",), step)
+                return
+            # strip_interrupted / unread_confirm / an error prompt: it asks once more
+
+    def _wait_gone(self, timeout: float = 5.0) -> None:
+        end = time.monotonic() + timeout
+        while self.proc.alive() and time.monotonic() < end:
+            time.sleep(0.01)
+
     def read(self, loc: str, timeout: float = 15.0) -> Reading:
         """One spot reading of patch *loc* (the arm stands still on it)."""
+        prompt = self._prompt()
+        if (prompt is not None and prompt.get("event") == "error"
+                and prompt.get("kind") in RETRY_PROMPT_KINDS):
+            # 4.3.46: after a failed reading the helper waits at "Hit Esc or 'q' to give up,
+            # any other key to retry" and DROPS a goto there (cq_wait_char takes it and waits
+            # on), so the job's second try of a patch ended "did not go to patch" on the real
+            # helper every time. "retry" is that other key: it offers the same patch again
+            # (spot_ready) and reads nothing until "read".
+            self.proc.send({"cmd": "retry"})
+            ev = self.proc.wait(("spot_ready",), 5.0)
+            if ev is None or ev.get("event") != "spot_ready":
+                raise ReaderFailed(f"the reader did not go to patch {loc} ({ev})")
+            self.ready_loc = ev.get("loc")
         if self.ready_loc != loc:
             self.proc.send({"cmd": "goto", "patch": loc})
             ev = self.proc.wait(("spot_ready",), 5.0)
@@ -481,19 +586,31 @@ class SpotReader:
 
     def finish(self, timeout: float = 20.0) -> "Path | None":
         """Save (the helper writes <name>.ti3 with the spectra) and end. Returns the .ti3."""
-        try:
-            self.proc.send({"cmd": "done"})
-            end = time.monotonic() + timeout
-            while time.monotonic() < end:
-                ev = self.proc.wait(("saved", "unread_confirm"), end - time.monotonic())
-                if ev is None or ev.get("event") in ("helper_gone", "error"):
+        if self._prompt() is not None:
+            # 4.3.46: the helper waits at a prompt of its own (a calibration it asks for in the
+            # middle of a row, a failed reading or calibration), where "done" is "any other
+            # key": at a calibration request the i1Pro 2 then CALIBRATED on the patch under it
+            # (measured with the real helper: cal_done after "done", then 25 s and a kill).
+            # Its own way out is Esc; the .ti3 it saved after its last reading is the row's.
+            self._quit()
+        else:
+            try:
+                self.proc.send({"cmd": "done"})
+                end = time.monotonic() + timeout
+                while time.monotonic() < end:
+                    ev = self.proc.wait(("saved", "unread_confirm", "done"),
+                                        end - time.monotonic())
+                    if ev is None or ev.get("event") in ("helper_gone", "error"):
+                        break
+                    if ev.get("event") == "unread_confirm":
+                        self.proc.send({"cmd": "yes"})
+                        continue
                     break
-                if ev.get("event") == "unread_confirm":
-                    self.proc.send({"cmd": "yes"})
-                    continue
-                break
-        except ReaderFailed:
-            pass
+            except ReaderFailed:
+                pass
+            self._wait_gone(2.0)
+            self._quit()           # only when it is still there: its own way out first
+        self._wait_gone()
         self.proc.stop({"cmd": "quit"})
         ti3 = self.base.with_suffix(".ti3")
         if ti3.exists():
@@ -508,6 +625,11 @@ class SpotReader:
         return None
 
     def close(self) -> None:
+        """End the reader without saving anything more (its own way out, :meth:`_quit`; what
+        it saved after each reading stays in its .ti3). A helper that does not end within
+        5 s is still ended by force, as before."""
+        self._quit()
+        self._wait_gone()
         self.proc.stop({"cmd": "quit"})
 
 
@@ -579,6 +701,9 @@ class ScanReader:
         #: the dual row (2026-11-18): the helper's tdual_calibration event of the last
         #: calibration (None: none, or not a dual session)
         self.dual_calibration: "dict | None" = None
+        #: a "tscan_calibrate" was sent and its "tscan_calibrated" has not come: the helper is
+        #: inside its calibration, where it waits for keys, not for tscan_* lines
+        self._in_calibration = False
 
     def opened(self, timeout=45.0) -> dict:
         ev = self.proc.wait(("tscan_instrument",), timeout)
@@ -587,6 +712,7 @@ class ScanReader:
         return ev
 
     def calibrate(self, place, timeout=120.0) -> None:
+        self._in_calibration = True
         self.proc.send({"cmd": "tscan_calibrate"})
         self.dual_calibration = None
         end = time.monotonic() + timeout
@@ -603,6 +729,7 @@ class ScanReader:
                     raise ReaderFailed("the strip calibration was not done")
                 self.proc.send({"cmd": "ok"})
             elif ev["event"] == "tscan_calibrated":
+                self._in_calibration = False
                 if not ev.get("ok"):
                     raise ReaderFailed("the strip calibration failed")
                 return
@@ -667,4 +794,18 @@ class ScanReader:
         return self.proc.wait(names, timeout)
 
     def close(self) -> None:
+        """End the table-scan session: "tscan_quit" lets the instrument go (it->del) and ends
+        the helper. 4.3.46: while the helper is still inside its calibration (a request not
+        answered, a failed white: chromiq_cal.c waits there for ONE key, cq_wait_char), a
+        tscan_* line only goes to the table-scan queue (chromiq_json.c), which it reads after
+        the calibration has returned, so tscan_quit alone waited 5 s and the helper was killed
+        with the i1Pro 2 open. Esc ("quit", the key) ends the calibration first
+        (tscan_calibrated ok:false, nothing measured), then tscan_quit is taken."""
+        if self._in_calibration:
+            self._in_calibration = False
+            try:
+                if self.proc.alive():
+                    self.proc.send({"cmd": "quit"})
+            except ReaderFailed:
+                pass
         self.proc.stop({"cmd": "tscan_quit"})

@@ -275,7 +275,7 @@ travels as well.
 listed in libusb's own `AUTHORS`. Both files travel with the app. ChromIQ does not modify libusb
 and loads it at run time as a separate file, so it can be replaced by another build. Its source is
 libusb 1.0.30 as published by the libusb project (https://github.com/libusb/libusb/releases/tag/v1.0.30)
-and, as packaged, the `libusb-package` project's tag v1.0.30.1 (https://github.com/pyocd/libusb-package/tree/v1.0.30.1), which builds it from libusb's unmodified v1.0.30 source (included there as a submodule). Windows on ARM64 is built without it (no package exists for that system).
+and, as packaged, the `libusb-package` project's tag v1.0.30.1 (https://github.com/pyocd/libusb-package/tree/v1.0.30.1), which builds it from libusb's unmodified v1.0.30 source (included there as a submodule). Windows on ARM64 is built without it (no package exists for that system) and needs none: on Windows the i1iO table is listed through Windows' own device list and opened through libusb-win32's `libusb0.dll`, which the driver package below installs (that library's terms are given there). Nothing more is bundled for it.
 
 ## USB driver installer on Windows — `wdi-simple` (libwdi), libusb-win32, libusbK, Zadig
 

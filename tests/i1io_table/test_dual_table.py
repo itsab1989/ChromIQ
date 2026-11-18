@@ -155,7 +155,10 @@ def test_the_dual_caps_are_the_released_caps_plus_the_uv_passes():
     a, b = cp.caps_for_sheet(sheet), cp.caps_for_sheet(sheet, dual=True)
     assert b.lines > a.lines and b.moves >= a.moves
     assert cp.caps_for_sheet(sheet, dual=False) == a
-    assert cp.DUAL_ROW == (cp.STRIP_ROW[0] + 9, cp.STRIP_ROW[1] + 2)
+    # 8 recorded lines of the UV pass, +1 the read-again after a question (4.3.47 MUST-1),
+    # +1 the UV pass's own reading when none is kept; 2 movements (the zero m0, the scan move)
+    assert cp.DUAL_UV_PASS == (8 + 1 + 1, 2)
+    assert cp.DUAL_ROW == (cp.STRIP_ROW[0] + 10, cp.STRIP_ROW[1] + 2)
 
 
 # ---- rows: the recorded dual row on the simulated table -------------------------------------
@@ -186,9 +189,19 @@ def test_a_dual_row_is_the_recorded_sequence(tmp_path):
     assert [v for *_x, v in m2] == [132, 132]
     # the UV pass goes straight back over the same row, from where the lamp pass ended
     assert (m2[1][1], m2[1][2]) == geo.decode_xyv((lines[3] + "\r").encode())[1:3]
+    # the recorded zero-length m0 goes to the position the p0 after the lamp pass reported
+    # (4.3.47's less ideal simulated table: within a unit or two of the lamp pass's target)
     zero = geo.decode_xyv((lines[10] + "\r").encode())
-    assert (zero[1], zero[2]) == (m2[0][1], m2[0][2])
+    rec = _row_record(job)
+    assert (zero[1], zero[2]) == tuple(rec["scan"]["lamp"]["end_xy"])
+    assert abs(zero[1] - m2[0][1]) <= sc.ARRIVAL_UNITS and abs(zero[2] - m2[0][2]) <= \
+        sc.ARRIVAL_UNITS
     assert sim.violations == []
+
+
+def _row_record(job, name="p1_row1"):
+    folder = next(iter(job.diag.folder.glob("row-*")))
+    return json.loads((folder / f"{name}.row.json").read_text(encoding="utf-8"))
 
 
 def test_every_dual_row_starts_at_the_same_end_as_recorded(tmp_path):

@@ -64,6 +64,8 @@ MOTION_START_AFTER_LAMP_S = 0.372
 #: for +-25 readings, 0.352..0.392 for +-4) and to make the values worse.
 CUT_REFINE_READINGS = 0
 ARRIVAL_UNITS = 5
+#: 4.3.47 fix2: beside the row start by at most 1 mm: a clean failure, not a doubt
+ARRIVAL_BESIDE_UNITS = 10
 ACK_TIMEOUT_S = 0.5
 PENDING_EXTRA_S = 10.0
 HELPER_NMAX = 2000
@@ -338,6 +340,12 @@ def run_row(table: tbl.Table, inst, plan: RowPlan, log, outdir: str,
         got = table.position()
         res.at_start = got
         if not _near(got, plan.start):
+            if _near(got, plan.start, ARRIVAL_BESIDE_UNITS):
+                # 4.3.47 fix2 (safety review, suspect 4): within 1 mm after a move that ended
+                # normally and its d1 echo: nothing is pending (no scan move was sent), so the
+                # row fails cleanly and may be read again; beyond 1 mm a doubt, as before
+                raise CleanFail(f"the arm stands beside the row start: {got}, not "
+                                f"{plan.start} (within {ARRIVAL_BESIDE_UNITS} units)")
             raise table._doubt(f"the arm arrived at {got}, not at the row start {plan.start}")
         armed = inst.arm(plan.N, 3000)
         res.armed = armed
@@ -390,6 +398,15 @@ def _run_uv_pass(table: tbl.Table, inst, plan: RowPlan, log, outdir: str) -> Row
         got = table.position()
         res.at_start = got
         if not _near(got, plan.start):
+            if _near(got, plan.start, ARRIVAL_BESIDE_UNITS):
+                # 4.3.47 fix2, as for the lamp pass's row start (run_row): within 1 mm after the
+                # zero-length move ended normally and d1 echoed: nothing is pending (no scan move
+                # was sent), so the row fails cleanly and may be read again; beyond, a doubt.
+                # One reading, as run_row's: a second p0 here would put a line between the
+                # recorded "d1, p0" and the scan move.
+                raise CleanFail(f"the arm stands beside the row start: {got}, not "
+                                f"{plan.start} (within {ARRIVAL_BESIDE_UNITS} units, the UV "
+                                "pass)")
             raise table._doubt(f"the arm arrived at {got}, not at the UV pass's start "
                                f"{plan.start}")
         armed = inst.arm(plan.N, 3000)

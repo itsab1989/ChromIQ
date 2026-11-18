@@ -92,7 +92,12 @@ def test_a_start_on_a_table_that_behaves_like_the_real_one_reaches_the_aims():
 
 
 @pytest.mark.parametrize("where", [(2716.0, 1057.0), (2832.0, 1371.0), (2514.0, 1429.0),
-                                   (2507.0, 1498.0)])
+                                   (2507.0, 1498.0),
+                                   # safety review 4.3.47, NOTE-2: 10 units (1 mm) off in each
+                                   # direction, so the HELD box after m1 (+-5) cannot be widened
+                                   # towards the freed arm's 50 without a test turning red
+                                   (2517.0, 1429.0), (2497.0, 1429.0), (2507.0, 1439.0),
+                                   (2507.0, 1419.0)])
 def test_any_other_landing_stops_the_session_truthfully(where):
     """The old belief, the target field, one unit outside the tolerance, a move that did not
     happen: nothing more is sent after the reading, nothing moves any more."""

@@ -112,6 +112,35 @@ that fits the pages, Manual and calibration charts are unchanged. On a
 measured run the §4 window comes before this question, and nothing is moved
 until a chart is actually generated.
 
+### ⏳ Awaiting confirmation: an import with no project open carries the same side files (4.3.47, 2026-11-18)
+
+**Confirmed by:** *nobody yet.*
+
+Found in the 4.3.46 release review: a chart file imported while NO project is
+open (it becomes run1 of a new project, `ui/ti2_loader.py::_copy_files`)
+brought only its `.cht` and `.channels.json`, while the same chart imported
+into the OPEN project (`workflow/chart_import.py::import_external_chart`)
+brought every side file beside it. So an i1iO chart imported with no project
+open lost `<stem>.i1io.json`, and Start then refused it (M-I1IO-NOT-YET)
+instead of driving the table; an i1iSis chart lost its `.isis.json`, a
+layout-engine chart its strip map `.strips.json`, an FD-9 chart its
+`.fd9.json`. What the app now does:
+
+* Both routes copy one list, `workflow.chart_import.CHART_IMPORT_SIDE_FILES`
+  (`.cht`, `.channels.json`, `.strips.json`, `.cie`, `.pdf`,
+  `.control-strip.json`, `.fd9.json`, `.i1io.json`, `.isis.json`), each under
+  the new chart's name. The open-project route copies exactly what it copied
+  before.
+* The no-project route also draws the pages a chart arrived without, by the
+  same call and condition as the other route (`rebuild_missing_pages`, from
+  the chart's own record, the `.ti2` untouched), when the ArgyllCMS binaries
+  are found. This covers "Open chart file" with nothing open and a
+  measurement imported with its chart beside it (`resolve_ti3`).
+* Not carried by either route, as before: `.print.json` (how the sheet was
+  printed) and `-reference.ti3` (a FROM PROFILE GAMUT chart's reference
+  colours), both on `CHART_COMPANION_SUFFIXES`. Whether an import should
+  carry them is open.
+
 ## Two ways of laying a chart out again, and they give different sheets
 
 This is the one thing in this area a user can get wrong, and it is worth stating

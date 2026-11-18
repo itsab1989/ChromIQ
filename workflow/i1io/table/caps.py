@@ -41,7 +41,9 @@ LAYOUT_MAXIMA = {"per_row": 33, "rows": 30, "per_page": 990, "pages": 667}
 CREEP_STEPS_MAX = 10
 CREEP_PAUSE_S = 0.5
 #: S-7 (owner-results round): +1 line, the arrival of the move to the front edge read once more
-CREEP = (2 * CREEP_STEPS_MAX + 8 + 1, CREEP_STEPS_MAX + 1)
+#: 4.3.47 MUST-1 (safety review): +1 line, the arm read again after the creep's first-visit
+#: question, before its first move
+CREEP = (2 * CREEP_STEPS_MAX + 8 + 1 + 1, CREEP_STEPS_MAX + 1)
 
 #: Part C's own per-stage numbers (0.6.0), each pinned by a test.
 OPEN = (len(tbl.OPEN_KEYS), 0)                                           # 11 / 0
@@ -49,16 +51,20 @@ PARK = (tbl.STEP_MAX_LINES["b_home"], tbl.STEP_MAX_MOTIONS["b_home"])    # the h
 APPROACH = (sum(tbl.STEP_MAX_LINES[k] for k in ("b_home", "b_align")),
             sum(tbl.STEP_MAX_MOTIONS[k] for k in ("b_home", "b_align")))
 AIMS = (8, 0)              # three p1, s0, f4 x 4 (stage D1)
-CHECK_MOVE = (5, 1)        # stage D2: p0 (twice if free), m0, p0 (+1: S-7, the arrival read again)
+CHECK_MOVE = (6, 1)        # stage D2: p0 (twice if free), m0, p0 (+1: S-7, the arrival read again)
+#                            (+1: 4.3.47 MUST-1, read again after a first-visit question)
 HOME = (8, 1)              # stage F: s0 p0 i1 s0 f0 f4 f4 p0
 #: One alignment cycle: the way out, the aims, the creep, the check move and the homing.
 ALIGN_CYCLE = tuple(sum(v) for v in zip(APPROACH, AIMS, CREEP, CHECK_MOVE, HOME))
 #: A strip row (stage E2's row step 12 / 2, and its front-row ends 7 / 2).
 STRIP_ROW = (12 + 7, 2 + 2)
 #: THE DUAL ROW (2026-11-18): a strip row plus its UV pass straight back (the recorded zero-length
-#: m0, c4, d1 210, p0, m2, a3, c3, and the p0 at its end: 8 lines, 2 movements), plus one line of
-#: room (the arm read again before the UV pass when its last reading is not fresh)
-DUAL_UV_PASS = (9, 2)
+#: m0, c4, d1 210, p0, m2, a3, c3, and the p0 at its end: 8 lines, 2 movements), plus two lines of
+#: room: +1 the job's reading of the arm after a question answered since the lamp pass's last
+#: reading (4.3.47 MUST-1, job._read_again_if_asked), +1 scan._run_uv_pass's own reading when no
+#: reading is kept or the last motion is unconfirmed. 8 + 1 + 1 = 10 lines, 2 movements. (The
+#: arrival beside the UV start, 4.3.47 fix2, sends nothing more: one reading, as run_row's.)
+DUAL_UV_PASS = (10, 2)
 DUAL_ROW = (STRIP_ROW[0] + DUAL_UV_PASS[0], STRIP_ROW[1] + DUAL_UV_PASS[1])
 #: The allowance, stated: 10 % of a page's need, two rows read again, one more alignment.
 ALLOWANCE_FRACTION = 0.10

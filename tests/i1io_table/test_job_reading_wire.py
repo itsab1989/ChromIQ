@@ -21,6 +21,7 @@ import json
 import pytest
 
 from tests.i1io_table import job_reading_wire_cases as W
+from tests.i1io_table import must1_wire as M1
 from tests.i1io_table.job_harness import HERE
 
 
@@ -85,6 +86,8 @@ def _modes(name):
                          ids=lambda v: v if isinstance(v, str) else ("asking" if v else "quiet"))
 def test_the_job_reads_as_tester_060_reads(name, asking, tmp_path):
     got, readers, charts, results, sim = W.job_run(CASES[name], tmp_path, asking)
+    # 4.3.47 MUST-1: the job's extra position queries after a question, each checked, out
+    got = M1.without_must1(got, sim.job)
     want = TESTER["sittings"][name]
     if "own tile" in name:
         got, readers, charts = without_the_s1_tile_reading(got, readers, charts)

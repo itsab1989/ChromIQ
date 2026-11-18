@@ -818,8 +818,13 @@ def test_m3_read_rows_get_a_check_mark_not_an_outline(qapp, tmp_path):
 def test_end_after_a_first_row_that_failed_can_end(qtbot, monkeypatch, tmp_path, settings):
     """Found on screen (fix round 10, German pass): the only row failed after one patch, the
     person ended the step and pressed End measurement: the job refused 'nothing_read' and the
-    measurement could never end. It ends as one that kept nothing, and says why."""
-    sim = WindowSim(faults={"read_loc": {"0-1": "dies"}})
+    measurement could never end. It ends as one that kept nothing, and says why.
+
+    4.3.46 fix round 2: the real helper saves after every reading, so a reader that dies at the
+    row's second patch keeps the first in its .ti3 (the simulator now does the same, and the
+    end then offers to save it). A reading taken and NOT kept needs the helper to end between
+    reporting it and saving it (dies_unsaved): the row's first patch (0-3)."""
+    sim = WindowSim(faults={"read_loc": {"0-3": "dies_unsaved"}})
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
                                                     asking=False, sim=sim)
     p.drive_until("row_failed")
