@@ -97,6 +97,7 @@ To build a profile you need three things:
    | Code | Instrument | Contributed by |
    |------|-----------|----------------|
    | `FD9` | Konica Minolta FD-9, an automatic chart reader that measures the whole sheet by itself, over your network (Ethernet), with ChromIQ's own driver and no Konica Minolta software. Tested on one FD-9 on macOS so far: your report helps | [lessbones](https://github.com/lessbones), thank you! |
+   | `IO2` | X-Rite i1iO 2, a measuring table that moves an i1Pro 2 over the chart by itself ("i1iO 2 + i1Pro 2" in Create Chart). Measure the chart in X-Rite i1Profiler and bring it back with IMPORT, or, new in 4.3.45, let ChromIQ drive the table itself. A first beta: the app's own drive has so far run only against a simulated table, see [Measuring with an X-Rite i1iO 2 table](#measuring-with-an-x-rite-i1io-2-table-beta) | Built by the project, on recordings and test runs by [crismi2](https://github.com/crismi2) on his own table, thank you! |
 
    Your instrument is not listed? See
    [Adding an instrument](docs/adding_an_instrument.md).
@@ -354,6 +355,12 @@ ArgyllCMS's instruments and for the CR30 from one place, and **Tools ▸
 Instruments** writes a Bluetooth report for when the instrument will not
 connect.
 
+With the **X-Rite i1iO support (beta)** option on, **START MEASUREMENT** can
+also drive an X-Rite i1iO 2 table with an i1Pro 2 in its arm, and **IMPORT**
+brings back a measurement of the same chart made in i1Profiler. It is a first
+beta with honest limits; see
+[Measuring with an X-Rite i1iO 2 table](#measuring-with-an-x-rite-i1io-2-table-beta).
+
 ### Step 4 — Build Profile
 Review the `colprof` settings and click **Build Profile**. Then **Install
 Profile** copies it to the right place for your OS so every app can use it. To
@@ -592,6 +599,58 @@ millimetres, inches or exact pixels, a resolution up to 6000, and can write the
 resolution into the chart image in pixels per inch. Step-by-step instructions
 with pictures, for 35 mm and 9.25 x 7.75 inch film recorder frames:
 [Charts for a film recorder](docs/film_recorder_pages.md).
+
+### Measuring with an X-Rite i1iO 2 table (beta)
+The X-Rite i1iO 2 is a motorised measuring table: an i1Pro 2 clicks into a
+holder on its arm, the printed chart lies on the table, and the arm moves the
+instrument over the chart by itself. Switch on **Preferences → Beta → X-Rite
+i1iO support (beta)** and restart ChromIQ, and Create Chart offers **i1iO 2 +
+i1Pro 2** in its Instrument list: a chart laid out for the table, with three
+small numbered aiming crosses in its corners. You can then measure it in two
+ways:
+
+- **In X-Rite i1Profiler**, as before: measure the chart there and bring the
+  measurement back with **IMPORT** in the Measure tab.
+- **New in 4.3.45: ChromIQ drives the table itself**, without i1Profiler.
+  Press **START MEASUREMENT** in the Measure tab. Before the first drive, a
+  window explains what ChromIQ will do and asks for your consent. You push the
+  arm by hand until its sight sits on each of the three marks and confirm each
+  one, on screen or with the button on the i1Pro 2. Before the arm moves after
+  any question, ChromIQ asks you to take your hands away from the table and
+  waits until you confirm it. Then it reads the chart patch by patch (the
+  default, and the careful way), or each row as a strip, which is much faster
+  and a first try. Profile, refinement, calibration and verification runs can
+  all be measured this way. Your first table measurement asks you to confirm
+  every step; after a clean one you can switch that off, and later
+  measurements are meant to run largely by themselves. **Stop** and **Report a
+  problem** are on screen the whole time. To stop the arm at once, switch the
+  table off at its power switch.
+
+> [!WARNING]
+> **Honest limits.** This is a first beta.
+> - On one real i1iO 2 with an i1Pro 2, on a Mac, ChromIQ's separate tester
+>   program has run the movements, the start-up of a table that had just been
+>   switched on, the white calibration and one reading of the table's white
+>   tile. **The drive inside the app has so far run only against a simulated
+>   table, and has not yet read a chart on a real one.**
+> - Windows and Linux are untested. If it does not work there, ChromIQ stops
+>   with a message, and you can still measure in i1Profiler and use IMPORT.
+> - ChromIQ sends the table only commands recorded from i1Profiler, never
+>   anything that writes into the memory of the table or of the instrument.
+>   X-Rite neither made nor approved this, and using it is at your own risk.
+> - Only the i1iO 2 with an i1Pro 2 is supported. Other i1iO tables (the first
+>   i1iO and the i1iO 3) and other instruments on the arm are not supported
+>   yet.
+> - The option is off by default, and with it off nothing changes.
+
+Why it may be worth it all the same: X-Rite has ended support for these
+tables. i1Profiler 3.8.7 removed the i1Pro 2 and the i1iO 2, and 3.8.6 is the
+last version that works with them. Whether it worked for you or not, your
+report is very welcome on
+[GitHub issue 129](https://github.com/itsab1989/ChromIQ/issues/129); every
+table measurement writes a diagnostics file you can attach. The table drive is
+built on USB recordings of i1Profiler and test runs that
+[crismi2](https://github.com/crismi2) made on his own table: thank you!
 
 ### Tools menu — standalone utilities
 The masthead **Tools** button opens a menu of conversions and checks you can run
@@ -892,6 +951,12 @@ Its companion, [`docs/adding_an_instrument_checklist.md`](docs/adding_an_instrum
 lists every step with the test that checks it. If you work with a coding
 agent, hand it
 [`docs/adding_an_instrument_agent_prompt.md`](docs/adding_an_instrument_agent_prompt.md).
+For an instrument ChromIQ will drive itself, such as a measuring table, section
+12b of that guide walks through the whole process learned from the i1iO 2
+table, with the one-page
+[`docs/driven_instrument_checklist.md`](docs/driven_instrument_checklist.md)
+and the catalogue of every developer tool,
+[`docs/dev_tools_index.md`](docs/dev_tools_index.md).
 The maintainers cannot test hardware they do not own, so your tests on the
 real device are an important part of the pull request.
 
