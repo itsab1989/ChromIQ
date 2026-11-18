@@ -7939,6 +7939,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._log.ensureCursorVisible()
         self.measure_finished.emit(ti3)
 
+    def _open_instrument_drivers(self) -> None:
+        """The Instrument drivers window, as Preferences opens it (Windows only)."""
+        from ui.dialogs.settings_dialog import open_instrument_drivers
+        open_instrument_drivers(self._settings, self.window())
+
     def _on_table_window_finished(self, why: str) -> None:
         win, self._table_window = self._table_window, None
         if win is not None:
@@ -7987,6 +7992,14 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if why == "consent_declined":
             self._log.appendPlainText(tr(
                 "Measurement not started: you chose Not now for the i1iO table."))
+        if why == "install_driver":
+            # 4.3.46 (the owner, 2026-11-18): the table's START offered the driver, as for
+            # any instrument; the same Instrument drivers window opens, after the table
+            # window has let go and the tab is unlocked, and installs nothing by itself
+            self._log.appendPlainText(tr(
+                "Measurement not started: the Instrument drivers window opens. When the "
+                "driver is installed, press START MEASUREMENT again."))
+            QTimer.singleShot(0, self._open_instrument_drivers)
         # THE USUAL COMPLETION WINDOW (the owner: "do i get the usual pop up
         # that allows me to go to build profile after a successful
         # measurement"): a complete table measurement ends as a complete hand

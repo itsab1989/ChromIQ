@@ -230,26 +230,39 @@ def test_only_the_selftest_uses_it_yet():
     # reached by nothing in the app: tests/test_i1io_table_not_reached_by_the_app.py)
     # build step 9: the table window asks the library's read-only status() before it builds a
     # job (the USB library missing is said, never a crash)
-    assert sorted(set(users)) == ["core/selftest.py", "ui/i1io_table_window.py",
+    # release after 4.3.45: the driver installer asks only `machine_is_arm64` (read only), so
+    # that no install is offered for the table on a Windows for ARM computer
+    assert sorted(set(users)) == ["core/selftest.py", "core/usb_driver_installer.py",
+                                  "ui/i1io_table_window.py",
                                   "workflow/i1io/table/session_table.py",
                                   "workflow/i1io/table/usb_system.py"]
 
 
 def test_the_windows_driver_installer_never_targets_the_table_without_the_explicit_choice():
-    """The owner's ruling of 2026-11-17: on Windows the table (0971:2004) is reached like an
-    ArgyllCMS instrument, through libusb-win32, which ChromIQ's installer may bind to it ONLY on
-    the person's explicit table choice: never automatically, never as part of an instrument's
-    installation (while it has that driver, i1Profiler cannot use the table)."""
+    """On Windows the table (0971:2004) is reached like an ArgyllCMS instrument, through
+    libusb-win32. The owner's ruling of 2026-11-18 (overruling 2026-11-17's "never offered"):
+    with the Beta on, the Instrument drivers window LISTS the table like an instrument, and
+    installs for it, as for an instrument, only when the person presses its install button.
+    What stays: the table is not one of the instruments (Beta off = the window unchanged), and
+    `install_winusb` refuses a table device that does not carry that choice, which only the
+    window's install path attaches."""
     from core import usb_driver_installer as inst
-    # not among the instruments the driver window walks and offers
+    # not among the instruments the driver window always walks and offers
     for table in (inst.KNOWN_COLORIMETERS, inst.VENDOR_SERIAL_DEVICES):
         assert ("0971", "2004") not in {(v.lower(), p.lower()) for v, p in table}
     assert set(inst.TABLE_DEVICE) == {("0971", "2004")}
-    # the registry holding the table (with any driver) never makes it an offered instrument
     entries = [("VID_0971&PID_2004", [("6&abc&0&1", "")]),
                ("VID_0971&PID_2000", [("6&def&0&2", "")])]
+    # Beta off (the default call): the table is never listed
     found = inst.attached_devices(entries, None)
     assert [(d.vid, d.pid) for d in found] == [("0971", "2000")]
+    # Beta on: listed as its own device, beside the i1Pro 2's own entry, and without a choice
+    found = inst.attached_devices(entries, None, include_table=True)
+    assert [(d.vid, d.pid) for d in found] == [("0971", "2004"), ("0971", "2000")]
+    table = found[0]
+    assert isinstance(table, inst.TableUsbDevice) and not table.has_winusb
+    assert type(found[1]) is inst.UsbDevice
+    assert inst.install_winusb(table) is inst.InstallAttempt.REFUSED      # listed is not chosen
     # installing for the table: refused unless the device came from the explicit choice
     plain = inst.UsbDevice("0971", "2004", "X-Rite i1iO 2 table", False)
     assert inst.install_winusb(plain) is inst.InstallAttempt.REFUSED
@@ -270,12 +283,19 @@ def test_the_windows_driver_installer_never_targets_the_table_without_the_explic
     assert inst.install_winusb(forged) is inst.InstallAttempt.REFUSED
     dev.choice.words = "yes"
     assert inst.install_winusb(dev) is inst.InstallAttempt.REFUSED
-    # nothing else in ChromIQ builds the choice: only the module itself names it
+    # only the Instrument drivers window builds the choice, and only on its install path
     users = [f for base in ("core", "ui", "workflow", "scripts")
              for f in (ROOT / base).rglob("*.py")
              if "ExplicitTableChoice(" in f.read_text(encoding="utf-8")
              and f.name != "usb_driver_installer.py"]
-    assert users == []
+    assert [f.relative_to(ROOT).as_posix() for f in users] == ["ui/dialogs/settings_dialog.py"]
+    src = users[0].read_text(encoding="utf-8")
+    assert src.count("ExplicitTableChoice(") == 1
+    window = src[src.index("    def _show_usb_installer(self)"):]
+    window = window[:window.index("\n    def ", 10)]
+    at = window.index("ExplicitTableChoice(")
+    # after the window's own "the install button was pressed" check, never before it
+    assert window.index("if result != _WINUSB or not devices:") < at
 
 
 @pytest.mark.parametrize("entries,present,want", [

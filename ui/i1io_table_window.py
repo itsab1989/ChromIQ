@@ -3083,6 +3083,7 @@ class TableMeasureWindow(QFrame):
             self._call(self.job.save)
             return
         if res.step == "open" and reason in ("usb_open_refused", "driver_not_installed_for_table",
+                                             "driver_not_installed_for_instrument",
                                              "i1profiler_running",
                                              "table_held_by_another_program",
                                              "table_held_by_a_kernel_driver") \
@@ -3098,13 +3099,19 @@ class TableMeasureWindow(QFrame):
         from workflow import measurement_messages as M
         d, reason = res.detail, res.reason
         logname = self._log_name
+        if reason == "usb_open_refused" and \
+                M.I1IO_DRIVE_USB_MESSAGE.get(d.get("message_id", "")) is M.M_I1IO_DRIVE_TABLE_DRIVER:
+            # the opening itself found the table without the driver (or without libusb0.dll,
+            # which the driver package installs): the same offer as before the opening
+            reason = "driver_not_installed_for_table"
+        if reason in ("driver_not_installed_for_table", "driver_not_installed_for_instrument"):
+            self._show_driver_offer(for_table=reason == "driver_not_installed_for_table")
+            return
         if reason == "usb_open_refused":
             mid = d.get("message_id", "")
             msg = (M.I1IO_DRIVE_USB_MESSAGE.get(mid)
                    or M.CATALOGUE.get(mid) or M.M_I1IO_DRIVE_USB_UNEXPECTED)
             title, body = msg.render(**_fill(msg, log=logname))
-        elif reason == "driver_not_installed_for_table":
-            title, body = M.M_I1IO_DRIVE_TABLE_DRIVER.render()
         elif reason == "i1profiler_running":
             title, body = M.M_I1IO_DRIVE_I1PROFILER_OPEN.render()
         elif reason == "table_held_by_another_program":
@@ -3117,6 +3124,46 @@ class TableMeasureWindow(QFrame):
         self._moving_controls(False)
         self._end_btn.setVisible(False)
         self._show("open_refused", title, body, [(tr("Close"), self._close_job_then_finish)])
+
+    def _show_driver_offer(self, for_table: bool) -> None:
+        """4.3.46 (the owner, 2026-11-18): the table, and the i1Pro 2 in its arm, are helped to
+        the driver as every instrument is. "Not now" ends as Close did; the install answer opens
+        the same Instrument drivers window Preferences opens, where nothing is installed until
+        the person presses its install button and allows Windows' permission prompt. Nothing
+        has been sent to the table: the driver is checked before the table is opened."""
+        from workflow import measurement_messages as M
+        msg = M.M_I1IO_DRIVE_TABLE_DRIVER if for_table else M.M_I1IO_DRIVE_I1PRO2_DRIVER
+        install = (tr("Install the driver for the table now") if for_table
+                   else tr("Install the driver for the i1Pro 2 now"))
+        title, body = msg.render(install=install, window=tr("Instrument drivers"))
+        self._moving_controls(False)
+        self._end_btn.setVisible(False)
+        self._why_not = "driver_offer_declined"
+        self._show("driver_offer", title, body,
+                   [(tr("Not now"), self._close_job_then_finish),
+                    (install, self._on_install_driver_pressed)])
+
+    def _on_install_driver_pressed(self) -> None:
+        """The driver offer's install answer: this window lets go (nothing was opened: the
+        driver is checked before the table is), and the Measure tab then opens the Instrument
+        drivers window (`finished_with("install_driver")`), where the person chooses the
+        install themselves."""
+        if self._busy:
+            return
+        self._why_not = "install_driver"
+        if self.job is None or self._closed_job:
+            self._finish("install_driver")
+            return
+        self._call(self.job.close, then=self._after_close_for_driver)
+
+    def _after_close_for_driver(self, res) -> None:
+        self._closed_job = True
+        if getattr(res, "way_back", "none") not in ("none", "home_offered"):
+            # never expected before the table was opened; if it ever is, the usual ending
+            # says what is true about the table first, and nothing else opens
+            self._after_close(res)
+            return
+        self._finish("install_driver")
 
     def _show_refusal(self, res, after=None) -> None:
         from workflow import measurement_messages as M

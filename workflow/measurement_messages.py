@@ -12489,16 +12489,42 @@ M_I1IO_DRIVE_USB_WINDOWS_DRIVER = _m(
     "in our guide: it tells us which driver your table uses.",
     approved=False)
 
+# 4.3.46 (the owner, 2026-11-18): "why dont we allow to install the driver on windows? [...] the
+# same issue exists with any other xrite instrument that is held by argylls driver. so nothing
+# special here and it should be allowed to install it and the app shall help with it." Revised:
+# the window now offers the install, through the same Instrument drivers window as an instrument.
 M_I1IO_DRIVE_TABLE_DRIVER = _m(
     "M-I1IO-DRIVE-TABLE-DRIVER",
     "The table does not have the driver ChromIQ uses on Windows",
-    "On Windows, ChromIQ reaches the table through the same kind of driver "
-    "it uses for your measuring instruments (libusb-win32). The table does "
-    "not have it yet. Installing it for the table must be your own choice, "
-    "because while the table has this driver, i1Profiler cannot use the "
-    "table until the driver is switched back; that choice is not offered in "
-    "this beta yet. Nothing was sent. You can measure in i1Profiler and use "
-    "IMPORT instead.",
+    "On Windows, ChromIQ reaches the table through the same driver it uses for your "
+    "measuring instruments (libusb-win32), and the table does not have it yet. ChromIQ can "
+    "install it for the table the same way as for an instrument.\n\n"
+    "\u201c{install}\u201d opens the window \u201c{window}\u201d, where the table is listed. "
+    "Nothing is installed until you press the install button there and allow it when Windows "
+    "asks for your permission. When the driver is installed, press START MEASUREMENT "
+    "again.\n\n"
+    "As with any X-Rite instrument that has this driver: while the table has it, i1Profiler "
+    "cannot use the table. To give the table back to i1Profiler, install X-Rite's own driver "
+    "for the table again.\n\n"
+    "\u201cNot now\u201d installs nothing. Nothing was sent to the table. You can also "
+    "measure in i1Profiler 3.8.6 or older and use IMPORT.",
+    approved=False)
+
+# 4.3.46: the i1Pro 2 in the table's arm is its own USB device and needs the same driver
+M_I1IO_DRIVE_I1PRO2_DRIVER = _m(
+    "M-I1IO-DRIVE-I1PRO2-DRIVER",
+    "The i1Pro 2 does not have the driver ChromIQ uses on Windows",
+    "The i1Pro 2 in the table's arm is a USB device of its own. On Windows, ChromIQ reads it "
+    "through the same driver as your other measuring instruments (libusb-win32), the driver "
+    "ArgyllCMS reads instruments through, and the i1Pro 2 does not have it yet.\n\n"
+    "\u201c{install}\u201d opens the window \u201c{window}\u201d, where the i1Pro 2 is "
+    "listed. Nothing is installed until you press the install button there and allow it when "
+    "Windows asks for your permission. When the driver is installed, press START MEASUREMENT "
+    "again.\n\n"
+    "As with any X-Rite instrument that has this driver: while the i1Pro 2 has it, i1Profiler "
+    "cannot use the i1Pro 2. To give it back to i1Profiler, install X-Rite's own driver for "
+    "the i1Pro 2 again.\n\n"
+    "\u201cNot now\u201d installs nothing. Nothing was sent to the table.",
     approved=False)
 
 M_I1IO_DRIVE_USB_LINUX_PERMISSION = _m(
@@ -12697,7 +12723,7 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_DONE, M_I1IO_DRIVE_NOT_I1IO2, M_I1IO_DRIVE_NOT_I1PRO2,
     M_I1IO_DRIVE_BUSY, M_I1IO_DRIVE_I1PROFILER_OPEN,
     M_I1IO_DRIVE_USB_MISSING, M_I1IO_DRIVE_USB_NOT_ON_THIS_SYSTEM,
-    M_I1IO_DRIVE_USB_WINDOWS_DRIVER, M_I1IO_DRIVE_TABLE_DRIVER,
+    M_I1IO_DRIVE_USB_WINDOWS_DRIVER, M_I1IO_DRIVE_TABLE_DRIVER, M_I1IO_DRIVE_I1PRO2_DRIVER,
     M_I1IO_DRIVE_USB_LINUX_PERMISSION, M_I1IO_DRIVE_USB_LINUX_KERNEL_DRIVER,
     M_I1IO_DRIVE_USB_GONE, M_I1IO_DRIVE_USB_UNEXPECTED,
     M_I1IO_DRIVE_TABLE_NOT_FOUND, M_I1IO_DRIVE_SEVERAL_TABLES,

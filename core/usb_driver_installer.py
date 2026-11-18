@@ -169,17 +169,24 @@ class UsbDevice(NamedTuple):
     has_winusb: bool
 
 
-# ---- THE i1iO TABLE: its own entry, never an instrument (owner's ruling, 2026-11-17) ----------
+# ---- THE i1iO TABLE: listed like an instrument behind the Beta (owner's ruling, 2026-11-18) -----
 #
 # On Windows the X-Rite i1iO 2 table (USB 0971:2004) is reached the same way ArgyllCMS reaches an
-# instrument: through libusb-win32's kernel driver (libusb0.sys), which this installer can bind.
-# Unlike an instrument it is NEVER offered automatically and NEVER installed as part of an
-# instrument's installation: while the table has this driver, i1Profiler cannot use the table
-# until the driver is switched back. So it is NOT in KNOWN_COLORIMETERS (which
-# `enumerate_connected` and the driver window walk) but here, on its own, and the only way to get
-# an installable device for it is `table_device_for(ExplicitTableChoice(...))`, which the drive's
-# later window builds only from the person's explicit choice (the UI is not built yet).
-# UNTESTED ON REAL WINDOWS HARDWARE.
+# instrument: through libusb-win32's kernel driver (libusb0.sys), which this installer binds.
+# Owner, 2026-11-18, overruling the 4.3.45 rule that kept the table out of the driver window:
+# "the same issue exists with any other xrite instrument that is held by argylls driver. so
+# nothing special here and it should be allowed to install it and the app shall help with it."
+# So, with the Beta "X-Rite i1iO support" on (the CALLER decides: `include_table=True`), the
+# table is listed in the Instrument drivers window exactly like an instrument, with the same
+# Install Driver button, the same certificate disclosure and the same permission prompt. The i1Pro
+# 2 in the table's arm is its own USB device (0971:2000, in KNOWN_COLORIMETERS) and keeps its own
+# entry.
+#
+# It stays out of KNOWN_COLORIMETERS, deliberately: Beta off = the window is exactly as before,
+# and the guard below still refuses a table device that does not carry the person's choice. The
+# window attaches that choice (`table_device_for(ExplicitTableChoice(...))`) only after the person
+# pressed its install button, which is the same explicit choice an instrument gets.
+# UNTESTED ON REAL WINDOWS HARDWARE WITH A TABLE.
 TABLE_DEVICE: "dict[tuple[str, str], str]" = {("0971", "2004"): "X-Rite i1iO 2 table"}
 
 #: the table's driver states, as `table_driver_state` names them
@@ -195,7 +202,8 @@ TABLE_CHOICE_WORDS = "install the libusb-win32 driver for my i1iO table"
 
 class ExplicitTableChoice:
     """The person's explicit choice to give the TABLE the libusb-win32 driver. Built only with
-    the exact words above (the later window passes them after the person's own confirmation);
+    the exact words above, and only by the Instrument drivers window after the person pressed its
+    install button with the table listed (`ui/dialogs/settings_dialog.py::_show_usb_installer`);
     nothing in ChromIQ builds one by itself."""
 
     def __init__(self, words: str):
@@ -229,6 +237,23 @@ def table_device_for(choice: ExplicitTableChoice) -> "UsbDevice":
 
 def is_table(vid: str, pid: str) -> bool:
     return (str(vid).lower(), str(pid).lower()) in TABLE_DEVICE
+
+
+def table_driver_can_help() -> bool:
+    """Whether installing the driver for the table can let ChromIQ drive it on this computer.
+
+    False on a Windows for ARM computer (requirement 4 of the 4.3.46 change: do not offer an install
+    that cannot work). There the table drive cannot run with either build: the ARM64 build bundles
+    no libusb-1.0 (no wheel), which the drive needs to list the USB devices before it opens the
+    table, and the x64 build runs emulated and cannot load the ARM64 libusb0.dll that the driver
+    package puts into System32. With the driver already installed, the existing check still LOADS
+    the file and says so in its own words (review 13, S-6); without it there is no file to load, so
+    the machine is what can be asked. Read only."""
+    try:
+        from core.usb_library import machine_is_arm64
+        return not machine_is_arm64()
+    except Exception:      # noqa: BLE001 - cannot tell: offer it, as for an instrument
+        return True
 
 
 def table_driver_state(entries: "list[tuple[str, list[tuple[str, str]]]] | None",
@@ -410,8 +435,13 @@ def _instance_id(combo: str, instance: str) -> str:
 def attached_devices(
     entries: "list[tuple[str, list[tuple[str, str]]]]",
     present_instances: "set[str] | None",
+    include_table: bool = False,
 ) -> list[UsbDevice]:
     """The known colorimeters among *entries* that are attached right now.
+
+    *include_table* (the Beta "X-Rite i1iO support" on, decided by the caller) lists the i1iO 2
+    table too, as a `TableUsbDevice` WITHOUT the person's choice: `install_winusb` refuses it until
+    the Instrument drivers window attaches that choice after its install button was pressed.
 
     *entries* is what the registry holds, already read out:
     ``[(combo_key, [(instance_key, service), …]), …]`` — e.g.
@@ -435,6 +465,9 @@ def attached_devices(
         vid = parts[0].replace("VID_", "").lower()
         pid = parts[1].replace("PID_", "").lower()
         name = KNOWN_COLORIMETERS.get((vid, pid))
+        is_the_table = False
+        if name is None and include_table and (vid, pid) in TABLE_DEVICE:
+            name, is_the_table = TABLE_DEVICE[(vid, pid)], True
         if name is None:
             continue
 
@@ -473,7 +506,8 @@ def attached_devices(
         has_winusb = any(
             str(service).strip().lower() == ARGYLL_USB_SERVICE
             for _, service in live)
-        found.append(UsbDevice(vid=vid, pid=pid, name=name, has_winusb=has_winusb))
+        kind = TableUsbDevice if is_the_table else UsbDevice
+        found.append(kind(vid=vid, pid=pid, name=name, has_winusb=has_winusb))
 
     # Composite USB devices register multiple keys per VID/PID (parent + MI_xx
     # interface children). Keep only the first occurrence of each (vid, pid).
@@ -532,8 +566,11 @@ def _registry_usb_entries() -> "list[tuple[str, list[tuple[str, str]]]]":
     return entries
 
 
-def enumerate_connected() -> list[UsbDevice]:
+def enumerate_connected(include_table: bool = False) -> list[UsbDevice]:
     """Return the known colorimeters ATTACHED RIGHT NOW, with their driver state.
+
+    *include_table*: list the i1iO 2 table as well (see `attached_devices`); the Instrument
+    drivers window passes it with the Beta "X-Rite i1iO support" on.
 
     "Connected" is meant literally: devices the registry merely remembers are
     filtered out here, once, so that no caller has to know the registry
@@ -542,7 +579,8 @@ def enumerate_connected() -> list[UsbDevice]:
     """
     if sys.platform != "win32":
         return []
-    return attached_devices(_registry_usb_entries(), present_usb_instance_ids())
+    return attached_devices(_registry_usb_entries(), present_usb_instance_ids(),
+                            include_table=include_table)
 
 
 # ---------------------------------------------------------------------------
@@ -972,9 +1010,10 @@ def install_winusb(device: UsbDevice, *,
                   "serial device, and WinUSB would destroy its COM port",
                   device.name, device.vid, device.pid)
         return InstallAttempt.REFUSED
-    # THE i1iO TABLE ONLY ON THE PERSON'S EXPLICIT CHOICE (owner's ruling, 2026-11-17): never
-    # automatically, never as part of an instrument's installation. A table device that did not
-    # come from `table_device_for(ExplicitTableChoice(...))` is refused here.
+    # THE i1iO TABLE ONLY ON THE PERSON'S EXPLICIT CHOICE, as every instrument (owner's rulings
+    # of 2026-11-17 and 2026-11-18): the Instrument drivers window attaches that choice after its
+    # install button was pressed with the table listed. A table device that did not come from
+    # `table_device_for(ExplicitTableChoice(...))` is refused here.
     if is_table(device.vid, device.pid) and not _choice_holds(device):
         log.error("refusing to install a driver on the i1iO table (%s:%s) without the "
                   "person's explicit choice", device.vid, device.pid)
@@ -1075,8 +1114,11 @@ def unbound_targets(targets: list[UsbDevice]) -> list[UsbDevice]:
     should fall back to Zadig.
     """
     target_ids = {(t.vid, t.pid) for t in targets}
+    # the table is re-read only when it was a target (its own entry, behind the Beta)
+    with_table = any(is_table(t.vid, t.pid) for t in targets)
     return [
-        d for d in enumerate_connected()
+        d for d in (enumerate_connected(include_table=True) if with_table
+                    else enumerate_connected())
         if (d.vid, d.pid) in target_ids and not d.has_winusb
     ]
 

@@ -1,0 +1,403 @@
+"""The i1iO table's Windows driver, helped like any instrument's (release after 4.3.45).
+
+The owner, 2026-11-18: *"why dont we allow to install the driver on windows? the reasoning from
+the changelog on this is strange. because the same issue exists with any other xrite instrument
+that is held by argylls driver. so nothing special here and it should be allowed to install it
+and the app shall help with it."*
+
+What is pinned here (no hardware, no driver is ever installed: every Windows path runs with the
+platform patched and `install_winusb` replaced):
+
+1. Preferences > Instrument drivers lists the table, behind the Beta, like an instrument; the
+   person's choice is attached only after its install button; Beta off = the very call it
+   always made; a Windows for ARM computer is not offered an install that cannot help.
+2. START: a table, or the i1Pro 2 in its arm, without the driver gets the offer ("Not now" /
+   install), which opens the same window; on an ARM64 PC the truthful message instead.
+3. The texts: catalogued, proposed, no placeholder left, no em dash, translated.
+4. macOS and Linux unchanged.
+"""
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+import pytest
+
+import core.usb_driver_installer as inst
+from tests.i1io_table import job_harness as H
+from workflow.i1io.table import job as J
+from workflow.i1io.table import usb_system as us
+
+TABLE = ("0971", "2004")
+I1PRO = ("0971", "2000")
+
+
+# ---- 1. the installer: the table behind a flag ---------------------------------------------
+
+ENTRIES = [("VID_0971&PID_2004", [("6&a&0&1", "")]),
+           ("VID_0971&PID_2000", [("6&b&0&2", "libusb0")])]
+
+
+def test_the_table_is_listed_only_when_asked_and_carries_no_choice():
+    off = inst.attached_devices(ENTRIES, None)
+    assert [(d.vid, d.pid) for d in off] == [I1PRO]
+    on = inst.attached_devices(ENTRIES, None, include_table=True)
+    assert [(d.vid, d.pid) for d in on] == [TABLE, I1PRO]
+    table, pro = on
+    assert isinstance(table, inst.TableUsbDevice) and table.name == "X-Rite i1iO 2 table"
+    assert not table.has_winusb and pro.has_winusb       # the i1Pro 2 keeps its own entry
+    assert getattr(table, "choice", None) is None
+    assert inst.install_winusb(table) is inst.InstallAttempt.REFUSED
+
+
+def test_a_table_with_the_driver_reads_as_installed_and_a_ghost_is_not_listed():
+    entries = [("VID_0971&PID_2004", [("6&a&0&1", "libusb0")])]
+    got = inst.attached_devices(entries, {"USB\\VID_0971&PID_2004\\6&A&0&1"}, include_table=True)
+    assert [(d.vid, d.pid, d.has_winusb) for d in got] == [("0971", "2004", True)]
+    # remembered by the registry, not attached: never offered
+    assert inst.attached_devices(entries, set(), include_table=True) == []
+
+
+def test_unbound_targets_re_reads_the_table_only_when_it_was_a_target(monkeypatch):
+    calls = []
+
+    def fake(**kw):
+        calls.append(kw)
+        return [inst.TableUsbDevice("0971", "2004", "X-Rite i1iO 2 table", False),
+                inst.UsbDevice("0971", "2000", "GretagMacbeth i1 Pro / i1 Pro 2", False)]
+    monkeypatch.setattr(inst, "enumerate_connected", fake)
+    pro = inst.UsbDevice("0971", "2000", "GretagMacbeth i1 Pro / i1 Pro 2", False)
+    assert [(d.vid, d.pid) for d in inst.unbound_targets([pro])] == [I1PRO]
+    assert calls == [{}]                                 # Beta-off shape: no keyword at all
+    table = inst.table_device_for(inst.ExplicitTableChoice(inst.TABLE_CHOICE_WORDS))
+    got = inst.unbound_targets([table, pro])
+    assert calls[-1] == {"include_table": True}
+    assert {(d.vid, d.pid) for d in got} == {TABLE, I1PRO}
+
+
+@pytest.mark.parametrize("arm64,can", [(True, False), (False, True)])
+def test_no_install_can_help_the_table_on_an_arm64_pc(monkeypatch, arm64, can):
+    import core.usb_library as ul
+    monkeypatch.setattr(ul, "machine_is_arm64", lambda: arm64)
+    assert inst.table_driver_can_help() is can
+
+
+# ---- 1b. the Instrument drivers window ----------------------------------------------------
+
+from tests.test_usb_driver_dialog import (  # noqa: E402  (its fixtures and helpers)
+    ModalDriver, _button, _ok_button, dialog, qapp_for_driving,  # noqa: F401
+)
+from ui.dialogs import settings_dialog as sd  # noqa: E402
+
+
+@pytest.fixture
+def on_windows(monkeypatch):
+    monkeypatch.setattr(sd, "_sys", SimpleNamespace(platform="win32"))
+
+
+@pytest.fixture
+def beta(monkeypatch):
+    from workflow.i1io import support
+    state = {"on": True}
+    monkeypatch.setattr(support, "i1io_enabled", lambda: state["on"])
+    return state
+
+
+def _hardware(monkeypatch, devices, *, arm64=False):
+    """The window's hardware, recorded: what enumerate_connected was asked, and what
+    install_winusb was handed."""
+    import core.resource_path as rp
+    import core.usb_library as ul
+    asked, installed = [], []
+
+    def enumerate_connected(**kw):
+        asked.append(kw)
+        if kw.get("include_table"):
+            return list(devices)
+        return [d for d in devices if not inst.is_table(d.vid, d.pid)]
+    monkeypatch.setattr(inst, "enumerate_connected", enumerate_connected)
+    monkeypatch.setattr(inst, "unbound_targets", lambda t: [])
+
+    def install(d, **kw):
+        installed.append(d)
+        return inst.InstallAttempt.INSTALLED
+    monkeypatch.setattr(inst, "install_winusb", install)
+    monkeypatch.setattr(ul, "machine_is_arm64", lambda: arm64)
+    monkeypatch.setattr(sd.SettingsDialog, "_serial_states", lambda self: [])
+
+    class _P:
+        def exists(self):
+            return True
+    monkeypatch.setattr(rp, "resource_path", lambda p: _P())
+    return asked, installed
+
+
+def _table(bound=False):
+    return inst.TableUsbDevice("0971", "2004", "X-Rite i1iO 2 table", bound)
+
+
+def _pro(bound=False):
+    return inst.UsbDevice("0971", "2000", "GretagMacbeth i1 Pro / i1 Pro 2", bound)
+
+
+def test_beta_on_the_window_lists_the_table_and_says_what_it_means(
+        dialog, on_windows, beta, monkeypatch):
+    asked, installed = _hardware(monkeypatch, [_table(), _pro(True)])
+    with ModalDriver(lambda w: _button(w, "Close").click()) as drv:
+        dialog._show_usb_installer()
+    said = drv.text_of(0)
+    assert asked == [{"include_table": True}]
+    assert "X-Rite i1iO 2 table" in said and "GretagMacbeth i1 Pro / i1 Pro 2" in said
+    assert "i1Profiler cannot use the table" in said
+    assert "install X-Rite's own driver for the table again" in said
+    assert installed == []                               # Close installs nothing
+
+
+def test_the_install_button_attaches_the_choice_to_the_table_and_nothing_else(
+        dialog, on_windows, beta, monkeypatch):
+    asked, installed = _hardware(monkeypatch, [_table(), _pro(False)])
+    with ModalDriver(lambda w: _button(w, "Install Driver").click(),
+                     lambda w: _ok_button(w).click()) as drv:
+        dialog._show_usb_installer()
+    assert drv.modal_count == 2
+    assert [(d.vid, d.pid) for d in installed] == [TABLE, I1PRO]
+    table, pro = installed
+    assert inst._choice_holds(table)                     # the person's own press
+    assert type(pro) is inst.UsbDevice and getattr(pro, "choice", None) is None
+
+
+def test_beta_off_the_window_is_exactly_as_before(dialog, on_windows, beta, monkeypatch):
+    beta["on"] = False
+    asked, installed = _hardware(monkeypatch, [_table(), _pro(False)])
+    with ModalDriver(lambda w: _button(w, "Install Driver").click(),
+                     lambda w: _ok_button(w).click()) as drv:
+        dialog._show_usb_installer()
+    assert asked == [{}]                                 # the old call, word for word
+    assert "i1iO" not in drv.text_of(0)
+    assert [(d.vid, d.pid) for d in installed] == [I1PRO]
+
+
+def test_an_arm64_pc_is_not_offered_an_install_for_the_table(
+        dialog, on_windows, beta, monkeypatch):
+    asked, installed = _hardware(monkeypatch, [_table()], arm64=True)
+    buttons = []
+
+    def look_then_close(w):
+        buttons.append(_button(w, "Install Driver") or _button(w, "Reinstall Driver"))
+        _button(w, "Close").click()
+    with ModalDriver(look_then_close) as drv:
+        dialog._show_usb_installer()
+    said = drv.text_of(0)
+    assert "cannot drive it on this Windows for ARM computer yet" in said
+    assert buttons == [None]                             # no install button at all
+    assert installed == []
+
+
+def test_the_table_text_alone():
+    assert sd.usb_table_text([_pro()]) == ""
+    assert sd.usb_table_text([SimpleNamespace(name="x", has_winusb=False)]) == ""
+    one = sd.usb_table_text([_table()])
+    assert one.startswith("<br><br>") and "i1Profiler cannot use the table" in one
+    arm = sd.usb_table_text([], [_table()])
+    assert "Windows for ARM" in arm and "i1Profiler cannot use" not in arm
+
+
+def test_the_window_opens_on_its_own_only_on_windows(monkeypatch):
+    built = []
+    monkeypatch.setattr(sd, "_sys", SimpleNamespace(platform="darwin"))
+    monkeypatch.setattr(sd, "SettingsDialog", lambda *a, **k: built.append(1))
+    sd.open_instrument_drivers(object())
+    assert built == []
+
+
+def test_the_window_opens_on_its_own_as_preferences_opens_it(monkeypatch):
+    shown = []
+
+    class _Dlg:
+        def __init__(self, settings, parent=None):
+            self.settings, self.parent = settings, parent
+
+        def _show_usb_installer(self):
+            shown.append(self.settings)
+
+        def deleteLater(self):
+            shown.append("deleted")
+    monkeypatch.setattr(sd, "_sys", SimpleNamespace(platform="win32"))
+    monkeypatch.setattr(sd, "SettingsDialog", _Dlg)
+    sd.open_instrument_drivers("S")
+    assert shown == ["S", "deleted"]
+
+
+# ---- 2. START: the job's checks ------------------------------------------------------------
+
+def _pf(table="libusb0", pro="libusb0", arm64=False, system="windows"):
+    return us.Preflight(system, {}, us.Check("ok"), us.Check("cannot_tell"), None,
+                        us.Check(table), us.Check(pro), arm64)
+
+
+@pytest.mark.parametrize("state", ["none", "vendor_driver", "cannot_tell"])
+def test_an_arm64_pc_gets_the_truthful_message_not_an_offer(state):
+    job, sim, _t = H.make_job(preflight=_pf(table=state, arm64=True))
+    r = H.Person(job, sim).drive(job.open())
+    assert (r.kind, r.reason) == (J.Kind.REFUSED, "usb_open_refused")
+    assert r.detail["message_id"] == "M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM"
+    assert sim.received == []
+
+
+def test_an_i1pro2_without_the_driver_is_named_before_anything_is_sent():
+    opened = []
+    job, sim, _t = H.make_job(preflight=_pf(pro="none"))
+    job._open_transport = lambda: opened.append(1)
+    r = H.Person(job, sim).drive(job.open())
+    assert (r.kind, r.reason) == (J.Kind.REFUSED, "driver_not_installed_for_instrument")
+    assert opened == [] and sim.received == []
+
+
+def test_the_table_is_named_first_when_both_lack_the_driver():
+    job, sim, _t = H.make_job(preflight=_pf(table="none", pro="none"))
+    r = H.Person(job, sim).drive(job.open())
+    assert r.reason == "driver_not_installed_for_table"
+
+
+def test_an_i1pro2_without_the_driver_on_an_arm64_pc_gets_the_truthful_message():
+    job, sim, _t = H.make_job(preflight=_pf(pro="none", arm64=True))
+    r = H.Person(job, sim).drive(job.open())
+    assert r.detail["message_id"] == "M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM"
+
+
+@pytest.mark.parametrize("pro", ["libusb0", "not_seen", "cannot_tell", "not_applicable"])
+def test_an_i1pro2_with_the_driver_or_not_seen_is_not_refused_for_its_driver(pro):
+    job, sim, _t = H.make_job(preflight=_pf(pro=pro))
+    r = H.Person(job, sim).drive(job.open())
+    assert r.ok, r.reason
+
+
+def test_the_i1pro2_driver_is_read_like_the_window_reads_it():
+    D = inst.UsbDevice
+    check = us.instrument_driver_check
+    assert check("macos").state == "not_applicable"
+    assert check("linux").state == "not_applicable"
+    assert check("windows", lambda: []).state == "not_seen"
+    assert check("windows", lambda: [D("0971", "2000", "x", False)]).state == "none"
+    assert check("windows", lambda: [D("0971", "2000", "x", True)]).state == "libusb0"
+
+    def boom():
+        raise OSError("registry")
+    assert check("windows", boom).state == "cannot_tell"
+    assert us.machine_is_arm64("macos") is False and us.machine_is_arm64("linux") is False
+
+
+def test_the_preflight_records_both_drivers():
+    d = _pf(table="none", pro="none", arm64=True).as_dict()
+    assert d["table_driver"]["state"] == "none"
+    assert d["instrument_driver"]["state"] == "none" and d["arm64_machine"] is True
+
+
+def test_macos_and_linux_are_not_asked_about_any_driver():
+    for system in ("macos", "linux"):
+        job, sim, _t = H.make_job(preflight=_pf(table="not_applicable", pro="none",
+                                                system=system, arm64=True))
+        assert H.Person(job, sim).drive(job.open()).ok
+
+
+# ---- 2b. START: the table window's offer ---------------------------------------------------
+
+from tests.i1io_table.test_window import open_window, settings  # noqa: E402,F401
+
+
+@pytest.mark.parametrize("table,pro,title,install", [
+    ("none", "libusb0", "The table does not have the driver ChromIQ uses on Windows",
+     "Install the driver for the table now"),
+    ("vendor_driver", "libusb0", "The table does not have the driver ChromIQ uses on Windows",
+     "Install the driver for the table now"),
+    ("libusb0", "none", "The i1Pro 2 does not have the driver ChromIQ uses on Windows",
+     "Install the driver for the i1Pro 2 now"),
+])
+def test_start_offers_the_driver_and_the_install_answer_opens_the_window(
+        qtbot, monkeypatch, tmp_path, settings, table, pro, title, install):  # noqa: F811
+    monkeypatch.setattr(H, "OK_PREFLIGHT", _pf(table=table, pro=pro))
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings)
+    assert p.drive_until("driver_offer") == "driver_offer"
+    assert p.labels() == ["Not now", install]
+    assert win._title.text() == title
+    assert sim.sim.received == []
+    p.press(install)
+    qtbot.waitUntil(lambda: finished == ["install_driver"], timeout=15000)
+    assert sim.sim.received == []
+
+
+def test_not_now_installs_nothing_and_opens_nothing(
+        qtbot, monkeypatch, tmp_path, settings):  # noqa: F811
+    monkeypatch.setattr(H, "OK_PREFLIGHT", _pf(table="none"))
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings)
+    assert p.drive_until("driver_offer") == "driver_offer"
+    p.press("Not now")
+    p.drive_until(("done",))
+    p.press("Close")
+    assert finished and finished[-1] != "install_driver"
+    assert sim.sim.received == []
+
+
+def test_the_open_time_refusal_becomes_the_same_offer(qtbot, monkeypatch, tmp_path,
+                                                       settings):  # noqa: F811
+    """The registry said libusb0, and the opening still found no libusb0.dll (which the driver
+    package installs): the same offer, never a message with a placeholder left."""
+    from workflow.i1io.table import session_table as tbl
+    monkeypatch.setattr(H, "OK_PREFLIGHT", _pf())
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings)
+    job = sim.jobs[0]
+
+    def refuse():
+        raise tbl.NotAvailable("M-I1IO-DRIVE-TABLE-DRIVER-NOT-INSTALLED", problem="no-libusb0-dll")
+    job._open_transport = refuse
+    assert p.drive_until(("driver_offer", "open_refused")) == "driver_offer"
+    assert "{" not in win._title.text()
+    assert p.labels() == ["Not now", "Install the driver for the table now"]
+
+
+def test_the_measure_tab_opens_the_driver_window_after_the_table_window_let_go(monkeypatch):
+    """`_on_table_window_finished("install_driver")` opens the Instrument drivers window
+    (Windows only, as Preferences); any other ending does not."""
+    import inspect
+
+    from ui.tabs import tab_measure as TM
+    src = inspect.getsource(TM.TabMeasure._on_table_window_finished)
+    at = src.index('if why == "install_driver":')
+    assert "QTimer.singleShot(0, self._open_instrument_drivers)" in src[at:at + 900]
+    # after the tab is unlocked again
+    assert src.index("self.measurement_active.emit(False)") < at
+    opened = []
+    monkeypatch.setattr(sd, "open_instrument_drivers", lambda s, p=None: opened.append(s))
+    fake = SimpleNamespace(_settings="S", window=lambda: None)
+    TM.TabMeasure._open_instrument_drivers(fake)
+    assert opened == ["S"]
+
+
+# ---- 3. the texts ------------------------------------------------------------------------------
+
+def test_the_texts_are_proposed_complete_and_say_the_way_back():
+    from workflow import measurement_messages as M
+    for msg, what in ((M.M_I1IO_DRIVE_TABLE_DRIVER, "the table"),
+                      (M.M_I1IO_DRIVE_I1PRO2_DRIVER, "the i1Pro 2")):
+        assert not msg.approved and msg.id in M.PROPOSED
+        title, body = msg.render(install="Install it", window="Instrument drivers")
+        for text in (title, body):
+            assert "{" not in text and "—" not in text
+        assert "i1Profiler cannot use " + what in body
+        assert "install X-Rite's own driver for " + what + " again" in body
+        assert "Nothing was sent to the table" in body
+        assert "not offered in this beta" not in body
+
+
+def test_the_german_texts_exist():
+    from core import i18n
+    from workflow import measurement_messages as M
+    cat = i18n._load_catalog("de") if hasattr(i18n, "_load_catalog") else None
+    if cat is None:
+        import json
+        from pathlib import Path
+        cat = json.loads((Path(__file__).resolve().parents[2] / "data" / "i18n" / "de.json")
+                         .read_text(encoding="utf-8"))
+    for msg in (M.M_I1IO_DRIVE_TABLE_DRIVER, M.M_I1IO_DRIVE_I1PRO2_DRIVER):
+        assert msg.title in cat and msg.body in cat
+    for s in ("Install the driver for the table now", "Install the driver for the i1Pro 2 now"):
+        assert s in cat

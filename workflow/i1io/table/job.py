@@ -1060,9 +1060,24 @@ class TableJob:
         self.diag.log("INFO", "before opening: " + json.dumps(pf.as_dict(), default=str))
         if pf.system == "windows" and pf.table_driver.state != "libusb0":
             # the owner's ruling: on Windows the table is reached like ArgyllCMS's instruments,
-            # through libusb-win32, which only the person's explicit choice installs for it
+            # through libusb-win32, which only the person's explicit choice installs for it.
+            # 4.3.46 (owner, 2026-11-18): the window then offers that install, except on a
+            # Windows for ARM computer, where the drive cannot run: the truthful message there
+            if pf.arm64_machine:
+                raise StageFailed("usb_open_refused",
+                                  message_id="M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM",
+                                  problem="windows-arm64-table-without-driver")
             raise StageFailed("driver_not_installed_for_table",
                               driver_state=pf.table_driver.state, **pf.table_driver.detail)
+        if pf.system == "windows" and pf.instrument_driver.state == "none":
+            # 4.3.46: the i1Pro 2 in the arm is its own USB device and needs the same driver
+            # (ArgyllCMS reads it through libusb-win32); the window offers that install too,
+            # except where the drive cannot run (an install there would not help the drive)
+            if pf.arm64_machine:
+                raise StageFailed("usb_open_refused",
+                                  message_id="M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM",
+                                  problem="windows-arm64-instrument-without-driver")
+            raise StageFailed("driver_not_installed_for_instrument")
         if pf.instrument.state != "ok":
             raise StageFailed(f"instrument_{pf.instrument.state}", **pf.instrument.detail)
         if pf.i1profiler is True:

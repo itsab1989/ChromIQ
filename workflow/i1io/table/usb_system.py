@@ -257,6 +257,39 @@ def table_driver_check(system: str, state_now=None) -> Check:
     return Check(state, dict(detail))
 
 
+def instrument_driver_check(system: str, connected=None) -> Check:
+    """Windows only (4.3.46, the owner's ruling of 2026-11-18): whether the i1Pro 2 (0971:2000,
+    its own USB device in the table's arm) has the libusb-win32 driver ArgyllCMS reads it
+    through. "libusb0" = it has; "none" = it is connected without it (X-Rite's driver, WinUSB or
+    none); "not_seen" = not connected (the instrument check says that); elsewhere
+    "not_applicable". *connected* is `core.usb_driver_installer.enumerate_connected` (tests).
+    Read only. UNTESTED ON REAL WINDOWS HARDWARE WITH A TABLE."""
+    if system != "windows":
+        return Check("not_applicable")
+    try:
+        if connected is None:
+            import core.usb_driver_installer as inst
+            connected = inst.enumerate_connected
+        pros = [d for d in connected() if (d.vid, d.pid) == ("0971", "2000")]
+    except Exception as exc:      # noqa: BLE001 - read only: cannot tell, the reader decides
+        return Check("cannot_tell", {"why": type(exc).__name__})
+    if not pros:
+        return Check("not_seen")
+    return Check("libusb0" if all(d.has_winusb for d in pros) else "none")
+
+
+def machine_is_arm64(system: str) -> bool:
+    """Windows on an ARM64 PC (the machine, not the process): for requirement 4 of 4.3.46, no
+    driver install is offered for the table there, because the drive cannot run there."""
+    if system != "windows":
+        return False
+    try:
+        import core.usb_library as usb_library
+        return bool(usb_library.machine_is_arm64())
+    except Exception:      # noqa: BLE001 - cannot tell: the existing checks decide
+        return False
+
+
 @dataclass(frozen=True)
 class Preflight:
     system: str
@@ -265,13 +298,18 @@ class Preflight:
     holders: Check
     i1profiler: "bool | None"
     table_driver: Check = Check("not_applicable")
+    instrument_driver: Check = Check("not_applicable")
+    arm64_machine: bool = False
 
     def as_dict(self) -> dict:
         return {"system": self.system, "usb": self.usb,
                 "instrument": {"state": self.instrument.state, **self.instrument.detail},
                 "holders": {"state": self.holders.state, **self.holders.detail},
                 "i1profiler_running": self.i1profiler,
-                "table_driver": {"state": self.table_driver.state, **self.table_driver.detail}}
+                "table_driver": {"state": self.table_driver.state, **self.table_driver.detail},
+                "instrument_driver": {"state": self.instrument_driver.state,
+                                      **self.instrument_driver.detail},
+                "arm64_machine": self.arm64_machine}
 
 
 def preflight(platform: "str | None" = None) -> Preflight:
@@ -282,7 +320,8 @@ def preflight(platform: "str | None" = None) -> Preflight:
     devices = list_devices(system, backend=backend)
     return Preflight(system, usb_library.diagnostics(), instrument_check(devices),
                      holders_check(system), i1profiler_running(system),
-                     table_driver_check(system))
+                     table_driver_check(system), instrument_driver_check(system),
+                     machine_is_arm64(system))
 
 
 def instrument_now(platform: "str | None" = None) -> Check:

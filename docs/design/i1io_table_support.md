@@ -981,3 +981,30 @@ and the reviewer's own walker and probes, copied as `test_review14_walker.py` an
 * In a main window lower than 800 px the tab's mode buttons and chart file box (locked during the
   session) give their room to the panel: at 900 x 650 the ending shows its three answers and at
   least three lines of its explanation.
+
+### ⏳ Awaiting confirmation: the Windows driver for the table, offered like an instrument's (2026-11-18)
+
+**Confirmed by:** *nobody yet.* (The owner's ruling, 2026-11-18, overruling the 4.3.45 rule that
+the table's driver was never offered: *"why dont we allow to install the driver on windows? [...]
+the same issue exists with any other xrite instrument that is held by argylls driver. so nothing
+special here and it should be allowed to install it and the app shall help with it."* The ruling
+is his; the behaviour below is what was built from it and awaits his confirmation.)
+
+* **Preferences, Instrument drivers (Windows, the Beta on).** The i1iO 2 table (USB 0971:2004) is
+  listed like an instrument, with its driver state, the same install button, the same certificate
+  disclosure and the same permission prompt; a paragraph under the list says that it is listed
+  because of the Beta, that while the table has this driver i1Profiler cannot use the table, and
+  that installing X-Rite's own driver for the table again gives it back. The i1Pro 2 in the arm
+  (0971:2000) keeps its own line. The person's choice for the table is attached only after the
+  window's install button was pressed (`install_winusb` refuses a table device without it).
+  Beta off: the window makes exactly the call it always made and never lists the table.
+* **START (Windows).** A table without the libusb-win32 driver: M-I1IO-DRIVE-TABLE-DRIVER, with
+  "Not now" (installs nothing) and "Install the driver for the table now" (the table window lets
+  go, then the same Instrument drivers window opens). The i1Pro 2 in the arm without the driver:
+  M-I1IO-DRIVE-I1PRO2-DRIVER, the same two answers. Checked before the table is opened: nothing is
+  sent to the table. Afterwards the person presses START MEASUREMENT again.
+* **Windows for ARM computer.** No install is offered for the table there (neither in the window
+  nor at START), because the drive cannot run there: the window says so in one sentence, and START
+  shows M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM.
+* **Not tried with a real table on Windows.** Tried in a Windows 11 ARM virtual machine without a
+  table and on the Mac with the platform patched; the install itself was not run for the table.

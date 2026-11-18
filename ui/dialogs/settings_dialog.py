@@ -674,6 +674,46 @@ def usb_installer_text(devices, wdi_available: bool) -> "tuple[str, str | None]"
     return msg_text, btn_label
 
 
+def _is_the_table(device) -> bool:
+    """The i1iO 2 table among the window's devices (any object with ``vid`` / ``pid``; one
+    without them is never the table)."""
+    from core.usb_driver_installer import is_table
+    return is_table(getattr(device, "vid", ""), getattr(device, "pid", ""))
+
+
+def usb_table_text(devices, tables_not_offered=()) -> str:
+    """What the Instrument drivers window adds about the i1iO 2 table (the Beta "X-Rite i1iO
+    support" on), appended to `usb_installer_text`'s message; "" when there is nothing to say.
+
+    THE OWNER'S RULING OF 2026-11-18: the table is treated like any X-Rite instrument that
+    ArgyllCMS's driver holds. So it is listed like one, with the same button, and the paragraph
+    says the one thing that is true of every such instrument and matters most for a table owner:
+    while it has this driver, i1Profiler cannot use it, and how it goes back. The way back is
+    said as far as this project has verified it (X-Rite's own driver, installed again); no
+    Windows menu path is named, because none has been tried here.
+
+    *tables_not_offered* are tables attached to a Windows for ARM computer, where the driver
+    cannot let ChromIQ drive the table (`core.usb_driver_installer.table_driver_can_help`):
+    they are not listed for an install, and one sentence says why.
+    """
+    parts = []
+    if any(_is_the_table(d) for d in devices):
+        parts.append(tr(
+            "<b>The i1iO table</b> is listed because the beta option \u201cX-Rite i1iO "
+            "support\u201d is on. ChromIQ drives the table through the same driver it uses for "
+            "your instruments, and installing it for the table works the same way. As with any "
+            "X-Rite instrument that has this driver: while the table has it, i1Profiler cannot "
+            "use the table. To give the table back to i1Profiler, install X-Rite's own driver "
+            "for the table again. The i1Pro 2 in the table's arm is a USB device of its own: "
+            "when it is connected, it has its own line in this list."))
+    if tables_not_offered:
+        parts.append(tr(
+            "<b>The i1iO table</b> is connected, but ChromIQ cannot drive it on this Windows for "
+            "ARM computer yet, so no driver is offered for it here. Measuring in i1Profiler "
+            "3.8.6 or older and IMPORT still work."))
+    return "".join("<br><br>" + one for one in parts)
+
+
 def usb_install_outcome(*, wdi_available: bool, ran_ok: bool,
                         still_unbound_names: "list[str]",
                         zadig_status: "str | None",
@@ -2218,6 +2258,22 @@ def pace_clock_section() -> str:
               "up its lamp for about 0.7 seconds, a ColorMunki needs only a "
               "short moment. Only then does it start reading and beep. That "
               "wait is not counted, so start sliding when you hear the beep.")
+
+
+def open_instrument_drivers(settings, parent=None) -> None:
+    """The Instrument drivers window on its own, exactly as Preferences opens it (the same
+    list, the same install button, the same certificate disclosure and the same permission
+    prompt). The i1iO table's START offers it when the table or its i1Pro 2 lacks the driver on
+    Windows (owner's ruling, 2026-11-18); nothing is installed unless the person presses the
+    install button there. Windows only: elsewhere it returns at once. Preferences itself is not
+    shown, and nothing of it is saved."""
+    if _sys.platform != "win32":
+        return
+    dlg = SettingsDialog(settings, parent)
+    try:
+        dlg._show_usb_installer()
+    finally:
+        dlg.deleteLater()
 
 
 class SettingsDialog(QDialog):
@@ -9073,9 +9129,15 @@ class SettingsDialog(QDialog):
             QWidget,
         )
         from core.usb_driver_installer import (
-            InstallAttempt, enumerate_connected, install_winusb, launch_zadig,
+            TABLE_CHOICE_WORDS, ExplicitTableChoice, InstallAttempt, enumerate_connected,
+            install_winusb, launch_zadig, table_device_for, table_driver_can_help,
             unbound_targets,
         )
+        # THE i1iO TABLE, LISTED LIKE AN INSTRUMENT (owner's ruling, 2026-11-18), only with
+        # the Beta "X-Rite i1iO support" on: Beta off, this window is exactly as before.
+        from workflow.i1io.support import i1io_enabled as _i1io_on
+        _with_table = bool(_i1io_on())
+        _table_can_help = table_driver_can_help() if _with_table else False
         from core.resource_path import resource_path as _rp
         from ui.widgets import tint_dialog_primary
 
@@ -9094,7 +9156,15 @@ class SettingsDialog(QDialog):
             # enumerate_connected() returns what is ATTACHED, not what the
             # registry remembers — it filters against cfgmgr32's PRESENT list
             # itself, so this window names no hardware the user does not own.
-            devices = enumerate_connected()
+            # Beta off: the very call this window always made
+            devices = (enumerate_connected(include_table=True) if _with_table
+                       else enumerate_connected())
+            # a Windows for ARM computer: the table cannot be driven there, so it is not
+            # offered an install that cannot help (said in one sentence instead)
+            tables_not_offered = [] if _table_can_help or not _with_table else \
+                [d for d in devices if _is_the_table(d)]
+            if tables_not_offered:
+                devices = [d for d in devices if not _is_the_table(d)]
             needs_install = [d for d in devices if not d.has_winusb]
             states = self._serial_states()
 
@@ -9121,6 +9191,7 @@ class SettingsDialog(QDialog):
             usb_lay = QVBoxLayout(usb_grp)
             usb_lay.setSpacing(12)
             msg_text, btn_label = usb_installer_text(devices, _wdi_available)
+            msg_text += usb_table_text(devices, tables_not_offered)
             msg = QLabel(msg_text, usb_grp)
             msg.setWordWrap(True)
             msg.setTextFormat(Qt.TextFormat.RichText)
@@ -9223,6 +9294,11 @@ class SettingsDialog(QDialog):
             # "Reinstall Driver" (no device needs install) repairs every detected
             # device; otherwise only the ones missing a driver are targeted.
             targets = needs_install or devices
+            # THE PERSON'S CHOICE, ATTACHED HERE AND NOWHERE ELSE: the install button of this
+            # window was pressed with the table listed, which is the same explicit choice every
+            # instrument gets. Without it `install_winusb` refuses the table.
+            targets = [table_device_for(ExplicitTableChoice(TABLE_CHOICE_WORDS))
+                       if _with_table and _is_the_table(d) else d for d in targets]
             if _wdi_available:
                 attempts = self._install_the_drivers(targets, install_winusb)
                 # WHAT WAS NEVER TRIED IS NOT WHAT FAILED. The loop stops after
