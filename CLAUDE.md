@@ -1,5 +1,7 @@
 # CLAUDE.md — ChromIQ
 
+**Developer tools, drivers and simulators are listed by purpose in `docs/dev_tools_index.md`; read `scripts/README.md` before running one.** Adding an instrument: `docs/adding_an_instrument.md` and `docs/driven_instrument_checklist.md`.
+
 ## Setup
 
 ```bash
