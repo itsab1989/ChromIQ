@@ -88,11 +88,13 @@ def test_a_later_session_completes_the_partial_one_reading_only_what_is_missing(
     job2.diag = Diagnostics(run.i1io_table_session_dir(job2.stamp),
                             run.i1io_table_log(job2.stamp))
     r = job2.set_options(["-p", "-r"])
-    assert r.ok and r.detail["resume_unread"] == 4
+    # 4.3.46 fix round 2: row 2's reader died at 1-1 after reading 1-3 and 1-2, which the
+    # helper had saved (after every reading): the run lacks only 1-1 and 1-0 (before: the row)
+    assert r.ok and r.detail["resume_unread"] == 2
     ready_to_read(job2, p2)
     res = read_page(job2, p2)
     assert [x.detail["status"] for x in res] == ["nothing_to_read", "read"]
-    assert helper2.reads == 4                       # only the four patches the run lacked
+    assert helper2.reads == 2                       # only the two patches the run lacked
     s = job2.save()
     assert s.ok and s.detail["measurement"]["state"] == "complete"
     assert classify(run.measurement_ti3, run.chart_ti2).state is Ti3State.COMPLETE

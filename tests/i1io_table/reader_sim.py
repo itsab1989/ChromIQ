@@ -7,8 +7,8 @@ recorded with its exact arguments. It speaks the helper's JSON events as
 ``native/chartread_helper`` emits them (instrument, cal_required, cal_done, spot_ready,
 patch_read, unread_confirm, saved, error), on the table simulator's clock, and reads whatever
 stands under the simulated sensor. Like ArgyllCMS (ENABLE_NONVCAL) a calibration made by one
-reader is found by the next. It writes the row's .ti3 when told "done" (NOT after every
-reading, as the real helper does: see the note in ``send``). At its prompts outside the patch menu (a
+reader is found by the next. It writes the row's .ti3 as chartread does: after every reading
+(the autosave, "saved") and when told "done". At its prompts outside the patch menu (a
 calibration request, a failed reading, a stop at a patch) it takes keys as the real helper does
 (``send``); ``killed`` lists every helper the reader had to end by force.
 
@@ -16,7 +16,8 @@ Faults (``HelperSim(faults=...)``):
   open        no_instrument / busy / wrong_model / no_model / dies / silent / cal_fails /
               cal_other_cond, for every reader or only the reader number ``open_at``
   read        {n: kind}: the n-th reading of the whole sitting (1-based); kinds: error, coms,
-              implausible, no_values, other_loc, dies, slow, cal_required
+              implausible, no_values, other_loc, dies, dies_unsaved (reported, then the
+              helper ends before its autosave), slow, cal_required
   read_loc    {loc: kind}: every reading of that patch (a patch that always fails)
   read_once   {loc: kind}: the first reading of that patch only
   read_s      seconds of the simulator's clock per reading (default 0.9)
@@ -539,6 +540,7 @@ class FakeHelperProc:
                 self.read[loc] = [sid, xyz, spec]
                 self._emit({"event": "patch_read", "id": sid, "loc": loc, "xyz": [],
                             "exyz": [], "de": 0})
+                self._write()
                 self.at = min(self.at + 1, len(self.patches) - 1)
                 self._ready()
                 return
@@ -549,9 +551,19 @@ class FakeHelperProc:
                 return
             self._emit({"event": "patch_read", "id": sid, "loc": loc, "xyz": xyz,
                         "exyz": [50.0, 50.0, 50.0], "de": 1.0})
+            if fault == "dies_unsaved":
+                # the helper reports a reading BEFORE it saves it (chromiq_chartread.c:
+                # cq_emit_patch_read, then cq_write_ti3_atomic): one that ends in between has
+                # taken a reading the app accepts and its .ti3 does not hold
+                self._die()
+                return
             self.read[loc] = [sid, xyz, spec]
-            # NOT simulated: the real helper also autosaves the .ti3 after every spot reading
-            # ({"event":"saved"}; test_engine_spot.py::test_each_patch_read_autosaves).
+            # 4.3.46 fix round 2: the real helper saves the .ti3 after EVERY spot reading
+            # ({"event":"saved"}, chromiq_chartread.c cq_write_ti3_atomic;
+            # test_engine_spot.py::test_each_patch_read_autosaves), so a reader that dies or
+            # is ended keeps the row's earlier readings. Until then this simulator wrote the
+            # file only at "done" and the tests assumed those readings lost.
+            self._write()
             if self.at + 1 < len(self.patches):
                 self.at += 1
             self._ready()

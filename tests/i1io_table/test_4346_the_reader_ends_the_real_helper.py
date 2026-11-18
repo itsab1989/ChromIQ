@@ -427,3 +427,31 @@ def test_the_driver_saves_the_white_before_the_helper_says_it_is_done():
     binary = (ROOT / "native/chromiq-chartread").read_bytes()
     assert b"ArgyllCMS/.i1p_%d.cal" in binary and b"XDG_CACHE_HOME" in binary
 
+
+# ---- the same in the job, with the simulated helper (which now keeps the helper's prompts) ----
+
+def _job(tmp_path, faults):
+    from tests.i1io_table.test_job_reading import job_for, read_page, ready_to_read
+    from workflow.i1io.table import job as J
+    job, sim, helper, _run, p = job_for(tmp_path, {J.Confirm.ROW_FAILED: "skip"}, faults=faults)
+    ready_to_read(job, p)
+    return job, sim, helper, read_page(job, p)
+
+
+def test_a_row_whose_instrument_asks_for_a_white_ends_without_one_and_unkilled(tmp_path):
+    """The 6th reading of the sitting (row 2's second patch) asks for a calibration: the row
+    fails, a new white is due, no white is made where the arm stands, no reader is killed."""
+    job, sim, helper, res = _job(tmp_path, {"read": {6: "cal_required"}})
+    assert [r.detail["status"] for r in res] == ["read", "skipped"]
+    assert job.calibration_due
+    assert not [v for v in sim.violations if "calibration started" in v], sim.violations
+    assert helper.killed == []
+    # the row's first reading, saved by the helper before the request, is kept
+    assert job.measurement().detail["measurement"]["read"] == 5
+
+
+def test_a_row_with_a_failed_reading_is_read_again_and_no_reader_is_killed(tmp_path):
+    job, sim, helper, res = _job(tmp_path, {"read_once": {"1-2": "error"}})
+    assert [r.detail["status"] for r in res] == ["read", "read"]
+    assert helper.killed == [] and sim.violations == []
+    assert job.measurement().detail["measurement"]["state"] == "complete"

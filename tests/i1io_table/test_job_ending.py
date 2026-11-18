@@ -87,14 +87,15 @@ def test_a_partial_session_names_what_is_missing_and_saves_as_partial(tmp_path, 
     read_page(job, p)
     r, st = _end(job, p, "save")
     assert st["state"] == "partial"
-    # row 2's reader died at its 2nd patch: its first reading was never saved, so the whole
-    # row is missing, and only it
-    assert st["missing"] == [{"page": 1, "rows": [{"row": 2, "patches": 4,
-                                                   "locs": ["1-0", "1-1", "1-2", "1-3"]}]}]
+    # row 2's reader died at its 2nd patch. 4.3.46 fix round 2: its first reading (1-3) was
+    # saved by the helper (it saves after every reading), so it is kept; the three patches
+    # after it are missing, and only they
+    assert st["missing"] == [{"page": 1, "rows": [{"row": 2, "patches": 3,
+                                                   "locs": ["1-0", "1-1", "1-2"]}]}]
     assert r.ok and r.detail["measurement"]["state"] == "partial"
     assert r.detail["resume_next"] is True
     facts = classify(run.measurement_ti3, run.chart_ti2)
-    assert facts.state is Ti3State.PARTIAL and facts.held == 4
+    assert facts.state is Ti3State.PARTIAL and facts.held == 5
 
 
 @ASKING
@@ -277,16 +278,19 @@ def test_resume_reads_only_the_missing_patches_with_caps_from_what_is_missing(tm
     job.close()
     full_caps = job.caps
     job2, sim2, helper2, p2 = job_on(run, tmp_path / "b", sheet=sheet, stamp=SECOND)
-    assert job2.set_options(["-p", "-r"]).detail["resume_unread"] == 4
+    # 4.3.46 fix round 2: row 2's reader died at its LAST patch (1-0, read 1-3 to 1-0); the
+    # helper had saved the three readings before it (it saves after every reading), so only
+    # that one patch is missing, and the resume reads only it (before: the whole row, 4)
+    assert job2.set_options(["-p", "-r"]).detail["resume_unread"] == 1
     ready_to_read(job2, p2)
     assert job2.caps.lines < full_caps.lines and job2.caps.moves < full_caps.moves
     res = read_page(job2, p2)
     assert [x.detail["status"] for x in res] == ["nothing_to_read", "read", "nothing_to_read"]
-    assert helper2.reads == 4
+    assert helper2.reads == 1
     r, st = _end(job2, p2, "save")
     assert st["state"] == "complete" and r.ok
     assert (r.detail["verdict"], r.detail["before"], r.detail["after"], r.detail["added"]) == \
-        ("keep", 8, 12, 4)
+        ("keep", 11, 12, 1)
     # the partial was copied into old/ before it was replaced (§2a)
     assert r.detail["archive"] and any((run.old_dir / r.detail["archive"]).glob("*.ti3"))
 

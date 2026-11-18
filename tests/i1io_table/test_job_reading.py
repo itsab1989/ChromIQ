@@ -386,10 +386,13 @@ def test_a_skipped_row_leaves_a_partial_measurement(tmp_path):
     res = read_page(job, p)
     assert [r.detail["status"] for r in res] == ["read", "skipped"]
     m = job.measurement().detail["measurement"]
-    # the reader died at the row's second patch: its first reading was never saved by the
-    # helper (chartread saves on "done"), so it is not in the measurement either, and says so
-    assert m["state"] == "partial" and m["read"] == 4 and len(m["unread"]) == 4
-    assert m["rejected"] == [["1-3", "reader_saved_nothing"]]
+    # the reader died at the row's second patch. 4.3.46 fix round 2: the real helper saves its
+    # .ti3 after EVERY reading (the simulator now too), so the row's first reading (1-3), taken
+    # and accepted before the death, is in its file and in the measurement; only the three
+    # patches after it are missing. (Before, the simulator saved only at "done" and this test
+    # held the reading lost: "reader_saved_nothing".)
+    assert m["state"] == "partial" and m["read"] == 5 and len(m["unread"]) == 3
+    assert m["rejected"] == []
 
 
 # ---- both modes: a step is a ROW ----------------------------------------------------------------
