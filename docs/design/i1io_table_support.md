@@ -1008,9 +1008,16 @@ is his; the behaviour below is what was built from it and awaits his confirmatio
   go, then the same Instrument drivers window opens). The i1Pro 2 in the arm without the driver:
   M-I1IO-DRIVE-I1PRO2-DRIVER, the same two answers. Checked before the table is opened: nothing is
   sent to the table. Afterwards the person presses START MEASUREMENT again.
+* **START (Windows, x64), the driver listed but its file missing (review 446, W-S3).** Windows
+  lists the table with libusb-win32 and the opening finds the driver's libusb0.dll missing (or
+  without a backend): M-I1IO-DRIVE-TABLE-DRIVER-FILE, "Not now" / "Install the driver for the
+  table again". It says the window will show the table "driver installed" and names the table's
+  "Reinstall Driver for the Table" button, so the offer and the window agree.
 * **Windows for ARM computer.** No install is offered for the table there (neither in the window
   nor at START), because the drive cannot run there: the window says so in one sentence, and START
-  shows M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM.
+  shows M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM. That holds on every path into the offer, the
+  check before the opening and the opening itself (review 446, W-M1: the registry saying
+  libusb0 while the opening finds no libusb0.dll); the table window asks before any offer.
 * **Not tried on Windows, nor with a real table.** Tried on the Mac in real windows with the
   platform patched and a simulated table; the install itself was not run for the table. A run of
   the built Windows app in the Windows 11 virtual machine is still owed.

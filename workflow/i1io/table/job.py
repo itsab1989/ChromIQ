@@ -1105,6 +1105,12 @@ class TableJob:
                 raise StageFailed("usb_open_refused",
                                   message_id="M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM",
                                   problem="windows-arm64-" + str(problem)) from None
+            if pf.system == "windows" and mid == tbl.DRIVER_NOT_INSTALLED \
+                    and problem == "no-libusb0-dll":
+                # review 446, W-S3: Windows lists the table with libusb-win32 (the check before
+                # the opening said so), but the driver's libusb0.dll is missing or gives no
+                # backend: not "no driver", and the window says which
+                raise StageFailed("driver_file_missing_for_table", problem=problem) from None
             raise StageFailed("usb_open_refused", message_id=mid, problem=problem) from None
         except tbl.TransportError as exc:
             raise StageFailed("usb_open_failed", error=type(exc).__name__) from None

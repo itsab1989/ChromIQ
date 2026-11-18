@@ -12527,6 +12527,24 @@ M_I1IO_DRIVE_I1PRO2_DRIVER = _m(
     "\u201cNot now\u201d installs nothing. Nothing was sent to the table.",
     approved=False)
 
+# review 446, W-S3: Windows lists the table with libusb-win32, but the opening found the driver's
+# libusb0.dll missing (or it gave no backend). The Instrument drivers window then shows the table
+# "driver installed" with its Reinstall button, so the offer says that, not "no driver"
+M_I1IO_DRIVE_TABLE_DRIVER_FILE = _m(
+    "M-I1IO-DRIVE-TABLE-DRIVER-FILE",
+    "The table's driver is installed, but ChromIQ could not use it",
+    "Windows lists the table with the driver ChromIQ uses (libusb-win32), but ChromIQ could not "
+    "open the table through it: the driver's file libusb0.dll, which the driver's installation "
+    "puts into Windows, is missing or did not work. Nothing was sent to the table.\n\n"
+    "\u201c{install}\u201d opens the window \u201c{window}\u201d. The table is shown there as "
+    "\u201cdriver installed\u201d, because Windows still lists the driver, and its button is "
+    "\u201c{button}\u201d. Installing the driver again should put the missing file back. "
+    "Nothing is installed until you press that button and allow it when Windows asks for your "
+    "permission. Then press START MEASUREMENT again.\n\n"
+    "\u201cNot now\u201d installs nothing. You can also measure in i1Profiler 3.8.6 or older "
+    "and use IMPORT.",
+    approved=False)
+
 M_I1IO_DRIVE_USB_LINUX_PERMISSION = _m(
     "M-I1IO-DRIVE-USB-LINUX-PERMISSION",
     "Linux did not give ChromIQ permission to open the table",
@@ -12724,6 +12742,7 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_BUSY, M_I1IO_DRIVE_I1PROFILER_OPEN,
     M_I1IO_DRIVE_USB_MISSING, M_I1IO_DRIVE_USB_NOT_ON_THIS_SYSTEM,
     M_I1IO_DRIVE_USB_WINDOWS_DRIVER, M_I1IO_DRIVE_TABLE_DRIVER, M_I1IO_DRIVE_I1PRO2_DRIVER,
+    M_I1IO_DRIVE_TABLE_DRIVER_FILE,
     M_I1IO_DRIVE_USB_LINUX_PERMISSION, M_I1IO_DRIVE_USB_LINUX_KERNEL_DRIVER,
     M_I1IO_DRIVE_USB_GONE, M_I1IO_DRIVE_USB_UNEXPECTED,
     M_I1IO_DRIVE_TABLE_NOT_FOUND, M_I1IO_DRIVE_SEVERAL_TABLES,

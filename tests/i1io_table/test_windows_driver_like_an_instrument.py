@@ -492,21 +492,64 @@ def test_not_now_installs_nothing_and_opens_nothing(
     assert sim.sim.received == []
 
 
-def test_the_open_time_refusal_becomes_the_same_offer(qtbot, monkeypatch, tmp_path,
-                                                       settings):  # noqa: F811
-    """The registry said libusb0, and the opening still found no libusb0.dll (which the driver
-    package installs): the same offer, never a message with a placeholder left."""
+@pytest.mark.parametrize("problem,title,install", [
+    ("table driver none", "The table does not have the driver ChromIQ uses on Windows",
+     "Install the driver for the table now"),
+    ("no-libusb0-dll", "The table's driver is installed, but ChromIQ could not use it",
+     "Install the driver for the table again"),
+])
+def test_the_open_time_refusal_becomes_the_offer_that_fits(qtbot, monkeypatch, tmp_path,
+                                                           settings, problem, title,
+                                                           install):  # noqa: F811
+    """The opening found the table without the driver: the same offer as before the opening.
+    Review 446, W-S3: the registry said libusb0 and the opening found no libusb0.dll: NOT "the
+    table does not have the driver" (the window shows it installed), its own words. Never a
+    placeholder left."""
     from workflow.i1io.table import session_table as tbl
     monkeypatch.setattr(H, "OK_PREFLIGHT", _pf())
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings)
     job = sim.jobs[0]
 
     def refuse():
-        raise tbl.NotAvailable("M-I1IO-DRIVE-TABLE-DRIVER-NOT-INSTALLED", problem="no-libusb0-dll")
+        raise tbl.NotAvailable("M-I1IO-DRIVE-TABLE-DRIVER-NOT-INSTALLED", problem=problem)
     job._open_transport = refuse
     assert p.drive_until(("driver_offer", "open_refused")) == "driver_offer"
+    assert win._title.text() == title
     assert "{" not in win._title.text()
-    assert p.labels() == ["Not now", "Install the driver for the table now"]
+    assert p.labels() == ["Not now", install]
+    assert sim.sim.received == []
+    p.press(install)
+    qtbot.waitUntil(lambda: finished == ["install_driver"], timeout=15000)
+
+
+def test_the_file_missing_offer_agrees_with_what_the_window_will_show():
+    """Review 446, W-S3, x64: Windows lists the driver, so the Instrument drivers window shows the
+    table "driver installed" with "Reinstall Driver for the Table". The offer says exactly that,
+    and does not say the table lacks the driver."""
+    from workflow import measurement_messages as M
+    window_label = sd.usb_table_button_label([_table(True)], True)
+    state = sd.tr("driver installed")
+    title, body = M.M_I1IO_DRIVE_TABLE_DRIVER_FILE.render(
+        install="Install the driver for the table again", window="Instrument drivers",
+        button=window_label)
+    assert "\u201c" + window_label + "\u201d" in body
+    assert "\u201c" + state + "\u201d" in body
+    assert "does not have" not in title + body and "not installed" not in body
+    assert "{" not in title + body and "\u2014" not in title + body
+    assert not M.M_I1IO_DRIVE_TABLE_DRIVER_FILE.approved
+    assert M.M_I1IO_DRIVE_TABLE_DRIVER_FILE.id in M.PROPOSED
+
+
+def test_the_job_names_the_missing_file_on_x64():
+    from workflow.i1io.table import session_table as tbl
+    job, sim, _t = H.make_job(preflight=_pf())
+
+    def refuse():
+        raise tbl.NotAvailable(tbl.DRIVER_NOT_INSTALLED, problem="no-libusb0-dll")
+    job._open_transport = refuse
+    r = H.Person(job, sim).drive(job.open())
+    assert (r.kind, r.reason) == (J.Kind.REFUSED, "driver_file_missing_for_table")
+    assert sim.received == []
 
 
 @pytest.mark.parametrize("problem", ["no-libusb0-dll", "table driver none"])
