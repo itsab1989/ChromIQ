@@ -10208,9 +10208,11 @@ alone.
 
 > **The table's stored white values are not used this time**
 >
-> You chose in Preferences > Beta to use the white tile values stored in the table, as i1Profiler does, but {why}.
+> A table measurement uses the white tile values stored in the table, as i1Profiler does (the default, in Preferences > Beta), but {why}.
 >
 > So this measurement uses the i1Pro 2's own white reference, as when you measure by hand, and everything else goes on as usual. Nothing was written into the table.
+
+*Revised 2026-11-18 (final fix round of the i1iO table drive: the table's stored values are the default (the owner, 2026-11-18)).*
 
 ### M-I1IO-DRIVE-CAL-OWN-TILE · PROPOSED · the job asks calibration_own_tile, Measure (the i1iO table window)
 

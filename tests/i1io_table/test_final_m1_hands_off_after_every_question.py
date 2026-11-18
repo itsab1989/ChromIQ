@@ -422,12 +422,14 @@ def test_the_panel_two_pages(qtbot, monkeypatch, tmp_path, settings, asking):
 def test_the_panel_stored_white_refused_and_own_tile(qtbot, monkeypatch, tmp_path, settings,
                                                      asking):
     from ui import i1io_table_window as W
+    from tests.i1io_table.window_sim import WindowSim
     settings.set(W.STORED_WHITE_KEY, True)
     settings.set(W.CAL_KEY, "own tile")
     try:
-        bad, pages = _panel_walk(qtbot, monkeypatch, tmp_path, settings, asking)
+        bad, pages = _panel_walk(qtbot, monkeypatch, tmp_path, settings, asking,
+                                 sim=WindowSim(stored_tile=None))     # no usable values
     finally:
-        settings.set(W.STORED_WHITE_KEY, False)
+        settings.set(W.STORED_WHITE_KEY, True)
     assert bad == [], pages
     assert "stored_white_refused" in pages and "calibration_reseated" in pages
 

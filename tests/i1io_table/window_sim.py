@@ -40,6 +40,9 @@ class WindowSim:
         self.app_marker_place = app_marker_place
         #: round B: the helper offers the button wait (a simulated one)
         self.press = press
+        # a real table holds its white tile's values (the D-4b default reads them): a white
+        # tile as the simulated helper reads it at rest, so the factors are 1
+        simkw.setdefault("stored_tile", tuple([0.88] * 36))
         self.simkw = simkw
         self.jobs: list = []
         self.sim = None

@@ -131,7 +131,7 @@ def ask_after_each_step(settings) -> bool:
 
 #: the place used while the person has not chosen one
 CAL_PLACE_DEFAULT = "table tile"
-#: D-4b: the table's stored white tile values (an option, off until the owner decides)
+#: D-4b: the table's stored white tile values, ON by default (the owner, 2026-11-18)
 STORED_WHITE_KEY = "i1io_table_stored_tile_white"
 
 
@@ -147,9 +147,9 @@ def calibration_place(settings) -> str:
 
 def stored_tile_white(settings) -> bool:
     try:
-        return bool(settings.get(STORED_WHITE_KEY, False))
-    except Exception:      # noqa: BLE001 - the default: off
-        return False
+        return bool(settings.get(STORED_WHITE_KEY, True))
+    except Exception:      # noqa: BLE001 - the default: on (the owner, 2026-11-18)
+        return True
 
 
 def stored_white_reason(why: str) -> str:
@@ -1047,7 +1047,8 @@ class TableMeasureWindow(QFrame):
                 n += 1
         fixed += sp * (n + 2)
         state_h = (self._state.sizeHint().height() + sp) if self._state.text() else 0
-        self._answers.adjustSize()
+        # (no adjustSize: called from the re-fit after the layout has placed the answers, it
+        # shrank them to their hint, and the status line ran under the footer's rule)
         ans_h = self._answers.sizeHint().height() + sp
         alay = self._answers.layout()
         if alay is not None and alay.hasHeightForWidth():
@@ -1650,6 +1651,14 @@ class TableMeasureWindow(QFrame):
                            if calibration_place(self._settings) == "table tile" else
                            tr("The i1Pro 2 is calibrated on its own white tile: ChromIQ asks "
                               "you to lift it out of the arm for that and to seat it again."))
+        # D-4b (the owner, 2026-11-18): which white reference this measurement uses
+        body += "\n\n" + (tr("White reference: the values the table keeps for its white tile, "
+                              "as i1Profiler uses them (Preferences > Beta). If the table does "
+                              "not give usable values, ChromIQ says so and uses the i1Pro 2's "
+                              "own reference instead.")
+                           if stored_tile_white(self._settings) else
+                           tr("White reference: the i1Pro 2's own, as when you measure by hand "
+                              "(Preferences > Beta)."))
         self._show("prepare", title, body,
                    [(tr("Not now"), self._finish_not_started),
                     (tr("Start"), self._on_start_pressed),
@@ -2484,7 +2493,12 @@ class TableMeasureWindow(QFrame):
             j.ended or "", tr("The measurement was not saved."))
         title, body = M.M_I1IO_DRIVE_DONE.render(what=what, log=self._log_name)
         wb = res.way_back
-        if wb not in ("none", "home_offered"):
+        if j.ended is not None and wb == "open_i1profiler_once":
+            # the session has ended (saved, discarded or nothing read) and the arm was left
+            # out: only the way home is said, never "you can still save them" beside "saved"
+            body = tr("The arm was left out over the table. Open i1Profiler 3.8.6 or older once "
+                      "and let it find the table: it brings the arm home.") + "\n\n" + body
+        elif wb not in ("none", "home_offered"):
             msgs = {"switch_off_pending": M.M_I1IO_DRIVE_SWITCH_OFF,
                     "switch_off_unfinished": M.M_I1IO_DRIVE_SWITCH_OFF,
                     "link_lost_replug": M.M_I1IO_DRIVE_LINK_LOST,
@@ -2510,7 +2524,7 @@ class TableMeasureWindow(QFrame):
             # the owner (4.3.45): after a clean strip measurement, the strip choice may become
             # the table's default; offered once, quietly, never as a default button
             _t, offer = M.M_I1IO_DRIVE_STRIP_DEFAULT_OFFER.render()
-            body += "\n\n" + _t + "\n" + offer
+            body += "\n\n" + _t + ".\n\n" + offer
             buttons = [(tr("Not now"), self._on_strip_offer_declined),
                        (tr("Yes, make strips the default"), self._on_strip_offer_taken)]
             self._strip_offer_shown = True

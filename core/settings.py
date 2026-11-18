@@ -372,11 +372,11 @@ DEFAULTS: dict[str, Any] = {
     #: never asked any more), "own tile" = on its own tile (Preferences > Beta
     #: or the table window's first page).
     "i1io_table_calibration_place": "",
-    #: D-4b, an option until the owner decides (default off): the white of a
-    #: table measurement scaled per band to the tile values stored in the
-    #: table's memory, as i1Profiler does. Off = the i1Pro 2's own white
-    #: reference, as in a measurement by hand.
-    "i1io_table_stored_tile_white": False,
+    #: D-4b, decided by the owner on 2026-11-18 ("i guess the tables value because this is
+    #: more automated and matches closer"): ON by default, the white of a table measurement
+    #: scaled per band to the tile values stored in the table's memory, as i1Profiler does.
+    #: Off = the i1Pro 2's own white reference, as in a measurement by hand.
+    "i1io_table_stored_tile_white": True,
     #: the table's own "Patch-by-patch mode (-p)" default for a table chart (4.3.45, the
     #: owner): True = patch by patch (the default), False = rows as strips (a first try).
     #: Separate from the hand instruments' -p defaults and the CR30's lock; a target's own

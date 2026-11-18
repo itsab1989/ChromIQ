@@ -189,7 +189,10 @@ def test_s6_a_refinement_save_writes_the_new_readings_of_the_listed_patches(
     fields, before = _rows_by_loc(run.measurement_ti3)
     # the simulated instrument reads DIFFERENT values now
     real = RS.spectrum_at
-    monkeypatch.setattr(RS, "spectrum_at", lambda x, y: [v * 0.5 for v in real(x, y)])
+    # (the patches only: the table's white tile at rest stays white, so the stored-white
+    # reference, on by default since 2026-11-18, keeps validating for both sessions)
+    monkeypatch.setattr(RS, "spectrum_at",
+                        lambda x, y: real(x, y) if y < 300 else [v * 0.5 for v in real(x, y)])
     sim = _start_refining(tab, run, monkeypatch, ["B"], ["B1", "B3"])
     p = _person(tab._table_window, sim, qtbot)
     _finish(p)

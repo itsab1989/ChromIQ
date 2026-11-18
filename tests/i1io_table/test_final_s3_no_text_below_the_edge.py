@@ -99,3 +99,44 @@ def test_the_failed_strip_text_says_hands_away_first():
     from workflow import measurement_messages as M
     body = M.M_I1IO_DRIVE_ROW_FAILED_STRIP.render(row=3, page=1, why="x")[1]
     assert body.index("take your hands away") < body.index("Read it again as a strip")
+
+
+@pytest.mark.parametrize("size", [(560, 760), (420, 600)], ids=lambda s: f"{s[0]}x{s[1]}")
+def test_the_answers_box_keeps_its_whole_height(qtbot, monkeypatch, tmp_path, settings, size):
+    """The pictures of this round: the status line under stacked answers ran under the footer's
+    rule (the re-fit shrank the answers' box to its hint after the layout had placed it)."""
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
+                                                    asking=True)
+    win.resize(*size)
+
+    def whole():
+        a = win._answers
+        lay = a.layout()
+        if win._page.indexOf(a) >= 0 or not a.isVisible():
+            return True
+        return a.height() >= lay.totalHeightForWidth(a.width()) - 1
+    for _ in range(40):
+        page = p.page()
+        if win._buttons:
+            try:
+                qtbot.waitUntil(whole, timeout=1500)
+            except Exception:      # noqa: BLE001
+                pass
+            assert whole(), (page, win._answers.height())
+        if page == "end_of_session":
+            break
+        p.answer_page(page)
+
+
+def test_an_ended_session_with_the_arm_left_out_says_only_the_way_home(qtbot, monkeypatch,
+                                                                       tmp_path, settings):
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
+                                                    asking=False)
+    p.drive_until("end_of_session")
+    p.press("Save and stop")
+    assert p.page() == "home_offered"
+    p.press("Leave it there")
+    assert p.page() == "done"
+    text = win._text.text()
+    assert "The arm was left out over the table" in text and "saved into the run" in text
+    assert "you can still save them" not in text

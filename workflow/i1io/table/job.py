@@ -2374,6 +2374,11 @@ class TableJob:
         self.calibration_due = False
         if self.stored_tile_white:
             out["stored_white"] = yield from self._stored_white(tile_read=tile_read)
+        else:
+            # D-4b: the log always says which white reference this session uses
+            self.white_scale = None
+            self.diag.log("STEP", "white reference: the i1Pro 2's own (the table's stored "
+                                  "white tile values are switched off in Preferences > Beta)")
         return out
 
     def _white_level_check(self):

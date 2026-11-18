@@ -979,9 +979,10 @@ def test_the_change_line_on_the_first_page_and_preferences_are_honoured(qapp, qt
         # owner-results round: two places only, the table's tile first (no "ask" entry)
         assert [combo.itemData(i) for i in range(combo.count())] == ["table tile", "own tile"]
         combo.setCurrentIndex(combo.findData("table tile"))
-        # D-4b beside it, off by default
+        # D-4b beside it
         assert dlg._i1io_stored_white_check is not None
-        assert not dlg._i1io_stored_white_check.isChecked()
+        # D-4b: on by default since the owner's decision of 2026-11-18
+        assert dlg._i1io_stored_white_check.isChecked()
         dlg._save_and_close()
         dlg.deleteLater()
     finally:

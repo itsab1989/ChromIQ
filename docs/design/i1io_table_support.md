@@ -687,15 +687,32 @@ Built and tested against the simulated table only; proved on screen with the sim
   `verifications/old/<date>/` as the chart.
 * **A resumed table verification keeps the date's earlier file in `verifications/<date>/old/`**
   (§2a), as the hand path does, not in the chart's `old/`.
-* **S-5, for the owner (the coordinator's decision):** on a calibration reset only the table
-  sessions that hold a reading are set aside into `cal/old/<date>/i1io-table/`. A session that
-  read nothing stays where it is, marked discarded and never offered, so an unmeasured
-  calibration chart whose table STARTs read nothing leaves no `cal/old/` folder, as the ruling
-  of 2026-09-02 says.
+* **S-5:** confirmed, see "Confirmed behaviour: a calibration reset and the table's sessions"
+  below.
 * No page shows a reason id: every option reason of the table job has a sentence, and an
   unknown one reads "the table measurement cannot use it".
 * The ending's question ("Keep what you have measured so far?") keeps its three answers in
   view at every size the main window allows; in the lowest panel its text scrolls above them.
+
+#### ✅ Confirmed behaviour: a calibration reset and the table's sessions (review 12, S-5)
+
+**Confirmed by:** Sebastian, 2026-11-18 (*"in this case i agree for now"*: confirmed for now)
+
+On a calibration reset only the table sessions that hold a reading are set aside into
+`cal/old/<date>/i1io-table/`. A session that read nothing stays where it is, marked discarded
+and never offered, so an unmeasured calibration chart whose table STARTs read nothing leaves no
+`cal/old/` folder, as the ruling of 2026-09-02 says.
+
+#### ✅ Confirmed behaviour: the table's stored white tile values are used by default (D-4b)
+
+**Confirmed by:** Sebastian, 2026-11-18 (*"i guess the tables value because this is more
+automated and matches closer"*), for the DEFAULT only
+
+A table measurement uses the white tile values stored in the table, as i1Profiler does, unless
+"Use the table's stored white tile values (as i1Profiler does)" is switched off in
+Preferences > Beta. How the values are read, checked and applied, and what is said when they
+cannot be used, stays under "Awaiting confirmation" (the owner-results section below and the
+final fix round's section).
 
 ### ⏳ Awaiting confirmation: what the real table showed on 17 Nov 2026, and what changed (owner-results round)
 
@@ -732,7 +749,8 @@ which now behaves as the real one did; the in-app drive itself has still not run
   more; the own tile stays a choice in Preferences > Beta and from the first page. A calibration
   on the own tile that did not finish leaves the instrument out of the arm: the next calibration
   is made on the own tile again (never "in the arm" while the instrument is outside it).
-* **D-4b (which white reference), an option until the owner decides, off by default:** "Use the
+* **D-4b (which white reference), an option, ON by default since the owner's decision of
+  2026-11-18 (confirmed above, the default only):** "Use the
   table's stored white tile values (as i1Profiler does)". Off: the i1Pro 2's own white reference,
   as in a measurement by hand. On: after each calibration the table's tile is read once at rest,
   and the measurement's spectra are scaled per band by the value stored in the table (bytes 88-231
@@ -813,5 +831,11 @@ table.
   crosses). Aiming at a patch's centre by eye is less exact than at a cross, which has a fine
   centre: the check move's question is what catches a poor aim.
 * **The table's own patch-by-patch default (the owner):** see per_target_settings.md §1.9.
+* **The white reference, said every time (D-4b on by default):** the panel's first page names
+  the reference this measurement uses (the table's stored values, or the i1Pro 2's own); the
+  session log says it after every calibration, in both cases; a measurement made with the
+  table's values carries `CHROMIQ_TABLE_WHITE` in its file. When the values cannot be read or
+  do not validate, the panel says so (M-I1IO-DRIVE-STORED-WHITE-REFUSED) and the measurement
+  goes on with the i1Pro 2's own reference; never silently.
 * **Preferences and the completion window (S-8):** the calibration place has its (i); after a
   table measurement the completion window says "saved" once and Close only stays on the tab.

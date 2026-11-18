@@ -6747,7 +6747,7 @@ class SettingsDialog(QDialog):
             self._i1io_cal_combo.setCurrentIndex(max(0, k))
         if getattr(self, "_i1io_stored_white_check", None) is not None:
             self._i1io_stored_white_check.setChecked(
-                bool(s.get("i1io_table_stored_tile_white", False)))
+                bool(s.get("i1io_table_stored_tile_white", True)))
         if getattr(self, "_i1io_pbp_check", None) is not None:
             self._i1io_pbp_check.setChecked(bool(s.get("i1io_table_patch_by_patch", True)))
         self._isis_charts_check.setChecked(
@@ -8376,7 +8376,7 @@ class SettingsDialog(QDialog):
                   self._i1io_cal_combo.currentData())
         if getattr(self, "_i1io_stored_white_check", None) is not None and \
                 self._i1io_stored_white_check.isChecked() != bool(
-                    s.get("i1io_table_stored_tile_white", False)):
+                    s.get("i1io_table_stored_tile_white", True)):
             s.set("i1io_table_stored_tile_white",
                   self._i1io_stored_white_check.isChecked())
         if getattr(self, "_i1io_pbp_check", None) is not None and \
@@ -10272,19 +10272,21 @@ def i1io_stored_white_help() -> str:
         tr("The i1iO table keeps values for its own white tile in its memory, and i1Profiler "
            "uses them when it calibrates the i1Pro 2 on that tile. ChromIQ can do the same, "
            "or keep the i1Pro 2's own white reference, as when you measure by hand."),
-        tr("Off (the default): measurements made on the table agree with measurements you "
-           "make by hand with the same instrument.\n"
-           "On: measurements made on the table agree with i1Profiler's measurements on the "
-           "table. In two recorded comparisons on one real table (two rows read as strips, and "
-           "the same two rows read patch by patch, 48 patches each), ChromIQ's values worked "
-           "out from i1Profiler's own readings were about 0.1 ΔE00 away from "
-           "i1Profiler's on average with this on, and about 0.65 ΔE00 without it."),
+        tr("On (the default): measurements made on the table agree with i1Profiler's "
+           "measurements on the table. In two recorded comparisons on one real table (two rows "
+           "read as strips, and the same two rows read patch by patch, 48 patches each), "
+           "ChromIQ's values worked out from i1Profiler's own readings were about 0.1 ΔE00 away "
+           "from i1Profiler's on average with this on, and about 0.65 ΔE00 without it. So a "
+           "table measurement can differ slightly from a measurement you make by hand with the "
+           "same instrument.\n"
+           "Off: measurements made on the table agree with measurements you make by hand with "
+           "the same instrument."),
         tr("Which of the two is closer to the true colour is not known. With this on, ChromIQ "
            "reads the table's white tile once after each calibration (the arm does not move) "
            "and reads only these values from the table's memory, nothing else. If the values "
            "do not look like a white tile, or the measurement keeps no spectral values (-n), "
            "ChromIQ says so and measures as with this off."),
-        tr("**Default:** off")))
+        tr("**Default:** on")))
 
 
 def i1io_consent_text() -> str:

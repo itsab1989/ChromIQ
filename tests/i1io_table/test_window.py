@@ -29,6 +29,7 @@ def settings(tmp_path):
     s = AppSettings()
     s.set(W.CONSENT_KEY, 0)
     s.set(W.ASK_KEY, True)
+    s.set(W.STORED_WHITE_KEY, True)        # the default (D-4b, 2026-11-18)
     yield s
     s.set(W.CONSENT_KEY, 0)
     s.set(W.ASK_KEY, True)
