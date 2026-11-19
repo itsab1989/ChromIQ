@@ -536,7 +536,8 @@ def test_until_every_strip_has_both_passes_it_says_why(qapp, tmp_path):
     # 4.3.49 (Basti, 2026-11-19): the engine keeps the record, so a strip
     # with M0 only is completed by Continue Measurement, and the line says so
     assert shown["v"] is True and "M2" in shown["t"]
-    assert "missing from strip A" in shown["t"]
+    # (no condition files at all here: the review's SHOULD-1 sentence)
+    assert "back to strip A" in shown["t"] and "keep their" not in shown["t"]
     assert "Continue Measurement" in shown["t"]
     assert "measure the chart again" not in shown["t"]
 
