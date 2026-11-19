@@ -3,7 +3,12 @@ are in view. Either the whole question is shown above the answers, or the answer
 text in the scrolling area (the person scrolls through the text to reach them). Checked on every
 page of three walks (a failed row and the problem page, a failed strip, the instrument's button
 on the aiming pages), at the panel sizes the main window gives down to its smallest. The
-ending's question keeps its answers pinned (review 12, S-3): nothing moves on any of them."""
+ending's question keeps its answers pinned (review 12, S-3): nothing moves on any of them.
+
+Since 4.3.48 (MUST-1 of the dual scan re-review) EVERY page that waits for an answer keeps its
+answers pinned in view: a text longer than the room scrolls above them, and its scroll bar says
+there is more. The checks below then hold for any page added later that is not pinned;
+test_must1_answers_always_in_view.py is the guard for the pinned ones."""
 from __future__ import annotations
 
 import pytest

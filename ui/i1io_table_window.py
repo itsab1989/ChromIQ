@@ -1841,7 +1841,7 @@ class TableMeasureWindow(QFrame):
         room = max(0, self._host_width() - 32 - self._choices.horizontalSpacing())
         widest = max(b.sizeHint().width() for b in made)
         cols = 2 if widest * 2 <= room and len(made) > 1 else 1
-        if self._answers_pinned() and len(made) > 2 \
+        if self._page_id_now() in self.ONE_ROW_ANSWER_PAGES and len(made) > 2 \
                 and widest * len(made) + self._choices.horizontalSpacing() * (len(made) - 2) \
                 <= room:
             cols = len(made)           # review 12, S-3: the ending's answers in one row
@@ -1951,11 +1951,33 @@ class TableMeasureWindow(QFrame):
         except RuntimeError:          # the panel is gone
             return 0
 
-    #: the pages whose answers never scroll away (review 12, S-3): the ending's question
-    PINNED_ANSWER_PAGES = ("end_of_session",)
+    #: the pages whose answers never scroll away. Review 12, S-3 pinned the ending's question;
+    #: the 4.3.48 re-review (MUST-1) found the failed row's answers out of view in a small
+    #: window (German, 900 x 930): the text, then empty space, the answers only at a middle
+    #: scroll position, while the arm stood over the sheet waiting for them. So EVERY page that
+    #: waits for an answer keeps its answers in view; a text longer than the room scrolls above
+    #: them (its scroll bar says there is more). A page added later must be named here
+    #: (tests/i1io_table/test_must1_answers_always_in_view.py fails on a page left out).
+    PINNED_ANSWER_PAGES = (
+        # the panel's own pages
+        "error", "usb_missing", "consent", "earlier_elsewhere", "earlier", "option_refused",
+        "white_other_reference", "options_fields", "cal_choice", "prepare",
+        "stored_white_refused", "white_later_refused", "report_after_step", "check_mark",
+        "next_page", "open_refused", "driver_offer", "refused", "stopped_by_you", "stopped",
+        "problem", "after_problem", "end_of_session", "ending_closed", "home_offered", "done",
+        # the job's questions
+        "pending_marker", "ready_to_open", "start_up", "go", "sheet_laid", "arm_felt", "aimed",
+        "front_choice", "front_yes", "first_visit", "reader_consent", "calibration_place",
+        "calibration_own_tile", "calibration_reseated", "row_failed", "row_failed_strip",
+    )
+    #: the pages whose answers stand in one row when they fit (review 12, S-3: the ending)
+    ONE_ROW_ANSWER_PAGES = ("end_of_session",)
+
+    def _page_id_now(self):
+        return getattr(self, "_page_id", None)
 
     def _answers_pinned(self) -> bool:
-        return getattr(self, "_page_id", None) in self.PINNED_ANSWER_PAGES
+        return self._page_id_now() in self.PINNED_ANSWER_PAGES
 
     def _place(self, w, in_scroll: bool, after) -> None:
         """*w* into the scrolling page (before the note box) or back into the panel's body, or
@@ -2031,7 +2053,9 @@ class TableMeasureWindow(QFrame):
         on the start-up page): the pixels kept free under the visible part so that it ends on
         a whole line of the text or the title, else above any other part it would cut (the
         framed true-state box, the ticks and answers, the note), which then shows whole when
-        scrolled to, never with its last line or its frame half below the edge."""
+        scrolled to, never with its last line or its frame half below the edge. The answers'
+        box is never cut above its first row (MUST-1, 4.3.48): the edge then stays under the
+        last of its rows (ticks, buttons, status line) that is whole above it."""
         lay = self._page
         for i in range(lay.count()):
             w = lay.itemAt(i).widget()
@@ -2040,6 +2064,14 @@ class TableMeasureWindow(QFrame):
             top, bottom = w.y(), w.y() + w.height()
             if not (top < full < bottom):
                 continue
+            if w is self._answers:
+                room = full - top
+                whole = [c.y() + c.height() for c in w.findChildren(QWidget)
+                         if c.parentWidget() is w and not c.isHidden()
+                         and c.y() + c.height() <= room]
+                if whole:
+                    return max(0, room - max(whole))
+                return max(0, room)
             if isinstance(w, QLabel) and w.text() and w.frameShape() == QFrame.Shape.NoFrame:
                 ls = w.fontMetrics().lineSpacing()
                 first = top + w.contentsRect().y()
