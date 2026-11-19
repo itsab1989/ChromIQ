@@ -564,3 +564,7 @@ driven on screen; never run on a real table.
   filter in place of the light, so its plain result is not called "M0 as always": it measures
   "as always, without the dual scan". In the model question, the Preferences text, the
   `not_available` and `no_uv_tables` reasons and the table's `dual_no_uv_tables`, 13 languages.
+* **The UV pass's cap is 9 lines** (NOTE-A; 10 before): the job's read-again after a question
+  and the pass's own reading exclude each other (the lamp pass's last motion is confirmed when
+  the UV pass starts, and every motion clears the kept reading). A dual row: 28 lines, 6
+  movements. A tenth line is refused by the step's cap.

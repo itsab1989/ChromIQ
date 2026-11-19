@@ -60,11 +60,18 @@ ALIGN_CYCLE = tuple(sum(v) for v in zip(APPROACH, AIMS, CREEP, CHECK_MOVE, HOME)
 STRIP_ROW = (12 + 7, 2 + 2)
 #: THE DUAL ROW (2026-11-18): a strip row plus its UV pass straight back (the recorded zero-length
 #: m0, c4, d1 210, p0, m2, a3, c3, and the p0 at its end: 8 lines, 2 movements), plus two lines of
-#: room: +1 the job's reading of the arm after a question answered since the lamp pass's last
-#: reading (4.3.47 MUST-1, job._read_again_if_asked), +1 scan._run_uv_pass's own reading when no
-#: reading is kept or the last motion is unconfirmed. 8 + 1 + 1 = 10 lines, 2 movements. (The
-#: arrival beside the UV start, 4.3.47 fix2, sends nothing more: one reading, as run_row's.)
-DUAL_UV_PASS = (10, 2)
+#: room for ONE more reading: either the job's reading of the arm after a question answered
+#: since the lamp pass's last reading (4.3.47 MUST-1, job._read_again_if_asked, only when a
+#: reading is kept: table.position_now set) or scan._run_uv_pass's own reading (only when no
+#: reading is kept, or the last motion is unconfirmed). The two never both happen (4.3.48
+#: re-review NOTE-A, tightened from 10): the UV pass starts only after the lamp pass ended
+#: "done", and every motion line either gets its done-answer (motion_unconfirmed False) or
+#: raises before the job goes on, so the last motion is confirmed there; and every motion
+#: clears position_now, so a kept reading is never older than the last motion. A tenth line
+#: would be refused by the step's cap (a doubt, nothing more moves). 8 + 1 = 9 lines, 2
+#: movements. (The arrival beside the UV start, 4.3.47 fix2, sends nothing more: one reading,
+#: as run_row's.)
+DUAL_UV_PASS = (9, 2)
 DUAL_ROW = (STRIP_ROW[0] + DUAL_UV_PASS[0], STRIP_ROW[1] + DUAL_UV_PASS[1])
 #: The allowance, stated: 10 % of a page's need, two rows read again, one more alignment.
 ALLOWANCE_FRACTION = 0.10

@@ -155,10 +155,11 @@ def test_the_dual_caps_are_the_released_caps_plus_the_uv_passes():
     a, b = cp.caps_for_sheet(sheet), cp.caps_for_sheet(sheet, dual=True)
     assert b.lines > a.lines and b.moves >= a.moves
     assert cp.caps_for_sheet(sheet, dual=False) == a
-    # 8 recorded lines of the UV pass, +1 the read-again after a question (4.3.47 MUST-1),
-    # +1 the UV pass's own reading when none is kept; 2 movements (the zero m0, the scan move)
-    assert cp.DUAL_UV_PASS == (8 + 1 + 1, 2)
-    assert cp.DUAL_ROW == (cp.STRIP_ROW[0] + 10, cp.STRIP_ROW[1] + 2)
+    # 8 recorded lines of the UV pass, +1: the read-again after a question (4.3.47 MUST-1) OR
+    # the UV pass's own reading when none is kept, never both (4.3.48 re-review NOTE-A;
+    # test_dual_uv_pass_caps_are_tight.py); 2 movements (the zero m0, the scan move)
+    assert cp.DUAL_UV_PASS == (8 + 1, 2)
+    assert cp.DUAL_ROW == (cp.STRIP_ROW[0] + 9, cp.STRIP_ROW[1] + 2)
 
 
 # ---- rows: the recorded dual row on the simulated table -------------------------------------
