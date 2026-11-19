@@ -324,6 +324,16 @@ def strips_phrase(strips: "list[str]") -> str:
     return tr("strips {names}").format(names=names)
 
 
+def rows_phrase(strips: "list[str]") -> str:
+    """4.3.50: "row C" / "rows C, D" for the i1iO table's notes (the table reads the rows the
+    chart prints its letters beside; a real singular and plural)."""
+    from core.i18n import tr
+    names = ", ".join(strips)
+    if len(strips) == 1:
+        return tr("row {names}").format(names=names)
+    return tr("rows {names}").format(names=names)
+
+
 def condition_file(main_ti3: "str | Path | None", cond: "str | None"
                    ) -> "Path | None":
     """The file holding *main_ti3*'s readings under *cond*: the main file

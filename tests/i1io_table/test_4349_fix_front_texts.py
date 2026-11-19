@@ -25,30 +25,37 @@ from workflow.i1io.table import job as J
 
 
 def test_the_front_question_says_the_risk_before_the_arm_moves():
+    # 4.3.50 (a real user, issue 129): first WHY it asks, in plain words, once per table; the
+    # two buttons by name; the risk after the question, short; no distance on this page (it
+    # is said after "I will move the sheet"); no idiom ("feel its way")
     title, body = M.M_I1IO_DRIVE_FRONT.render(back_mm=55)
-    for words in ("further towards the front of the table than the arm has gone before",
-                  "small steps of 5 mm", "checks after each step",
-                  "about 3 cm in front of the measuring opening",
-                  "beyond where the arm can take the opening",
-                  "reaches the end of its travel", "stops there",
-                  "moves the arm no further forward", "offers to bring it home",
-                  "switch the table off at its power switch",
-                  "about 55 mm further back"):
+    assert title == "The arm has not been this far forward on this table yet"
+    first = body.split("\n\n")[0]
+    for words in ("This is not an error", "has moved the arm on this table so far",
+                  "slowly, 5 mm at a time", "checks every step", "does not ask again"):
+        assert words in first, words
+    for words in ("Go forward carefully, my hands are away", "I will move the sheet",
+                  "If the arm cannot go further, it stops", "moves it no further forward",
+                  "offers to bring it home", "tells you how far to move the sheet",
+                  "If the table reports an error or does not answer",
+                  "switch the table off at its power switch"):
         assert words in body, words
+    assert "55" not in body and "mm further" not in body
+    assert "feel" not in body.lower() and "recording" not in body.lower()
     assert "—" not in title + body
     for scare in ("crash", "danger", "damage", "collide", "break", "harm", "warning"):
         assert scare not in body.lower(), scare
 
 
 def test_the_question_comes_before_any_step_into_the_front(tmp_path):
-    out, job, sim, p = _through_first_row(tmp_path, H.demo_sheet(), CROSSES_1, front_end=3230)
+    out, job, sim, p = _through_first_row(tmp_path, H.demo_sheet(), CROSSES_1, front_end=3140)
     asked = [(c, sent) for _s, c, _d, sent, _m in p.asked]
-    sent_at = dict((c, sent) for c, sent in asked if c in (J.Confirm.FRONT_CHOICE,
-                                                            J.Confirm.FRONT_YES))
-    assert set(sent_at) == {J.Confirm.FRONT_CHOICE, J.Confirm.FRONT_YES}
+    # 4.3.50: ONE question (front_yes is gone)
+    sent_at = dict((c, sent) for c, sent in asked if c == J.Confirm.FRONT_CHOICE)
+    assert set(sent_at) == {J.Confirm.FRONT_CHOICE}
     beyond = [i for i, ln in enumerate(sim.received) if ln[1:3] == "m0" and len(ln.rstrip()) == 17
               and int(ln[7:11], 16) > 2723]
-    assert beyond and min(beyond) >= sent_at[J.Confirm.FRONT_YES] >= sent_at[J.Confirm.FRONT_CHOICE]
+    assert beyond and min(beyond) >= sent_at[J.Confirm.FRONT_CHOICE]
 
 
 def test_the_page_after_the_stop_says_what_happened_and_how_home_works():
@@ -63,7 +70,7 @@ def test_the_page_after_the_stop_says_what_happened_and_how_home_works():
     assert "—" not in title + body
 
 
-@pytest.mark.parametrize("front_end", [3230])
+@pytest.mark.parametrize("front_end", [3140])
 def test_in_the_window_the_stop_page_and_its_homing_bring_the_arm_home(
         qtbot, monkeypatch, tmp_path, settings, front_end):  # noqa: F811
     from workflow.i1io.table import reach as rc
@@ -71,8 +78,7 @@ def test_in_the_window_the_stop_page_and_its_homing_bring_the_arm_home(
                     **HIS_TABLE)
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
                                                     sheet=H.demo_sheet(), sim=sim)
-    p.script["front_choice"] = "Feel the way forward"
-    p.script["front_yes"] = "Yes, feel forward"
+    p.script["front_choice"] = "Go forward carefully, my hands are away"
     page = p.drive_until(("refused",))
     assert page == "refused"
     assert win._title.text() == tr("The arm stopped short of the front of this sheet")

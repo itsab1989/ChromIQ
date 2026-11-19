@@ -26,6 +26,7 @@ import re
 import pytest
 
 from core.file_manager import Run
+from tests.i1io_table import tester_d2 as D2
 from tests.i1io_table import job_harness as H
 from tests.i1io_table import part_c_sim as csim
 from workflow.i1io.table import caps as cp
@@ -86,7 +87,13 @@ def test_the_per_step_numbers_are_the_testers():
     # 4.3.49 (Basti's ruling: targets up to the aimed area): the creep may need up to 19 steps
     assert (cp.AIMS, cp.CREEP, cp.CHECK_MOVE, cp.HOME) == ((8, 0), (48, 20), (6, 1), (8, 1))
     assert cp.spot_row(33) == (70, 33) and cp.STRIP_ROW == (19, 4)
-    assert J.D1_CAPS == cp.AIMS and J.DZ_CAPS == cp.CREEP and J.D2_CAPS == cp.CHECK_MOVE
+    assert J.D1_CAPS == cp.AIMS and J.DZ_CAPS == cp.CREEP
+    # 4.3.50: no check move in the app; CHECK_MOVE stays for the tests' copy of D2 only, and the
+    # alignment cycle no longer budgets it
+    assert not hasattr(J, "D2_CAPS")
+    assert cp.ALIGN_CYCLE == tuple(sum(v) for v in zip(cp.APPROACH, cp.AIMS, cp.CREEP,
+                                                     (cp.WAY_BACK[0] + 2, cp.WAY_BACK[1]),
+                                                     cp.HOME))
     assert (cp.ALLOWANCE_FRACTION, cp.ALLOWANCE_ROWS, cp.ALLOWANCE_ALIGNMENTS) == (0.10, 2, 1)
 
 
@@ -258,7 +265,7 @@ def test_the_check_move_needs_the_creep_first_in_the_front_zone():
     p = H.Person(job, sim, {J.Confirm.FRONT_CHOICE: "go on"})
     assert p.drive(job.open()).ok and p.drive(job.align()).ok
     n = len(sim.received)
-    r = job.check_move()
+    r = D2.check_move(job)
     assert (r.kind, r.reason) == (J.Kind.REFUSED, "needs_creep_first") and len(sim.received) == n
 
 
@@ -286,7 +293,7 @@ def test_the_creep_stops_at_a_mechanical_front_end_and_only_the_homing_is_left()
     assert r.kind == J.Kind.REFUSED and r.reason == "creep_step_did_not_arrive", r
     assert r.state.only_homing and r.state.front_y is None or r.state.front_y <= wall
     n = len(sim.received)
-    assert job.check_move().reason == "only_the_homing_now" and len(sim.received) == n
+    assert D2.check_move(job).reason == "only_the_homing_now" and len(sim.received) == n
     assert p.drive(job.home()).ok
 
 
@@ -369,14 +376,14 @@ def test_a_free_arm_that_moves_between_two_readings_is_not_moved():
                 sim.pos = [sim.pos[0] + 30, sim.pos[1]]   # a hand still on the arm
     sim._command = command
     n = len(sim.received)
-    r = p.drive(job.check_move())
+    r = p.drive(D2.check_move(job))
     assert (r.kind, r.reason) == (J.Kind.REFUSED, "free_arm_moved_between_two_readings")
     assert moves(sim.received[n:]) == []
 
 
 def test_a_stage_runs_at_most_as_often_as_the_tester_allowed_per_page():
     # step 7: the calibration and the tile reading as the tester's C1 and C2 (3 runs each)
-    assert J.MAX_RUNS == {"park": 8, "d1": 5, "dz": 3, "d2": 3, "f": 8, "c1": 3, "c2": 3}
+    assert J.MAX_RUNS == {"park": 8, "d1": 5, "dz": 3, "f": 8, "c1": 3, "c2": 3}
     job, sim, _t = H.make_job()
     p = H.Person(job, sim)
     assert p.drive(job.open()).ok
@@ -468,8 +475,10 @@ def test_the_marker_name_is_the_scan_modules_and_the_runs():
 def test_every_confirmation_is_asked_and_none_has_a_default():
     res, job, sim, person, _pts = _front_run()
     kinds = {k for _s, k, _d, _n, _m in person.asked}
-    assert {J.Confirm.GO, J.Confirm.SHEET_LAID, J.Confirm.ARM_FELT, J.Confirm.AIMED,
-            J.Confirm.FRONT_CHOICE, J.Confirm.FRONT_YES} <= kinds
+    # 4.3.50: on this front-zone sitting "Go forward carefully, my hands are away" is the GO
+    # after the aims, so GO itself is not asked here (test_job_review_changes asks it)
+    assert {J.Confirm.SHEET_LAID, J.Confirm.ARM_FELT, J.Confirm.AIMED,
+            J.Confirm.FRONT_CHOICE} <= kinds
     assert all(len(J.CHOICES[k]) >= 2 for k in J.CHOICES)
     src = open(J.__file__, encoding="utf-8").read()
     # the job never answers itself: only answer() continues a step, from the caller
@@ -527,22 +536,25 @@ def test_an_arm_not_felt_free_is_never_aimed_with(felt):
     assert not any(k == J.Confirm.AIMED for _s, k, *_ in p.asked)
 
 
-def test_declining_a_first_visit_move_moves_nothing():
-    sheet, pts = H.recorded_sheet("S2 684.0", 18)
-    job, sim, _t = H.make_job(sheet=sheet, aims=pts)
-    p = H.Person(job, sim, {J.Confirm.FRONT_CHOICE: "go on", J.Confirm.FIRST_VISIT: "no"})
-    assert p.drive(job.open()).ok and p.drive(job.align()).ok
+def test_declining_a_first_visit_move_moves_nothing(tmp_path):
+    # 4.3.50: the creep asks none (the front answer names its part); a row's first visit
+    from tests.i1io_table import reader_sim as RS
+    job, sim, _h, _r = RS.make_reading_job(tmp_path)
+    p = H.Person(job, sim, {J.Confirm.FIRST_VISIT: "no"})
+    for s in ("open", "calibrate", "align"):
+        assert p.drive(getattr(job, s)()).ok
     n = len(sim.received)
-    r = p.drive(job.creep())
+    r = p.drive(job.read_row())
     assert (r.kind, r.reason) == (J.Kind.REFUSED, "first_visit_declined")
     assert moves(sim.received[n:]) == []
     assert any(k == J.Confirm.FIRST_VISIT for _s, k, *_ in p.asked)
 
 
-def test_the_front_choice_back_is_a_clean_stop_and_go_on_needs_its_own_yes():
+def test_the_front_choice_back_is_a_clean_stop():
+    # 4.3.50: one question; "go on" is its own yes (the hands-off answer), "back" a clean stop
     sheet, pts = H.recorded_sheet("S2 684.0", 18)
     for script, reason in (({}, "sheet_to_be_laid_further_back"),
-                           ({J.Confirm.FRONT_CHOICE: "go on", J.Confirm.FRONT_YES: "no"},
+                           ({J.Confirm.FRONT_CHOICE: "back"},
                             "sheet_to_be_laid_further_back")):
         job, sim, _t = H.make_job(sheet=sheet, aims=pts)
         p = H.Person(job, sim, script)
@@ -611,7 +623,7 @@ def test_a_wrong_report_restricts_the_sitting_to_the_homing():
     assert p.drive(job.open()).ok and p.drive(job.align()).ok
     job.restrict_to_homing("the person saw the arm do something wrong")
     n = len(sim.received)
-    assert job.check_move().reason == "only_the_homing_now" and len(sim.received) == n
+    assert D2.check_move(job).reason == "only_the_homing_now" and len(sim.received) == n
     assert p.drive(job.home()).ok
 
 
@@ -661,7 +673,7 @@ def test_a_late_movement_that_still_arrives_is_a_clean_failure():
     p = H.Person(job, sim)
     assert p.drive(job.open()).ok and p.drive(job.align()).ok
     sim.inject("late", "m0", 6.0)
-    r = p.drive(job.check_move())
+    r = p.drive(D2.check_move(job))
     assert r.kind in (J.Kind.REFUSED, J.Kind.STOPPED)
     if r.kind == J.Kind.REFUSED:
         assert r.reason == "movement_late_but_arrived" and r.way_back == J.WayBack.HOME_OFFERED
@@ -758,7 +770,7 @@ def test_a_free_arm_pushed_outside_the_area_moves_only_to_its_allowed_target():
     assert p.drive(job.open()).ok and p.drive(job.align()).ok
     sim.hand_to(geo.AREA_RAW.xmax + 100, 1500)
     n = len(sim.received)
-    r = p.drive(job.check_move())
+    r = p.drive(D2.check_move(job))
     assert r.ok, (r.reason, r.detail)
     sent = [geo.decode_xyv(x.encode() + b"\r") for x in computed(sim.received[n:])]
     assert sent and all(geo.CAP_AREA.contains((x, y)) for _c, x, y, _v in sent)
@@ -770,7 +782,7 @@ def test_a_move_that_arrives_elsewhere_stops_everything():
     p = H.Person(job, sim)
     assert p.drive(job.open()).ok and p.drive(job.align()).ok
     sim.c_faults["arrival_off"] = 30          # the computed move lands 3 mm off
-    r = p.drive(job.check_move())
+    r = p.drive(D2.check_move(job))
     assert (r.kind, r.reason) == (J.Kind.STOPPED, "arm_not_where_expected")
     n = len(sim.received)
     assert job.home().kind == J.Kind.REFUSED and len(sim.received) == n

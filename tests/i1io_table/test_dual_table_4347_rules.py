@@ -38,8 +38,9 @@ def test_the_uv_pass_reads_the_arm_again_after_a_question_answered_since_the_lam
     assert r.ok and r.detail["row_kind"] == "strip", (r.reason, r.detail)
     got = [ln[:3] for ln in _row_lines(sim, n0)]
     # lamp pass ... c3, p0 (its end) | p0 (read again) | m0 (zero), c4, d1, p0, m2, a3, c3, p0
-    assert got == [";p0", ";c4", ";p0", ";m0", ";d1", ";p0", ";m2", ";a3", ";c3", ";p0",
-                   ";p0", ";m0", ";c4", ";d1", ";p0", ";m2", ";a3", ";c3", ";p0"]
+    # 4.3.50: from the free arm after the aims, its stillness pair first (no check move)
+    assert got == [";p0", ";p0", ";p0", ";c4", ";p0", ";m0", ";d1", ";p0", ";m2", ";a3", ";c3",
+                   ";p0", ";p0", ";m0", ";c4", ";d1", ";p0", ";m2", ";a3", ";c3", ";p0"]
     assert len(job.reads_after_question) == q0 + 1
     assert sim.violations == []
 
@@ -50,7 +51,7 @@ def test_without_a_question_the_uv_pass_sends_no_extra_reading(tmp_path):
     n0, q0 = len(sim.received), len(job.reads_after_question)
     r = p.drive(job.read_row())
     assert r.ok
-    assert [ln[:3] for ln in _row_lines(sim, n0)].count(";p0") == 6
+    assert [ln[:3] for ln in _row_lines(sim, n0)].count(";p0") == 8   # 4.3.50: free start
     assert len(job.reads_after_question) == q0
 
 

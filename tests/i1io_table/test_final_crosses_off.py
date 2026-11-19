@@ -19,6 +19,7 @@ import json
 
 import pytest
 
+from tests.i1io_table import tester_d2 as D2
 from tests.i1io_table import job_harness as H
 from tests.i1io_table import reader_sim as RS
 from tests.i1io_table.test_window import open_window, settings  # noqa: F401
@@ -90,7 +91,7 @@ def test_the_job_reads_a_crosses_off_page_with_every_reading_on_its_patch(off_sh
         assert p.drive(getattr(job, s)()).ok, s
     if job.front_need is not None:
         assert p.drive(job.creep()).ok
-    assert p.drive(job.check_move()).ok
+    assert p.drive(D2.check_move(job)).ok
     r = p.drive(job.read_row())
     assert r.ok and r.detail["status"] == "read" and r.detail["read"] == r.detail["patches"]
     log = job.diag.log_path.read_text(encoding="utf-8")
@@ -120,7 +121,7 @@ def test_the_panel_names_the_patch_and_says_its_centre(qtbot, monkeypatch, tmp_p
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
                                                     asking=True, sheet=sheet,
                                                     sim=WindowSim(press=True))
-    p.script.update({"front_choice": "Feel the way forward", "front_yes": "Yes, feel forward"})
+    p.script.update({"front_choice": "Go forward carefully, my hands are away"})
     names = [a["patch"] for a in sc.aims_of(sheet, 0)]
     seen, reports = [], []
     for _ in range(80):
@@ -129,19 +130,20 @@ def test_the_panel_names_the_patch_and_says_its_centre(qtbot, monkeypatch, tmp_p
             seen.append((win._title.text(), win._text.text()))
         if page == "report_after_step":
             reports.append(win._text.text())
-        if page == "check_mark":
-            break
+        if p.at_the_rows(page) or (page == "first_visit"
+                                   and win._last.detail.get("what", "").startswith("row")):
+            break                        # 4.3.50: no mark-3 check; the rows are next
         p.answer_page(page)
     joined = " ".join(reports)
     assert f"you aimed it at patches {names[0]}, {names[1]} and {names[2]}" in joined
-    assert f"The arm moved by itself to patch {names[2]}." in joined
     assert [t for t, _b in seen] == [f"Aim at patch {n}" for n in names]
     for (_t, body), corner in zip(seen, ("top left", "bottom left", "bottom right")):
         assert "centre of patch" in body and corner in body and "ringed" in body
         assert "mark" not in body.lower().replace("marks", "")
         assert "centre of patch" in body.split("button on the i1Pro 2")[-1] or True
-    assert win._title.text() == f"Is the opening on the centre of patch {names[2]}?"
-    assert "bottom right" in win._text.text()
+    # the rows are next (their GO, or their first-visit question after the careful steps)
+    assert win._title.text() in ("The arm is about to move",
+                                 "A move to a part of the table not driven before")
 
 
 def test_with_crosses_the_texts_are_unchanged(qtbot, monkeypatch, tmp_path, settings):
@@ -149,8 +151,9 @@ def test_with_crosses_the_texts_are_unchanged(qtbot, monkeypatch, tmp_path, sett
                                                     asking=False)
     p.drive_until("aimed")
     assert win._title.text() == "Aim at mark 1" and "cross hairs" in win._text.text()
-    p.drive_until("check_mark")
-    assert win._title.text() == "Is the opening on mark 3?"
+    assert "“Aiming crosses” switched on" in win._text.text()
+    p.drive_until("rows")
+    assert win._title.text() == "The arm is about to move"
 
 
 def test_the_ring_sits_on_each_corner_patch(tab, beta, off_sheet):

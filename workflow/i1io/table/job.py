@@ -17,7 +17,10 @@ rewritten for the app, with every reviewed safety setting carried over:
               distances, corner, area), which rows fit (``page_fit``), the front-zone decision
   creep       part C's DZ: feel forward into the front zone in steps of at most 5 mm; the
               furthest clean arrival is the confirmed-Y limit for the rest of the sitting
-  check_move  part C's D2: the one computed move to mark 3
+              (4.3.50: part C's D2, the check move to mark 3 and its question, is GONE: nobody
+              can see the opening under the instrument, i1Profiler has no such step, and the
+              first real page read every patch on centre; the first row's move follows the
+              aims, from the free arm, after its own hands-off GO, as i1Profiler's does)
   home        part C's F: the recorded end of a job from where the arm stands
   calibrate   (step 7) part C's C1, spot white only: the arm read at rest before and after, the
               reader consent before the first reader of the session, the place (the instrument's
@@ -91,8 +94,10 @@ class Confirm:
     SHEET_LAID = "sheet_laid"        # ASK_SHEET_LAID: the sheet lies as described, nothing else
     ARM_FELT = "arm_felt"            # ASK_OUT_TOUCH: the free arm at the alignment start
     AIMED = "aimed"                  # the sight sits on mark n (one per mark)
-    FRONT_CHOICE = "front_choice"    # back (lay it further back) or go on (feel forward)
-    FRONT_YES = "front_yes"          # FRONT_YES: go on needs its own yes
+    #: back (lay it further back) or go on (go forward carefully, my hands are away). 4.3.50:
+    #: ONE question (front_yes, its second question, is gone); "go on" is the hands-off
+    #: confirmation for the careful steps that follow
+    FRONT_CHOICE = "front_choice"
     FIRST_VISIT = "first_visit"      # a move into a part no recording drove the arm to
     MARKER = "pending_marker"        # a strip move may still wait: the table was switched off?
     READY_TO_OPEN = "ready_to_open"  # tester PRE_QUESTIONS: the arm at rest, the bed clear
@@ -116,7 +121,6 @@ CHOICES = {
     Confirm.ARM_FELT: ("free", "holds", "not sure", "skip"),
     Confirm.AIMED: ("aimed", "stop"),
     Confirm.FRONT_CHOICE: ("back", "go on"),
-    Confirm.FRONT_YES: ("yes", "no"),
     Confirm.FIRST_VISIT: ("yes", "no"),
     Confirm.MARKER: ("switched off and on", "stop"),
     # 4.3.48: "arm out": the person says the arm is NOT at its resting place (an earlier stop
@@ -181,7 +185,7 @@ BUTTON_IGNORED = "button_press_ignored"
 BUTTON_WAIT_HOLDS = "button_wait_still_holds_the_instrument"
 #: review 8, S-1: the steps that move the arm (the homing is the way back and never refused
 #: for a stop); a stop pressed between steps or at a question ends them before their next move
-MOVING_STEPS = ("park", "align", "creep", "check_move", "read_row", "start_up")
+MOVING_STEPS = ("park", "align", "creep", "read_row", "start_up")
 STOPPED_BEFORE_THE_NEXT_MOVE = "stopped_before_the_next_move"
 #: review 8, B-1: the refusal of every step but the homing once the session has ended (saved,
 #: discarded, or "nothing read"); the detail names how it ended
@@ -228,14 +232,18 @@ MAY_OFFER_DO_NOT_ASK_AGAIN = "may_offer_do_not_ask_again"
 #: first. The table module refuses a movement line while one is owed (a bug guard).
 HANDS_OFF_ANSWERS = frozenset({(Confirm.GO, "yes"), (Confirm.SHEET_LAID, "yes"),
                                (Confirm.FIRST_VISIT, "yes"), (Confirm.START_UP, "yes"),
-                               (Confirm.REPORT_AFTER_STEP, "as described")})
-#: the window's own questions whose answer is the hands-off confirmation (same rule)
-HANDS_OFF_WINDOW_ANSWERS = frozenset({("check_mark", "centred")})
+                               (Confirm.REPORT_AFTER_STEP, "as described"),
+                               # 4.3.50: "Go forward carefully, my hands are away" (its page
+                               # asks the hands away and names the careful steps that follow)
+                               (Confirm.FRONT_CHOICE, "go on")})
+#: the window's own questions whose answer is the hands-off confirmation (same rule). 4.3.50:
+#: none (the mark-3 check, the only one, is gone)
+HANDS_OFF_WINDOW_ANSWERS: "frozenset[tuple[str, str]]" = frozenset()
 #: every movement the guard refused (a bug in the job: the tests fail on any entry)
 HANDS_OFF_BREACHES: "list[str]" = []
 
 #: the tester's names for the answers in a result block (the analysis script reads them)
-BLOCK_LABEL = {Confirm.FRONT_CHOICE: "front part", Confirm.FRONT_YES: "front part, yes",
+BLOCK_LABEL = {Confirm.FRONT_CHOICE: "front part",
                Confirm.FIRST_VISIT: "first visit", Confirm.SHEET_LAID: "on the table"}
 
 
@@ -325,15 +333,14 @@ class PersonStopped(Exception):
 
 
 #: part C's per-stage runs, per page (the tester's max_runs per sitting, now per sheet laid)
-MAX_RUNS = {"park": 8, "d1": 5, "dz": 3, "d2": 3, "f": 8, "c1": 3, "c2": 3}
-#: the steps and the tester's stage key each writes its result block under
-STAGE_KEY = {"park": "park", "align": "d1", "creep": "dz", "check_move": "d2", "home": "f",
+MAX_RUNS = {"park": 8, "d1": 5, "dz": 3, "f": 8, "c1": 3, "c2": 3}
+#: the steps and the tester's stage key each writes its result block under (4.3.50: no "d2")
+STAGE_KEY = {"park": "park", "align": "d1", "creep": "dz", "home": "f",
              "home_after_stop": "f",
              "calibrate": "c1", "read_tile": "c2", "read_row": "row"}
 #: the step caps the tester used for its own stages (lines, movements)
 DZ_CAPS = cp.CREEP
 D1_CAPS = (8, 0)
-D2_CAPS = (6, 1)       # 4.3.47 MUST-1: +1, the arm read again after a first-visit question
 
 # The recorded part B steps part C uses, each allowed from the states part C leaves (C_HOME:
 # the homing only from "warm", "homed", "b_done": the needs-conditions before homing).
@@ -565,7 +572,10 @@ def page_fit(sheet: dict, page: int, al: geo.Alignment) -> dict:
                 "right": area.xmin - min(p[0] for p in pts),
                 "back": area.ymin - min(p[1] for p in pts),
                 "front": max(p[1] for p in pts) - area.ymax}
-    inside = [p for p in spot_pts + run_pts + [tuple(r) for r in al.readings] if area.contains(p)]
+    # 4.3.50: the front need is what the PLAN reads (patch targets, strip runs): never the mark
+    # readings, whose check move is gone (on the first real page the marks made the careful
+    # steps go 9.5 mm further forward than the frontmost patch row needed)
+    inside = [p for p in spot_pts + run_pts if area.contains(p)]
     front_need = max((p[1] for p in inside), default=geo.MEASURING_AREA.ymax)
     front_need = front_need if front_need > geo.MEASURING_AREA.ymax else None
     front_spot = sum(1 for p in spot_pts if area.contains(p) and geo.in_front_zone(p))
@@ -598,6 +608,12 @@ CHART_HEAD = "i1Pro 2"
 class TableJob:
     """One START on the table. Steps are methods; each returns a StepResult. A step that needs
     a person's confirmation returns ``needs_confirmation``; :meth:`answer` continues it."""
+
+    #: the step tables, read through the instance (4.3.50: the wire-identity tests run a test
+    #: copy of tester 0.6.0's D2 on a subclass; the app's job has no such step)
+    STAGE_KEY = STAGE_KEY
+    MOVING_STEPS = MOVING_STEPS
+    MAX_RUNS = MAX_RUNS
 
     def __init__(self, sheet: dict, page: int = 0, *, run=None, stamp: "str | None" = None,
                  folder: "Path | None" = None, open_transport=None, preflight=None,
@@ -660,6 +676,9 @@ class TableJob:
         self.phase = "new"            # new, open, closed
         self.alignment: "geo.Alignment | None" = None
         self.front_need: "int | None" = None
+        #: 4.3.50: the alignment whose front question was answered "go on" (its creep asks no
+        #: GO and no first visit before its first step); None: none
+        self._front_agreed_for: "geo.Alignment | None" = None
         self.fit: "dict | None" = None
         self.driven: "list[tuple]" = []
         #: 4.3.49 fix round (safety review 449, MUST-1): the targets computed moves of this
@@ -1032,7 +1051,7 @@ class TableJob:
         # round B: Stop cancels the wait for the instrument's button (the question on screen
         # may still be answered in the panel; a press is no longer taken)
         self._press_cancel("stop pressed")
-        # review 9, M-1: in EVERY case, also while a step runs (a check move has no pause of
+        # review 9, M-1: in EVERY case, also while a step runs (a single move has no pause of
         # its own): the next movement after a stop, the homing included, asks the hands-off
         # GO again. A running step has passed its GO already; the rows set or clear it
         # themselves.
@@ -1040,7 +1059,7 @@ class TableJob:
 
     def stop_honoured_between_steps(self) -> None:
         """Final fix round: the window showed the person's Stop at once, because no step was
-        running or waiting (the mark-3 check, the next page's question): the stop has taken
+        running or waiting (the next page's question, say): the stop has taken
         effect there, so it does not stop the next step a second time. The next movement still
         asks the hands-off GO (stop_at_next_pause cleared it)."""
         if self._gen is None and self._pause_stop:
@@ -1050,7 +1069,7 @@ class TableJob:
 
     def _stale_stop(self, step: "str | None") -> bool:
         """A stop pressed between steps or at a question, still waiting (consumed here)."""
-        if self._pause_stop and step in MOVING_STEPS and not self.only_home:
+        if self._pause_stop and step in self.MOVING_STEPS and not self.only_home:
             self._pause_stop = False
             self.diag.log("ANSWER", f"{step}: the stop pressed before it is honoured before "
                                     f"the next move")
@@ -1148,7 +1167,7 @@ class TableJob:
 
     # ---- result blocks (the tester's RESULT blocks, same keys) -------------------------------
     def _start_block(self, step: str) -> None:
-        key = STAGE_KEY.get(step)
+        key = self.STAGE_KEY.get(step)
         if key is None:
             self._block = None
             return
@@ -1429,40 +1448,36 @@ class TableJob:
         d = self._table
         if d.state == "cold":
             return "table_not_started"
-        key = STAGE_KEY[step]
+        key = self.STAGE_KEY[step]
         if self.instrument_out and step != "calibrate":
             return "instrument_not_in_the_arm"
         if self.report_due is not None and step != "home":
             return "report_due"
         if self.only_home and step != "home":
             return "only_the_homing_now"
-        if key in ("d1", "dz", "d2", "row") and not self.page_has_something_to_read():
+        if key in ("d1", "dz", "row") and not self.page_has_something_to_read():
             # review 8, M-3: resume / refinement: a page with nothing missing is never aligned
             # or read (the caps from the missing patches hold nothing for it); next_page()
             # goes past it
             return "nothing_missing_on_this_page"
         if key in ("c1", "c2", "row"):
             return self._reading_ready(step)
-        if self.runs.get((self.page, key), 0) >= MAX_RUNS[key]:
+        if self.runs.get((self.page, key), 0) >= self.MAX_RUNS[key]:
             return "ran_as_often_as_allowed"
         rest = self.at_rest() or self.unread_rest() or self.parked()
         if step == "park" and not rest:
             return "arm_not_at_rest"
         if step == "align" and not (rest or (d.arm_free is True and d.mode_on)):
             return "arm_not_at_rest_or_free_after_alignment"
-        if step in ("creep", "check_move"):
+        if step == "creep":
             if self.alignment is None:
                 return "needs_alignment"
             if not self.out_known() and d.arm_free is not True:
                 return "arm_not_out_on_the_sheet"
-        if step == "creep":
             if self.front_need is None:
                 return "sheet_does_not_reach_the_front_zone"
             if self.front_reached() >= self.front_need:
                 return "front_zone_confirmed_already"
-        if step == "check_move" and self.front_need is not None and \
-                self.front_reached() < self.alignment.readings[2][1]:
-            return "needs_creep_first"
         if step == "home" and not (self.out_known() or d.arm_free is True):
             return "arm_not_out_on_the_table"
         if step == "home" and d.arm_free is False and d.position_now is not None and \
@@ -1505,7 +1520,7 @@ class TableJob:
                     # is the stop's effect, so a stop pressed before it is used up here
                     self._pause_stop = False
             self._check_other_program()
-            key = STAGE_KEY[step]
+            key = self.STAGE_KEY[step]
             self.runs[(self.page, key)] = self.runs.get((self.page, key), 0) + 1
             self._start_block(step)
             try:
@@ -1537,9 +1552,6 @@ class TableJob:
 
     def creep(self) -> StepResult:
         return self._stage("creep", self._creep)
-
-    def check_move(self) -> StepResult:
-        return self._stage("check_move", self._check_move)
 
     def home(self) -> StepResult:
         return self._stage("home", self._home)
@@ -1799,7 +1811,7 @@ class TableJob:
 
     def person_answered(self, question_id: str, answer: str = "") -> None:
         """Final fix round, M-1: the person answered one of the WINDOW's own questions (the
-        mark-3 check, a "Go on", "Carry on", the problem page...). As after any of the job's
+        a "Go on", "Carry on", the problem page...). As after any of the job's
         questions, the next movement asks the hands-off GO first, unless the answer is itself
         that confirmation (``HANDS_OFF_WINDOW_ANSWERS``). Ignored while a step runs (its GO was
         given before it started; a page answered then is not a question at the table)."""
@@ -2303,6 +2315,7 @@ class TableJob:
         self._apply_reach()
         self.worked.discard("d1")
         self.worked.discard("d2")
+        self._front_agreed_for = None
 
     # ---- park: the recorded homing at rest -----------------------------------------------------
     def _park(self):
@@ -2365,8 +2378,9 @@ class TableJob:
         finally:
             self._press_stop()
         # the safety review's confirmation of step 6 (required): the person's hands were on the
-        # free arm for the aims, so the first motor move after them (the creep, the check move
-        # or the homing) waits for a hands-off GO again, in both modes (one more question a page)
+        # free arm for the aims, so the first motor move after them (the creep, the first row
+        # or the homing) waits for a hands-off GO again, in both modes (one more question a page;
+        # 4.3.50: for the creep, "Go forward carefully, my hands are away" is that GO)
         self._go_page = None
         d.exchange("status")
         for _ in range(4):
@@ -2410,13 +2424,17 @@ class TableJob:
                     "front_rows": fit["front_rows"],
                     "back_mm": int((need - geo.MEASURING_AREA.ymax) / 10.0) + 1})
                 if choice == "go on":
-                    yes = yield Ask(Confirm.FRONT_YES)
-                    if yes == "yes":
-                        self.front_need = int(need)
-                        self._block["data"]["front_need_y"] = self.front_need
-                        out["front_need_y"] = self.front_need
-                        kept = True
-                        return out
+                    # 4.3.50: ONE question. "Go forward carefully, my hands are away" is the
+                    # hands-off GO for the careful steps (HANDS_OFF_ANSWERS) and the person's
+                    # consent to the part of the table they go to: the creep of THIS alignment
+                    # asks neither GO nor first visit before its first move
+                    self.front_need = int(need)
+                    self._block["data"]["front_need_y"] = self.front_need
+                    out["front_need_y"] = self.front_need
+                    self._go_page = self.page
+                    self._front_agreed_for = al
+                    kept = True
+                    return out
             finally:
                 if not kept:
                     self.alignment = None
@@ -2439,9 +2457,18 @@ class TableJob:
             a = self._still(a)
         y0 = self.front_reached()
         start = (x, min(y0, need))
-        ok = yield from self._confirm_new_part(a, start, (x, need), what="creep")
-        if not ok:
-            raise PersonStopped("first_visit_declined")
+        if self._front_agreed_for is al:
+            # 4.3.50: the front question named this move (forward, carefully, to the sheet's
+            # front) and its answer was the hands-off confirmation: its part of the table counts
+            # as confirmed, exactly as a first-visit "yes" would make it (widened by 1 mm)
+            for p, q in ((tuple(a), start), (start, (x, need))):
+                self.driven.append(((min(p[0], q[0]) - 10, min(p[1], q[1]) - 10),
+                                    (max(p[0], q[0]) + 10, max(p[1], q[1]) + 10)))
+            self._block["data"]["first_visit_by_the_front_answer"] = True
+        else:
+            ok = yield from self._confirm_new_part(a, start, (x, need), what="creep")
+            if not ok:
+                raise PersonStopped("first_visit_declined")
         yield from self._move_to(start, "the move to the front edge of the confirmed part")
         n = 0
         while self.front_reached() < need:
@@ -2520,18 +2547,6 @@ class TableJob:
                          read=list(got) if got is not None else None, why=why, need_y=need)
         raise StageFailed(f"creep_{why}", target=target, read=got,
                           front_y=self.front_reached(), need_y=need, short_mm=short, **more)
-
-    # ---- check_move: part C's D2 -----------------------------------------------------------------
-    def _check_move(self):
-        d = self._table
-        al = self.alignment
-        self._step("d2", *D2_CAPS)
-        target = al.readings[2]
-        a = d.position()
-        if d.arm_free:
-            self._still(a)
-        got = yield from self._move_to(target, "the move to mark 3")
-        return {"target": target, "read": got}
 
     # ---- home: part C's F ----------------------------------------------------------------------
     def _home(self):

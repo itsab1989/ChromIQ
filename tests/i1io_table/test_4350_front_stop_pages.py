@@ -143,8 +143,9 @@ def test_other_stops_keep_the_general_page():
 def test_the_front_question_says_what_happens_on_an_error_answer():
     """Re-review S-4: "offers to bring it home" was true for two of four outcomes."""
     _t, body = M.M_I1IO_DRIVE_FRONT.render(back_mm=20)
-    assert ("If the table answers that step with an error, or does not answer it, ChromIQ stops "
-            "at once, sends nothing more and tells you what to do.") in body
+    # 4.3.50: the page rewritten in plain words (a real user, issue 129); the case is still said
+    assert ("If the table reports an error or does not answer, ChromIQ sends nothing more and "
+            "tells you what to do.") in body
 
 
 class _FaultyWindowSim(WindowSim):
@@ -166,8 +167,7 @@ def test_in_the_window_the_page_and_its_way_home_after_the_ending(
                            reach_store=rc.MemoryReachStore(), **HIS_TABLE)
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
                                                     sheet=H.demo_sheet(), sim=sim)
-    p.script["front_choice"] = "Feel the way forward"
-    p.script["front_yes"] = "Yes, feel forward"
+    p.script["front_choice"] = "Go forward carefully, my hands are away"
     page = p.drive_until(("stopped", "refused", "end_of_session"))
     assert page == "stopped", (page, win._title.text(), win._text.text())
     assert win._title.text() == tr("The table stopped during a small step towards the front")

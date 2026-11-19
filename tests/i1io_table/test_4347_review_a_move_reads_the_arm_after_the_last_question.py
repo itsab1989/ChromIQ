@@ -11,6 +11,13 @@ Now `_move_to` (and the creep's further steps) read the arm once more after the 
 (`TableJob._read_again_if_asked`, the recorded ``;p025``), stop before the move when the arm
 moved by more than STILL_UNITS (free) or the arrival tolerance (held) and otherwise judge the
 move afresh from the new reading. One test per caller of `_move_to`, and the creep's own loop.
+
+4.3.50: the creep asks no first-visit question any more ("Go forward carefully, my hands are
+away", asked in the alignment, is its hands-off confirmation and names its part of the table), so
+nothing is asked between its reading and its first move: a hand on the free arm during the FRONT
+question is read by the creep's own stillness pair, and the move is judged from there. The check
+move to mark 3 is gone from the app; the tests' copy of it (tester_d2) still stands for a move
+whose first-visit question comes after its reading, as a held patch row's does.
 """
 from __future__ import annotations
 
@@ -36,44 +43,49 @@ def _at_question(step, confirm, push, seen):
             seen["read"] = tuple(person.job._table.position_now)
             if push is not None:
                 sim.pos = [sim.pos[0] + push[0], sim.pos[1] + push[1]]
+            seen["arm_now"] = [int(round(sim.pos[0])), int(round(sim.pos[1]))]
         return None
     return on_ask
 
 
 def _creep(push):
+    """4.3.50: the hand on the free arm during the ONE front question (asked in the alignment)."""
     sheet, pts = H.recorded_sheet("S2 684.0", 18)
     seen = {}
     res, job, sim, person = H.run_steps(
-        ["open", "align", "creep", "check_move"], script={J.Confirm.FRONT_CHOICE: "go on"},
-        on_ask=_at_question("creep", J.Confirm.FIRST_VISIT, push, seen), sheet=sheet, aims=pts,
+        ["open", "align", "creep"], script={J.Confirm.FRONT_CHOICE: "go on"},
+        on_ask=_at_question("align", J.Confirm.FRONT_CHOICE, push, seen), sheet=sheet, aims=pts,
         jitter=False)
     return res, job, sim, seen
 
 
 # ---- the creep (DZ): the reviewer's case --------------------------------------------------
-def test_the_creep_reads_the_free_arm_after_its_first_visit_question_and_then_moves():
+def test_the_creep_reads_the_free_arm_after_the_front_question_and_then_moves():
     res, job, sim, seen = _creep(None)
-    assert "n" in seen and seen["free"] is True, "the creep asked no first-visit question"
+    assert "n" in seen and seen["free"] is True, "no front question"
     after = sim.received[seen["n"]:]
-    assert after[0] == P0 and after[1].startswith(";m0"), after[:3]
+    # the creep's own stillness pair, read after the answer, then its first move
+    assert after[:2] == [P0, P0] and after[2].startswith(";m0"), after[:4]
     assert res[2].ok, (res[2].step, res[2].reason)
-    assert seen["n"] in job.reads_after_question
+    assert job.reads_after_question == []
     assert sim.violations == []
 
 
 @pytest.mark.parametrize("push", [(300.0, -150.0), (0.0, 3.0), (-3.0, 0.0), (1500.0, 0.0)])
-def test_a_free_arm_moved_during_the_creeps_question_is_never_driven(push):
-    """The reviewer's strict xfail, now a pass: a hand moved the free arm while the question was
-    shown (300 units, or just beyond the 2-unit stillness): one reading, then nothing moves."""
+def test_a_free_arm_moved_during_the_front_question_is_driven_only_from_where_it_is_now(push):
+    """The reviewer's case after 4.3.50: a hand moved the free arm while the front question was
+    shown, then the person pressed "Go forward carefully, my hands are away". The creep reads the
+    arm twice (its stillness pair) and judges its first move from THAT place: never from the
+    reading taken before the question."""
     res, job, sim, seen = _creep(push)
     after = sim.received[seen["n"]:]
-    assert after[:1] == [P0], after[:3]
-    assert not any(ln.startswith(";m0") for ln in after), after
+    assert after[:2] == [P0, P0] and after[2].startswith(";m0"), after[:3]
     creep = res[2]
-    assert creep.kind == J.Kind.REFUSED and creep.reason == "free_arm_moved_while_asked", creep
-    assert creep.detail["first"] == seen["read"]
-    # nothing is closed: the person may take the hands away and try again (read afresh)
-    assert creep.state.sending_closed is False
+    assert creep.ok, (creep.reason, creep.detail)
+    # the stillness pair read the arm where the hand left it, and the move went from there
+    free = [r["at"] for r in job.reach_diag["free_readings"]]
+    assert free[-1] == seen["arm_now"], (free[-3:], seen["arm_now"])
+    assert job.reads_after_question == []
     assert sim.violations == []
 
 
@@ -81,7 +93,7 @@ def test_a_free_arm_moved_during_the_creeps_question_is_never_driven(push):
 def test_a_free_arm_within_two_units_moves_and_the_move_is_judged_from_the_new_reading(push):
     res, job, sim, seen = _creep(push)
     after = sim.received[seen["n"]:]
-    assert after[0] == P0 and after[1].startswith(";m0"), after[:3]
+    assert after[:2] == [P0, P0] and after[2].startswith(";m0"), after[:3]
     assert res[2].ok, (res[2].step, res[2].reason)
     assert sim.violations == []
 
@@ -117,12 +129,12 @@ def test_every_extra_reading_follows_a_question_and_precedes_its_move():
     """The creep and the check move after it: each extra reading is the first line after a
     question the person answered, and the move it guards comes right after it."""
     res, job, sim, seen = _creep(None)
-    assert res[3].ok, (res[3].step, res[3].reason)
+    assert res[2].ok, (res[2].step, res[2].reason)
     sheet, pts = H.recorded_sheet("S2 684.0", 18)
     job, sim, _t = H.make_job(sheet=sheet, aims=pts, jitter=False)
     p = H.Person(job, sim, {J.Confirm.FRONT_CHOICE: "go on"})
     for s in ("open", "align", "creep", "check_move", "home"):
-        assert p.drive(getattr(job, s)()).ok, s
+        assert p.drive(H.step(job, s)).ok, s
     asked_at = {n for (_st, _c, _d, n, _m) in p.asked}
     assert job.reads_after_question
     for k in job.reads_after_question:
@@ -152,7 +164,7 @@ def test_a_held_patch_row_after_its_first_visit_question_reads_the_arm_again(tmp
     job, sim, helper, _run = RS.make_reading_job(tmp_path, jitter=False)
     p = H.Person(job, sim)
     for s in ("open", "calibrate", "align"):
-        assert p.drive(getattr(job, s)()).ok, s
+        assert p.drive(H.step(job, s)).ok, s
     assert p.drive(job.read_row()).ok
     seen = {}
     p.on_ask = _held_first_visit(None, seen)
@@ -169,7 +181,7 @@ def test_a_held_arm_that_moved_during_the_rows_question_is_not_moved(tmp_path):
     job, sim, helper, _run = RS.make_reading_job(tmp_path, jitter=False)
     p = H.Person(job, sim)
     for s in ("open", "calibrate", "align"):
-        assert p.drive(getattr(job, s)()).ok, s
+        assert p.drive(H.step(job, s)).ok, s
     assert p.drive(job.read_row()).ok
     seen = {}
     p.on_ask = _held_first_visit((0.0, 6.0), seen)
@@ -190,7 +202,7 @@ def test_a_free_patch_row_needs_no_extra_reading(tmp_path):
     job, sim, helper, _run = RS.make_reading_job(tmp_path, jitter=False)
     p = H.Person(job, sim)
     for s in ("open", "calibrate", "align"):
-        assert p.drive(getattr(job, s)()).ok, s
+        assert p.drive(H.step(job, s)).ok, s
     assert p.drive(job.read_row()).ok
     assert job.reads_after_question == []
 
@@ -232,7 +244,8 @@ def test_move_to_sends_one_reading_then_the_move_from_a_stale_reading():
     target = job.alignment.readings[2]
     job._mark_answered()
     job._hands_off_due = False
-    job._step("d2", *J.D2_CAPS)
+    from workflow.i1io.table import caps as cp
+    job._step("d2", *cp.CHECK_MOVE)
     n = len(sim.received)
     gen = job._move_to(target, "a test move")
     with pytest.raises(StopIteration):
@@ -244,22 +257,30 @@ def test_move_to_sends_one_reading_then_the_move_from_a_stale_reading():
 
 
 @pytest.mark.parametrize("kind", ["unplug", "no_answer", "garbled", "refuse"])
-def test_a_fault_at_the_extra_reading_never_lets_the_move_follow(kind):
-    sheet, pts = H.recorded_sheet("S2 684.0", 18)
+def test_a_fault_at_the_extra_reading_never_lets_the_move_follow(tmp_path, kind):
+    """4.3.50: at a HELD patch row's first-visit question (the creep asks none any more)."""
+    job, sim, helper, _run = RS.make_reading_job(tmp_path, jitter=False)
+    p = H.Person(job, sim)
+    for s in ("open", "calibrate", "align"):
+        assert p.drive(getattr(job, s)()).ok, s
+    assert p.drive(job.read_row()).ok
     seen = {}
 
     def on_ask(person, res):
-        if res.step == "creep" and res.confirm == J.Confirm.FIRST_VISIT and "n" not in seen:
+        if (res.step == "read_row" and res.confirm == J.Confirm.FIRST_VISIT and "n" not in seen
+                and person.job._table.arm_free is False):
             seen["n"] = len(person.sim.received)
             person.sim.inject_at(seen["n"], kind, 1.0)
         return None
-    res, job, sim, person = H.run_steps(
-        ["open", "align", "creep"], script={J.Confirm.FRONT_CHOICE: "go on"}, on_ask=on_ask,
-        sheet=sheet, aims=pts, jitter=False)
+    p.on_ask = on_ask
+    r = None
+    while job.rows_left() and "n" not in seen:
+        r = p.drive(job.read_row())
+    assert "n" in seen
     after = sim.received[seen["n"]:]
     assert after[:1] == [P0]
     assert not any(ln.startswith(";m0") for ln in after), after
-    assert not res[2].ok
+    assert not r.ok
 
 
 def test_the_base_sittings_extra_readings_are_the_pinned_ones(tmp_path):
@@ -277,6 +298,6 @@ def test_the_base_sittings_extra_readings_are_the_pinned_ones(tmp_path):
 
 def test_the_caps_carry_exactly_the_extra_reading():
     from workflow.i1io.table import caps as cp
-    assert J.D2_CAPS == cp.CHECK_MOVE == (6, 1)
+    assert cp.CHECK_MOVE == (6, 1)              # the tests' copy of 4.3.49's D2 (tester_d2)
     assert J.DZ_CAPS == cp.CREEP == (2 * cp.CREEP_STEPS_MAX + 8 + 1 + 1, cp.CREEP_STEPS_MAX + 1)
     assert tbl.STILL_UNITS == 2

@@ -91,12 +91,12 @@ def test_a_whole_measurement_is_read_saved_and_the_arm_goes_home(qtbot, monkeypa
     p.press("Save and stop")
     assert saved and saved[0][0] == run.measurement_ti3
     assert classify(run.measurement_ti3, run.chart_ti2).state is Ti3State.COMPLETE
-    assert p.page() == "home_offered"
+    # 4.3.50: the homing is part of the ending; its own hands-off GO is the first page after it
+    assert p.page() == "home_at_end"
     n = moves(sim)
-    p.press("Bring the arm home")
-    assert p.page() == "go" and moves(sim) == n          # the homing asks GO first
-    p.press("Go")
-    assert p.page() == "done" and sim.jobs[0].at_rest()
+    assert moves(sim) == n                                # nothing moved before the answer
+    p.press("Bring the arm home, my hands are away")
+    assert p.page() == "done" and sim.jobs[0].at_rest() and moves(sim) > n
     offer = bool(win._tick_widgets)
     assert offer is asking                                # the "do not ask again" offer
     if offer:
@@ -167,8 +167,8 @@ def test_report_a_problem_stops_movement_but_the_homing_and_the_note_goes_to_the
         qtbot, monkeypatch, tmp_path, settings, asking):
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
                                                     asking=asking)
-    p.drive_until("check_mark")
-    p.press("Yes, it is centred, my hands are away")
+    p.drive_until("rows")
+    p.press("Go")
     p.drive_until(("report_after_step", "end_of_session") if asking else "end_of_session")
     assert win._problem_btn.isVisible() and win._stop_btn.isVisible()
     win._problem_btn.click()
@@ -193,9 +193,9 @@ def test_stop_during_a_row_stops_before_the_next_move_and_carry_on_asks_go(
     sim = WindowSim()
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
                                                     asking=False, sim=sim)
-    p.drive_until("check_mark")
+    p.drive_until("rows")
     sim.transport.delay_s = 0.02
-    [b for b in win._buttons if b.text() == "Yes, it is centred, my hands are away"][0].click()
+    [b for b in win._buttons if b.text() == "Go"][0].click()
     qtbot.waitUntil(lambda: win._busy, timeout=5000)
     qtbot.wait(150)
     assert win._stop_btn.isVisible() and win._stop_btn.isEnabled()
@@ -221,8 +221,8 @@ def test_stop_now_ends_the_table_part_and_the_readings_can_still_be_saved(
         qtbot, monkeypatch, tmp_path, settings):
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
                                                     asking=False, sheet=small_sheet([4, 4, 4]))
-    p.drive_until("check_mark")
-    p.press("Yes, it is centred, my hands are away")
+    p.drive_until("rows")
+    p.press("Go")
     p.drive_until("end_of_session")
     p.press("Keep measuring")                             # nothing missing: ends again
     win._problem_btn.click()
@@ -272,7 +272,7 @@ def test_discard_keeps_nothing_in_the_run_and_the_homing_is_offered(qtbot, monke
     p.drive_until("end_of_session")
     p.press("Discard and stop")
     assert not run.measurement_ti3.exists() and saved == []
-    assert p.page() == "home_offered"
+    assert p.page() == "home_at_end"
     p.press("Leave it there")
     assert p.page() == "done"
     assert se.session_state(run.i1io_table_session_dir(RS.STAMP)) == se.DISCARDED
@@ -285,7 +285,7 @@ def test_end_measurement_before_any_reading_saves_nothing(qtbot, monkeypatch, tm
     p.drive_until("go")
     win._end_btn.click()                                  # the GO is withdrawn with Back
     p.idle()
-    assert p.page() in ("home_offered", "done"), p.page()
+    assert p.page() in ("home_offered", "home_at_end", "done"), p.page()
     assert not run.measurement_ti3.exists() and saved == []
 
 
@@ -334,9 +334,9 @@ def _interrupted(qtbot, monkeypatch, tmp_path, settings):
     _proj, run = project(tmp_path, sheet)
     win, sim, _r, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
                                                    asking=False, sheet=sheet, run=run)
-    p.drive_until("check_mark")
+    p.drive_until("rows")
     sim.helper.faults = {"read_loc": {"1-0": "dies"}}
-    p.press("Yes, it is centred, my hands are away")
+    p.press("Go")
     p.drive_until("row_failed")
     win._finished = True                                  # a crash: no ending at all
     sim.jobs[0].close()
@@ -420,8 +420,8 @@ def test_stop_on_the_report_question_keeps_the_question_and_then_asks_go(
     must not hide the question; it is answered, then the stop acts before the next move."""
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
                                                     asking=True)
-    p.drive_until("check_mark")
-    p.press("Yes, it is centred, my hands are away")
+    p.drive_until("rows")
+    p.press("Go")
     assert p.drive_until("report_after_step") == "report_after_step"
     n = moves(sim)
     win._stop_btn.click()
@@ -439,9 +439,9 @@ def test_a_result_arriving_while_the_problem_page_is_open_waits_behind_it(
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
                                                     asking=False, sim=sim,
                                                     presentation=W.PRESENTATION_PANEL)
-    p.drive_until("check_mark")
+    p.drive_until("rows")
     sim.transport.delay_s = 0.01
-    [b for b in win._buttons if b.text() == "Yes, it is centred, my hands are away"][0].click()
+    [b for b in win._buttons if b.text() == "Go"][0].click()
     qtbot.waitUntil(lambda: win._busy, timeout=5000)
     win._problem_btn.click()
     assert win.pages_shown[-1] == "problem"

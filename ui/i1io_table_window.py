@@ -100,11 +100,11 @@ HANDS_OFF_LABELS = (
     "Go", "Start the table, my hands are away",
     "The page is laid, and my hands are away from the table",
     "Make this move, my hands are away", "As described, my hands are away",
-    "Yes, it is centred, my hands are away")
+    "Go forward carefully, my hands are away", "Bring the arm home, my hands are away")
 #: REVIEW 14, S-3: the pages after whose answer the arm moves at once; as a pop-up each carries
 #: the one-line switch-off sentence itself (the tab's line stands behind the pop-up)
-MOVES_AT_ONCE_PAGES = ("go", "start_up", "sheet_laid", "first_visit", "check_mark",
-                       "report_after_step")
+MOVES_AT_ONCE_PAGES = ("go", "start_up", "sheet_laid", "first_visit", "report_after_step",
+                       "home_at_end")
 #: REVIEW 14, M-1: the ways back that mean a move may still be waiting, or a movement (or the
 #: start-up) was never reported as finished: "Switch the table off now" is the first thing shown,
 #: and no later page hides or contradicts it
@@ -162,13 +162,15 @@ def stop_button_qss(selector: str = "QPushButton", own_size: bool = True) -> str
 _ACCEPT_LABELS = (
     "I understand, drive my table", "Start", "Start the table, my hands are away", "Go",
     "The page is laid, and my hands are away from the table", "It moves freely", "Aimed",
-    "Yes, feel forward", "Make this move, my hands are away", "I switched it off and on",
+    "Go forward carefully, my hands are away", "Make this move, my hands are away",
+    "I switched it off and on",
     "As described, my hands are away", "Open the instrument", "Ready", "Seated",
     "Read it again", "Read it again as a strip", "Save and stop",
-    "Yes, it is centred, my hands are away", "Go on", "Carry on", "Bring the arm home",
+    "Go on", "Carry on", "Bring the arm home", "Bring the arm home, my hands are away",
     "Complete it", "Continue", "Measure the rest that way", "Calibrate again",
     "Table's tile")
 _REJECT_LABELS = ("Not now", "Cancel", "No", "Back", "End this step", "Leave it there",
+                  "I will move the sheet",
                   "Leave it to i1Profiler", "Keep measuring", "Not sure", "End measurement")
 _DESTRUCTIVE_LABELS = ("Discard and stop", "Discard it", "Send nothing more")
 
@@ -427,10 +429,9 @@ def choice_label(kind: str, value: str) -> str:
         ("arm_felt", "not sure"): tr("Not sure"),
         ("aimed", "aimed"): tr("Aimed"),
         ("aimed", "stop"): tr("End this step"),
-        ("front_choice", "back"): tr("Lay it further back"),
-        ("front_choice", "go on"): tr("Feel the way forward"),
-        ("front_yes", "yes"): tr("Yes, feel forward"),
-        ("front_yes", "no"): tr("No"),
+        # 4.3.50: ONE front question; "go on" is the hands-off confirmation (its page says so)
+        ("front_choice", "back"): tr("I will move the sheet"),
+        ("front_choice", "go on"): tr("Go forward carefully, my hands are away"),
         ("first_visit", "yes"): tr("Make this move, my hands are away"),
         ("first_visit", "no"): tr("No"),
         ("pending_marker", "switched off and on"): tr("I switched it off and on"),
@@ -468,21 +469,20 @@ def choice_label(kind: str, value: str) -> str:
 #: the answer that withdraws a question (End measurement pressed while it is open): the choice
 #: that moves nothing
 WITHDRAW = {"go": "back", "sheet_laid": "stop", "aimed": "stop", "front_choice": "back",
-            "front_yes": "no", "first_visit": "no", "pending_marker": "stop",
+            "first_visit": "no", "pending_marker": "stop",
             "ready_to_open": "stop", "reader_consent": "no", "calibration_place": "stop",
             "calibration_own_tile": "stop", "calibration_reseated": "stop",
             "row_failed": "stop", "row_failed_strip": "stop", "start_up": "i1profiler",
             "arm_felt": "not sure"}
 
 #: the pages that show one of the JOB's questions (answered through ``job.answer`` or the
-#: report, which keep the hands-off rule themselves) and the mark-3 check, whose two answers say
-#: themselves whether they are the hands-off confirmation; every other page's buttons tell the
-#: job that a question was answered (final fix round, M-1)
+#: report, which keep the hands-off rule themselves); every other page's buttons tell the job
+#: that a question was answered (final fix round, M-1). 4.3.50: the mark-3 check is gone
 JOB_QUESTION_PAGES = frozenset({
     "pending_marker", "ready_to_open", "start_up", "go", "sheet_laid", "arm_felt", "aimed",
-    "front_choice", "front_yes", "first_visit", "reader_consent", "calibration_place",
+    "front_choice", "first_visit", "reader_consent", "calibration_place",
     "calibration_own_tile", "calibration_reseated", "row_failed", "row_failed_strip",
-    "end_of_session", "report_after_step", "check_mark"})
+    "end_of_session", "report_after_step", "home_at_end"})
 
 #: the job's refusals that are the person's own Stop taking effect
 STOP_REASONS = ("stopped_before_the_next_move", "stopped_between_patches",
@@ -520,16 +520,13 @@ def step_done_text(step: str, detail: dict, page: "int | None" = None,
         return tr("The arm moved to the place where you aim it, the table let go of it, and "
                   "you aimed it at patches {a}, {b} and {c}.").format(
             a=patches[0], b=patches[1], c=patches[2])
-    if patches and step == "check_move":
-        return tr("The arm moved by itself to patch {patch}.").format(patch=patches[2])
     return {
         "start_up": tr("The table started, the way i1Profiler starts a table that was just "
                        "switched on."),
         "park": tr("The arm made its recorded homing at its resting place."),
         "align": tr("The arm moved to the place where you aim it, the table let go of it, and "
                     "you aimed it at the three marks."),
-        "creep": tr("The arm felt its way towards the front of the table in steps of 5 mm."),
-        "check_move": tr("The arm moved by itself to mark 3."),
+        "creep": tr("The arm moved slowly towards the front of the table, 5 mm at a time."),
     }.get(step, tr("The table did the step that was described."))
 
 
@@ -816,8 +813,7 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
         "arm_did_not_give_way_at_the_alignment_start": tr(
             "The arm did not move freely when you pushed it, so ChromIQ does not aim with it."),
         "stopped_during_the_aims": tr("You chose Stop while aiming."),
-        "sheet_to_be_laid_further_back": tr(
-            "You chose to lay the sheet further back. Please lay it again and aim at it again."),
+
         "first_visit_declined": tr("You chose not to make that move, so the arm did not move."),
         # round B: strip rows (a first try)
         "needs_strip_calibration": tr(
@@ -971,7 +967,7 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
                                            "sheet you aimed at."),
         "path_leaves_area": tr("The way there would leave the area ChromIQ allows."),
         "target_beyond_confirmed_front": tr(
-            "The place lies further forward than the arm has felt its way in this sitting."),
+            "The place lies further forward than the arm has gone in this measurement."),
         "unexpected_error": tr("Something unexpected happened inside ChromIQ."),
         "no_run": tr("No profile run is selected."),
         "nothing_waits_for_a_confirmation": tr("No question is open."),
@@ -1158,7 +1154,7 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
                   "measurement again.").format(x=int(rd_[0]), y=int(rd_[1]),
                                                mm=d.get("short_mm") or 1)
     if rid.startswith("creep_"):
-        return tr("Feeling the way forward stopped at a step that did not arrive exactly.")
+        return tr("The slow steps towards the front stopped at a step that did not arrive exactly.")
     if rid.startswith("instrument_"):
         return tr("ChromIQ needs exactly one i1Pro 2 in the table's arm and no other measuring "
                   "instrument connected.")
@@ -1183,6 +1179,15 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
                 "The table reported that its motors are holding the arm, at a point where the "
                 "mode for aiming by hand should be on, with the motors letting the arm go. No "
                 "recording shows this, so ChromIQ sends nothing more to the table.")
+    if rid == "sheet_to_be_laid_further_back":
+        # 4.3.50: the front question names no distance (a real user, issue 129: the number
+        # confused more than it helped); the page after "I will move the sheet" does
+        if d.get("back_mm"):
+            return tr("You chose to move the sheet. Please lay it about {mm} mm further away "
+                      "from you, then aim at it again. Nothing has moved.").format(
+                mm=int(d["back_mm"]))
+        return tr("You chose to move the sheet. Please lay it further away from you, then aim "
+                  "at it again. Nothing has moved.")
     if rid in texts:
         return texts[rid]
     try:
@@ -1417,7 +1422,6 @@ class TableMeasureWindow(QFrame):
         self._busy = False
         self._then = None
         self._last = None
-        self._checked_page: "int | None" = None
         self._again_rows: "list[int]" = []
         self._finished = False
         self._closed_job = False
@@ -2259,15 +2263,17 @@ class TableMeasureWindow(QFrame):
         # the panel's own pages
         "error", "usb_missing", "consent", "earlier_elsewhere", "earlier", "option_refused",
         "white_other_reference", "options_fields", "cal_choice", "prepare",
-        "stored_white_refused", "white_later_refused", "report_after_step", "check_mark",
+        "stored_white_refused", "white_later_refused", "report_after_step",
         "next_page", "open_refused", "driver_offer", "refused", "stopped_by_you", "stopped",
         "problem", "after_problem", "end_of_session", "ending_closed", "home_offered", "done",
         # 4.3.48: the arm brought home after a stop
         "home_after_stop_done",
         # the job's questions
         "pending_marker", "ready_to_open", "start_up", "go", "sheet_laid", "arm_felt", "aimed",
-        "front_choice", "front_yes", "first_visit", "reader_consent", "calibration_place",
+        "front_choice", "first_visit", "reader_consent", "calibration_place",
         "calibration_own_tile", "calibration_reseated", "row_failed", "row_failed_strip",
+        # 4.3.50: the homing of the ending
+        "home_at_end",
     )
     #: the pages whose answers stand in one row when they fit (review 12, S-3: the ending)
     ONE_ROW_ANSWER_PAGES = ("end_of_session",)
@@ -3042,11 +3048,6 @@ class TableMeasureWindow(QFrame):
         if step == "home_after_stop":
             self._show_home_after_stop_done()
             return
-        if step == "align":
-            self._checked_page = None        # a new alignment is checked at mark 3 again
-        if step == "check_move":
-            self._ask_check_mark()
-            return
         sw = res.detail.get("stored_white") if step == "calibrate" else None
         if step == "calibrate" and self._popups:
             # quiet mode: the white reference this calibration uses, in the log (the first
@@ -3156,16 +3157,8 @@ class TableMeasureWindow(QFrame):
         if want and j.alignment is None:
             return (j.align, tr("Aiming at the sheet..."), None)
         if want and j.front_need is not None and j.front_reached() < j.front_need:
-            return (j.creep, tr("Feeling the way forward..."),
-                    tr("the arm feels its way towards the front of the table"))
-        if want and self._checked_page != j.page:
-            patch = self._aim_patch(3)
-            if patch:
-                return (j.check_move, tr("Moving the arm to patch {patch}...").format(
-                    patch=patch), tr("the arm moves by itself to patch {patch}").format(
-                    patch=patch))
-            return (j.check_move, tr("Moving the arm to mark 3..."),
-                    tr("the arm moves by itself to mark 3"))
+            return (j.creep, tr("Moving the arm forward slowly..."),
+                    tr("the arm moves slowly towards the front of the table, 5 mm at a time"))
         if self._again_rows:
             row = self._again_rows[0]
             return (_ReadRow(self, row).fire, self._row_status(row),
@@ -3190,7 +3183,7 @@ class TableMeasureWindow(QFrame):
         step = res.step
         j = self.job
         moves = None
-        if res.kind == OK and step not in ("check_move", "next_page", "end", "save") and not (
+        if res.kind == OK and step not in ("next_page", "end", "save") and not (
                 step == "home" and (j.ended is not None or j.only_home
                                     or getattr(self, "_home_then_stop", False))):
             sw = res.detail.get("stored_white") if step == "calibrate" else None
@@ -3250,6 +3243,16 @@ class TableMeasureWindow(QFrame):
                 cb.toggled.connect(self._on_ready_tick)
             self._pending_kind = kind
             return
+        if kind == "go" and d.get("step") == "home" and self.job.ended is not None:
+            # 4.3.50: the homing that is part of the ending (saved, discarded, nothing read)
+            title, body = M.M_I1IO_DRIVE_HOME_AT_END.render(what=self._ended_what())
+            self._pending_kind = kind
+            self._show("home_at_end", title, body,
+                       [(tr("Leave it there"), self._answer_slot("back")),
+                        (tr("Bring the arm home, my hands are away"), self._answer_slot("yes"))])
+            self._status.setText(tr("ChromIQ waits for your answer. Nothing moves until you "
+                                    "answer."))
+            return
         if kind == "calibration_place":
             # answered from the stored choice (the job keeps asking, its data still names
             # the recommended place and the open decision D-4 for the log and the analysis)
@@ -3263,7 +3266,6 @@ class TableMeasureWindow(QFrame):
             "start_up": M.M_I1IO_DRIVE_START_UP.render,
             "go": M.M_I1IO_DRIVE_GO.render,
             "arm_felt": M.M_I1IO_DRIVE_ARM_FELT.render,
-            "front_yes": M.M_I1IO_DRIVE_FRONT_YES.render,
             "first_visit": M.M_I1IO_DRIVE_FIRST_VISIT.render,
             "calibration_place": M.M_I1IO_DRIVE_CAL_PLACE.render,
             "calibration_own_tile": M.M_I1IO_DRIVE_CAL_OWN_TILE.render,
@@ -3290,6 +3292,12 @@ class TableMeasureWindow(QFrame):
                         "hairs on the centre of that cross, not on the coloured patch next to "
                         "it: charts made in i1Profiler are aimed at a corner patch, but this "
                         "chart has its own crosses for aiming.").format(mark=d.get("mark", "?"))
+                    # 4.3.50 (a real user, issue 129: "you ask for the mark, not the patch like
+                    # i1Profiler"): the other way, in one sentence
+                    body += "\n\n" + tr(
+                        "This chart was printed with “Aiming crosses” switched on, on the Create "
+                        "Chart tab. A chart printed with it switched off has no crosses: ChromIQ "
+                        "then asks you to aim at its corner patches, as i1Profiler does.")
             if d.get("button") and d.get("button_token"):
                 # round B (proposed text): the instrument's own button answers too
                 body += "\n\n" + (M.M_I1IO_DRIVE_AIM_BUTTON_PATCH.render(patch=patch)[1]
@@ -3504,16 +3512,6 @@ class TableMeasureWindow(QFrame):
             return
         self._dispatch(self._report_res)
 
-    def _ask_check_mark(self) -> None:
-        self._aim_event(3, self._aim_patch(3))
-        from workflow import measurement_messages as M
-        patch = self._aim_patch(3)
-        title, body = (M.M_I1IO_DRIVE_CHECK_MARK_PATCH.render(patch=patch) if patch
-                       else M.M_I1IO_DRIVE_CHECK_MARK.render())
-        self._show("check_mark", title, body,
-                   [(tr("Yes, it is centred, my hands are away"), self._on_mark_ok),
-                    (tr("No"), self._on_mark_wrong)])
-
     def _aim_patches(self) -> "list[str] | None":
         """The three corner patches of this page in aiming order, when its chart has no
         crosses (None: it aims at crosses)."""
@@ -3529,25 +3527,11 @@ class TableMeasureWindow(QFrame):
             pass
         return None
 
-    def _on_mark_ok(self) -> None:
-        # final fix round, M-1: this answer is the hands-off confirmation (its page asks for
-        # the hands to be taken away and says that the reading starts at once)
-        self.job.person_answered("check_mark", "centred")
-        self._checked_page = self.job.page
-        self._next()
-
-    def _on_mark_wrong(self) -> None:
-        self.job.person_answered("check_mark", "not centred")
-        self.job.restrict_to_homing("the person said the opening is not on mark 3")
-        self._show_note()
-        self._show_after_problem()
-
     def _show_next_page(self, res) -> None:
         from workflow import measurement_messages as M
         nxt = res.detail.get("page", self.job.page + 1)
         title, body = M.M_I1IO_DRIVE_NEXT_PAGE.render(page=getattr(self, "_page_done", nxt - 1),
                                                       next=nxt)
-        self._checked_page = None
         self._show("next_page", title, body,
                    [(tr("End measurement"), self._on_end_pressed),
                     (tr("Go on"), self._next)])
@@ -3555,6 +3539,12 @@ class TableMeasureWindow(QFrame):
     # ---- refusals, stops, problems ------------------------------------------------------
     def _on_refused(self, res) -> None:
         reason = res.reason
+        if res.step == "home" and reason == "person_chose_back" and self.job is not None \
+                and self.job.ended is not None:
+            # 4.3.50: "Leave it there" at the homing of the ending: nothing moved; the done page
+            # says where the arm is and how it comes home
+            self._close_job()
+            return
         if reason in STOP_REASONS:
             self._show_stopped_by_you(res)
             return
@@ -3941,7 +3931,7 @@ class TableMeasureWindow(QFrame):
         self._status.setText(tr("Stop pressed: ChromIQ stops before the next move. A move that "
                                 "has started finishes first."))
         # the report question (asking mode) stays: the stop acts at the next move, after it
-        if not self._busy and getattr(self, "_page_id", "") in ("check_mark", "next_page"):
+        if not self._busy and getattr(self, "_page_id", "") in ("next_page",):
             # no step runs or waits: the stop takes effect here, once (final fix round: Carry
             # on showed "Stopped" a second time); the next movement asks GO first
             self.job.stop_honoured_between_steps()
@@ -4216,13 +4206,12 @@ class TableMeasureWindow(QFrame):
                         (tr("Bring the arm home"), self._on_home_after_stop)])
             return
         if "home" in (res.detail.get("next") or []):
-            from workflow import measurement_messages as M
-            title, body = M.M_I1IO_DRIVE_HOME_OFFERED.render(where=self._where())
-            if nothing_read:
-                body = self._nothing_read_text() + "\n\n" + body
-            self._show("home_offered", title, body,
-                       [(tr("Leave it there"), self._close_job),
-                        (tr("Bring the arm home"), self._on_home)])
+            # 4.3.50 (the first real page, 19 Nov 2026: the homing OFFERED after Save was not
+            # taken, the arm stayed out over the sheet): the homing is part of the ending. It
+            # starts at once and asks its hands-off GO first (M-I1IO-DRIVE-HOME-AT-END, whose
+            # "Leave it there" closes as before); the job's own rule decides where it may start
+            # from (the reviewed way back first, then the recorded homing)
+            self._on_home()
             return
         self._close_job()
 
@@ -4231,6 +4220,15 @@ class TableMeasureWindow(QFrame):
             return tr("The readings taken in this measurement cannot be kept: the row they "
                       "belong to failed before they were saved. So nothing was saved.")
         return tr("Nothing was measured, so nothing was saved.")
+
+    def _ended_what(self) -> str:
+        """How the measurement ended, in the done page's own sentence."""
+        j = self.job
+        return {"saved": tr("The measurement was saved into the run."),
+                "discarded": tr("The readings of this measurement were discarded; nothing was "
+                                "written into the run's measurement."),
+                "nothing_read": self._nothing_read_text()}.get(
+            (j.ended if j is not None else None) or "", tr("The measurement was not saved."))
 
     def _close_job(self) -> None:
         if self.job is None or self._closed_job:
@@ -4247,11 +4245,7 @@ class TableMeasureWindow(QFrame):
         self._end_btn.setVisible(False)
         from workflow import measurement_messages as M
         j = self.job
-        what = {"saved": tr("The measurement was saved into the run."),
-                "discarded": tr("The readings of this measurement were discarded; nothing was "
-                                "written into the run's measurement."),
-                "nothing_read": self._nothing_read_text()}.get(
-            j.ended or "", tr("The measurement was not saved."))
+        what = self._ended_what()
         title, body = M.M_I1IO_DRIVE_DONE.render(what=what, log=self._log_name)
         wb = res.way_back
         front_rid = (getattr(j, "creep_doubt", None) or {}).get("creep_stop")

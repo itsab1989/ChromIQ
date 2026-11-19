@@ -8209,7 +8209,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 self._i1io_window(*M.i1io_measure_chart_pages_window(
                     sheets, bool(nums.get("crosses")), by_hand))
                 return
-        title, body = self._i1io_not_yet_message(M).render()
+        msg = self._i1io_not_yet_message(M)
+        if self._i1io_side_file_readable():
+            # 4.3.50: the side file IS beside the chart and readable: the first paragraph says
+            # so and why the table still cannot measure it here (never "has no such file")
+            msg = (M.M_I1IO_NOT_YET_SIDE_FILE_BY_HAND if msg is M.M_I1IO_NOT_YET_BY_HAND
+                   else M.M_I1IO_NOT_YET_SIDE_FILE)
+        title, body = msg.render()
         if nums is not None:
             body += "\n\n" + M.i1io_pages_note(int(nums.get("pages") or 1))
         # 4.3.47: without its side file the table cannot measure this sheet
@@ -12876,9 +12882,15 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         resuming = self._measurement_to_continue() is not None
         # review SHOULD-1: no pair at all, so no other strip keeps M1 and M2
         none_kept = dual and _c.no_pair_kept(main)
+        # 4.3.50: a chart the i1iO table reads gets the table's own words (the table reads the
+        # rows itself; "takes you back to strip A" is the hand path's)
+        table = dual and not none_kept and self._table_chart_loaded()
+        rows = _c.rows_phrase(strips) if table else ""
         if resuming:
             if none_kept:
                 return M.M_DUAL_CONTINUE_FILL_ALL.render(strips=names)
+            if table:
+                return M.M_I1IO_DRIVE_DUAL_CONTINUE_FILL.render(rows=rows)
             if dual:
                 return M.M_DUAL_CONTINUE_FILL.render(strips=names)
             return M.M_COND_CONTINUE_FILL.render(
@@ -12886,6 +12898,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if none_kept:
             return M.M_DUAL_FILL_OFFER_ALL.render(strips=names, resume=resume,
                                                   start=start)
+        if table:
+            return M.M_I1IO_DRIVE_DUAL_FILL_OFFER.render(rows=rows, resume=resume,
+                                                         start=start)
         if dual:
             return M.M_DUAL_FILL_OFFER.render(strips=names, resume=resume,
                                               start=start)

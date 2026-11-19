@@ -28,9 +28,11 @@ EXTRA_IN_READING_D3_SITTING = ()         # job_reading_wire_cases, "D C1 D1 D3 F
 #                                          questions already)
 
 
-#: the two creep sittings (job_wire_cases "C ..."): the creep's first move after its first-visit
-#: question, and the check move to mark 3 after its own
-EXTRA_IN_CREEP_SITTINGS = {"S2 684.0": (44, 60), "R1 401.6": (44, 64)}
+#: the two creep sittings (job_wire_cases "C ..."): the check move to mark 3 (the tests' copy of
+#: tester 0.6.0's D2, tester_d2) after its first-visit question. 4.3.50: the creep's first move
+#: has no extra reading any more: "Go forward carefully, my hands are away" is asked in the
+#: alignment, before the creep reads the arm, and no first-visit question follows it
+EXTRA_IN_CREEP_SITTINGS = {"S2 684.0": (59,), "R1 401.6": (63,)}
 
 
 def rng_neutral_at(sim, indices) -> None:

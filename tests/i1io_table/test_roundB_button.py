@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import pytest
 
+from tests.i1io_table import tester_d2 as D2
 from tests.i1io_table import job_harness as H
 from tests.i1io_table import reader_sim as RS
 from tests.i1io_table.test_job_reading import read_page, small_sheet
@@ -114,7 +115,7 @@ def test_a_press_is_never_a_go(tmp_path):
     p = ButtonPerson(job, sim, helper)
     _to_aims(job, p)
     assert p.drive(job.align()).ok
-    res = job.check_move()
+    res = D2.check_move(job)
     assert res.kind == J.Kind.NEEDS and res.confirm == J.Confirm.GO
     sent = len(sim.received)
     # the button wait has ended with the aims: nothing hears a press now, and a stale token
@@ -304,7 +305,7 @@ def test_a_wait_that_does_not_let_go_opens_no_reader_and_says_so(tmp_path, monke
     order = []
     _slow_closing_waits(job, 1.5, order)
     assert p.drive(job.align()).ok
-    assert p.drive(job.check_move()).ok
+    assert p.drive(D2.check_move(job)).ok
     n = len(sim.received)
     r = p.drive(job.read_row())
     assert (r.kind, r.reason) == (J.Kind.REFUSED, J.BUTTON_WAIT_HOLDS)

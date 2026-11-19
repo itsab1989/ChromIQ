@@ -48,7 +48,7 @@ HIS_TABLE = {"right_end": -1434, "sight_offset": (-71, -318)}
 #: the questions 4.3.48 already asked on such a run (no new step may appear among them)
 KNOWN_QUESTIONS = {J.Confirm.READY_TO_OPEN, J.Confirm.READER_CONSENT, J.Confirm.CAL_PLACE,
                    J.Confirm.GO, J.Confirm.SHEET_LAID, J.Confirm.ARM_FELT, J.Confirm.AIMED,
-                   J.Confirm.FRONT_CHOICE, J.Confirm.FRONT_YES, J.Confirm.FIRST_VISIT}
+                   J.Confirm.FRONT_CHOICE, J.Confirm.FIRST_VISIT}
 
 
 def _shift(aims, dx, dy):
@@ -73,11 +73,9 @@ def _through_first_row(tmp_path, sheet, aims, store=None, **simkw):
         out.append(("creep", r.kind, r.reason, r.detail))
         if not r.ok:
             return out, job, sim, p
-    r = p.drive(job.check_move())
-    out.append(("check_move", r.kind, r.reason, r.detail))
-    if r.ok:
-        r = p.drive(job.read_row())
-        out.append(("read_row", r.kind, r.reason, r.detail))
+    # 4.3.50: no check move to mark 3; the first row follows
+    r = p.drive(job.read_row())
+    out.append(("read_row", r.kind, r.reason, r.detail))
     return out, job, sim, p
 
 
@@ -96,14 +94,15 @@ def test_q1_his_exact_aims_go_on_to_the_first_row_with_no_extra_step(tmp_path, a
     out, job, sim, p = _through_first_row(tmp_path / "a", H.demo_sheet(), aims)
     assert [s for s, k, _r in _steps(out) if k != J.Kind.OK] == [], _steps(out)
     assert [s for s, _k, _r in _steps(out)] == ["open", "calibrate", "align", "creep",
-                                               "check_move", "read_row"]
+                                               "read_row"]
     assert _asked(p) <= KNOWN_QUESTIONS, _asked(p) - KNOWN_QUESTIONS
     assert sim.violations == [] and sim.end_targets == []
     # after mark 3 the opening stood at the right stop (0.1 mm from it, as on 19 Nov) and the
     # first move started from there
     assert any(abs(x + 1433) <= 1 for x, _y in sim.hand_moves)
     front_mark = max(a[1] for a in aims)
-    assert job.alignment.aimed_front_y() >= job.front_need >= front_mark > geo.FRONTMOST_AIM_Y
+    # 4.3.50: the front need is the plan's frontmost target, short of the marks
+    assert job.alignment.aimed_front_y() >= front_mark > job.front_need > geo.FRONTMOST_AIM_Y
 
 
 def test_a_second_run_on_the_same_table_does_not_feel_its_way_forward_again(tmp_path):
@@ -116,10 +115,10 @@ def test_a_second_run_on_the_same_table_does_not_feel_its_way_forward_again(tmp_
     job.close()
     out2, job2, sim2, p2 = _through_first_row(tmp_path / "2", H.demo_sheet(), CROSSES_1, store,
                                               motors_have_been_to=been)
-    assert [s for s, _k, _r in _steps(out2)] == ["open", "calibrate", "align", "check_move",
+    assert [s for s, _k, _r in _steps(out2)] == ["open", "calibrate", "align",
                                                 "read_row"], _steps(out2)
     assert all(k == J.Kind.OK for _s, k, _r in _steps(out2))
-    assert J.Confirm.FRONT_CHOICE not in _asked(p2) and J.Confirm.FRONT_YES not in _asked(p2)
+    assert J.Confirm.FRONT_CHOICE not in _asked(p2)
     assert sim2.violations == []
     # another table (another serial) feels its way forward again
     out3, job3, sim3, p3 = _through_first_row(tmp_path / "3", H.demo_sheet(), CROSSES_1, store,
@@ -203,10 +202,11 @@ def test_q2_a_sheet_aimed_beyond_where_the_arm_ends_stops_at_the_end_and_says_by
     front than the opening can go. The creep (5 mm steps, each arrival checked) is the first
     motor visit there; its first step that does not arrive ends the measurement cleanly."""
     aims = _shift(CROSSES_1, 0, 0)
-    out, job, sim, p = _through_first_row(tmp_path, H.demo_sheet(), aims, front_end=3180)
+    # 4.3.50: the careful steps go to the frontmost patch row (3158), not to the marks (3253)
+    out, job, sim, p = _through_first_row(tmp_path, H.demo_sheet(), aims, front_end=3140)
     step, kind, reason, detail = out[-1]
     assert (step, kind, reason) == ("creep", J.Kind.REFUSED, "creep_step_did_not_arrive"), out
-    assert detail["short_mm"] >= (3253 - 3180) // 10
+    assert detail["short_mm"] >= (3158 - 3140) // 10
     assert job.only_home and sim.violations == []
     assert any("front end" in e[0] for e in sim.at_end_events)
     assert job.reach_diag["refusals"][-1]["kind"] == "creep_stopped"
@@ -262,4 +262,4 @@ def test_the_page_after_a_creep_that_met_the_end_says_how_far_to_lay_the_sheet_b
     assert "—" not in text
     # without the amount (an older detail), the general sentence stays
     assert reason_text("creep_step_did_not_arrive", {}) == tr(
-        "Feeling the way forward stopped at a step that did not arrive exactly.")
+        "The slow steps towards the front stopped at a step that did not arrive exactly.")

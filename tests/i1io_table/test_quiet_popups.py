@@ -108,9 +108,10 @@ def test_no_pop_up_ever_has_a_default_button_or_a_focused_one(qtbot, monkeypatch
 
 
 @pytest.mark.parametrize("key", [Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space])
-@pytest.mark.parametrize("page", ["go", "sheet_laid", "first_visit", "check_mark"])
+@pytest.mark.parametrize("page", ["go", "sheet_laid", "first_visit", "home_at_end"])
 def test_enter_return_and_space_never_answer(qtbot, monkeypatch, tmp_path, settings, key, page):
     win, sim, run, p, saved, finished = _quiet(qtbot, monkeypatch, tmp_path, settings)
+    p.script.update({"end_of_session": "Save and stop"})
     try:
         p.drive_until(page)
     except AssertionError:
@@ -131,7 +132,7 @@ def test_esc_on_a_pop_up_withdraws_and_moves_nothing(qtbot, monkeypatch, tmp_pat
     n = _moves(sim)
     win.popup().reject()                                  # what Esc calls
     p.idle()
-    assert _moves(sim) == n and p.page() in ("home_offered", "done", "end_of_session")
+    assert _moves(sim) == n and p.page() in ("home_offered", "home_at_end", "done", "end_of_session")
     if p.page() == "end_of_session":
         win.popup().reject()                              # Esc on the ending: a withdrawal
         p.idle()
@@ -144,7 +145,7 @@ def test_the_close_box_of_a_pop_up_is_its_esc(qtbot, monkeypatch, tmp_path, sett
     n = _moves(sim)
     win.popup().close()
     p.idle()
-    assert _moves(sim) == n and p.page() in ("home_offered", "done", "end_of_session")
+    assert _moves(sim) == n and p.page() in ("home_offered", "home_at_end", "done", "end_of_session")
     assert win.popup().isVisible()                        # the next question, never nothing
 
 
@@ -206,10 +207,10 @@ def test_report_a_problem_while_a_row_runs_waits_until_the_table_has_stopped(
         qtbot, monkeypatch, tmp_path, settings):
     win, sim, run, p, saved, finished = _quiet(qtbot, monkeypatch, tmp_path, settings,
                                                sheet=small_sheet([6, 6]))
-    p.drive_until("check_mark")
+    p.drive_until("rows")
     watch = _MoveWatch(win, sim)
     sim.transport.delay_s = 0.02
-    [b for b in win._buttons if b.text() == "Yes, it is centred, my hands are away"][0].click()
+    [b for b in win._buttons if b.text() == "Go"][0].click()
     qtbot.waitUntil(lambda: win._busy, timeout=5000)
     win._on_problem()                                     # the tab's Report a problem
     assert not win.popup_open() and win.pages_shown[-1] != "problem"
@@ -225,7 +226,7 @@ def test_report_a_problem_while_a_row_runs_waits_until_the_table_has_stopped(
 
 # ---- condition 3: a way to the ending from inside every pop-up of an open table ------------------
 
-@pytest.mark.parametrize("page", ["go", "sheet_laid", "aimed", "first_visit", "check_mark",
+@pytest.mark.parametrize("page", ["go", "sheet_laid", "aimed", "first_visit",
                                   "row_failed", "stopped_by_you", "next_page"])
 def test_every_pop_up_of_an_open_table_leads_to_the_ending(qtbot, monkeypatch, tmp_path,
                                                           settings, page):
@@ -237,7 +238,7 @@ def test_every_pop_up_of_an_open_table_leads_to_the_ending(qtbot, monkeypatch, t
         kw = {"sheet": _two_pages()}
     win, sim, run, p, saved, finished = _quiet(qtbot, monkeypatch, tmp_path, settings, **kw)
     if page == "stopped_by_you":
-        p.drive_until("check_mark")
+        p.drive_until("rows")
         win._on_stop()
     try:
         p.drive_until(page)
@@ -250,7 +251,7 @@ def test_every_pop_up_of_an_open_table_leads_to_the_ending(qtbot, monkeypatch, t
     n = _moves(sim)
     ways[0].click()
     p.idle()
-    assert p.page() in ("end_of_session", "home_offered", "done"), p.page()
+    assert p.page() in ("end_of_session", "home_offered", "home_at_end", "done"), p.page()
     assert _moves(sim) == n
 
 
@@ -286,26 +287,26 @@ def test_quit_with_a_pop_up_open_asks_the_ending_there(qtbot, monkeypatch, tmp_p
     n = _moves(sim)
     assert win.request_quit() is False
     p.idle()
-    assert p.page() in ("end_of_session", "home_offered", "done") and _moves(sim) == n
+    assert p.page() in ("end_of_session", "home_offered", "home_at_end", "done") and _moves(sim) == n
     assert win.popup_open()
 
 
 def test_quit_while_a_row_runs_and_no_pop_up_is_open(qtbot, monkeypatch, tmp_path, settings):
     win, sim, run, p, saved, finished = _quiet(qtbot, monkeypatch, tmp_path, settings,
                                                sheet=small_sheet([6, 6]))
-    p.drive_until("check_mark")
+    p.drive_until("rows")
     sim.transport.delay_s = 0.02
-    [b for b in win._buttons if b.text() == "Yes, it is centred, my hands are away"][0].click()
+    [b for b in win._buttons if b.text() == "Go"][0].click()
     qtbot.waitUntil(lambda: win._busy, timeout=5000)
     assert not win.popup_open()
     assert win.request_quit() is False
     qtbot.waitUntil(lambda: not win._busy, timeout=30000)
     sim.transport.delay_s = 0.0
     # the ending when something was read, else straight to the homing offer
-    assert p.page() in ("end_of_session", "home_offered") and win.popup_open()
+    assert p.page() in ("end_of_session", "home_offered", "home_at_end") and win.popup_open()
     if p.page() == "end_of_session":
         p.press("Save and stop")
-    assert p.page() == "home_offered"
+    assert p.page() == "home_at_end"
     p.press("Leave it there")
     p.idle()
     if not finished:
@@ -454,9 +455,9 @@ def test_the_tabs_stop_is_the_tables_stop(tab, beta, tmp_path, monkeypatch, qtbo
     run, sim = _tab_quiet(tab, tmp_path, monkeypatch, size=(1440, 900))
     win = tab._table_window
     p = WindowPerson(win, sim, lambda c: qtbot.waitUntil(c, timeout=15000))
-    p.drive_until("check_mark")
+    p.drive_until("rows")
     sim.transport.delay_s = 0.02
-    [b for b in win._buttons if b.text() == "Yes, it is centred, my hands are away"][0].click()
+    [b for b in win._buttons if b.text() == "Go"][0].click()
     qtbot.waitUntil(lambda: win._busy, timeout=5000)
     assert tab._stop_btn.isEnabled() and not win.popup_open()
     tab._stop_btn.click()
@@ -478,14 +479,14 @@ def test_the_pop_up_never_opens_over_the_chart_preview(tab, beta, tmp_path, monk
     win = tab._table_window
     p = WindowPerson(win, sim, lambda c: qtbot.waitUntil(c, timeout=15000))
     prev = QRect(tab._preview.mapToGlobal(QPoint(0, 0)), tab._preview.size())
-    for target in ("prepare", "sheet_laid", "aimed", "go", "check_mark", "end_of_session"):
+    for target in ("prepare", "sheet_laid", "aimed", "go", "end_of_session"):
         p.drive_until(target)
         fg = win.popup().frameGeometry()
         assert not fg.intersects(prev), (size, target, fg, prev)
 
 
 @pytest.mark.parametrize("page", ["prepare", "sheet_laid", "go", "end_of_session",
-                                  "home_offered"])
+                                  "home_at_end"])
 def test_no_button_of_a_pop_up_is_cut(qtbot, monkeypatch, tmp_path, settings, page):
     """Found on screen: the last answer and the footer were cut at the pop-up's lower edge
     (the polished buttons are taller than a hint taken before the pop-up was shown)."""
@@ -519,10 +520,10 @@ def test_at_most_one_answer_is_filled_in_the_accent(qtbot, monkeypatch, tmp_path
     seen, stopped = 0, False
     for _ in range(120):
         page = p.page()
-        if page == "check_mark" and not stopped:
+        if p.at_the_rows(page) and not stopped:
             stopped = True
             win._on_stop()                       # the Stopped page: two confirming answers
-            p.idle()
+            p.press("Go")                        # honoured at the answer: nothing moves
             page = p.page()
             assert page == "stopped_by_you"
         filled = [b.text() for b in win._answer_box.buttons() if b.objectName() == "primary"]

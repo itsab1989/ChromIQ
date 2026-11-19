@@ -171,10 +171,10 @@ ANSWERS = {
     "arm_felt": "It moves freely", "aimed": "Aimed",
     "reader_consent": "Open the instrument", "calibration_place": "Table's tile",
     "calibration_own_tile": "Ready", "calibration_reseated": "Seated",
-    "check_mark": "Yes, it is centred, my hands are away",
     "report_after_step": "As described, my hands are away",
-    "front_choice": "Lay it further back", "first_visit": "Make this move, my hands are away",
+    "front_choice": "I will move the sheet", "first_visit": "Make this move, my hands are away",
     "row_failed": "Read it again", "next_page": "Go on", "home_offered": "Bring the arm home",
+    "home_at_end": "Bring the arm home, my hands are away",
     "cal_choice": "Table's tile", "stored_white_refused": "Go on",
 }
 TICKED = ("consent", "ready_to_open")
@@ -271,6 +271,12 @@ def answer(w, page):
     press(w, ANSWERS[page])
 
 
+def _at_the_rows(w, page) -> bool:
+    """4.3.50: the hands-off GO before the first move of a row (the mark-3 check is gone)."""
+    last = getattr(w, "_last", None)
+    return page == "go" and last is not None and (last.detail or {}).get("step") == "read_row"
+
+
 def drive_until(w, stop, limit=1500):
     stop = (stop,) if isinstance(stop, str) else tuple(stop)
     for _ in range(limit):
@@ -278,6 +284,8 @@ def drive_until(w, stop, limit=1500):
         page = w.pages_shown[-1]
         if page in stop:
             return page
+        if "rows" in stop and _at_the_rows(w, page):
+            return "rows"
         answer(w, page)
     raise AssertionError(f"never reached {stop}; last pages {w.pages_shown[-8:]}")
 
@@ -352,10 +360,10 @@ def pass_first():
     start()
     yield 1500
     w = panel()
-    drive_until(w, "check_mark")
-    pshot(w, "check-mark", "the check that the opening is centred on the mark, before any row")
+    drive_until(w, "rows")
+    pshot(w, "first-row-go", "the hands-off question before the first row (no mark-3 check)")
     SIM.transport.delay_s, PACE["s"] = 0.06, 0.6     # a human pace while photographed
-    press(w, ANSWERS["check_mark"], wait=False)
+    press(w, "Go", wait=False)
     into_a_running_row(w)
     pshot(w, "row-running", "a row being read: the current patch marked strongly, read patches "
          "calmly, expected and measured side by side, one red Stop")
@@ -364,8 +372,9 @@ def pass_first():
     drive_until(w, "end_of_session")
     pshot(w, "ending", "every row read: Save and stop / Discard and stop / Keep measuring")
     press(w, "Save and stop")
-    while w.pages_shown[-1] in ("home_offered", "go"):
-        press(w, "Bring the arm home" if w.pages_shown[-1] == "home_offered" else "Go")
+    while w.pages_shown[-1] in ("home_offered", "go", "home_at_end"):
+        press(w, {"home_offered": "Bring the arm home", "go": "Go",
+                  "home_at_end": "Bring the arm home, my hands are away"}[w.pages_shown[-1]])
     pshot(w, "done", "the panel's last page after the Save")
     d.later([b for b in w._buttons if b.text() == tr("Close")][0].click)
     yield 800
@@ -381,9 +390,9 @@ def pass_stop():
     start()
     yield 1500
     w = panel()
-    drive_until(w, "check_mark")
+    drive_until(w, "rows")
     SIM.transport.delay_s, PACE["s"] = 0.09, 0.6
-    press(w, ANSWERS["check_mark"], wait=False)
+    press(w, "Go", wait=False)
     into_a_running_row(w)
     SIM.transport.delay_s = 3.0                       # a move still under way when Stop comes
     d.pump(300)

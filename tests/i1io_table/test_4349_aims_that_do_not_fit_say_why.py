@@ -106,11 +106,11 @@ def test_laid_where_the_page_says_his_aims_fit_and_the_first_move_starts():
     accepted, and the free arm after mark 3 (at the right end of the arm's travel, beside
     AREA_RAW) is moved from where it stands."""
     aims = _shift(CROSSES_1, 0, -160)
-    res, job, sim, _p = H.run_steps(["open", "align", "creep", "check_move", "home"],
+    res, job, sim, _p = H.run_steps(["open", "align", "creep", "home"],
                                     aims=aims, script={J.Confirm.FRONT_CHOICE: "go on"})
     assert res[1].ok, (res[1].reason, res[1].detail)
     assert all(r.reason != "free_arm_outside_area" for r in res), [r.reason for r in res]
-    assert res[2].ok and res[3].ok and res[4].ok, [(r.step, r.reason) for r in res]
+    assert res[2].ok and res[3].ok, [(r.step, r.reason) for r in res]
     assert sim.violations == []
 
 
@@ -120,11 +120,11 @@ def test_laid_only_back_the_free_arm_beside_the_area_is_moved_from_where_it_stan
     where recordings happened to read the arm); since Basti's ruling of 19 Nov 2026 the arm is
     moved from where the hand left it, judged by the target alone."""
     aims = _shift(CROSSES_1, 0, -190)
-    res, job, sim, _p = H.run_steps(["open", "align", "creep", "check_move"], aims=aims,
+    res, job, sim, _p = H.run_steps(["open", "align", "creep"], aims=aims,
                                     script={J.Confirm.FRONT_CHOICE: "go on"})
     assert res[1].ok
     assert all(r.reason != "free_arm_outside_area" for r in res), [r.reason for r in res]
-    assert res[2].ok and res[3].ok, [(r.step, r.reason) for r in res]
+    assert res[2].ok, [(r.step, r.reason) for r in res]
     assert sim.violations == []
 
 

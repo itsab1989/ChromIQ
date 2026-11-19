@@ -65,7 +65,7 @@ def _job(tmp_path, args=STRIP, sheet=None, faults=None, dual=True, chosen="M2", 
     return job, sim, helper, run, H.Person(job, sim, None)
 
 
-def _ready(job, p, steps=("open", "calibrate", "align", "check_move")):
+def _ready(job, p, steps=("open", "calibrate", "align")):
     for s in steps:
         r = p.drive(getattr(job, s)())
         assert r.ok, (s, r.reason, r.detail)
@@ -182,17 +182,19 @@ def test_a_dual_row_is_the_recorded_sequence(tmp_path):
     r = p.drive(job.read_row())
     assert r.ok and r.detail["row_kind"] == "strip", (r.reason, r.detail)
     got = [ln[:3] for ln in _row_lines(sim, n0)]
-    assert got == [";p0", ";c4", ";p0", ";m0", ";d1", ";p0", ";m2", ";a3", ";c3", ";p0",
-                   ";m0", ";c4", ";d1", ";p0", ";m2", ";a3", ";c3", ";p0"]
+    # 4.3.50: the first row starts from the FREE arm after the aims (no check move to mark 3
+    # before it): two more readings of where the hand left it (the stillness pair), nothing else
+    assert got == [";p0", ";p0", ";p0", ";c4", ";p0", ";m0", ";d1", ";p0", ";m2", ";a3", ";c3",
+                   ";p0", ";m0", ";c4", ";d1", ";p0", ";m2", ";a3", ";c3", ";p0"]
     lines = _row_lines(sim, n0)
-    assert lines[4] == ";d1016d35" and lines[12] == ";d100d23a"
+    assert lines[6] == ";d1016d35" and lines[14] == ";d100d23a"
     m2 = [geo.decode_xyv((ln + "\r").encode()) for ln in lines if ln.startswith(";m2")]
     assert [v for *_x, v in m2] == [132, 132]
     # the UV pass goes straight back over the same row, from where the lamp pass ended
-    assert (m2[1][1], m2[1][2]) == geo.decode_xyv((lines[3] + "\r").encode())[1:3]
+    assert (m2[1][1], m2[1][2]) == geo.decode_xyv((lines[5] + "\r").encode())[1:3]
     # the recorded zero-length m0 goes to the position the p0 after the lamp pass reported
     # (4.3.47's less ideal simulated table: within a unit or two of the lamp pass's target)
-    zero = geo.decode_xyv((lines[10] + "\r").encode())
+    zero = geo.decode_xyv((lines[12] + "\r").encode())
     rec = _row_record(job)
     assert (zero[1], zero[2]) == tuple(rec["scan"]["lamp"]["end_xy"])
     assert abs(zero[1] - m2[0][1]) <= sc.ARRIVAL_UNITS and abs(zero[2] - m2[0][2]) <= \

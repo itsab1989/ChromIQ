@@ -148,7 +148,7 @@ def test_not_after_a_move_that_did_not_arrive(tmp_path):
     job, sim, helper, run, p = job_for(tmp_path, real_table=False)
     sim.jitter = False
     for s in ("open", "calibrate", "align"):
-        assert p.drive(getattr(job, s)()).ok
+        assert p.drive(H.step(job, s)).ok
     _arrive_beside(sim, 2, 0, -40, reads=2)
     r = p.drive(job.read_row())
     assert r.kind == J.Kind.STOPPED and r.reason == "arm_not_where_expected"
@@ -232,7 +232,7 @@ def test_start_with_the_arm_out_reads_it_and_offers_the_usual_homing(tmp_path):
     assert sim.received[12:] == HOMING
     # then the measurement goes on as usual
     for s in ("calibrate", "align"):
-        assert p.drive(getattr(job, s)()).ok, s
+        assert p.drive(H.step(job, s)).ok, s
     assert sim.violations == []
 
 
@@ -268,7 +268,7 @@ def test_start_with_the_arm_out_but_at_rest_goes_on_as_usual(tmp_path):
     r = p.drive(job.where_is_the_arm())
     assert r.ok and r.detail["at_rest"] is True
     for s in ("calibrate", "align"):
-        assert p.drive(getattr(job, s)()).ok, s
+        assert p.drive(H.step(job, s)).ok, s
 
 
 def test_the_held_arm_out_of_the_area_is_never_offered_the_usual_homing(tmp_path):

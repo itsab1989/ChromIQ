@@ -21,13 +21,14 @@ DEFAULT = {
     "cal_choice": "Table's tile",
     "calibration_own_tile": "Ready",
     "calibration_reseated": "Seated",
-    "check_mark": "Yes, it is centred, my hands are away",
     "report_after_step": "As described, my hands are away",
-    "front_choice": "Lay it further back",
+    "front_choice": "I will move the sheet",
     "first_visit": "Make this move, my hands are away",
     "row_failed": "Read it again",
     "next_page": "Go on",
     "home_offered": "Bring the arm home",
+    # 4.3.50: the homing that is part of the ending (its hands-off GO)
+    "home_at_end": "Bring the arm home, my hands are away",
     "done": "Close",
 }
 #: pages whose ticks must all be ticked first
@@ -74,6 +75,15 @@ class WindowPerson:
         self.press(ans)
         return page
 
+    def at_the_rows(self, page: "str | None" = None) -> bool:
+        """4.3.50: the hands-off GO before the first move of a row (since the check move to mark 3
+        is gone, the page right after the aims, or after the careful steps): "rows" in
+        :meth:`drive_until` stops there, unanswered (press "Go" to start reading)."""
+        page = page or self.page()
+        last = getattr(self.win, "_last", None)
+        return (page == "go" and last is not None
+                and (getattr(last, "detail", None) or {}).get("step") == "read_row")
+
     def drive_until(self, stop_at, limit: int = 400) -> str:
         """Answer every page until one in *stop_at* is shown (returned)."""
         stop_at = (stop_at,) if isinstance(stop_at, str) else tuple(stop_at)
@@ -81,5 +91,7 @@ class WindowPerson:
             p = self.page()
             if p in stop_at:
                 return p
+            if "rows" in stop_at and self.at_the_rows(p):
+                return "rows"
             self.answer_page(p)
         raise AssertionError(f"never reached {stop_at}; seen {self.seen[-12:]}")

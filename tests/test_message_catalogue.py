@@ -137,7 +137,6 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-I1IO-DRIVE-ARM-FELT",
     "M-I1IO-DRIVE-AIM",
     "M-I1IO-DRIVE-FRONT",
-    "M-I1IO-DRIVE-FRONT-YES",
     "M-I1IO-DRIVE-FIRST-VISIT",
     "M-I1IO-DRIVE-READER-CONSENT",
     "M-I1IO-DRIVE-READER-CONSENT-MAC",
@@ -150,7 +149,6 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-I1IO-DRIVE-WHITE-BASE-OWN",
     "M-I1IO-DRIVE-CAL-OWN-TILE",
     "M-I1IO-DRIVE-CAL-RESEAT",
-    "M-I1IO-DRIVE-CHECK-MARK",
     "M-I1IO-DRIVE-ROW-FAILED",
     "M-I1IO-DRIVE-ROW-NOT-AGAIN",
     "M-I1IO-DRIVE-REPORT",
@@ -164,6 +162,13 @@ AWAITING_APPROVAL: "set[str]" = {
     # 4.3.50 (safety review 449, SHOULD-2): a creep step answered with an error, refused, or
     # not answered
     "M-I1IO-DRIVE-FRONT-STOPPED",
+    # 4.3.50 b: the homing that is part of the ending, the table's own dual fill notes, the
+    # table chart window when its side file is there
+    "M-I1IO-DRIVE-HOME-AT-END",
+    "M-I1IO-DRIVE-DUAL-CONTINUE-FILL",
+    "M-I1IO-DRIVE-DUAL-FILL-OFFER",
+    "M-I1IO-NOT-YET-SIDE-FILE",
+    "M-I1IO-NOT-YET-SIDE-FILE-BY-HAND",
     "M-I1IO-DRIVE-HOME-OFFERED",
     "M-I1IO-DRIVE-SWITCH-OFF",
     "M-I1IO-DRIVE-STOPPED",
@@ -213,7 +218,6 @@ AWAITING_APPROVAL: "set[str]" = {
     # 2026-11-18, final fix round: a chart without aiming crosses (the owner)
     "M-I1IO-DRIVE-AIM-PATCH",
     "M-I1IO-DRIVE-AIM-BUTTON-PATCH",
-    "M-I1IO-DRIVE-CHECK-MARK-PATCH",
     # 2026-11-18, final fix round: the offer to make strips the table's default (the owner)
     "M-I1IO-DRIVE-STRIP-DEFAULT-OFFER",
     "M-I1IO-DRIVE-ROW-FAILED-STRIP",

@@ -38,7 +38,7 @@ def _job(tmp_path, args=STRIP, sheet=None, faults=None, script=None, **kw):
     return job, sim, helper, run, H.Person(job, sim, script)
 
 
-def _ready(job, p, steps=("open", "calibrate", "align", "check_move")):
+def _ready(job, p, steps=("open", "calibrate", "align")):
     for s in steps:
         r = p.drive(getattr(job, s)())
         assert r.ok, (s, r.reason, r.detail)
@@ -247,7 +247,7 @@ def test_a_scan_move_that_may_wait_says_switch_off_first_and_sends_nothing_more(
     assert r.kind == J.Kind.STOPPED and r.reason == "strip_move_may_be_pending"
     assert r.way_back == J.WayBack.SWITCH_OFF_PENDING and r.state.strip_move_may_be_pending
     n = len(sim.received)
-    for step in ("read_row", "home", "check_move"):
+    for step in ("read_row", "home", "align"):
         assert not getattr(job, step)().ok
     assert len(sim.received) == n
     job.close()

@@ -92,19 +92,19 @@ def test_asking_mode_asks_after_the_start_up():
     assert [s for s, _a in p.reports] == ["start_up", "align"]
 
 
-@pytest.mark.parametrize("step", ["park", "align", "check_move"])
+@pytest.mark.parametrize("step", ["park", "align"])
 def test_asking_mode_refuses_every_moving_step_but_the_homing_until_answered(step):
     job, sim, _t = H.make_job()
     p = H.Person(job, sim, {"report": None})          # the person does not answer yet
     assert p.drive(job.open()).ok
-    order = {"park": [], "align": [], "check_move": ["align"]}[step]
+    order = {"park": [], "align": []}[step]
     for s in order:
-        p.drive(getattr(job, s)())
+        p.drive(H.step(job, s))
         job.answer(J.Confirm.REPORT_AFTER_STEP, "as described")
     r = p.drive(getattr(job, step)())
     assert r.confirm == J.Confirm.REPORT_AFTER_STEP and job.report_due == step
     n = len(sim.received)
-    for other in ("park", "align", "creep", "check_move"):
+    for other in ("park", "align", "creep"):
         assert getattr(job, other)().reason == "report_due"
     assert job.next_page().reason == "report_due"
     assert len(sim.received) == n
@@ -114,19 +114,16 @@ def test_asking_mode_refuses_every_moving_step_but_the_homing_until_answered(ste
 
 
 @pytest.mark.parametrize("answer", ["something wrong", "not sure"])
-@pytest.mark.parametrize("step", ["park", "align", "check_move"])
+@pytest.mark.parametrize("step", ["park", "align"])
 def test_asking_mode_a_report_but_as_described_leaves_only_the_homing(step, answer):
     job, sim, _t = H.make_job()
     p = H.Person(job, sim, {"report": None})
     assert p.drive(job.open()).ok
-    if step == "check_move":
-        p.drive(job.align())
-        job.answer(J.Confirm.REPORT_AFTER_STEP, "as described")
     p.drive(getattr(job, step)())
     r = job.answer(J.Confirm.REPORT_AFTER_STEP, answer)
     assert r.ok and r.state.only_homing
     n = len(sim.received)
-    for other in ("park", "align", "creep", "check_move"):
+    for other in ("park", "align", "creep"):
         assert getattr(job, other)().kind == J.Kind.REFUSED
     assert len(sim.received) == n
     if step != "park":
@@ -185,7 +182,7 @@ def test_no_offer_unless_the_measurement_was_clean(how):
     job, sim, _t = H.make_job(**kw)
     p = H.Person(job, sim, script)
     for s in steps:
-        r = p.drive(getattr(job, s)())
+        r = p.drive(H.step(job, s))
         if how == "a problem" and s == "align":
             job.report_problem(J.PROBLEM_SOMETHING_WRONG)
         if how == "a stop" and s == "align":
@@ -199,13 +196,18 @@ def test_no_offer_unless_the_measurement_was_clean(how):
 
 def test_not_asking_mode_asks_nothing_after_a_step_and_go_once_per_page():
     """GO once per page, plus once more after the aims (the safety review's confirmation of
-    step 6: the hands were on the free arm)."""
+    step 6: the hands were on the free arm). 4.3.50: on a sheet that reaches the front, that
+    second hands-off confirmation is the front question's "Go forward carefully, my hands are
+    away" (asked after the aims), so no separate GO follows it."""
     sheet, pts = H.recorded_sheet("S2 684.0", 18)
-    res, job, sim, p = H.run_steps(["open", "park", "align", "creep", "check_move", "home"],
+    res, job, sim, p = H.run_steps(["open", "park", "align", "creep", "home"],
                                    script={J.Confirm.FRONT_CHOICE: "go on"}, sheet=sheet,
                                    aims=pts, ask_after_each_step=False)
     assert p.reports == [] and all(r.confirm is None for r in res)
-    assert [k for _s, k, *_ in p.asked].count(J.Confirm.GO) == 2
+    kinds = [k for _s, k, *_ in p.asked]
+    assert kinds.count(J.Confirm.GO) == 1
+    assert kinds.index(J.Confirm.FRONT_CHOICE) > max(i for i, k in enumerate(kinds)
+                                                    if k == J.Confirm.AIMED)
     assert all(r.kind == J.Kind.OK for r in res)
 
 
@@ -232,19 +234,44 @@ def test_go_is_asked_again_on_the_next_page():
 # ---- the safety review's confirmation of step 6: GO again after the aims ----------------------
 
 @pytest.mark.parametrize("asking", [True, False], ids=["asking mode", "not asking"])
-@pytest.mark.parametrize("after", [["creep", "check_move", "home"], ["check_move", "home"],
-                                   ["home"]], ids=["creep", "check move", "homing"])
+def test_after_the_aims_the_careful_steps_follow_the_front_answer_only(asking):
+    """4.3.50: on a sheet reaching the front, the hands-off confirmation after the aims is the
+    front question's "Go forward carefully, my hands are away" (asked after the aims, its page
+    asks the hands away): the creep then asks no GO; "I will move the sheet" moves nothing."""
+    sheet, pts = H.recorded_sheet("S2 684.0", 18)
+    for choice in ("back", "go on"):
+        job, sim, _t = H.make_job(sheet=sheet, aims=pts, ask_after_each_step=asking)
+        p = H.Person(job, sim, {J.Confirm.FRONT_CHOICE: choice})
+        assert p.drive(job.open()).ok
+        n_moves = len(moves(sim.received))
+        r = p.drive(job.align())
+        aimed_last = max(i for i, (_s, k, *_r) in enumerate(p.asked) if k == J.Confirm.AIMED)
+        front = [i for i, (_s, k, *_r) in enumerate(p.asked) if k == J.Confirm.FRONT_CHOICE]
+        assert front and front[0] > aimed_last
+        moved_by_align = len(moves(sim.received)) - n_moves
+        if choice == "back":
+            assert r.reason == "sheet_to_be_laid_further_back" and job.alignment is None
+            continue
+        assert r.kind == J.Kind.OK and job._go_page == job.page
+        before = len(p.asked)
+        n = len(moves(sim.received))
+        assert p.drive(job.creep()).ok
+        assert [k for _s, k, *_r in p.asked[before:]] == []
+        assert len(moves(sim.received)) > n and moved_by_align >= 0
+        assert sim.violations == []
+
+
+@pytest.mark.parametrize("asking", [True, False], ids=["asking mode", "not asking"])
+@pytest.mark.parametrize("after", [["home"]], ids=["homing"])
 def test_after_the_aims_no_moving_step_runs_without_a_new_go(asking, after):
     """The person's hands were on the free arm for the aims: the first motor move after them
-    (the creep, the check move or the homing) waits for a hands-off GO, in both modes; a "back"
-    there moves nothing."""
-    # the creep needs a sheet reaching into the front zone; the check move one that does not
-    sheet, pts = (H.recorded_sheet("S2 684.0", 18) if after[0] == "creep"
-                  else (H.demo_sheet(), H.demo_aims()))
+    (the homing here; the first row in test_4350_no_mark3_check) waits for a hands-off GO, in
+    both modes; a "back" there moves nothing."""
+    sheet, pts = (H.demo_sheet(), H.demo_aims())
     job, sim, _t = H.make_job(sheet=sheet, aims=pts, ask_after_each_step=asking)
     p = H.Person(job, sim, {J.Confirm.FRONT_CHOICE: "go on"})
     for s in ("open", "align"):
-        assert p.drive(getattr(job, s)()).kind == J.Kind.OK
+        assert p.drive(H.step(job, s)).kind == J.Kind.OK
     assert job._go_page is None
     n_moves = len(moves(sim.received))
     r = getattr(job, after[0])()
@@ -254,7 +281,7 @@ def test_after_the_aims_no_moving_step_runs_without_a_new_go(asking, after):
     assert r.reason == "person_chose_back" and len(moves(sim.received)) == n_moves
     for s in after:
         before = len(p.asked)
-        assert p.drive(getattr(job, s)()).kind == J.Kind.OK
+        assert p.drive(H.step(job, s)).kind == J.Kind.OK
         gos = [k for _s, k, *_ in p.asked[before:]].count(J.Confirm.GO)
         assert gos == (1 if s == after[0] else 0)
     assert sim.violations == []
@@ -310,7 +337,7 @@ def test_a_problem_at_every_line_is_taken(kind):
         holder["job"] = job
         p = H.Person(job, sim)
         for s in STEPS:
-            r = p.drive(getattr(job, s)())
+            r = p.drive(H.step(job, s))
         assert job.problems and job.problems[0][0] == kind, i
         if kind == J.PROBLEM_STOP_NOW:
             assert len(sim.received) == i + 1, i                  # the line on its way, no more
@@ -506,6 +533,6 @@ def test_stop_now_between_steps_closes_the_sending_at_once(asking):
     assert r.kind == J.Kind.STOPPED and r.state.sending_closed and r.state.stopped_by_person
     assert r.way_back == J.WayBack.OPEN_I1PROFILER_ONCE      # out on the table, free
     n = len(sim.received)
-    for s in ("park", "align", "check_move", "home", "next_page"):
+    for s in ("park", "align", "home", "next_page"):
         assert getattr(job, s)().kind == J.Kind.REFUSED
     assert len(sim.received) == n

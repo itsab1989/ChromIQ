@@ -28,8 +28,9 @@ TWO FRAMES, ONE OF THEM FOR PLACES. The table answers two position questions:
   the grid through the three p1 readings within 1 unit; the values computed from its raw readings
   at those places agree with its own saved files to 0.09 dE00 on average (scan) and 0.07 (spot)
   with the table's stored tile values. No offset between a p1 reading and a target exists
-  anywhere in this package. (A row driven by ChromIQ has not run on a real table yet; the check
-  move's question at mark 3 is the live safeguard for that path.)
+  anywhere in this package. (4.3.50: a page driven by ChromIQ HAS run on a real table, 19 Nov
+  2026: 528 patches read patch by patch, every arrival within 4 units, no sign of a reading off
+  its patch; the check move to mark 3 and its question, the safeguard until then, are gone.)
 
 So a p1 reading says where a mark lies; it is NOT a place the opening has been. Turning aims into
 targets needs no conversion (i1Profiler's own model, checked against its recorded moves:
@@ -568,8 +569,8 @@ def _mm_up(units: float) -> int:
 
 def sheet_move_advice(readings) -> dict:
     """How far the sheet would have to lie further back / front / left / right (whole mm, 0 =
-    not that way) so that all three aims lie inside CAP_AREA, the target area (mark 3 is the
-    check move's target, and the corner patches lie just inside the marks). Words for the
+    not that way) so that all three aims lie inside CAP_AREA, the target area (the corner patches lie just
+    inside the marks; the aims are kept inside it although no move goes to them since 4.3.50). Words for the
     person only; :func:`fit_alignment` and the job's checks decide."""
     pts = [tuple(map(float, p)) for p in readings]
     return {"back_mm": _mm_up(max(p[1] for p in pts) - CAP_AREA.ymax),

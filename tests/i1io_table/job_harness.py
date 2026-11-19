@@ -107,7 +107,7 @@ OK_PREFLIGHT = us.Preflight("macos", {"platform": "darwin"}, us.Check("ok", {"i1
 #: the tester's AutoConsole: the first choice to every question, except where a script says
 DEFAULT = {J.Confirm.START_UP: "yes", J.Confirm.GO: "yes", J.Confirm.SHEET_LAID: "yes",
            J.Confirm.ARM_FELT: "free", J.Confirm.AIMED: "aimed", J.Confirm.FRONT_CHOICE: "back",
-           J.Confirm.FRONT_YES: "yes", J.Confirm.FIRST_VISIT: "yes",
+           J.Confirm.FIRST_VISIT: "yes",
            J.Confirm.MARKER: "switched off and on", J.Confirm.READY_TO_OPEN: "yes",
            #: the person's report after a step that moved (tester: "did it do what was
            #: described?"; its AutoConsole answered "yes")
@@ -160,7 +160,8 @@ class Person:
 
 
 def make_job(sim=None, sheet=None, aims=None, folder=None, preflight=None, run=None, stamp=None,
-             other_program=None, ask_after_each_step=True, reach_store=None, **simkw):
+             other_program=None, ask_after_each_step=True, reach_store=None, job_class=None,
+             **simkw):
     sheet = sheet or demo_sheet()
     if sim is None:
         sim = csim.CSimTable(part_c=True, aims=aims or demo_aims(sheet), **simkw)
@@ -169,13 +170,23 @@ def make_job(sim=None, sheet=None, aims=None, folder=None, preflight=None, run=N
         if not sim.aims:
             sim.aims = list(aims or demo_aims(sheet))
     transport = ss.SimTransport(sim)
-    job = J.TableJob(sheet, folder=folder, run=run, stamp=stamp,
+    job = (job_class or J.TableJob)(sheet, folder=folder, run=run, stamp=stamp,
                      open_transport=lambda: transport,
                      preflight=lambda: preflight or OK_PREFLIGHT,
                      other_program=other_program or (lambda: False),
                      ask_after_each_step=ask_after_each_step,
                      reach_store=reach_store if reach_store is not None else store_like_4348())
     return job, sim, transport
+
+
+def step(job, s: str):
+    """One step of *job* by its name. 4.3.50: "check_move" is the tests' copy of 4.3.49's check
+    move (tester_d2), for a test whose subject needs the arm held out over the sheet the way
+    4.3.49 put it there; the app's job has no such step."""
+    if s == "check_move":
+        from tests.i1io_table import tester_d2 as D2
+        return D2.check_move(job)
+    return getattr(job, s)()
 
 
 def run_steps(steps, script=None, on_ask=None, **kw):
@@ -185,7 +196,7 @@ def run_steps(steps, script=None, on_ask=None, **kw):
     person = Person(job, sim, script, on_ask)
     results = []
     for s in steps:
-        res = person.drive(getattr(job, s)())
+        res = person.drive(step(job, s))
         results.append(res)
         if res.kind == J.Kind.STOPPED:
             break

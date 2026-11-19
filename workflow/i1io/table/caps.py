@@ -66,9 +66,10 @@ HOME = (8, 1)              # stage F: s0 p0 i1 s0 f0 f4 f4 p0
 #: 0.3 s) each; the homing's own s0 p0 is then sent once more before its i1 (+2 lines).
 WAY_BACK_MOVES_MAX = 4
 WAY_BACK = (3 * WAY_BACK_MOVES_MAX, WAY_BACK_MOVES_MAX)
-#: One alignment cycle: the way out, the aims, the creep, the check move, the way back and the
-#: homing.
-ALIGN_CYCLE = tuple(sum(v) for v in zip(APPROACH, AIMS, CREEP, CHECK_MOVE,
+#: One alignment cycle: the way out, the aims, the creep, the way back and the homing (4.3.50:
+#: the check move to mark 3 is gone; CHECK_MOVE is kept only for the tests' copy of tester
+#: 0.6.0's D2, which pins the other stages' wire against the tester).
+ALIGN_CYCLE = tuple(sum(v) for v in zip(APPROACH, AIMS, CREEP,
                                          (WAY_BACK[0] + 2, WAY_BACK[1]), HOME))
 #: A strip row (stage E2's row step 12 / 2, and its front-row ends 7 / 2).
 STRIP_ROW = (12 + 7, 2 + 2)

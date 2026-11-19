@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import pytest
 
+from tests.i1io_table import tester_d2 as D2
 from tests.i1io_table import job_harness as H
 from tests.i1io_table import reader_sim as RS
 from tests.i1io_table.test_job_ending import SECOND, _end, job_on, project
@@ -59,7 +60,7 @@ def _one_row(tmp_path, asking, rows=(4, 4, 4)):
 _STEPS_AFTER_AN_ENDING = {
     "read_row": lambda j: j.read_row(), "read_row_1_again": lambda j: j.read_row(1),
     "align": lambda j: j.align(), "creep": lambda j: j.creep(),
-    "check_move": lambda j: j.check_move(), "park": lambda j: j.park(),
+    "check_move": lambda j: D2.check_move(j), "park": lambda j: j.park(),
     "calibrate": lambda j: j.calibrate(), "read_tile": lambda j: j.read_tile(),
     "start_up": lambda j: j.start_up(), "next_page": lambda j: j.next_page(),
     "open": lambda j: j.open(), "set_options": lambda j: j.set_options(["-p"]),
@@ -326,7 +327,7 @@ def test_m3_nothing_moves_on_a_page_with_nothing_missing(tmp_path):
     job.page = 1                                                   # page 2: complete
     assert p.drive(job.calibrate()).ok                             # moves nothing anyway
     n = len(sim.received)
-    for step in ("align", "creep", "check_move", "read_row"):
+    for step in ("align", "creep", "read_row"):
         r = getattr(job, step)()
         assert (r.kind, r.reason) == (J.Kind.REFUSED, "nothing_missing_on_this_page"), step
     assert len(sim.received) == n
@@ -617,7 +618,7 @@ def test_s1_a_stop_while_a_question_is_shown_ends_the_step_before_it_moves(tmp_p
             job.stop_at_next_pause()
         return None
     p.on_ask = on_ask
-    r = p.drive(job.check_move() if question == J.Confirm.GO else job.align())
+    r = p.drive(D2.check_move(job) if question == J.Confirm.GO else job.align())
     assert (r.kind, r.reason) == (J.Kind.REFUSED, STOPPED_BEFORE), r.reason
     assert len(moves(sim.received)) == seen[0]
     assert job._go_page is None and not job._pause_stop

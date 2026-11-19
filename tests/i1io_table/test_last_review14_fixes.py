@@ -68,7 +68,7 @@ def _pending_strip(qtbot, monkeypatch, tmp_path, settings, asking, problem=True,
     sim = WindowSim(faults={"scan": {"no_lamp": True}, "scan_at": scan_at})
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
                                                     asking=asking, sim=sim, args=STRIP)
-    p.drive_until("check_mark")
+    p.drive_until("rows")
     seen = []
     win.moving_changed.connect(seen.append)
     tsim = sim.sim
@@ -88,7 +88,7 @@ def _pending_strip(qtbot, monkeypatch, tmp_path, settings, asking, problem=True,
     labels = {"first_visit": "Make this move, my hands are away", "go": "Go",
               "report_after_step": "As described, my hands are away",
               "reader_consent": "Open the instrument"}
-    _btn(win, "Yes, it is centred, my hands are away").click()      # the rows start
+    _btn(win, "Go").click()                                       # the rows start
     for _ in range(30):
         if problem and not win._popups and win._busy:
             win._on_problem()          # the panel's Report a problem while the row runs
@@ -447,8 +447,8 @@ def test_s1_go_is_not_taken_in_its_first_moment(qtbot, monkeypatch, tmp_path, se
     label = {"go": "Go", "sheet_laid": "The page is laid, and my hands are away from the table",
              "start_up": "Start the table, my hands are away",
              "first_visit": "Make this move, my hands are away",
-             "check_mark": "Yes, it is centred, my hands are away",
-             "report_after_step": "As described, my hands are away"}[page]
+             "report_after_step": "As described, my hands are away",
+             "home_at_end": "Bring the arm home, my hands are away"}[page]
     b = _btn(win, label)
     n = _moves(sim)
     assert not b.isEnabled()                        # shown as not yet ready
@@ -504,7 +504,8 @@ def test_s1_every_hands_off_answer_is_held(hands_off_hold):
     """The held labels are exactly the answers QUESTIONS.md marks as the hands-off
     confirmation (the job's own list, by the window's words)."""
     shown = {W.choice_label(k, v) for k, v in J.HANDS_OFF_ANSWERS}
-    shown |= {"Yes, it is centred, my hands are away"}
+    # 4.3.50: the GO of the homing that is part of the ending has its own words
+    shown |= {"Bring the arm home, my hands are away"}
     assert set(W.HANDS_OFF_LABELS) == shown
 
 
@@ -548,7 +549,7 @@ def test_s3_every_page_that_moves_at_once_carries_the_switch_off_line(qtbot, mon
         if page == "done":
             break
         p.answer_page(page)
-    assert {"go", "sheet_laid", "check_mark"} <= seen
+    assert {"go", "sheet_laid", "home_at_end"} <= seen
 
 
 # ---- S-4: the tab's Stop in quiet mode -----------------------------------------------------------
@@ -570,7 +571,7 @@ def test_s4_the_tabs_stop_is_red_only_while_a_quiet_table_session_is_open(tab, b
     p.drive_until("sheet_laid")
     assert "#c62828" in tab._stop_btn.styleSheet()
     win._on_end_pressed()                 # nothing read: no completion window of the tab
-    p.script.update({"home_offered": "Leave it there"})
+    p.script.update({"home_offered": "Leave it there", "home_at_end": "Leave it there"})
     p.drive_until("done")
     p.press("Close")
     qtbot.waitUntil(lambda: getattr(tab, "_table_window", None) is None or win._finished,

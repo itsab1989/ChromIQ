@@ -12,6 +12,7 @@ from tests.i1io_table import job_harness as H
 from tests.i1io_table import must1_wire as M1
 from tests.i1io_table import part_c_sim as csim
 from tests.i1io_table import reader_sim as RS
+from tests.i1io_table.tester_d2 import TesterD2Job
 from workflow.i1io.table import job as J
 from workflow.i1io.table import usb_system as us
 
@@ -70,7 +71,7 @@ def job_run(case: dict, tmp_path, ask_after_each_step: bool = True):
     job, sim, helper, _run = RS.make_reading_job(
         tmp_path, faults=faults, sim=sim,
         instrument=lambda: us.Check("ok", {"i1pro_devices": 1}),
-        ask_after_each_step=ask_after_each_step)
+        ask_after_each_step=ask_after_each_step, job_class=TesterD2Job)
     holder["job"] = job
     sim.job = job          # 4.3.47 MUST-1: its own record of the extra readings
     assert job.set_options(STRIP_ARGS).ok

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import pytest
 
+from tests.i1io_table import tester_d2 as D2
 from tests.i1io_table import job_harness as H
 from tests.i1io_table.job_strip_wire_cases import STRIP_ARGS
 from tests.i1io_table.test_job_reading import job_for
@@ -44,7 +45,7 @@ def test_a_refused_alignment_is_aimed_again_at_once_without_a_move(bad):
     # no SHEET_LAID, no way out again: GO, then the three aims, then the recorded lines
     assert [a[1] for a in p.asked[asked:]] == [J.Confirm.GO] + [J.Confirm.AIMED] * 3
     assert not [ln for ln in sim.received[n:] if ln[1:3] in MOVES]
-    assert p.drive(job.check_move()).ok
+    assert p.drive(D2.check_move(job)).ok
     assert sim.violations == []
 
 
@@ -136,7 +137,7 @@ def test_a_strip_row_start_beside_its_target(tmp_path, off, closed):
                                        real_table=False)
     assert job.set_options(STRIP_ARGS).ok
     sim.jitter = False
-    for s in ("open", "calibrate", "align", "check_move"):
+    for s in ("open", "calibrate", "align"):          # 4.3.50: no check move
         assert p.drive(getattr(job, s)()).ok, s
     seen = []
     p.on_ask = lambda person, res: seen.append((res.confirm, dict(res.detail))) and None

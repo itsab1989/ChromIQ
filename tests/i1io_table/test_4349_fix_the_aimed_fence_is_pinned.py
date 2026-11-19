@@ -83,7 +83,7 @@ def test_a_patch_outside_the_sheets_marks_is_refused_and_nothing_is_sent(tmp_pat
                                            ask_after_each_step=False,
                                            reach_store=rc.MemoryReachStore(), **HIS_TABLE)
     p = H.Person(job, sim, GO_ON)
-    for step in ("open", "calibrate", "align", "creep", "check_move"):
+    for step in ("open", "calibrate", "align", "creep"):
         assert p.drive(getattr(job, step)()).kind == J.Kind.OK, step
     n = len(sim.received)
     r = p.drive(job.read_row(1, kind=kind))
@@ -132,7 +132,7 @@ def test_a_free_arm_reading_never_counts_as_where_the_motors_arrived(tmp_path):
     sim.inject("refuse", cid="m0")              # the creep's first move is refused: no arrival
     r = p.drive(job.creep())
     assert r.kind != J.Kind.OK
-    assert job.reads_after_question, "the free arm was read again after the questions"
+    # 4.3.50: the creep reads the free arm afresh (its stillness pair) after the front question
     assert job.reach.motor_front_y is None, job.reach.as_dict()
     assert job.reach_diag["motor_arrivals"] == 0
 
@@ -148,7 +148,7 @@ def test_a_stored_entry_edited_by_hand_is_ignored_and_said_in_the_diagnostics(tm
     got = store.get(key)
     assert got.motor_front_y is None and got.ignored and "tag" in got.ignored
     out, job, sim, p = _through_first_row(tmp_path, H.demo_sheet(), CROSSES_1, store)
-    assert J.Confirm.FRONT_CHOICE in _asked(p) and J.Confirm.FRONT_YES in _asked(p)
+    assert J.Confirm.FRONT_CHOICE in _asked(p)
     assert "creep" in [s for s, _k, _r, _d in out]
     assert job.reach_diag["ignored"] == got.ignored
     assert any(e["kind"] == "record_ignored" for e in job.reach_diag["refusals"])
@@ -186,12 +186,13 @@ def test_an_entry_as_stored_is_used(tmp_path):
 
 
 def test_a_remembered_front_spares_nothing_beyond_this_sittings_need_or_its_own_aims(tmp_path):
-    """Learned on a sheet aimed to 3273 with the motors at 3223; this sitting's sheet lies 6 mm
-    further forward: the question is asked again and the creep goes on from 3223."""
-    store, _key = _tagged_store(3223, 3273)
+    """Learned on a sheet aimed to 3273 with the motors at 3123; this sitting's sheet lies 6 mm
+    further forward (its frontmost row at 3218, 4.3.50: the plan's need, not the marks'): the
+    question is asked again and the creep goes on from 3123."""
+    store, _key = _tagged_store(3123, 3273)
     aims = [(x, y + 60) for x, y in CROSSES_1]
     out, job, sim, p = _through_first_row(tmp_path, H.demo_sheet(), aims, store,
-                                          motors_have_been_to=3223)
+                                          motors_have_been_to=3123)
     assert J.Confirm.FRONT_CHOICE in _asked(p)
     creep = [d for s, _k, _r, d in out if s == "creep"]
     assert creep and all(k == J.Kind.OK for _s, k, _r, _d in out), out
