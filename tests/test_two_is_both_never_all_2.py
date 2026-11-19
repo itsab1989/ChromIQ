@@ -42,7 +42,9 @@ def test_the_opening_line_counts_one_two_and_many():
 
 def test_both_windows_take_the_line_from_the_one_helper():
     src = (ROOT / "ui" / "tabs" / "tab_measure.py").read_text(encoding="utf-8")
-    assert src.count("remeasured_opening(len(self._strip_list)") == 2
+    # 4.3.49: the count is the strips the guide visited (_guided_strip_count:
+    # the refinement list, or that list with the strips it completed)
+    assert src.count("remeasured_opening(self._guided_strip_count()") == 2
     # the old inline form, which had only one and many, is gone
     assert src.count('tr("<b>All {n} chart strips have been re-measured') == 1
 

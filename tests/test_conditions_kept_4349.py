@@ -509,7 +509,8 @@ def test_a_partial_file_is_pruned_only_when_nothing_holds_it(tmp_path):
     cdir.mkdir(parents=True)
     main = run / "chart.ti3"
     main.write_text('CTI3\nBEGIN_DATA_FORMAT\nSAMPLE_LOC XYZ_X\nEND_DATA_FORMAT\n'
-                    'NUMBER_OF_SETS 1\nBEGIN_DATA\n"A1" 1.0\nEND_DATA\n')
+                    'NUMBER_OF_SETS 1\nBEGIN_DATA\n"A1" 1.0\nEND_DATA\n',
+                    encoding="latin-1")
     key = ic.data_block_hash(main)
 
     def write(name, of, cond):
@@ -517,7 +518,8 @@ def test_a_partial_file_is_pruned_only_when_nothing_holds_it(tmp_path):
             f'CTI3\nKEYWORD "MEASUREMENT_CONDITION"\nMEASUREMENT_CONDITION "{cond}"\n'
             f'KEYWORD "CHROMIQ_CONDITION_OF"\nCHROMIQ_CONDITION_OF "{of}"\n'
             'BEGIN_DATA_FORMAT\nSAMPLE_LOC XYZ_X\nEND_DATA_FORMAT\n'
-            'NUMBER_OF_SETS 1\nBEGIN_DATA\n"A1" 2.0\nEND_DATA\n')
+            'NUMBER_OF_SETS 1\nBEGIN_DATA\n"A1" 2.0\nEND_DATA\n',
+            encoding="latin-1")
     write(f"{key}-M1.partial.ti3", key, "M1")                # held
     write("9-00000000-M1.partial.ti3", "9-00000000", "M1")   # nobody's
     write("8-00000000-M2.partial.ti3", "7-00000000", "M2")   # not ours
@@ -552,7 +554,8 @@ def test_the_plan_names_the_strips_and_ended_before_is_only_the_old_header(
     main = tmp_path / "chart.ti3"
     main.write_text('CTI3\nKEYWORD "CHROMIQ_DUAL_SCAN"\nCHROMIQ_DUAL_SCAN "i1pro2"\n'
                     'BEGIN_DATA_FORMAT\nSAMPLE_LOC XYZ_X\nEND_DATA_FORMAT\n'
-                    'NUMBER_OF_SETS 2\nBEGIN_DATA\n"A1" 1.0\n"B1" 1.0\nEND_DATA\n')
+                    'NUMBER_OF_SETS 2\nBEGIN_DATA\n"A1" 1.0\n"B1" 1.0\nEND_DATA\n',
+                    encoding="latin-1")
     assert D.ended_before(main) is False
     assert D.m0_only_strips(main) == ["A", "B"]
 
