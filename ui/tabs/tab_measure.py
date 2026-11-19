@@ -3939,6 +3939,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._resume_cb.stateChanged.connect(
             lambda _state: self._sync_refine_rows())
         self._resume_cb.toggled.connect(lambda _checked: self._refresh_start_button_label())
+        self._resume_cb.toggled.connect(self._refresh_dual_note)   # 4.3.49: the fill note
 
         ll.addWidget(core_grp)
 
@@ -4585,6 +4586,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._m_resume_cb.stateChanged.connect(
             lambda _state: self._sync_refine_rows())
         self._m_resume_cb.toggled.connect(lambda _checked: self._refresh_start_button_label())
+        self._m_resume_cb.toggled.connect(self._refresh_dual_note)   # 4.3.49: the fill note
 
         ll.addWidget(m_core_grp)
 
@@ -10211,8 +10213,17 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if self._guided_patch_list:
             self._manager.set_guided_patches(self._guided_patch_list)
         else:
-            self._manager.set_guided_strips(
-                self._guided_strips_on_chart() if guided else [])
+            strips = self._guided_strips_on_chart() if guided else []
+            # 4.3.49 (Basti, 2026-11-19): Continue Measurement completes the
+            # strips that have the main condition only, with the refinement
+            # guide (strip mode, ChromIQ's engine)
+            if (resume_cb.isChecked() and getattr(params, "engine_helper", None)
+                    and not bool(getattr(params, "patch_by_patch", False))):
+                filled = self._fill_guided_strips(strips)
+                if filled != strips:
+                    strips = filled
+                    self._guided_refinement_active = True
+            self._manager.set_guided_strips(strips)
 
         self._manager.start(
             params,
@@ -12794,12 +12805,113 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             plan = self._dual_plan_now()
         except Exception:      # noqa: BLE001
             return "", ""
+        fill = self._fill_note_text()
         if not plan.dual:
-            return "", ""
+            return fill
         if plan.ended_before:
             return M.M_DUAL_CONTINUE_M0.render()
+        if fill[0]:
+            return fill
         return M.M_DUAL_BEFORE_START.render(
             chosen=condition_name(plan.chosen))
+
+    # ---- 4.3.49: strips with the main condition only (Basti, 2026-11-19) ----
+    def _fill_main(self) -> "Path | None":
+        """The measurement of the chart on screen, when it has readings and
+        the Beta "keep M0, M1 and M2" is on; else None."""
+        from workflow import i1pro3_conditions as _c
+        if not _c.stored_value(self._settings) or not self._engine_selected():
+            return None
+        try:
+            ti3 = self._selected_measurement_ti3()
+        except Exception:      # noqa: BLE001
+            return None
+        if ti3 is None or not Path(ti3).is_file() or _cgats_has_no_readings(
+                Path(ti3)):
+            return None
+        return Path(ti3)
+
+    def _fill_strips(self, main: "Path | None" = None) -> "list[str]":
+        """The strips of the measurement that have the main condition only
+        while the others keep all three (`i1pro3_conditions.m0_only_locs`),
+        in chart order. [] when there are none, or the measurement is a dual
+        scan and the dual scan is off (Continue is refused then)."""
+        from workflow import i1pro3_conditions as _c
+        from workflow.dual_scan import session as D, storage
+        main = main if main is not None else self._fill_main()
+        if main is None:
+            return []
+        try:
+            if storage.read_dual_record(main).dual and not D.switched_on(
+                    self._settings):
+                return []
+            strips = _c.strips_of(_c.m0_only_locs(main), self._strip_of)
+            return sorted(strips, key=lambda s: (self._strip_index(s), s))
+        except Exception:      # noqa: BLE001 - a note never blocks the tab
+            log.debug("conditions: no fill list", exc_info=True)
+            return []
+
+    def _fill_note_text(self) -> "tuple[str, str]":
+        """M-DUAL- / M-COND-CONTINUE-FILL while "Refine / resume" is ticked,
+        M-DUAL- / M-COND-FILL-OFFER while it is not; ("", "") when no strip
+        has the main condition only."""
+        from workflow import i1pro3_conditions as _c
+        from workflow import measurement_messages as M
+        from workflow.dual_scan import storage
+        main = self._fill_main()
+        strips = self._fill_strips(main)
+        if not strips:
+            return "", ""
+        names = ", ".join(strips)
+        dual = storage.read_dual_record(main).dual
+        own = _c.file_condition(main) or "M0"
+        first, second = [c for c in _c.CONDITIONS if c != own]
+        resuming = self._measurement_to_continue() is not None
+        if resuming:
+            if dual:
+                return M.M_DUAL_CONTINUE_FILL.render(strips=names)
+            return M.M_COND_CONTINUE_FILL.render(
+                strips=names, own=own, first=first, second=second)
+        resume = tr("Refine / resume existing measurement (-r)")
+        start = tr("Continue Measurement")
+        if dual:
+            return M.M_DUAL_FILL_OFFER.render(strips=names, resume=resume,
+                                              start=start)
+        return M.M_COND_FILL_OFFER.render(
+            strips=names, own=own, first=first, second=second,
+            resume=resume, start=start)
+
+    def _fill_guided_strips(self, listed: "list[str]") -> "list[str]":
+        """At a Continue Measurement in strip mode: the strips to take the
+        reader to, *listed* (a refinement list, or none) together with the
+        strips that have the main condition only and, when there are such
+        strips, every strip not read yet (so the guide ends only when the
+        chart is complete), in chart order; *listed* as it is when no strip
+        has the main condition only."""
+        fill = self._fill_strips()
+        if not fill:
+            return listed
+        try:
+            from workflow.measurement_pairing import chart_locations
+            main = self._fill_main()
+            on_chart = []
+            for loc in chart_locations(self._chart_file_for(self._ti1_path)):
+                s = self._strip_of(loc)
+                if s and s not in on_chart:
+                    on_chart.append(s)
+            from workflow import i1pro3_conditions as _c
+            read = set(_c.strips_of(_c._locs_of(main), self._strip_of))
+            unread = [s for s in on_chart if s not in read]
+        except Exception:      # noqa: BLE001 - the fill strips alone then
+            unread = []
+        out = []
+        for s in list(listed) + fill + unread:
+            if s not in out:
+                out.append(s)
+        out.sort(key=lambda s: (self._strip_index(s), s))
+        log.info("conditions: Continue Measurement takes the reader to %s "
+                 "(main condition only: %s)", ", ".join(out), ", ".join(fill))
+        return out
 
     def _refresh_dual_note(self, *_a) -> None:
         """The note above the chart before START (the ruler, the two passes),
@@ -12871,7 +12983,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             # "mixed" when it had rewritten the header on an earlier one
             why = "resume"
         self._dual_end_reason = D.reason_id(why)
-        title, body = M.M_DUAL_ENDED.render(reason=D.reason_sentence(why))
+        msg = (M.M_DUAL_ENDED_KEPT
+               if getattr(self._manager, "_dual_end_kept", False)
+               else M.M_DUAL_ENDED)
+        title, body = msg.render(reason=D.reason_sentence(why))
         self._dual_ended_text = f"{title}. {body}"
         self._log.appendPlainText(f"[{title}]\n{body}")
         self._log.ensureCursorVisible()

@@ -248,6 +248,12 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-DUAL-HIGHRES-REFUSED",
     # 4.3.49 review round: the prompt once "calibrate again" was said
     "M-DUAL-PASS-ONE-NO-CAL-KEPT",
+    # 4.3.49 (Basti, 2026-11-19): strips with M0 only are completed
+    "M-DUAL-CONTINUE-FILL",
+    "M-DUAL-FILL-OFFER",
+    "M-COND-CONTINUE-FILL",
+    "M-COND-FILL-OFFER",
+    "M-DUAL-ENDED-KEPT",
     "M-DUAL-MODEL-ASK",
     "M-DUAL-MODEL-CORRECTED",
     "M-DUAL-MODEL-NOTED",

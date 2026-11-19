@@ -255,7 +255,7 @@ def test_2_the_helper_reads_a_strip_after_an_unusable_calibration_as_a_plain_sca
     cq_dd_fits before it arms the lamp pass."""
     c = _code((HELPER / "chromiq_chartread.c").read_text(encoding="utf-8",
                                                          errors="replace"))
-    i = c.index("if ((cq_dd_this_strip = cq_dd.on && cq_cond_active))")
+    i = c.index("if ((cq_dd_this_strip = cq_dd.on && cq_cond_live()))")
     arm = c[i:c.index("rv = it->read_strip(it, \"STRIP\"", i)]
     assert "cq_dd.uncal = cq_dd_fits(1, 0)" in arm
     assert arm.index("cq_dd.uncal = cq_dd_fits(1, 0)") < arm.index(
@@ -346,7 +346,7 @@ def test_2_every_text_says_what_now_happens():
 
 # ------------------------------------------------- 3. the header after a refused resume
 
-def test_3_a_refused_continue_keeps_the_dual_header(tmp_path, monkeypatch):
+def test_3_a_continue_after_an_end_keeps_the_dual_header_and_the_record(tmp_path, monkeypatch):
     import tests.helpers.replay_tools as rt
     from tests.test_i1pro2_dual_scan_engine import _chart, _dual_args, _vec
     monkeypatch.setenv("CHROMIQ_REPLAY_INSTRUMENT", "i1pro2")
@@ -386,26 +386,29 @@ def test_3_a_refused_continue_keeps_the_dual_header(tmp_path, monkeypatch):
     def again(s):
         s.wait_event("strip_ready", timeout=10)
         i = s.event_index()
-        s.send(cmd="swipe")
-        s.wait_event("strip_read", after=i)
-        i = s.event_index()
         s.send(cmd="done")
         s.wait_event("done", timeout=10, after=i)
         s.finish()
 
+    # 4.3.49 (helper 19d): no longer refused. The engine takes the record of
+    # the strips already read back (its "partial" pair), stays a dual scan,
+    # writes no CHROMIQ_DUAL_ENDED, and B, read as M0 when the ruler was
+    # lost, is the strip to complete
     main = base.with_suffix(".ti3")
     for _ in range(2):                       # two Continues in a row
         with rt.ReplaySession(base, rp, extra_args=["-r"] + args) as s2:
             again(s2)
         cond = [e for e in s2.events if e.get("event") == "conditions"]
-        assert cond and cond[0].get("why") == "resume", cond
+        assert cond and cond[0].get("active") is True, cond
+        assert cond[0].get("dual") is True and cond[0].get("partial") is True
         text = main.read_text(encoding="latin-1")
         assert storage.read_dual_record(main).dual, "the dual header is kept"
-        assert re.search(r'^CHROMIQ_DUAL_ENDED "resume"', text, re.M)
+        assert "CHROMIQ_DUAL_ENDED" not in text
         assert text.count('CHROMIQ_DUAL_SCAN "i1pro2"') == 1
-        assert D.ended_before(main)
+        assert not D.ended_before(main)
         plan = D.plan_for(_on(), CAPS, None, "u", main)
-        assert plan.dual and plan.ended_before and not plan.refusal
+        assert plan.dual and not plan.ended_before and not plan.refusal
+        assert plan.m0_only == ("B",)
 
 
 def test_3_the_helper_writes_the_header_only_for_a_refused_dual_resume():

@@ -125,6 +125,10 @@ class Plan:
     #: M-1). The dual arguments are still passed: the engine refuses a dual
     #: measurement continued without them (mixed_scan_kind).
     ended_before: bool = False
+    #: 4.3.49: the strips of the measurement to continue that have M0 only
+    #: (``m0_only_strips``); Continue Measurement takes the reader to them
+    #: and reads them again with both passes
+    m0_only: "tuple[str, ...]" = ()
 
     def args(self) -> "list[str]":
         if not self.dual or self.choice is None:
@@ -168,29 +172,38 @@ def plan_for(settings: Any, caps: Iterable[str], reported_model: "str | None",
     if guard:
         return Plan(False, refusal=guard)
     return Plan(True, chosen, choice=choice, white=white,
-                ended_before=ended_before(main_ti3))
+                ended_before=ended_before(main_ti3),
+                m0_only=tuple(m0_only_strips(main_ti3)))
 
 
 def ended_before(main_ti3) -> bool:
-    """*main_ti3* is a dual measurement with readings whose M1 / M2 files no
-    longer belong to them: M1 and M2 ended in an earlier session and cannot
-    come back (the engine's resume refuses them, ``why: "resume"``)."""
+    """*main_ti3* is a dual measurement whose header no longer says so: a
+    Continue after M1 / M2 ended was written by 4.3.48 or earlier without
+    the dual record (its pass record still says it was a dual scan). The
+    engine continues such a file as M0 only ("mixed"), and M1 / M2 cannot
+    come back. Since 4.3.49 the engine keeps the record of every dual
+    measurement (``m0_only_strips``), so nothing else is "ended"."""
     if not main_ti3:
         return False
     from pathlib import Path
-    from workflow import i1pro3_conditions as ic
     main = Path(main_ti3)
     try:
         if not main.is_file() or not storage._has_readings(main):
             return False
-        if not storage.read_dual_record(main).dual:
-            # the engine rewrites the header without the dual record when a
-            # Continue finds M1 / M2 ended (why "resume"); the measurement's
-            # pass record still says it was a dual scan
-            return storage.pass_record_of(main) is not None
-        return any(ic.condition_file(main, c) is None for c in ("M1", "M2"))
+        if storage.read_dual_record(main).dual:
+            return False
+        return storage.pass_record_of(main) is not None
     except Exception:  # noqa: BLE001 - unreadable: say nothing new
         return False
+
+
+def m0_only_strips(main_ti3, strip_of=None) -> "list[str]":
+    """4.3.49: the strips of *main_ti3* that have M0 only while the others
+    keep their M1 and M2 (from the files: the partial pair, or for a dual
+    measurement without any pair every read strip). Continue Measurement
+    reads them again with both passes."""
+    from workflow import i1pro3_conditions as ic
+    return ic.strips_of(ic.m0_only_locs(main_ti3), strip_of)
 
 
 def single_scan_refusal(settings: Any, caps: Iterable[str],

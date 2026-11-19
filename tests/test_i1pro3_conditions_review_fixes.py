@@ -143,10 +143,10 @@ def test_f4_the_helper_build_string_is_the_new_one():
     # 2026-11-17a (the i1iO 2 table scan), 17b (its button wait), 18a (the
     # i1Pro 2 dual-scan conditions), 18b (its resume rule) and 18c (its
     # device side), 18d (its safety fixes) and 18e (the dual scan on the i1iO 2
-    # table), 19a (its fix round), 19b (a calibration clears the armed pass) and 19c (the hand dual
-    # scan's gaps, 4.3.49) keep every
+    # table), 19a (its fix round), 19b (a calibration clears the armed pass), 19c (the hand dual
+    # scan's gaps, 4.3.49) and 19d (the record kept after an end) keep every
     # token of 16d
-    assert re.search(r"chromiq-chartread 2026-11-1(6d|7a|7b|8a|8b|8c|8d|8e|9a|9b|9c) ", h)
+    assert re.search(r"chromiq-chartread 2026-11-1(6d|7a|7b|8a|8b|8c|8d|8e|9a|9b|9c|9d) ", h)
     assert "+conditions-commit-last" in h
 
 

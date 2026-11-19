@@ -11899,6 +11899,22 @@ M_DUAL_ENDED = _m(
     "the chart again as a new measurement.",
     approved=False)
 
+#: 4.3.49 (Basti, 2026-11-19): the same ending when the engine KEEPS the
+#: record (its event says "kept"): the strips already read keep M1 / M2, and
+#: Continue Measurement completes the rest. M-DUAL-ENDED stays for the ends
+#: that keep nothing (the disk, the memory, a measurement 4.3.48 rewrote).
+M_DUAL_ENDED_KEPT = _m(
+    "M-DUAL-ENDED-KEPT",
+    "Dual scan: M1 and M2 stop for the rest of this sitting",
+    "{reason}\n\n"
+    "The strips already read with both passes keep their M1 and M2. From "
+    "here on ChromIQ reads M0 as always, one pass per strip: carry on "
+    "measuring. To give the strips read from now on their M1 and M2 as "
+    "well, press Continue Measurement later with the dual scan still "
+    "switched on: after a new calibration ChromIQ takes you to those strips "
+    "and reads them again with both passes.",
+    approved=False)
+
 #: In the log when a session keeps all three conditions from dual scans.
 M_DUAL_ON = _m(
     "M-DUAL-ON",
@@ -12018,6 +12034,54 @@ M_DUAL_PASS_ONE_NO_CAL_KEPT = _m(
     "calibrate now (press K or the Calibrate button) before you read strip "
     "{strip}. If you read strip {strip} without calibrating, ChromIQ keeps "
     "it with M0 only, and M1 and M2 end for the rest of this measurement.",
+    approved=False)
+
+#: 4.3.49 (Basti, 2026-11-19): before START, a dual measurement continued
+#: with strips that have M0 only (`session.m0_only_strips`); Continue
+#: Measurement takes the reader to them (the guided re-read).
+M_DUAL_CONTINUE_FILL = _m(
+    "M-DUAL-CONTINUE-FILL",
+    "Dual scan: Continue Measurement also completes strips {strips}",
+    "These strips of this measurement have M0 only: {strips}. The other "
+    "strips keep their M1 and M2. Continue Measurement starts with a "
+    "calibration, reads the strips not read yet with both passes, and "
+    "takes you to {strips} to read each of them again with both passes. "
+    "Then the whole measurement has M1 and M2.",
+    approved=False)
+
+#: 4.3.49: before START, the same measurement while "Refine / resume" is
+#: not ticked: how to complete it instead of measuring everything again.
+M_DUAL_FILL_OFFER = _m(
+    "M-DUAL-FILL-OFFER",
+    "Dual scan: strips {strips} have M0 only",
+    "In the measurement of this chart, these strips have M0 only: {strips}. "
+    "The other strips keep their M1 and M2. To complete it, tick “{resume}” "
+    "and press “{start}”: ChromIQ takes you to these strips and reads them "
+    "again with both passes. Starting without the tick measures the whole "
+    "chart again as a new measurement.",
+    approved=False)
+
+#: 4.3.49 (Basti, 2026-11-19: the same for the i1Pro 3): before START, a
+#: measurement of the Beta "keep M0, M1 and M2" continued with strips that
+#: have the main condition only.
+M_COND_CONTINUE_FILL = _m(
+    "M-COND-CONTINUE-FILL",
+    "Continue Measurement also completes strips {strips}",
+    "These strips of this measurement have {own} only: {strips}. The other "
+    "strips keep {first} and {second} as well. Continue Measurement reads "
+    "the strips not read yet and takes you to {strips} to read them again, "
+    "so that the whole measurement has all three conditions.",
+    approved=False)
+
+#: 4.3.49: ...and while "Refine / resume" is not ticked.
+M_COND_FILL_OFFER = _m(
+    "M-COND-FILL-OFFER",
+    "Strips {strips} have {own} only",
+    "In the measurement of this chart, these strips have {own} only: "
+    "{strips}. The other strips keep {first} and {second} as well. To "
+    "complete it, tick “{resume}” and press “{start}”: ChromIQ takes you to "
+    "these strips and reads them again with all three conditions. Starting "
+    "without the tick measures the whole chart again as a new measurement.",
     approved=False)
 
 #: 4.3.49: a jump, a move or a change of strip asked for while the engine
@@ -13264,6 +13328,9 @@ CATALOGUE = {m.id: m for m in (
     M_DUAL_CONTINUE_M0, M_DUAL_NOCAL_REFUSED, M_DUAL_PASS_ONE_NO_CAL,
     M_DUAL_CAL_AGAIN, M_DUAL_PASS_HELD, M_DUAL_HIGHRES_REFUSED,
     M_DUAL_PASS_ONE_NO_CAL_KEPT,
+    M_DUAL_CONTINUE_FILL, M_DUAL_FILL_OFFER, M_COND_CONTINUE_FILL,
+    M_DUAL_ENDED_KEPT,
+    M_COND_FILL_OFFER,
     M_DUAL_MODEL_ASK, M_DUAL_MODEL_CORRECTED,
     M_DUAL_MODEL_NOTED,
     M_STRIP_FAILED_COMS_DETAIL,

@@ -29,8 +29,9 @@ the events the device path emits, with the same names, fields and order:
   file_as, turn) arrives during it: the helper holds it and goes on waiting
   (4.3.49, cq_dd_strip / cq_dd_held_command); the command never reaches the
   replay;
-* ``{"event":"conditions","active":false,"why":"dual_dual_needs_ruler"}``
-  when the ruler cannot be used (cq_cond_lose).
+* ``{"event":"conditions","active":false,"why":"dual_dual_needs_ruler",
+  "kept":true}`` when the ruler cannot be used (cq_cond_lose; "kept" since
+  helper 2026-11-19d: the record of the strips already read is kept).
 
 Each pass is one ``{"cmd":"swipe"}`` (a person reading it). Extra fields on
 the SECOND swipe of a strip: ``"uv_fault": "<reason id>"`` (the pass is
@@ -51,12 +52,15 @@ simulation used to keep writing M1 / M2, which hid M-1 on screen). With
 ``CHROMIQ_DUAL_SIM_M0_SUFFIX`` set (the driver writes, beside every strip
 ``A``, a block ``A~M0`` with the same LAMP lines and no UV lines), the
 strip that ends M1 / M2 is read from that block, so the REAL helper's own
-conditions record is lost there (cq_cond_lose "dual_uv_pass_missing":
-the reading has no UV half; chromiq_chartread.c), whose event this
-simulation swallows: the real helper emits only its one end) and it writes
-no more condition files: they go out of step with the main file, exactly as
-on the instrument, and a later Continue Measurement gets the real helper's
-own ``conditions active:false why:"resume"``.
+conditions record ends there (cq_cond_lose "dual_uv_pass_missing": the
+reading has no UV half; chromiq_chartread.c), whose event this simulation
+swallows: the real helper emits only its one end. Since 4.3.49 (helper
+2026-11-19d, cq_cond_keep) the real helper KEEPS the record, exactly as on
+the instrument: the strips already read keep M1 / M2, every strip read
+afterwards is M0 only, the files become ``<hash>-Mx.partial.ti3``, and a
+later Continue Measurement takes them back (``"partial": true``) and reads
+with both passes again; reading an M0-only strip again with both passes
+completes it.
 
 LIMITS (said, not hidden): without that suffix the replay instrument
 computes M1 / M2 for every strip it reads, so after ``needs_ruler`` the files
@@ -245,7 +249,7 @@ def main(argv: "list[str]") -> int:
                 continue
             emit(result("strip", strip, False, "uv_tile_dark"))
             emit({"event": "conditions", "active": False,
-                  "why": "dual_uv_tile_dark"})
+                  "why": "dual_uv_tile_dark", "kept": True})
             st["dual"] = False
             st["ended"] = True
             if M0_SUFFIX and not plain.get("as"):
@@ -258,7 +262,7 @@ def main(argv: "list[str]") -> int:
             if cmd.get("needs_ruler"):
                 emit(result("strip", strip, False, "dual_needs_ruler"))
                 emit({"event": "conditions", "active": False,
-                      "why": "dual_dual_needs_ruler"})
+                      "why": "dual_dual_needs_ruler", "kept": True})
                 st["dual"] = False
                 st["ended"] = True
                 if M0_SUFFIX and not plain.get("as"):

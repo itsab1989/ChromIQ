@@ -276,6 +276,28 @@ CAL_RETRY_PAUSE_MS = 2000       # let a sagging USB rail recover before retrying
 CAL_AUTO_RETRIES_MAX = 20       # ceiling on the user-set count, so it can't loop
 
 
+def _condition_end_reasons() -> "dict[str, str]":
+    """Why the i1Pro 3 Beta's other two conditions end for a sitting, as the
+    Measure log says it (``MeasureManager._on_conditions_event``)."""
+    from core.i18n import tr
+    return {
+        "mode": tr(
+            "they are kept only when strips or single patches are "
+            "measured by hand"),
+        "filter": tr(
+            "the polarising filter (M3) is measured on its own"),
+        "resume": tr(
+            "this measurement was started without them, or changed "
+            "since, so the readings already made have no M0, M1 and M2 "
+            "to continue"),
+        "record": tr(
+            "the instrument did not give all three for a reading"),
+        "write": tr("they could not be saved"),
+        "memory": tr("there was not enough memory"),
+        "files": tr("there is no folder to save them in"),
+    }
+
+
 @dataclass
 class MeasureParams:
     ti1_path: Path
@@ -840,6 +862,8 @@ class MeasureManager(QObject):
         #: S4: a move during that pass is held too).
         self._dual_on: bool = False
         self._dual_cal_ok: bool = False
+        #: 4.3.49: the last end of M1 / M2 kept the record ("kept").
+        self._dual_end_kept: bool = False
         #: The strip at the last strip prompt ("" patch by patch).
         self._dual_strip_now: str = ""
         #: A move held during a first pass: said when the UV wait begins.
@@ -3661,8 +3685,32 @@ class MeasureManager(QObject):
                         main=condition_name(str(ev.get("main") or "M0")),
                         first=condition_name(extra[0]),
                         second=condition_name(extra[1])))
+            if len(extra) == 2 and ev.get("partial"):
+                # 4.3.49: a measurement continued with strips that have the
+                # main condition only (the Measure tab guides to them)
+                on_line(tr(
+                    "[Engine] M0, M1 and M2 from one scan (beta): some strips "
+                    "of this measurement have {main} only. Read them again "
+                    "and they get {first} and {second} as well; the other "
+                    "strips keep theirs.").format(
+                        main=condition_name(str(ev.get("main") or "M0")),
+                        first=condition_name(extra[0]),
+                        second=condition_name(extra[1])))
             return
         why = str(ev.get("why") or "")
+        def reasons_kept(w):
+            return _condition_end_reasons().get(
+                w, tr("something unexpected happened"))
+        if ev.get("kept"):
+            # 4.3.49 (Basti, 2026-11-19): the engine keeps what was read
+            on_line(tr(
+                "[Engine] M0, M1 and M2 from one scan (beta): from here on "
+                "the strips read in this sitting are saved in the condition "
+                "chosen in the Measure tab only, because {reason}. The strips "
+                "already read keep all three. Continue Measurement can read "
+                "the others again later, with all three. Your measurement "
+                "itself is not affected.").format(reason=reasons_kept(why)))
+            return
         if why == "instrument":
             # Review F7: another instrument than an i1Pro 3 (or none) is not
             # a fault of the option, so the Measure log says nothing, and the
@@ -3675,22 +3723,7 @@ class MeasureManager(QObject):
                 except OSError:
                     pass
             return
-        reasons = {
-            "mode": tr(
-                "they are kept only when strips or single patches are "
-                "measured by hand"),
-            "filter": tr(
-                "the polarising filter (M3) is measured on its own"),
-            "resume": tr(
-                "this measurement was started without them, or changed "
-                "since, so the readings already made have no M0, M1 and M2 "
-                "to continue"),
-            "record": tr(
-                "the instrument did not give all three for a reading"),
-            "write": tr("they could not be saved"),
-            "memory": tr("there was not enough memory"),
-            "files": tr("there is no folder to save them in"),
-        }
+        reasons = _condition_end_reasons()
         on_line(tr(
             "[Engine] M0, M1 and M2 from one scan (beta): for this "
             "measurement only the condition chosen in the Measure tab is "
@@ -4328,6 +4361,8 @@ class MeasureManager(QObject):
                 log.warning("engine: dual scan: M1 and M2 end for this "
                             "measurement (%s); M0 goes on", ev.get("why"))
                 self._dual_on = False
+                # 4.3.49: whether the engine kept the record (the tab's text)
+                self._dual_end_kept = bool(ev.get("kept"))
                 self.dual_ended.emit(str(ev.get("why") or ""))
             else:
                 self._on_conditions_event(ev, on_line)

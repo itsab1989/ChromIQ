@@ -48,6 +48,16 @@ CONDITION_OF_KEYWORD = "CHROMIQ_CONDITION_OF"
 #: The run's folder for them (``Run.condition_dir``).
 CONDITION_DIRNAME = "conditions"
 
+#: 4.3.49 (Basti, 2026-11-19): the engine's capability word for a record that
+#: outlives an end of the conditions (``chromiq_chartread.c`` cq_cond_keep).
+KEPT_CAPABILITY = "conditions_kept"
+
+#: ...and the name of a pair in which some read patches have the measurement's
+#: own condition only (``<hash>-M1.partial.ti3``): it holds only the patches
+#: that have all three, is never offered by Build Profile, and is taken up
+#: again by Continue Measurement, which then reads the rest with all three.
+PARTIAL_SUFFIX = ".partial.ti3"
+
 #: ``RunMeta.profile_settings`` key of Build Profile's "Build from" choice
 #: ("" = as measured). Written only while the Beta is on.
 BUILD_FROM_KEY = "build_from_condition"
@@ -179,6 +189,84 @@ def sibling_in_step(main: "str | Path", sibling: "str | Path") -> bool:
             and Path(sibling).name.startswith(have + "-"))
 
 
+def partial_sibling_path(main_ti3: "str | Path", cond: str) -> "Path | None":
+    """The PARTIAL *cond* file of the readings *main_ti3* holds now
+    (``conditions/<hash>-<cond>.partial.ti3``), None without a data block."""
+    full = sibling_path(main_ti3, cond)
+    if full is None:
+        return None
+    return full.with_name(full.name[:-len(".ti3")] + PARTIAL_SUFFIX)
+
+
+def _locs_of(path: "str | Path") -> "list[str]":
+    """The SAMPLE_LOC of every row of the first table ([] when unreadable)."""
+    try:
+        text = Path(path).read_text(encoding="latin-1").replace("\r", "")
+        fields = text.split("BEGIN_DATA_FORMAT", 1)[1].split(
+            "END_DATA_FORMAT", 1)[0].split()
+        data = text.split("\nBEGIN_DATA\n", 1)[1].split("\nEND_DATA", 1)[0]
+        li = fields.index("SAMPLE_LOC")
+    except (OSError, IndexError, ValueError):
+        return []
+    out = []
+    for ln in data.splitlines():
+        tok = ln.split()
+        if len(tok) == len(fields):
+            out.append(tok[li].strip('"'))
+    return out
+
+
+def m0_only_locs(main_ti3: "str | Path | None") -> "list[str]":
+    """4.3.49: the read patches of *main_ti3* that have only the
+    measurement's own condition while others have all three: those not in
+    its partial pair (in step), in file order. [] when the complete pair is
+    in step, or when there is no partial pair: then nothing is known to be
+    missing, except for an i1Pro 2 dual scan, whose read patches are all
+    "own condition only" without any pair (the engine takes them back so,
+    ``cq_cond_keep_empty``)."""
+    if not main_ti3:
+        return []
+    main = Path(main_ti3)
+    try:
+        if not main.is_file():
+            return []
+        own = file_condition(main)
+        if not own:
+            return []
+        others = [c for c in CONDITIONS if c != own]
+        if all(condition_file(main, c) is not None for c in others):
+            return []
+        locs = _locs_of(main)
+        have: "set[str] | None" = None
+        for c in others:
+            sib = partial_sibling_path(main, c)
+            if sib is None or not sibling_in_step(main, sib):
+                have = None
+                break
+            got = set(_locs_of(sib))
+            have = got if have is None else (have & got)
+        if have is None:
+            from workflow.dual_scan import storage as dual
+            if dual.read_dual_record(main).dual:
+                return locs
+            return []
+        return [loc for loc in locs if loc not in have]
+    except Exception:  # noqa: BLE001 - unreadable: nothing promised
+        return []
+
+
+def strips_of(locs: "list[str]", strip_of=None) -> "list[str]":
+    """The strips of *locs*, each once, in order. *strip_of* maps a
+    location to its strip (the chart's own labels); default: the letters."""
+    out: "list[str]" = []
+    for loc in locs:
+        s = strip_of(loc) if strip_of else "".join(
+            ch for ch in str(loc) if ch.isalpha()).upper()
+        if s and s not in out:
+            out.append(s)
+    return out
+
+
 def condition_file(main_ti3: "str | Path | None", cond: "str | None"
                    ) -> "Path | None":
     """The file holding *main_ti3*'s readings under *cond*: the main file
@@ -279,6 +367,32 @@ def no_file_reason(main: Path) -> str:
     from workflow.measurement_condition import read_header_keyword
     from workflow.dual_scan import storage as dual
     from workflow.dual_scan.session import ended_before as _ended
+    gaps = strips_of(m0_only_locs(main))
+    if gaps:
+        # 4.3.49 (Basti, 2026-11-19): the other conditions of the strips
+        # already read are kept; these strips have the main condition only
+        if dual.read_dual_record(main).dual:
+            return tr(
+                "M1 and M2 are not available yet, because these strips have "
+                "M0 only: {strips}. The other strips keep their M1 and M2. To "
+                "complete them, go to the Measure tab, tick “Refine / resume "
+                "existing measurement (-r)” and press Continue Measurement, "
+                "with the dual scan still switched on: ChromIQ takes you to "
+                "these strips and reads each of them again with both passes. "
+                "Until then this measurement can be built from M0 only."
+                ).format(strips=", ".join(gaps))
+        own = file_condition(main) or "M0"
+        others = [c for c in CONDITIONS if c != own]
+        return tr(
+            "{first} and {second} are not available yet, because these "
+            "strips have {own} only: {strips}. The other strips keep their "
+            "{first} and {second}. To complete them, go to the Measure tab, "
+            "tick “Refine / resume existing measurement (-r)” and press "
+            "Continue Measurement: ChromIQ takes you to these strips and "
+            "reads them again with all three conditions. Until then this "
+            "measurement can be built from {own} only.").format(
+                first=others[0], second=others[1], own=own,
+                strips=", ".join(gaps))
     if dual.read_dual_record(main).dual or _ended(main):
         # The i1Pro 2 dual scan (review of 2026-11-18): its M1 and M2 come
         # from a second pass per strip, and exist only once every strip has it.
@@ -537,11 +651,11 @@ def average_missing_reason(main: Path, cond: str) -> str:
 # Housekeeping: pairs that no measurement in the run names any more
 # ---------------------------------------------------------------------------
 
-_PAIR_NAME_RE = re.compile(r"^(\d+-[0-9a-f]{8})-M[012]\.ti3$")
+_PAIR_NAME_RE = re.compile(r"^(\d+-[0-9a-f]{8})-M[012](?:\.partial)?\.ti3$")
 #: The engine's temporary name for a condition file while it writes it
 #: (``cq_cond_write``: ``<hash>-Mx.ti3.cqtmp``, renamed into place at once).
 #: One is left only when the engine stopped in between (a crash).
-_PAIR_TMP_RE = re.compile(r"^(\d+-[0-9a-f]{8})-M[012]\.ti3\.cqtmp$")
+_PAIR_TMP_RE = re.compile(r"^(\d+-[0-9a-f]{8})-M[012](?:\.partial)?\.ti3\.cqtmp$")
 
 
 def prune_pairs(cond_dir: "str | Path", owner: "str | Path") -> "list[Path]":
@@ -626,7 +740,8 @@ def _written_by_us(path: Path, key: str) -> bool:
     except Exception:  # noqa: BLE001
         return False
     return (of.lower() == key and bool(cond)
-            and path.name.endswith(f"-{cond}.ti3"))
+            and (path.name.endswith(f"-{cond}.ti3")
+                 or path.name.endswith(f"-{cond}{PARTIAL_SUFFIX}")))
 
 
 def prune_run(run) -> "list[Path]":

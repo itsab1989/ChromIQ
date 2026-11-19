@@ -247,7 +247,10 @@ def test_a_script_without_the_conditions_record_ends_them(tmp_path, monkeypatch)
         _done(s)
     ev = [e for e in s.events if e.get("event") == "conditions"]
     assert ev[0]["active"] is True
-    assert ev[1] == {"event": "conditions", "active": False, "why": "record"}
+    # 4.3.49: the engine keeps the record ("kept"); no patch has all three
+    # here, so there is still no file
+    assert ev[1] == {"event": "conditions", "active": False, "why": "record",
+                     "kept": True}
     assert len(ev) == 2
     assert list(cdir.iterdir()) == []
     assert len(_rows(base.with_suffix(".ti3"))) > 0
