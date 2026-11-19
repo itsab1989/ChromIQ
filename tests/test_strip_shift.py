@@ -158,17 +158,31 @@ def test_one_patch_moved_is_refused_by_the_papers_fingerprint(strips, end):
 
 
 def test_the_papers_fingerprint_has_a_margin_on_correct_strips(strips):
-    """Correct end readings whose colour is far from the paper never come
-    near the paper: the brightest is L* 69.7 on all 4,671 real strips."""
+    """Correct end readings that look like paper miss their own colour by
+    28.9 at most on all 4,671 real strips (the limit is 50)."""
     worst = 0.0
     for st in strips:
         if st["label"] != "honest":
             continue
+        yn = sum(e[1] for e in st["exp"]) / sum(r[1] for r in st["read"])
         for ix in (0, -1):
             lr = S._lab(st["read"][ix])
-            if math.hypot(lr[1], lr[2]) <= S.P_C and S._de(S._lab(st["exp"][ix]), S._lab(st["paper"])) >= S.P_D:
-                worst = max(worst, lr[0])
-    assert worst <= S.P_L - 12.0
+            if lr[0] >= S.P_L and math.hypot(lr[1], lr[2]) <= S.P_C:
+                worst = max(worst, S._de(S._lab(st["read"][ix], yn), S._lab(st["exp"][ix])))
+    assert worst <= S.P_D - 15.0
+
+
+def test_a_chart_without_a_white_patch_does_not_make_a_light_grey_paper():
+    """The suite's synthetic charts have no white: their brightest expected
+    colour is a light cyan. A light neutral patch read correctly at the end of
+    a strip is not the paper being read as a patch (found by
+    test_pattern_variants_read_by_both_readers on helper 19e's first build)."""
+    rng = np.random.default_rng(14)
+    paper = _xyz((95.6, -58.9, -12.7))
+    for _ in range(200):
+        exp = _random_strip(18, rng)
+        exp[-1] = _xyz((94.7, 0.2, -7.9))
+        assert not S.shift_test(exp, exp, paper).flagged
 
 
 # ------------------------------------------------ synthetic strips, short and long

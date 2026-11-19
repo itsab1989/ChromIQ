@@ -113,7 +113,7 @@ int cq_shift_test(const double (*read)[3], const double (*expd)[3], int n,
 		double raw[3], c, dp;
 		cqs_lab(read[ix], 1.0, raw);		/* as read, not Y-normalised */
 		c = sqrt(raw[1] * raw[1] + raw[2] * raw[2]);
-		dp = cqs_de(le[ix], lp);
+		dp = cqs_de(lr[ix], le[ix]);		/* the reading against its own colour */
 		if (raw[0] >= CQS_P_L && c <= CQS_P_C && dp >= CQS_P_D) {
 			res->flagged = 1;
 			res->end = e;

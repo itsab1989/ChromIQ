@@ -30,7 +30,7 @@ F2 = 0.5
 QMIN = 0.5
 NMIN = 4
 #: k = 1, the paper's fingerprint (CQS_P_*): the end reading as read is
-#: paper-like while its expected colour is far from the paper.
+#: paper-like while it misses its own expected colour by P_D or more.
 P_L = 85.0
 P_C = 12.0
 P_D = 50.0
@@ -145,7 +145,7 @@ def shift_test(read: Sequence[Sequence[float]], expected: Sequence[Sequence[floa
         ix = 0 if e == 0 else n - 1
         raw = _lab(read[ix])
         c = math.hypot(raw[1], raw[2])
-        dp = _de(le[ix], lp)
+        dp = _de(lr[ix], le[ix])      # the reading against its own colour
         if raw[0] >= P_L and c <= P_C and dp >= P_D:
             res.flagged, res.end, res.k, res.score = True, e, 1, raw[0]
             res.chroma, res.pd = c, dp

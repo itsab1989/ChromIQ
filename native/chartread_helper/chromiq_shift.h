@@ -44,8 +44,11 @@
  * expected values put far out of gamut (correct strips reach s_1 = 39), so it
  * is judged by the paper's own fingerprint instead: the end reading, AS READ
  * (not Y-normalised), is paper-like (L* >= CQS_P_L, chroma <= CQS_P_C) while
- * its expected colour is far from the paper (dE >= CQS_P_D). On the real
- * strips the brightest such reading of a correct strip is L* 69.7.
+ * it misses its own expected colour by CQS_P_D or more (the colour check's
+ * dE). Not "expected far from the chart's paper": a chart with no white
+ * patch has no paper to compare with (a synthetic chart in the suite). On
+ * the real strips, the paper-like end readings of correct strips miss their
+ * own colour by 28.9 at most (477 of them).
  *
  * A STRIP THAT FITS NOTHING. ChromIQ runs the helper with -S, so the
  * colour check (WERR_TH 95) does not stand in front of this test. A strip
@@ -83,7 +86,7 @@ extern "C" {
 #define CQS_NMIN   4	/* the shortest strip the test looks at            */
 #define CQS_P_L   85.0	/* k = 1: the end reading's L* at least this ...   */
 #define CQS_P_C   12.0	/* ... its chroma at most this ...                 */
-#define CQS_P_D   50.0	/* ... and its expected colour this far from paper */
+#define CQS_P_D   50.0	/* ... and it misses its own colour by this much   */
 #define CQS_W     95.0	/* a strip whose worst patch misses its design by this
 					 * much (the colour check's WERR_TH) misses it everywhere: */
 #define CQS_T3_W  20.0	/* ... then s_3 must reach this, and k = 1 is not judged */
@@ -97,7 +100,7 @@ typedef struct {
 	double score;		/* the s_k that fired (or the largest s_k looked at);
 						 * k = 1: the end reading's L* */
 	double chroma;		/* k = 1: the end reading's chroma                 */
-	double pd;			/* k = 1: dE of its expected colour from the paper */
+	double pd;			/* k = 1: dE of that reading from its own colour   */
 	/* every figure, for the log and the tests: [end][k-2] */
 	double s[2][2], d[2][2];
 	double m;			/* the strip's median dE between expected colours  */
