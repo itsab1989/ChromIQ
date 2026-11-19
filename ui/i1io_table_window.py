@@ -2861,9 +2861,12 @@ class TableMeasureWindow(QFrame):
             if not (isinstance(sw, dict) and not sw.get("used")):
                 act = self._next_action()
                 moves = act[2] if act else None
-        if moves and getattr(j, "_pause_stop", False):
+        stopped = getattr(j, "_pause_stop", False) or bool(
+            (res.detail or {}).get("stop_asked_during_the_last_patch"))
+        if moves and stopped:
             # NOTE-4 (table safety review, 2026-11-19): Stop was pressed while the step ran (a
-            # dual row's UV pass, say); it is honoured before the next move, so the arm does
+            # dual row's UV pass, say; the row's result then carries
+            # stop_asked_during_the_last_patch); it is honoured before the next move, so the arm does
             # NOT go on to the next row whatever the answer is
             return tr("You pressed Stop, so the arm does not go on: it stays where it is. "
                       "Please still tell ChromIQ whether the table and the arm did what you "

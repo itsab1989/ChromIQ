@@ -85,3 +85,7 @@ def test_after_stop_the_report_page_does_not_say_the_arm_moves_on():
     job._pause_stop = False
     text = W.TableMeasureWindow._report_next_text(win, res)
     assert "the arm moves to row 2" in text
+    # the row honours the stop itself and says so in its result (what the window sees)
+    res.detail = {"stop_asked_during_the_last_patch": True}
+    text = W.TableMeasureWindow._report_next_text(win, res)
+    assert "moves to row 2" not in text and "You pressed Stop" in text
