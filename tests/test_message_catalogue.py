@@ -241,7 +241,11 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-DUAL-CONTINUE-M0",
     "M-DUAL-NOCAL-REFUSED",
     "M-DUAL-PASS-ONE-NO-CAL",
-    "M-DUAL-PASS-TWO-NO-CAL",
+    # 4.3.49 (2026-11-19): the hand dual scan's gaps; M-DUAL-PASS-TWO-NO-CAL
+    # was withdrawn (no second pass is asked for after such a calibration)
+    "M-DUAL-CAL-AGAIN",
+    "M-DUAL-PASS-HELD",
+    "M-DUAL-HIGHRES-REFUSED",
     "M-DUAL-MODEL-ASK",
     "M-DUAL-MODEL-CORRECTED",
     "M-DUAL-MODEL-NOTED",

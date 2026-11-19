@@ -11839,9 +11839,11 @@ M_DUAL_CAL_REFUSED = _m(
     "M-DUAL-CAL-REFUSED",
     "M1 and M2 cannot be worked out from this calibration",
     "{reason}\n\n"
-    "You can lift the instrument now. M0 is measured as always; to have M1 "
-    "and M2 as well, calibrate again (press K or the Calibrate button) "
-    "before the next strip.",
+    "You can lift the instrument now. To keep M1 and M2, calibrate again "
+    "(press K or the Calibrate button) before the next strip. If you read a "
+    "strip with this calibration, ChromIQ does not keep it the first time "
+    "and asks you once more to calibrate; if you then read it again without "
+    "calibrating, ChromIQ keeps it and goes on with M0 only.",
     approved=False)
 
 #: Above the chart while the first pass of a strip is due.
@@ -11972,26 +11974,63 @@ M_DUAL_NOCAL_REFUSED = _m(
     "Nothing has been measured or changed.",
     approved=False)
 
-#: The pass prompts after a dual calibration that cannot give M1 / M2: the
-#: engine still asks for the second pass, which then cannot count (review
-#: of 2026-11-18, NOTE; asking only when it can count needs a helper change).
+#: The pass prompt after a dual calibration that cannot give M1 / M2
+#: (revised 4.3.49: the engine no longer asks for a second pass that cannot
+#: count; it reads the strip once and asks for a new calibration first).
 M_DUAL_PASS_ONE_NO_CAL = _m(
     "M-DUAL-PASS-ONE-NO-CAL",
     "Strip {strip}: calibrate again first to keep M1 and M2",
     "The last calibration cannot give M1 and M2. To keep them, calibrate "
     "again now (press K or the Calibrate button) before you read strip "
-    "{strip}. If you read strip {strip} without calibrating, ChromIQ still "
-    "asks for its second pass, but that pass cannot count: M1 and M2 then "
-    "stop for this measurement and the strip is kept as M0.",
+    "{strip}. If you read strip {strip} without calibrating, ChromIQ does "
+    "not keep it and asks you once more to calibrate; if you then read it "
+    "again without calibrating, ChromIQ keeps it and goes on with M0 only "
+    "for the rest of this measurement.",
     approved=False)
 
-M_DUAL_PASS_TWO_NO_CAL = _m(
-    "M-DUAL-PASS-TWO-NO-CAL",
-    "Strip {strip}, pass 2 of 2 (UV light): it only closes the strip",
-    "Read strip {strip} once more, as for every second pass, to close the "
-    "strip. The last calibration cannot give M1 and M2, so this pass cannot "
-    "count for them: M1 and M2 stop for this measurement, and strip {strip} "
-    "is kept as M0.",
+#: 4.3.49: in "Strip Read Failed" / "Patch Read Failed" when the reading was
+#: refused because the last calibration cannot give M1 / M2 (the first
+#: reading after that calibration); calibrating again keeps M1 and M2.
+M_DUAL_CAL_AGAIN = _m(
+    "M-DUAL-CAL-AGAIN",
+    "Calibrate again to keep M1 and M2",
+    "ChromIQ did not keep this reading, because the last calibration cannot "
+    "give M1 and M2.\n\n"
+    "{reason}\n\n"
+    "Please calibrate again now: press K or the Calibrate button, and keep "
+    "the instrument on its white tile until ChromIQ says you can lift it. "
+    "Then read it again, and M1 and M2 go on as before.\n\n"
+    "If calibrating again does not help, read it again without calibrating: "
+    "ChromIQ then keeps the reading and goes on with M0 only for the rest of "
+    "this measurement.",
+    approved=False)
+
+#: 4.3.49: a jump, a move or a change of strip asked for while the engine
+#: waits for the second pass (UV light) of a hand dual strip: held, not made.
+M_DUAL_PASS_HELD = _m(
+    "M-DUAL-PASS-HELD",
+    "Strip {strip}: read its second pass first",
+    "ChromIQ is waiting for the second pass of strip {strip}, with the UV "
+    "light, so it did not move to another strip or patch now. The first "
+    "pass of strip {strip} can only be paired with this second pass: moving "
+    "away now would end M1 and M2 for the rest of this measurement. Read the "
+    "second pass first, then choose where to go next. A calibration you ask "
+    "for now starts after the second pass. To end the measurement instead, "
+    "use Stop.",
+    approved=False)
+
+#: 4.3.49: before START, "High resolution spectral mode (-H)" with the dual
+#: scan by hand (the i1iO table refused it already): the factory data for M1
+#: and M2 exists only at 10 nm steps.
+M_DUAL_HIGHRES_REFUSED = _m(
+    "M-DUAL-HIGHRES-REFUSED",
+    "The dual scan reads in the standard resolution only",
+    "The measurement did not start. “{highres}” is switched on, and the dual "
+    "scan cannot use it: the i1Pro 2's factory values that M1 and M2 are "
+    "worked out from are given only in 10 nm steps.\n\n"
+    "Switch “{highres}” off and press “{start}” again. Or, to measure M0 in "
+    "high resolution, switch off “{option}” in {where}.\n\n"
+    "Nothing has been measured or changed.",
     approved=False)
 
 #: The one question before START when the dual scan is on and ChromIQ
@@ -13208,7 +13247,8 @@ CATALOGUE = {m.id: m for m in (
     M_DUAL_PASS_FAILED, M_DUAL_SPOT_FAILED, M_DUAL_ENDED, M_DUAL_ON,
     M_DUAL_PASS_NOTE, M_DUAL_START_REFUSED, M_DUAL_FILTER_OFF_PARENT,
     M_DUAL_CONTINUE_M0, M_DUAL_NOCAL_REFUSED, M_DUAL_PASS_ONE_NO_CAL,
-    M_DUAL_PASS_TWO_NO_CAL, M_DUAL_MODEL_ASK, M_DUAL_MODEL_CORRECTED,
+    M_DUAL_CAL_AGAIN, M_DUAL_PASS_HELD, M_DUAL_HIGHRES_REFUSED,
+    M_DUAL_MODEL_ASK, M_DUAL_MODEL_CORRECTED,
     M_DUAL_MODEL_NOTED,
     M_STRIP_FAILED_COMS_DETAIL,
     M_RESUME_RESOLUTION,

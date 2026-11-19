@@ -737,6 +737,7 @@ static const char *cq_cond_name[3] = { "M0", "M1", "M2" };
  * CHROMIQ_DUAL_WHITE (workflow/dual_scan/storage.py). */
 static int cq_dual_req = 0;			/* --dual-scale given */
 static double cq_dual_scale = 0.0; static int cq_dd_this_strip = 0;	/* the factor; the strip being read is a dual strip */
+static int cq_dd_held_command(void);	/* 4.3.49: a command held while the UV pass is due (below cq_uicallback) */
 static const char *cq_dual_source = "standard";	/* --dual-scale-source */
 static const char *cq_dual_white = "instrument";	/* --dual-white */
 static const char *cq_dual_chosen = "M0";	/* --dual-chosen: the Measure tab's choice */
@@ -1553,11 +1554,27 @@ static void cq_cond_for_session(inst *it, int rmode, int emis, int trans,
 		}
 	}
 	if (why != NULL) {
+		/* 4.3.49 (gap 3b): a dual measurement whose resume is refused (its
+		 * M1 / M2 ended in an earlier session) stays a dual measurement in
+		 * its own header, with why M1 / M2 ended: without it the file was
+		 * written as if read by single scans, and only the pass record beside
+		 * it told otherwise. Nothing else: the conditions stay off. */
+		int was_dual = cq_cond_dual;
 		if (it != NULL && !cq_replay_active() && it->dtype == instI1Pro3)
 			i1pro3_cq_cond_options(it, 0);
 		free(cq_cx);
 		cq_cx = NULL;
 		cq_cond_dual = 0;
+		if (was_dual && strcmp(why, "resume") == 0 && cq_sctx.ocg != NULL) {
+			char sb[32];
+			snprintf(sb, sizeof(sb), "%.4f", cq_dual_scale);
+			cq_sctx.ocg->add_kword(cq_sctx.ocg, 0, "CHROMIQ_DUAL_SCAN", "i1pro2", NULL);
+			cq_sctx.ocg->add_kword(cq_sctx.ocg, 0, "CHROMIQ_DUAL_SCALE", sb, NULL);
+			cq_sctx.ocg->add_kword(cq_sctx.ocg, 0, "CHROMIQ_DUAL_SCALE_SOURCE", cq_dual_source, NULL);
+			cq_sctx.ocg->add_kword(cq_sctx.ocg, 0, "CHROMIQ_DUAL_WHITE", cq_dual_white, NULL);
+			cq_sctx.ocg->add_kword(cq_sctx.ocg, 0, "CHROMIQ_DUAL_CHOSEN", cq_dual_chosen, NULL);
+			cq_sctx.ocg->add_kword(cq_sctx.ocg, 0, "CHROMIQ_DUAL_ENDED", "resume", NULL);
+		}
 		if (cq_dd.on) {			/* the device side off again */
 			i1pro2_cq_dual_arm(cq_dd.it, CQ_DUAL_PHASE_OFF);
 			(void)i1pro2_cq_dual_options(cq_dd.it, 0, NULL, NULL);
@@ -2194,6 +2211,41 @@ inst_code cq_uicallback(void *cntx, inst_ui_purp purp) {
 		}
 	}
 	return inst_ok;
+}
+
+/* CHROMIQ_EXT (4.3.49): the i1Pro 2 dual scan by hand. While the second pass
+ * (UV light) of a strip is due, a command that would move the reader or
+ * change a strip (goto, forward, back, next unread, "I read strip B", turn
+ * round) is HELD: the strip's first pass opened a ruler stream that only the
+ * UV pass's trigger ("ruler end", 0x0209, the only recorded form) closes, so
+ * leaving the wait would end M1 / M2 for the session (the next lamp pass
+ * could not start a stream). The key is forgotten (the GUI is told, event
+ * dual_pass_held, and the person chooses again after the pass) and the wait
+ * goes on. Returns the key, or 0 when the waiting key is anything else: Esc,
+ * quit, done and hold leave the wait exactly as before. Nothing is sent to
+ * the instrument: the wait was left before any trigger (i1pro_imp_measure
+ * returns before its dark reading on an abort). */
+static int cq_dd_held_command(void) {
+	cq_uicontext_mirror *u = (cq_uicontext_mirror *)inst_get_uicontext();
+	int ch;
+	if (u == NULL)
+		return 0;
+	ch = u->cut & 0xff;
+	if (!(u->uih[ch] & DUIH_CMND))
+		return 0;
+	switch (ch) {
+	case 'f': case 'F': case 'b': case 'B': case 'n': case 'N':
+	case 'g': case 'G': case 'm': case 'u':
+		break;
+	default:
+		return 0;
+	}
+	u->cut = 0;
+	cq_goto_target[0] = '\0';
+	cq_turn_strip[0] = '\0';
+	cq_file_from[0] = cq_file_to[0] = '\0';
+	cq_file_keep = 0;
+	return ch;
 }
 /* ========================================================= */
 
@@ -4436,9 +4488,15 @@ a1log *log			/* verb, debug & error log */
 					cq_cal_gate_set(1);
 				cq_press_listen(0);		/* CHROMIQ_EXT: a fresh group */
 				cq_lights_prompt();		/* CHROMIQ_EXT: lights (Beta) */
-				if ((cq_dd_this_strip = cq_dd.on && cq_cond_active))	/* CHROMIQ_EXT: i1Pro 2 dual scan, pass 1 of 2 */
-					i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_LAMP);
-				else
+				if ((cq_dd_this_strip = cq_dd.on && cq_cond_active)) {	/* CHROMIQ_EXT: i1Pro 2 dual scan, pass 1 of 2 */
+					/* 4.3.49: after a calibration that cannot give M1 / M2 the
+					 * strip is a plain lamp scan: no ruler stream, so no second
+					 * pass is due (cq_dd_strip asks for a new calibration) */
+					if ((cq_dd.uncal = cq_dd_fits(1, 0)) == NULL)
+						i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_LAMP);
+					else
+						i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_OFF);
+				} else
 					cq_ruler_arm(1);		/* CHROMIQ_EXT: ruler check (Beta) */
 				cq_cond_arm(1);			/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
 				cq_usbwatch_begin();	/* CHROMIQ_EXT 4.3.36: a reading begins */

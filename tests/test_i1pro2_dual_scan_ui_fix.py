@@ -405,8 +405,11 @@ def test_after_a_refused_calibration_the_pass_prompts_say_what_counts(
                                            "why": "uv_tile_dark"})
     TabMeasure._dual_pass_one(fake, "A")
     assert fake.prompts[-1] == M.M_DUAL_PASS_ONE_NO_CAL.render(strip="A")
+    # 4.3.49: after such a calibration the engine asks for no second pass
+    # (it reads the strip once and asks for a new calibration); a dual_pass
+    # event can only be an ordinary one, M-DUAL-PASS-TWO-NO-CAL is withdrawn
     TabMeasure._on_dual_pass(fake, {"strip": "A", "lamp_ok": True})
-    assert fake.prompts[-1] == M.M_DUAL_PASS_TWO_NO_CAL.render(strip="A")
+    assert fake.prompts[-1] == M.M_DUAL_PASS_TWO.render(strip="A")
     # a good calibration again: the ordinary prompts
     TabMeasure._on_dual_calibration(fake, {"ok": True, "lamp_clocks": 139,
                                            "uv_clocks": 139})

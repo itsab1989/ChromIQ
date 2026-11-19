@@ -1790,9 +1790,9 @@ def _chart_reads_by_position(name) -> bool:
 
 def _dual_cal_unusable(tab) -> bool:
     """The i1Pro 2 dual scan: the last dual calibration of this session
-    cannot give M1 / M2 (dual_calibration ok false). The engine still asks
-    for a second pass, which then cannot count (review of 2026-11-18, NOTE;
-    asking only when it can count needs a helper change)."""
+    cannot give M1 / M2 (dual_calibration ok false). Since 4.3.49 the engine
+    then reads the next strip once, asks for no second pass and refuses it
+    once with "calibrate again" (M-DUAL-CAL-AGAIN)."""
     ev = getattr(tab, "_dual_cal_ev", None)
     return ev is not None and not ev.get("ok")
 
@@ -2096,6 +2096,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                             ("dual_calibration", self._on_dual_calibration),
                             ("dual_pass", self._on_dual_pass),
                             ("dual_pass_result", self._on_dual_pass_result),
+                            ("dual_pass_held", self._on_dual_pass_held),
                             ("dual_start_refused", self._on_dual_start_refused)):
             if hasattr(self._manager, _sig):
                 getattr(self._manager, _sig).connect(_slot)
@@ -12676,6 +12677,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             # it is refused with the reason rather than overridden.
             if plan.dual and not refusal and self._dual_nocal_now():
                 refusal = "nocal"
+            # 4.3.49: "High resolution spectral mode (-H)": the factory data
+            # for M1 / M2 exists only at 10 nm, so the engine would end the
+            # dual scan at once (the i1iO table refused it already)
+            if plan.dual and not refusal and self._dual_highres_now():
+                refusal = "highres"
             if not plan.dual and not refusal and self._engine_selected():
                 refusal = D.single_scan_refusal(
                     self._settings, self._dual_caps(),
@@ -12690,6 +12696,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             title, body = M.M_DUAL_FILTER_NOT_DUAL.render(
                 setting=self._filter_label(self._measure_filter_code()),
                 start=self._start_button_name())
+        elif refusal == "highres":
+            title, body = M.M_DUAL_HIGHRES_REFUSED.render(
+                highres=tr("High resolution spectral mode (-H)"),
+                start=self._start_button_name(), option=D.switch_label(),
+                where=D.where_label())
         elif refusal == "nocal":
             title, body = M.M_DUAL_NOCAL_REFUSED.render(
                 nocal=tr("Skip initial calibration (-N)"),
@@ -12708,6 +12719,16 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 pass
         self._say_on_screen(title, body)
         return True
+
+    def _dual_highres_now(self) -> bool:
+        """The reader's arguments for this read ask for -H."""
+        try:
+            from workflow.resume_resolution import asks_for_highres
+            raw = (self._collect_guided() if self._current_mode() == "guided"
+                   else self._collect_manual())
+            return bool(asks_for_highres(getattr(raw, "extra_args", "") or ""))
+        except Exception:      # noqa: BLE001 - never block a read on this
+            return False
 
     def _dual_nocal_now(self) -> bool:
         """Manual's "Skip initial calibration (-N)" is on for this read."""
@@ -12991,14 +13012,29 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         name = self._strip_name(str(ev.get("strip") or "")) or str(
             ev.get("strip") or "")
         self._dual_failed = None      # a new pair of passes is under way
+        self._dual_held_said = False  # M-DUAL-PASS-HELD once per wait
+        # (4.3.49: after a calibration that cannot give M1 / M2 the engine
+        # reads the strip once and asks for none, so this is never that case)
         msg = (M.M_DUAL_PASS_TWO if ev.get("lamp_ok", True)
                else M.M_DUAL_PASS_TWO_UNREAD)
-        if ev.get("lamp_ok", True) and _dual_cal_unusable(self):
-            msg = M.M_DUAL_PASS_TWO_NO_CAL
         title, body = msg.render(strip=name)
         self._dual_prompt(title, body)
         self._log.appendPlainText(f"[{title}]\n{body}")
         self._log.ensureCursorVisible()
+
+    def _on_dual_pass_held(self, strip: str) -> None:
+        """A jump or a move asked for while the second pass of *strip* is
+        due was held, not made (4.3.49, M-DUAL-PASS-HELD): flashed in the
+        status line, which then gives the pass prompt back, and said once in
+        the log per wait."""
+        from workflow import measurement_messages as M
+        name = self._strip_name(str(strip or "")) or str(strip or "")
+        title, body = M.M_DUAL_PASS_HELD.render(strip=name)
+        self._flash_status(title, 8000)
+        if not getattr(self, "_dual_held_said", False):
+            self._dual_held_said = True
+            self._log.appendPlainText(f"[{title}]\n{body}")
+            self._log.ensureCursorVisible()
 
     def _on_dual_pass_result(self, ev: dict) -> None:
         """A pass's verdict. A refused second pass makes the strip a misread
@@ -13032,7 +13068,15 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         rid = D.reason_id(why)
         pass_level = rid.startswith("uv_pass_") or rid in (
             "uv_spot_failed", "no_ruler")
-        if pass_level:
+        if ev.get("calibrate"):
+            # 4.3.49: the reading was refused because the last calibration
+            # cannot give M1 / M2: calibrate again, then read it again
+            # (M-DUAL-CAL-AGAIN in the failure window)
+            self._dual_failed = ("calibrate", strip, why)
+            if what == "strip" and strip:
+                self._dual_buffer.append(("strip", strip, False, rid,
+                                          self._dual_cal_id, ()))
+        elif pass_level:
             self._dual_failed = (what, strip, why)
             if what == "strip" and strip:
                 self._dual_buffer.append(("strip", strip, False, rid,
@@ -13055,7 +13099,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         from workflow import measurement_messages as M
         from workflow.dual_scan import session as D
         what, strip, why = failed
-        if what == "spot":
+        if what == "calibrate":
+            title, body = M.M_DUAL_CAL_AGAIN.render(
+                reason=D.reason_sentence(why))
+        elif what == "spot":
             title, body = M.M_DUAL_SPOT_FAILED.render(
                 reason=D.reason_sentence(why))
         else:

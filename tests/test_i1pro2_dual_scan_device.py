@@ -204,7 +204,7 @@ def test_the_helper_reports_the_device_word_and_the_new_build():
     src = (HELPER / "chromiq_chartread.c").read_text(encoding="utf-8", errors="replace")
     assert '\\"i1pro2_dual_conditions\\",\\"i1pro2_dual_scan\\",' in src
     h = (HELPER / "chromiq_ext.h").read_text(encoding="utf-8")
-    assert "chromiq-chartread 2026-11-19b " in h and "+i1pro2-dual-device+i1pro2-dual-safety+" in h
+    assert "chromiq-chartread 2026-11-19c " in h and "+i1pro2-dual-device+i1pro2-dual-safety+" in h
 
 
 def test_a_failed_pass_is_read_again_and_a_session_failure_keeps_m0():
@@ -267,7 +267,10 @@ def test_s3_a_too_long_uv_pass_is_its_own_pass_failure():
 def test_every_reason_the_device_side_gives_has_a_sentence():
     from workflow.dual_scan.reasons import REASONS
     internal = {"lamp", "record", "memory", "conversion", "checked", "pairing_not_checked", "strip",
-                "spot", "uv", "scan", "true", "false", "STRIP", "dual_dual_needs_ruler"}
+                "spot", "uv", "scan", "true", "false", "STRIP", "dual_dual_needs_ruler",
+                # 4.3.49: the names of the commands held while the UV pass is due
+                # (event dual_pass_held), not reasons
+                "goto", "file_as", "turn", "next_unread", "back", "forward"}
     text = (HELPER / "chromiq_dualdev.c").read_text(encoding="utf-8")
     text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
     ids = set(re.findall(r'"([a-z][a-z0-9_]+)"', text)) - internal

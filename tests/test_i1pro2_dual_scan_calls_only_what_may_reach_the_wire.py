@@ -76,6 +76,12 @@ HELPER_MAY_CALL = _LIBC | {
     # the conditions event "active: false" (chromiq_chartread.c); its only instrument call is
     # the i1Pro 3's own conditions switch, never reached for an i1Pro 2
     "cq_cond_lose",
+    # 4.3.49 (the hand dual scan's gaps): state only, nothing sent. The calibration gate is a
+    # flag (chromiq_json.c), closed during the wait for the UV pass so a requested calibration
+    # waits for the next prompt; cq_dd_held_command (chromiq_chartread.c) reads and clears the
+    # waiting key of the uicallback's context (no instrument call); cq_dd_fits is arithmetic on
+    # the last calibration
+    "cq_cal_gate_set", "cq_dd_held_command",
 }
 
 

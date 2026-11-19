@@ -21,8 +21,14 @@ the events the device path emits, with the same names, fields and order:
   for the second pass;
 * ``{"event":"dual_pass_result","what":"strip"|"spot","strip":S,"ok":b,
   "why":id,"uv_readings":n,"fewest_per_patch":n,"uv_triggers":n,
-  "volts":[b,a],"pairing":"checked"|"pairing_not_checked"|""}`` before the
-  strip's ``strip_read`` (or its misread ``error``), as cq_dd_result does;
+  "volts":[b,a],"pairing":"checked"|"pairing_not_checked"|"",
+  "calibrate":b}`` before the strip's ``strip_read`` (or its misread
+  ``error``), as cq_dd_result does;
+* ``{"event":"dual_pass_held","strip":S,"cmd":C}`` when a command that would
+  leave the wait for the second pass (goto, forward, back, next_unread,
+  file_as, turn) arrives during it: the helper holds it and goes on waiting
+  (4.3.49, cq_dd_strip / cq_dd_held_command); the command never reaches the
+  replay;
 * ``{"event":"conditions","active":false,"why":"dual_dual_needs_ruler"}``
   when the ruler cannot be used (cq_cond_lose).
 
@@ -34,7 +40,11 @@ refused: the strip comes back as a misread, both passes again),
 strip a misread), ``"needs_ruler": true`` (no UV pass can be lined up: M1 /
 M2 end for the session, the strip is kept as M0). Patch by patch, one swipe
 is one press (lamp + UV); ``"uv_fault": "uv_spot_failed"`` refuses it.
-``CHROMIQ_DUAL_SIM_CAL=dark`` makes every calibration ``uv_tile_dark``.
+``CHROMIQ_DUAL_SIM_CAL=dark`` makes every calibration ``uv_tile_dark``; then,
+as the real helper since 4.3.49, a strip is read as one plain pass (no
+``dual_pass``): the first after each calibration is refused with
+``"calibrate": true`` (a misread), the next one read without a new
+calibration is kept as M0 and M1 / M2 end (``dual_uv_tile_dark``).
 
 AFTER M1 / M2 ENDED, AS THE REAL HELPER (review of 2026-11-18, NOTE: the
 simulation used to keep writing M1 / M2, which hid M-1 on screen). With
@@ -77,6 +87,8 @@ TILE_S = float(os.environ.get("CHROMIQ_DUAL_SIM_TILE_S", "2.5"))
 M0_SUFFIX = os.environ.get("CHROMIQ_DUAL_SIM_M0_SUFFIX", "")
 #: the person moving the instrument back over the strip
 PASS_S = float(os.environ.get("CHROMIQ_DUAL_SIM_PASS_S", "0.4"))
+#: the commands the helper holds while the second pass is due (4.3.49)
+HELD = ("goto", "forward", "back", "next_unread", "file_as", "turn")
 
 
 def main(argv: "list[str]") -> int:
@@ -89,6 +101,10 @@ def main(argv: "list[str]") -> int:
     st = {"dual": False, "strip": "", "phase": "lamp", "spot": False,
           "ended": False,
           "pending": None, "lamp_fault": "", "lamp_reason": "",
+          # with "dark" the session starts as after a dark calibration (the
+          # replay reports no start-up calibration of its own)
+          "cal_ok": os.environ.get("CHROMIQ_DUAL_SIM_CAL") != "dark",
+          "asked": False,
           "mode": "spot" if "-p" in argv else "scan"}
 
     def emit(obj) -> None:
@@ -104,12 +120,13 @@ def main(argv: "list[str]") -> int:
         except (BrokenPipeError, OSError):
             pass
 
-    def result(what, strip, ok, why="", pairing="checked") -> dict:
+    def result(what, strip, ok, why="", pairing="checked",
+               calibrate=False) -> dict:
         return {"event": "dual_pass_result", "what": what, "strip": strip,
                 "ok": ok, "why": why, "uv_readings": 96 if ok else 0,
                 "fewest_per_patch": 4 if ok else -1,
                 "uv_triggers": 1, "volts": [1310, 1302],
-                "pairing": pairing if ok else ""}
+                "pairing": pairing if ok else "", "calibrate": calibrate}
 
     def calibration() -> dict:
         dark = os.environ.get("CHROMIQ_DUAL_SIM_CAL") == "dark"
@@ -150,7 +167,9 @@ def main(argv: "list[str]") -> int:
             if st["dual"] and (kind == "cal_done" or (
                     kind == "cal_result" and ev.get("result") == "done")):
                 time.sleep(TILE_S)          # the tile under the UV light
-                emit(calibration())
+                cal = calibration()
+                st["cal_ok"], st["asked"] = cal["ok"], False
+                emit(cal)
             if kind in ("strip_read", "patch_read", "error") and st["pending"]:
                 emit(st["pending"])
                 st["pending"] = None
@@ -179,6 +198,13 @@ def main(argv: "list[str]") -> int:
             cmd = json.loads(text) if text.startswith("{") else None
         except ValueError:
             cmd = None
+        if (cmd and st["dual"] and not st["spot"] and st["phase"] == "uv"
+                and cmd.get("cmd") in HELD):
+            # the second pass is due: the helper holds the command and goes
+            # on waiting (cq_dd_held_command); the replay never sees it
+            emit({"event": "dual_pass_held", "strip": st["strip"],
+                  "cmd": cmd.get("cmd")})
+            continue
         if not (cmd and cmd.get("cmd") == "swipe" and st["dual"]):
             if cmd is not None:
                 cmd = {k: v for k, v in cmd.items()
@@ -206,6 +232,26 @@ def main(argv: "list[str]") -> int:
             to_child({"cmd": "read"})
             continue
         strip = st["strip"]
+        if st["phase"] == "lamp" and not st["cal_ok"]:
+            # 4.3.49: a plain lamp pass (no ruler stream, no second pass)
+            emit({"event": "scan_started"})
+            time.sleep(PASS_S)
+            if not st["asked"]:
+                st["asked"] = True
+                st["pending"] = result("strip", strip, False, "uv_tile_dark",
+                                       calibrate=True)
+                to_child({"cmd": "swipe", "fault": "misread",
+                          "reason": "Misread"})
+                continue
+            emit(result("strip", strip, False, "uv_tile_dark"))
+            emit({"event": "conditions", "active": False,
+                  "why": "dual_uv_tile_dark"})
+            st["dual"] = False
+            st["ended"] = True
+            if M0_SUFFIX and not plain.get("as"):
+                plain = {**plain, "as": strip + M0_SUFFIX}
+            to_child(plain)
+            continue
         if st["phase"] == "lamp":
             emit({"event": "scan_started"})
             time.sleep(PASS_S)
