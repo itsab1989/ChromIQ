@@ -214,6 +214,13 @@ def _like_a_real_device(self):
 RS.FakeHelperProc._xyz_here = _like_a_real_device
 
 
+def pshot(w, name: str, what: str) -> bool:
+    """Photograph the device's PANEL (its own top-level window), not the main window: the
+    4.3.49 safety review found the panel's question pages photographed as the Create Chart tab
+    because the main window was the default (review 449, SHOULD-7)."""
+    return shot(name, what, w.window() if w is not None else None)
+
+
 def panel():
     w = getattr(d.win._tab_measure, "_table_window", None)
     if w is not None and d.dog is not None and w.popup() is not None:
@@ -253,7 +260,7 @@ SEEN: set = set()
 def answer(w, page):
     if page not in SEEN:                  # every page photographed the first time it shows
         SEEN.add(page)
-        shot(f"{len(SEEN):02d}-{page}", f"the table's page '{page}' the first time it is shown: "
+        pshot(w, f"{len(SEEN):02d}-{page}", f"the table's page '{page}' the first time it is shown: "
              "the whole text readable, no button cut or overlapping, no default button, one "
              "red Stop")
     if page in TICKED:
@@ -346,20 +353,20 @@ def pass_first():
     yield 1500
     w = panel()
     drive_until(w, "check_mark")
-    shot("check-mark", "the check that the opening is centred on the mark, before any row")
+    pshot(w, "check-mark", "the check that the opening is centred on the mark, before any row")
     SIM.transport.delay_s, PACE["s"] = 0.06, 0.6     # a human pace while photographed
     press(w, ANSWERS["check_mark"], wait=False)
     into_a_running_row(w)
-    shot("row-running", "a row being read: the current patch marked strongly, read patches "
+    pshot(w, "row-running", "a row being read: the current patch marked strongly, read patches "
          "calmly, expected and measured side by side, one red Stop")
     wait_idle(w, 240)
     SIM.transport.delay_s, PACE["s"] = 0.0, 0.0
     drive_until(w, "end_of_session")
-    shot("ending", "every row read: Save and stop / Discard and stop / Keep measuring")
+    pshot(w, "ending", "every row read: Save and stop / Discard and stop / Keep measuring")
     press(w, "Save and stop")
     while w.pages_shown[-1] in ("home_offered", "go"):
         press(w, "Bring the arm home" if w.pages_shown[-1] == "home_offered" else "Go")
-    shot("done", "the panel's last page after the Save")
+    pshot(w, "done", "the panel's last page after the Save")
     d.later([b for b in w._buttons if b.text() == tr("Close")][0].click)
     yield 800
     d.answer("Close", name=f"{A.language}-completion-window", within_ms=8000)
@@ -382,13 +389,13 @@ def pass_stop():
     d.pump(300)
     w._stop_btn.click()
     d.pump(150)
-    shot("stop-pressed", "Stop pressed while a row runs: the state says the move under way "
+    pshot(w, "stop-pressed", "Stop pressed while a row runs: the state says the move under way "
          "finishes first, then ChromIQ stops")
     wait_idle(w, 240)
     SIM.transport.delay_s, PACE["s"] = 0.0, 0.0
-    shot("stopped", f"after Stop: page '{w.pages_shown[-1]}' with Carry on / Bring the arm home")
+    pshot(w, "stopped", f"after Stop: page '{w.pages_shown[-1]}' with Carry on / Bring the arm home")
     press(w, "Carry on")
-    shot("go-after-carry-on", "Carry on asks the hands-off GO before anything moves again")
+    pshot(w, "go-after-carry-on", "Carry on asks the hands-off GO before anything moves again")
     w._on_end_pressed()
     wait_idle(w)
     if w.pages_shown[-1] == "end_of_session":
