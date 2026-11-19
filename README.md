@@ -698,8 +698,9 @@ first try: [The dual scan, step by step](docs/i1pro2_dual_scan.md).
 > uses for every i1Pro 2, M2 was off by about 0.2 ΔE00 on average on strongly
 > brightened paper. By hand the dual scan needs the ruler, a failed pass means
 > both passes of the strip are read again, and a strip read with M0 only keeps
-> M0 only until it is read again with both passes; since 4.3.49 every other
-> strip keeps its M1 and M2, and Continue Measurement completes such strips.
+> M0 only until it is read again with both passes; since 4.3.49, when measuring by hand,
+> every other strip keeps its M1 and M2, and Continue Measurement completes such strips (on
+> the i1iO 2 table M1 and M2 are still all or none).
 > "High resolution spectral mode (-H)" is refused with the dual scan. With the
 > option off, nothing changes.
 
