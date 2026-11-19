@@ -50,6 +50,8 @@ DRIVER_MAY_CALL = _LIBC | {
     # state only, nothing sent: the table scan's ready rules and its instrument check, the
     # read cancel's reset, error mapping, clocks, joining the trigger thread
     "i1pro2_cq_tscan_ready", "cq_tscan_m", "usb_reinit_cancel", "msec_time", "time",
+    # 2026-11-19 (SHOULD-1): the lamp pass's dark waits 170 ms after the lamp; a sleep only
+    "msec_sleep",
     "m->trig_thread->del",
     # arithmetic on readings already read
     "i1pro_scale_specrd",

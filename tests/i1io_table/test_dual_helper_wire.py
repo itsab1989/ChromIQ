@@ -58,7 +58,10 @@ def test_the_tile_is_the_recorded_dual_calibration_and_is_kept_for_this_white_on
                             ("CTL", "d8", "in4")]
     assert "ON 0 ruler=0" in lines            # the table reads no ruler
     restores = [ln for ln in lines if ln.startswith("RESTORE")]
+    # nothing kept; kept; another date: no; the date back: yes; SHOULD-3 R9: another white
+    # reading of the SAME date (only its checksum differs): no
     assert restores == ["RESTORE 0 uv_clocks=-1", "RESTORE 1 uv_clocks=139",
+                        "RESTORE 0 uv_clocks=-1", "RESTORE 1 uv_clocks=139",
                         "RESTORE 0 uv_clocks=-1"]
     assert "SAVED 1" in lines
 
@@ -117,3 +120,63 @@ def test_every_uv_trigger_is_a_recorded_form_with_41_lamp_clocks(trace):
     assert all(w[2][-4:] in ("0000", "0100", "0200")
                for w in _wire([" ".join(ln.split(" ")[1:]) for ln in trace.splitlines()
                                if " CTL d4 " in ln]))
+
+
+def _ms(line: str) -> int:
+    return int(line.rsplit("+", 1)[1])
+
+
+def test_the_lamp_pass_dark_waits_as_long_as_i1profiler_did(trace):
+    """SHOULD-1 (table safety review, 2026-11-19): i1Profiler took the 5 dark readings 131 to 180
+    ms after a lamp pass's last data (the volunteer's table, five dual rows); ChromIQ took them
+    about 20 ms after. The dark now comes at least 170 ms after the lamp went out."""
+    lines = _scn(trace, "row")
+    i = next(k for k, ln in enumerate(lines) if ln.startswith("CTL d4 " + REC_LAMP))
+    data = next(ln for ln in lines[i:] if ln.startswith("RD 82 147400 -> 147400"))
+    dark = next(ln for ln in lines[i:] if ln.startswith("CTL d4 " + REC_DARK5))
+    assert lines.index(data) < lines.index(dark)
+    assert _ms(dark) - _ms(data) >= 169, (data, dark)
+    # the UV pass's dark is not delayed (recorded: 6 ms after its data)
+    j = next(k for k, ln in enumerate(lines) if ln.startswith("CTL d4 " + REC_UV))
+    udata = next(ln for ln in lines[j:] if ln.startswith("RD 82 147400 -> 147400"))
+    udark = next(ln for ln in lines[j:] if ln.startswith("CTL d4 " + REC_DARK5))
+    assert _ms(udark) - _ms(udata) < 100, (udata, udark)
+
+
+def test_a_fire_the_last_ready_check_did_not_allow_sends_nothing(trace):
+    """SHOULD-3 R10: the helper's arm step refuses a fire when no pass was armed; behind it the
+    driver itself fires only the pass its last ready check said yes to, once."""
+    lines = _scn(trace, "unarmed")
+    fires = [ln for ln in lines if ln.startswith("FIRE")]
+    assert len(fires) == 4
+    assert fires[0].startswith("FIRE rc=-1") and "lit_sent=0 dark_sent=0" in fires[0]
+    assert fires[1].startswith("FIRE rc=-1") and "lit_sent=0 dark_sent=0" in fires[1]
+    assert fires[2].startswith("FIRE rc=0")
+    assert fires[3].startswith("FIRE rc=-1") and "lit_sent=0 dark_sent=0" in fires[3]
+    w = _wire(lines)
+    assert [x for x in w if x[2] == REC_UV] == []
+    assert [x for x in w if x[1] == "d4"] == [("CTL", "d4", REC_LAMP), ("CTL", "d4", REC_DARK5)]
+
+
+def test_the_helper_fires_only_an_armed_pass_and_keeps_only_a_checked_tile():
+    """SHOULD-3 R10 / R14, pinned in chromiq_tablescan.c itself (its static functions run only
+    inside the helper's table-scan mode, which opens a real instrument): the pass fired is the
+    one armed, never another; and the dual tile is saved only inside the branch where its check
+    passed."""
+    import re
+    from pathlib import Path
+    src = (Path(__file__).resolve().parents[2] / "native/chartread_helper/chromiq_tablescan.c"
+           ).read_text(encoding="utf-8")
+    a = src.index("static int ts_dual_fire(")
+    fire = src[a:src.index("\n}\n", a)]
+    assert "\tint pass = ts_dd.pass, rc, vb = -1, va = -1;" in fire
+    assert len(re.findall(r"(?<![.\w])pass\s*=[^=]", fire)) == 1   # the declaration only
+    i_guard = fire.index("if (pass != CQ_TDUAL_PASS_LAMP && pass != CQ_TDUAL_PASS_UV) {")
+    assert i_guard < fire.index("i1pro2_cq_tdual_fire(")
+    assert "return -2;" in fire[i_guard:fire.index("i1pro2_cq_tdual_fire(")]
+    b = src.index("static void ts_dual_after_cal(")
+    cal = src[b:src.index("\n}\n", b)]
+    assert cal.count("i1pro2_cq_dual_tile_save(") == 1
+    k = cal.index("if ((why = cq_dual_check(&ts_dd.cal)) == NULL) {")
+    block = cal[k:cal.index("}", k)]
+    assert "i1pro2_cq_dual_tile_save(" in block

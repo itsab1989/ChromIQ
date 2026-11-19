@@ -574,8 +574,10 @@ int i1pro2_cq_dual_conv(void *pp, void *vals, int n, const double *spec, int cla
  * (the same date, the same white), so a new white makes a new dual tile
  * necessary. kA / kD (the factory tables) are never written anywhere. */
 
-/* CQ_TDUAL_PASS_LAMP / _UV and CQ_TDUAL_NMAX (1150 readings: the longest
- * recorded UV-LED on time, 6.0 s, a slow hand pass) are in cq_dual.h. */
+/* CQ_TDUAL_PASS_LAMP / _UV and CQ_TDUAL_NMAX (1150 readings, 5.8 s: the most a
+ * dual row of the table may ask for; the recordings hold longer UV-LED passes,
+ * up to 1820 readings by hand, and ChromIQ's own rows need 550-590) are in
+ * cq_dual.h. */
 #define CQ_TDUAL_UV_FLAGS CQ_DUAL_FORM_UV_TILE	/* 0x0200: the recorded UV pass on the table (no scan bit) */
 #define CQ_TDUAL_FILE_MAGIC "CQDUAL01"
 
@@ -587,6 +589,18 @@ typedef char cq_tdual_form_check[(CQ_TDUAL_UV_FLAGS == CQ_DUAL_FORM_UV_TILE
 const char *i1pro2_cq_dual_tile_path_for_test = NULL;
 
 static int cq_tdual_lamp_done = 0;	/* the last pass was a dual lamp pass that delivered */
+/* 2026-11-19 (table safety review, SHOULD-3 R10): the pass the LAST ready check
+ * said yes to; a fire of any other pass (or of none) sends nothing. The
+ * helper's own arm step refuses an unarmed fire too: this is the second line. */
+static int cq_tdual_ready_pass = 0;
+/* 2026-11-19 (table safety review, SHOULD-1): the 5 dark readings after a lamp
+ * pass wait until at least this long after the lamp went out. i1Profiler waited
+ * 131-180 ms after the lamp pass's last data on the volunteer's table (B: five
+ * dual rows, 550-reading passes; A: 107-182 ms after its spot readings); before,
+ * ChromIQ took the dark about 20 ms after the lamp, where an afterglow could
+ * still lift the dark and lower M0 of dark patches. The table's move is under
+ * way already: nothing waits for this. */
+#define CQ_TDUAL_DARK_AFTER_LAMP_MS 170
 
 /* The table dual session on: the factory tables (read-only copies), and NO
  * ruler (the table reads none; the hand dual scan's ruler is left off). */
@@ -781,6 +795,7 @@ int i1pro2_cq_tdual_ready(void *pp, int pass, int nread, int have_tile, int *wai
 	time_t now = time(NULL);
 	if (wait_ms != NULL)
 		*wait_ms = 0;
+	cq_tdual_ready_pass = 0;	/* only a yes below arms a pass */
 #define CQ_TD_NO(txt) do { if (why != NULL && whylen > 0) { strncpy(why, txt, whylen - 1); why[whylen - 1] = '\0'; } return -1; } while (0)
 	if (cq_dual_s(pp) == NULL || cq_tscan_m(pp) == NULL)
 		CQ_TD_NO("not a table dual session");
@@ -788,8 +803,12 @@ int i1pro2_cq_tdual_ready(void *pp, int pass, int nread, int have_tile, int *wai
 		CQ_TD_NO("no dual calibration");
 	if (nread < CQ_TSCAN_NMIN || nread > CQ_TDUAL_NMAX)
 		CQ_TD_NO("reading count out of range");
-	if (pass == CQ_TDUAL_PASS_LAMP)
-		return i1pro2_cq_tscan_ready(pp, nread, wait_ms, why, whylen);
+	if (pass == CQ_TDUAL_PASS_LAMP) {
+		int rc = i1pro2_cq_tscan_ready(pp, nread, wait_ms, why, whylen);
+		if (rc == 1)
+			cq_tdual_ready_pass = CQ_TDUAL_PASS_LAMP;
+		return rc;
+	}
 	if (pass != CQ_TDUAL_PASS_UV)
 		CQ_TD_NO("no such pass");
 	m = (i1proimp *)p->m;
@@ -814,6 +833,8 @@ int i1pro2_cq_tdual_ready(void *pp, int pass, int nread, int have_tile, int *wai
 		*wait_ms = w;
 	if (why != NULL && whylen > 0)
 		why[0] = '\0';
+	if (w <= 0)
+		cq_tdual_ready_pass = CQ_TDUAL_PASS_UV;
 	return w > 0 ? 0 : 1;
 }
 
@@ -844,6 +865,11 @@ int i1pro2_cq_tdual_fire(void *pp, int pass, int nread, int npatch, cq_tscan_rec
 	if (m == NULL || cq_dual_s(pp) == NULL || nread < CQ_TSCAN_NMIN || nread > CQ_TDUAL_NMAX
 	 || (pass != CQ_TDUAL_PASS_LAMP && pass != CQ_TDUAL_PASS_UV))
 		return -1;		/* nothing was sent */
+	if (pass != cq_tdual_ready_pass) {
+		cq_tdual_ready_pass = 0;
+		return -1;		/* nothing was sent: not the pass the last ready check allowed */
+	}
+	cq_tdual_ready_pass = 0;	/* one fire per yes */
 	if (uv && (!cq_tdual_lamp_done
 	        || i1pro2_cq_dual_form_refused(pp, CQ_TDUAL_UV_FLAGS, CQ_TSCAN_LAMPCLOCKS)))
 		return -1;		/* nothing was sent (the arm refused the same before the move) */
@@ -885,6 +911,11 @@ int i1pro2_cq_tdual_fire(void *pp, int pass, int nread, int npatch, cq_tscan_rec
 		r->misc_ev = i1pro_getmisc(p, &r->misc[0], &r->misc[1], &r->misc[2], &r->misc[3],
 		                           &r->misc[4]);
 		r->t_misc = msec_time();
+		if (r->lit_ev == I1PRO_OK) {	/* the lamp was on: let it go dark (SHOULD-1) */
+			int since = (int)(msec_time() - m->llamponoff);
+			if (since >= 0 && since < CQ_TDUAL_DARK_AFTER_LAMP_MS)
+				msec_sleep(CQ_TDUAL_DARK_AFTER_LAMP_MS - since);
+		}
 	} else
 		r->misc_ev = I1PRO_OK;
 

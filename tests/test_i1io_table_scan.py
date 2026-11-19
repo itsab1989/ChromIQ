@@ -238,10 +238,12 @@ def test_the_build_string():
     # 2026-11-18c = 18b + the dual scan's device side (step 2);
     # 2026-11-18d = 18c + the dual scan's safety fixes (pairing on the instrument path, only
     # recorded UV forms, 41 lamp clocks);
-    # 2026-11-18e = 18d + the dual scan on the i1iO 2 table (--i1io-table-dual, --dual-table), last
-    assert "chromiq-chartread 2026-11-18e " in h
+    # 2026-11-18e = 18d + the dual scan on the i1iO 2 table (--i1io-table-dual, --dual-table);
+    # 2026-11-19a = 18e + the table dual row's fix round (the lamp pass's dark 170 ms after the
+    # lamp, a fire only of the pass the last ready check allowed), last
+    assert "chromiq-chartread 2026-11-19a " in h
     assert ("+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule"
-            "+i1pro2-dual-device+i1pro2-dual-safety+i1io-table-dual\"") in h
+            "+i1pro2-dual-device+i1pro2-dual-safety+i1io-table-dual+i1io-table-dual-fix2\"") in h
 
 
 def _base_tree(tmp: Path) -> Path:

@@ -206,6 +206,12 @@ static i1pro *make(devType dtype, int caps2) {
 	m->min_int_time = 136 * 36e-6;
 	m->nsen = 134;
 	m->nraw = 128;
+	{	/* a white reading for the dual tile's checksum (white_data[-1 .. nraw-1]) */
+		double *w = (double *)calloc((size_t)m->nraw + 1, sizeof(double));
+		for (j = 0; j <= m->nraw; j++)
+			w[j] = 1000.0 + j;
+		m->ms[0].white_data = w + 1;
+	}
 	m->msec = msec_time();
 	m->llamponoff = msec_time() - 10000;
 	m->fwrev = 634;
@@ -305,6 +311,10 @@ int main(int argc, char **argv) {
 	restore(p);			/* the same white: taken up */
 	((i1proimp *)p->m)->ms[0].cfdate -= 5;
 	restore(p);			/* another white (date): not taken up */
+	((i1proimp *)p->m)->ms[0].cfdate += 5;
+	restore(p);			/* the date back: taken up again */
+	((i1proimp *)p->m)->ms[0].white_data[5] += 0.5;
+	restore(p);			/* another white of the SAME date (its checksum): not taken up */
 	end(p);
 
 	/* one dual row: the lamp pass forward, the UV pass straight back */
@@ -331,6 +341,7 @@ int main(int argc, char **argv) {
 	on(p);
 	n_rd82 = 0; fail_rd_at = 1;
 	lights(p); msec_sleep(10);
+	ready(p, CQ_TDUAL_PASS_LAMP, 550, 1);
 	fire(p, CQ_TDUAL_PASS_LAMP, 550);
 	fail_rd_at = 0;
 	ready(p, CQ_TDUAL_PASS_UV, 550, 1);
@@ -342,11 +353,28 @@ int main(int argc, char **argv) {
 	p = make(instI1Pro2, I1PRO_CAP2_UV_LED | I1PRO_CAP2_ZEB_RUL);
 	on(p);
 	lights(p); msec_sleep(10);
+	ready(p, CQ_TDUAL_PASS_LAMP, 550, 1);
 	fire(p, CQ_TDUAL_PASS_LAMP, 550);
-	n_d4 = 0; fail_d4_at = 1;
 	msec_sleep(10);
+	ready(p, CQ_TDUAL_PASS_UV, 550, 1);
+	n_d4 = 0; fail_d4_at = 1;
 	fire(p, CQ_TDUAL_PASS_UV, 550);
 	fail_d4_at = 0;
+	end(p);
+
+	/* SHOULD-3 R10: a fire of a pass the last ready check did not allow sends
+	 * nothing (the helper refuses an unarmed fire first; this is the second line) */
+	scn = "unarmed";
+	p = make(instI1Pro2, I1PRO_CAP2_UV_LED | I1PRO_CAP2_ZEB_RUL);
+	on(p);
+	lights(p); msec_sleep(10);
+	fire(p, CQ_TDUAL_PASS_LAMP, 550);		/* no ready at all: nothing */
+	ready(p, CQ_TDUAL_PASS_LAMP, 550, 1);
+	fire(p, CQ_TDUAL_PASS_UV, 550);			/* the lamp was allowed, not the UV: nothing */
+	ready(p, CQ_TDUAL_PASS_LAMP, 550, 1);
+	fire(p, CQ_TDUAL_PASS_LAMP, 550);		/* allowed: the lamp pass */
+	msec_sleep(10);
+	fire(p, CQ_TDUAL_PASS_UV, 550);			/* delivered lamp, but no ready for UV: nothing */
 	end(p);
 
 	/* not a dual session (an original i1Pro, or no UV LED): nothing at all */

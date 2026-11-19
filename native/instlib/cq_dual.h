@@ -102,6 +102,8 @@ int i1pro2_cq_dual_uv_pass_ready(void *pp);	/* 1 = the UV pass may be asked for 
  * reading with --dual-table call these. cq_tscan_rec is cq_tscan.h's. */
 #define CQ_TDUAL_PASS_LAMP 1
 #define CQ_TDUAL_PASS_UV 2
+/* the most readings a dual row of the table may ask for (5.8 s of UV light);
+ * recorded UV-LED passes reach 1820 readings by hand, ChromIQ's rows need 550-590 */
 #define CQ_TDUAL_NMAX 1150
 int i1pro2_cq_tdual_on(void *pp, double *kA, double *kD);	/* CQ_DUAL_NA_*; no ruler */
 int i1pro2_cq_dual_tile_save(void *pp, const cq_dual_tile *t);	/* 1 = kept */
