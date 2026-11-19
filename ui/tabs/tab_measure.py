@@ -13110,8 +13110,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 strip=self._strip_name(strip) or strip,
                 reason=D.reason_sentence(why))
         self._log.appendPlainText(f"[{title}]\n{body}")
-        return (f"<b>{html.escape(title)}</b><br><br>{html.escape(body)}"
-                "<br><br>")
+        # paragraphs stay paragraphs (M-DUAL-CAL-AGAIN has three; found on
+        # screen 2026-11-19, en-uncal: rich text ran them into one block)
+        return (f"<b>{html.escape(title)}</b><br><br>"
+                + html.escape(body).replace("\n", "<br>") + "<br><br>")
 
     def _on_dual_start_refused(self, kind: str) -> None:
         """The engine refused to continue this measurement (the START check
@@ -20920,7 +20922,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if letter:
             # The PERSON's choice: a guide that was heading elsewhere hands
             # the reader over (jctay, forum 149834; `user_goto_strip`).
-            self._manager.user_goto_strip(letter)
+            # False: held (4.3.49, a dual strip's second pass is due), and
+            # M-DUAL-PASS-HELD says so instead.
+            if self._manager.user_goto_strip(letter) is False:
+                return
             self._log.appendPlainText(
                 tr("[Engine] Jumping to strip {strip}…").format(strip=letter))
 
@@ -24886,7 +24891,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         bridge = getattr(self, "_cr30_bridge", None)
         if bridge is not None:
             bridge.note_goto(loc)
-        self._manager.goto_patch(loc)
+        if self._manager.goto_patch(loc) is False:
+            return       # held (4.3.49, M-DUAL-PASS-HELD says so)
         self._log.appendPlainText(
             tr("[Engine] Jumping to patch {loc}…").format(loc=loc))
 

@@ -2955,7 +2955,7 @@ class MeasureManager(QObject):
         if self._engine_active:
             self.send_command({"cmd": "goto", "strip": strip})
 
-    def user_goto_strip(self, strip: str) -> None:
+    def user_goto_strip(self, strip: str) -> bool:
         """The PERSON chose *strip* (a click on the preview): jump there, and
         if guided refinement was taking them somewhere else, it stops.
 
@@ -2965,12 +2965,16 @@ class MeasureManager(QObject):
         7 is done. Moving on to strip 12…" and jumped away from the strip he
         had chosen, without anything having been read. What he saw was the
         pointer jumping to another strip. A click is the person taking the
-        reader, so the guide hands it over instead of fighting it."""
+        reader, so the guide hands it over instead of fighting it.
+
+        Returns False when no jump goes out (4.3.49: held while a dual
+        strip's second pass is due), so the tab does not say it jumps."""
         strip = str(strip or "").strip()
         if not strip:
-            return
-        if self._dual_pass_holds({"cmd": "goto", "strip": strip}):
-            return       # the guide is not handed over for a jump not made
+            return False
+        if getattr(self, "_dual_pass_due", "") and self._dual_pass_holds(
+                {"cmd": "goto", "strip": strip}):
+            return False  # the guide is not handed over for a jump not made
         if (not self._guided_by_patch and self._guided_strips
                 and self._guided_state in ("navigating", "waiting")
                 and self._guided_idx < len(self._guided_strips)
@@ -2990,6 +2994,7 @@ class MeasureManager(QObject):
                     "list to read again: {rest}.").format(
                         strip=strip, rest=", ".join(rest)))
         self.goto_strip(strip)
+        return True
 
     def _guided_strip_unreachable(self, current: str, target: str) -> bool:
         """True when the engine has been asked twice for *target* and is still
@@ -3039,10 +3044,16 @@ class MeasureManager(QObject):
             return
         self._navigate_toward(current, self._guided_strips[self._guided_idx])
 
-    def goto_patch(self, loc: str) -> None:
-        """Jump the engine directly to patch `loc` in spot mode (engine only)."""
+    def goto_patch(self, loc: str) -> bool:
+        """Jump the engine directly to patch `loc` in spot mode (engine only).
+        False when nothing went out (4.3.49: held, `_dual_pass_holds`)."""
         if self._engine_active:
+            if getattr(self, "_dual_pass_due", "") and self._dual_pass_holds(
+                    {"cmd": "goto", "patch": loc}):
+                return False
             self.send_command({"cmd": "goto", "patch": loc})
+            return True
+        return False
 
     @property
     def engine_active(self) -> bool:

@@ -476,3 +476,32 @@ def test_off_the_manager_never_holds(qapp):
     m._runner.sent.clear()
     m.send_key("f")
     assert any('"forward"' in s for s in _sent(m))
+
+
+def test_1_the_tab_does_not_say_it_jumps_when_the_jump_was_held(qapp):
+    """Found on screen (2026-11-19, en-held): the log said "[Engine] Jumping to strip C..."
+    beside M-DUAL-PASS-HELD although nothing was sent."""
+    from ui.tabs.tab_measure import TabMeasure
+    logged = []
+    for answer, want in ((False, 0), (True, 1), (None, 1)):
+        logged.clear()
+        fake = SimpleNamespace(
+            _manager=SimpleNamespace(engine_active=True,
+                                     user_goto_strip=lambda s, a=answer: a,
+                                     goto_patch=lambda loc, a=answer: a),
+            _letter_for_page_idx=lambda p, i: "C",
+            _log=SimpleNamespace(appendPlainText=logged.append))
+        TabMeasure._on_preview_strip_clicked(fake, 0, 2)
+        TabMeasure._on_preview_patch_clicked(fake, 0, "C3")
+        assert len(logged) == 2 * want, (answer, logged)
+
+
+def test_2_the_failure_window_keeps_the_paragraphs(qapp, tmp_path):
+    """Found on screen (2026-11-19, en-uncal): the window's rich text ran M-DUAL-CAL-AGAIN's
+    paragraphs into one block."""
+    from ui.tabs.tab_measure import TabMeasure
+    from tests.test_i1pro2_dual_scan_ui_fix import _fake
+    fake, *_ = _fake(tmp_path)
+    fake._dual_failed = ("calibrate", "A", "uv_tile_dark")
+    html_text = TabMeasure._dual_failure_html(fake)
+    assert "\n" not in html_text and html_text.count("<br><br>") >= 4
