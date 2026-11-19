@@ -810,10 +810,10 @@ _I1IO_MC_AIM_UNNAMED = (
 #: paragraph (M-I1IO-AIM-*), which would tell the person to aim at the crosses.
 _I1IO_MC_CROSSES = (
     "About the three small numbered crosses on this sheet: they are for "
-    "measuring with the table in ChromIQ itself, which comes in a later "
-    "version. Do not aim at them for i1Profiler: they sit 10 to 15 mm "
-    "outside the patches, and i1Profiler needs the centres of the three "
-    "corner patches of step 4.")
+    "measuring with the table in ChromIQ itself, on a chart that ChromIQ "
+    "drives the table with. Do not aim at them for i1Profiler: they sit 10 "
+    "to 15 mm outside the patches, and i1Profiler needs the centres of the "
+    "three corner patches of step 4.")
 #: A VERIFICATION chart of several pages (2026-11-16: a profiling chart of
 #: several pages gets M-I1IO-MEASURE-CHART-PAGES): the Measure Chart way is
 #: not offered; this note is added to M-I1IO-NOT-YET-BY-HAND instead.
@@ -829,17 +829,33 @@ M_I1IO_MEASURE_CHART_PARTS = _m(
                _I1IO_MC_AIM_UNNAMED, _I1IO_MC_CROSSES, _I1IO_MC_PAGES)),
     approved=False)
 
+#: Rewritten for 4.3.49: it said ChromIQ could not drive the table yet,
+#: untrue since 4.3.45. START drives the table for every chart with a
+#: readable side file in a run, calibration or verification folder
+#: (`_started_the_table_drive`, `drivable_sheet`), so this window is shown
+#: only for an i1iO chart the table is not driven with (for example one
+#: opened from another folder): it says so, how to get a chart ChromIQ
+#: drives the table with, and the i1Profiler way. Same for -PAGES and the
+#: two crosses paragraphs.
 M_I1IO_MEASURE_CHART = _m(
     "M-I1IO-MEASURE-CHART",
     "Measure this i1iO chart with i1Profiler",
-    "This chart was made for the X-Rite i1iO scanning table. ChromIQ cannot "
-    "drive the table itself yet; that is being prepared for a later version. "
-    "Until then you can measure this chart on the table with X-Rite's "
-    "i1Profiler and bring the measurement back here. ChromIQ then puts every "
-    "reading on its own patch and checks from the colours that the sheet lay "
-    "the right way. Nothing is wrong with the chart. Please keep in mind "
-    "that the layout may still change once more i1iO owners have tested it, "
-    "so a later version may ask you to print the chart again.\n\n"
+    "This chart was made for the X-Rite i1iO scanning table. ChromIQ can "
+    "drive the table itself (a Beta), but not with this chart. It drives the "
+    "table only with a chart it made for the table in a project, kept in the "
+    "project's own folders, with the file ChromIQ wrote beside it (the "
+    "chart's name with the ending “.i1io.json”). This chart is not such a "
+    "chart, for example because it was opened from another folder. To "
+    "measure it with the table through ChromIQ, make the chart again in your "
+    "project: on the Create Chart tab, choose “i1iO 2 + i1Pro 2” as the "
+    "instrument and create it. Then print it on the Print Chart tab and "
+    "press Start Measurement on this tab: the table measures it.\n\n"
+    "You can also measure this chart on the table with X-Rite's i1Profiler "
+    "and bring the measurement back here. ChromIQ then puts every reading on "
+    "its own patch and checks from the colours that the sheet lay the right "
+    "way. Nothing is wrong with the chart. Please keep in mind that the "
+    "layout may still change once more i1iO owners have tested it, so a "
+    "later version may ask you to print the chart again.\n\n"
     "1. {lay}\n"
     "2. In i1Profiler, start the chart measurement for the i1iO that asks "
     "only for the number of columns and rows (X-Rite calls it \"Measure "
@@ -1242,15 +1258,23 @@ M_I1IO_MEASURE_CHART_PAGES = _m(
     "M-I1IO-MEASURE-CHART-PAGES",
     "Measure this i1iO chart with i1Profiler, one sheet at a time",
     "This chart was made for the X-Rite i1iO scanning table, and it has "
-    "{pages} pages. ChromIQ cannot drive the table itself yet; that is being "
-    "prepared for a later version. Until then you can measure the sheets on "
-    "the table with X-Rite's i1Profiler, one sheet at a time, and bring the "
-    "measurements back here. ChromIQ then works out which page each file "
-    "belongs to, puts every reading on its own patch and checks from the "
-    "colours that the sheet lay the right way. Nothing is wrong with the "
-    "chart. Please keep in mind that the layout may still change once more "
-    "i1iO owners have tested it, so a later version may ask you to print "
-    "the chart again.\n\n"
+    "{pages} pages. ChromIQ can drive the table itself (a Beta), but not "
+    "with this chart. It drives the table only with a chart it made for the "
+    "table in a project, kept in the project's own folders, with the file "
+    "ChromIQ wrote beside it (the chart's name with the ending "
+    "“.i1io.json”). This chart is not such a chart, for example because it "
+    "was opened from another folder. To measure it with the table through "
+    "ChromIQ, make the chart again in your project: on the Create Chart tab, "
+    "choose “i1iO 2 + i1Pro 2” as the instrument and create it. Then print "
+    "it on the Print Chart tab and press Start Measurement on this tab: the "
+    "table measures it.\n\n"
+    "You can also measure the sheets on the table with X-Rite's i1Profiler, "
+    "one sheet at a time, and bring the measurements back here. ChromIQ then "
+    "works out which page each file belongs to, puts every reading on its "
+    "own patch and checks from the colours that the sheet lay the right way. "
+    "Nothing is wrong with the chart. Please keep in mind that the layout "
+    "may still change once more i1iO owners have tested it, so a later "
+    "version may ask you to print the chart again.\n\n"
     "For every sheet:\n"
     "1. {lay}\n"
     "2. In i1Profiler, start the chart measurement for the i1iO that asks "
@@ -1329,10 +1353,10 @@ def i1io_measure_chart_pages_window(sheets: "list[dict]", crosses: bool,
 #: without its "of step 4" (the steps differ here).
 _I1IO_MC_CROSSES_PAGES = (
     "About the three small numbered crosses on these sheets: they are for "
-    "measuring with the table in ChromIQ itself, which comes in a later "
-    "version. Do not aim at them for i1Profiler: they sit 10 to 15 mm "
-    "outside the patches, and i1Profiler needs the centres of the three "
-    "corner patches.")
+    "measuring with the table in ChromIQ itself, on a chart that ChromIQ "
+    "drives the table with. Do not aim at them for i1Profiler: they sit 10 "
+    "to 15 mm outside the patches, and i1Profiler needs the centres of the "
+    "three corner patches.")
 
 #: Why a file of a chart of several pages is refused (`pages.match_file`),
 #: the {reason} of M-IMPORT-I1IO-REFUSED. {grids}: page grids joined by
