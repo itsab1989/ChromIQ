@@ -115,9 +115,6 @@ def test_no_offer_when_the_arm_reads_out_after_a_homing_of_this_sitting(tmp_path
     assert sim.received[n:] == []
 
 
-@pytest.mark.xfail(strict=True, reason="safety review 448 SHOULD-1: the job itself (not only the "
-                                       "window) refuses the start-up after the person said the "
-                                       "arm is out")
 def test_the_job_refuses_the_start_up_after_arm_out(tmp_path):
     job, sim, helper, run, p = job_for(tmp_path, {J.Confirm.READY_TO_OPEN: "arm out"},
                                        real_table=False)

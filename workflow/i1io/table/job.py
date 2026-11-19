@@ -1223,6 +1223,11 @@ class TableJob:
             return self._result("start_up", Kind.REFUSED, "instrument_not_in_the_arm")
         if self.stopped_by_person:
             return self._result("start_up", Kind.REFUSED, "stopped_by_person")
+        if self.opened_with_arm_out:
+            # safety review 448, SHOULD-1: the start-up (i0, then its homing) is recorded only
+            # with the arm at its resting place, never with the arm out over the table; the
+            # person said it is out, so the job itself refuses it (not only the window)
+            return self._result("start_up", Kind.REFUSED, "arm_out_start_up_not_recorded")
         if self._gen is None and self._stale_stop("start_up"):
             return self._result("start_up", Kind.REFUSED, STOPPED_BEFORE_THE_NEXT_MOVE,
                                 by_person=True)
