@@ -21,13 +21,22 @@ def test_every_heading_of_the_4348_entry_renders_as_its_own_section():
     known = {md.lower() for _k, md, _p in rn.SECTIONS}
     heads = [re.sub(r"^#+\s*", "", ln).strip() for ln in _entry("v4.3.48")
              if ln.startswith("### ")]
-    assert heads == ["New", "Fixed", "Known issues"], heads
+    # the table branch's entries (merged 2026-11-19) came in under Changed
+    assert heads == ["New", "Changed", "Fixed", "Known issues"], heads
     assert all(h.lower() in known for h in heads)
     note = rn.build(["v4.3.48"], "v4.3.48")
     known_part = note.split("### ⚠️ Known issues", 1)[1]
     assert "No part of the dual scan has run on a real instrument or a real table yet" \
         in known_part
     assert "Continue Measurement" in known_part and "ruler" in known_part
+    # the merge of fix/4.3.48-table-home: its honest limits in the same list
+    assert "offered only in the recorded cases" in known_part
+    assert "NOT offered for a free arm at the place where the aiming starts" in known_part
+    assert "The automatic second move to a patch is not itself recorded" in known_part
+    assert "Neither the homing after a stop nor the second move has run on a real table yet" \
+        in known_part
+    changelog = (Path(__file__).resolve().parents[1] / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert "## Unreleased" not in changelog.split("## v4.3.47", 1)[0]
     assert "—" not in "\n".join(_entry("v4.3.48"))
 
 
