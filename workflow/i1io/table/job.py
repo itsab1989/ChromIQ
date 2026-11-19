@@ -695,6 +695,7 @@ class TableJob:
         #: diagnostics), and how many the running row attempt may still send
         self.beside_retries: "list[dict]" = []
         self._beside_retries_left = 0
+        self._beside_at_block = 0
         #: 4.3.48: the person answered "arm out" at the ready question
         self.opened_with_arm_out = False
         #: 4.3.48: the homing after a stop was tried in this session (it is offered once)
@@ -1017,6 +1018,7 @@ class TableJob:
                        "folder": f"{key}-{n}", "lines_before": d.lines_sent,
                        "moves_before": d.motions_sent, "position_before": d.position_now,
                        "t_start": round(d.t.now(), 3), "answers": [], "data": {}}
+        self._beside_at_block = len(self.beside_retries)
         self.diag.stage_dir(key, n)
         d.log("STAGE", f"start {key} run {n}")
 
@@ -1034,6 +1036,11 @@ class TableJob:
                   "movement_unconfirmed": d.motion_unconfirmed, "t_end": round(d.t.now(), 3),
                   "front_zone_reached_y": d.front_y, "way_back": res.way_back,
                   "state": {k: v for k, v in res.state.__dict__.items()}})
+        second = self.beside_retries[self._beside_at_block:]
+        if second:
+            # safety review 448, SHOULD-3: every automatic second move of this step, with its
+            # readings and whether it cured the miss (diagnostics.py, "second_moves")
+            b["data"]["second_moves"] = copy.deepcopy(second)
         if res.kind == Kind.OK and b["stage"] in ("d1", "dz", "d2", "f", "park"):
             self.worked.add(b["stage"])
         b.setdefault("notes", [])
@@ -1886,7 +1893,8 @@ class TableJob:
                                                                        ARRIVAL_BESIDE_UNITS):
                     if retry_beside and self._beside_retry_allowed(got, target):
                         # 4.3.48: once, the same move again from this fresh reading
-                        return (yield from self._move_again_beside(a, got, target, what))
+                        return (yield from self._move_again_beside(a, got, target, what,
+                                                                   first=first))
                     d.log("DATA", f"{what}: the arm stands beside the target by "
                                   f"({got[0] - target[0]:+d}, {got[1] - target[1]:+d}) units "
                                   f"(within {ARRIVAL_BESIDE_UNITS}): the step ends cleanly, "
@@ -1911,7 +1919,7 @@ class TableJob:
                              "the arm is not held, the way is not confirmed, or a stop waits"))
         return ok
 
-    def _move_again_beside(self, a, got, target, what: str):
+    def _move_again_beside(self, a, got, target, what: str, first=None):
         """4.3.48 (release review 4.3.47, SHOULD-1): the arm read twice beside its target by
         6..10 units after a move that ended normally. The SAME m0 line (the same absolute
         target) is sent once more from the fresh reading *got*, as i1Profiler does on this table
@@ -1919,16 +1927,24 @@ class TableJob:
         R1 285.068, R2 480.292, 18 Nov A 161.408, B 49.904 ...). Its arrival is checked exactly as
         the first one's (read again once after 0.3 s); a second arrival beside fails the row as
         before (``_ArrivedBeside``), beyond 1 mm it is a doubt. Lines: m0, p0 (and the p0 read
-        again), at most 3, 1 movement (cp.BESIDE_RETRY)."""
+        again), at most 3, 1 movement (cp.BESIDE_RETRY).
+
+        Safety review 448, SHOULD-3: every such move is written into the session's diagnostics
+        (the row's result block, ``data["second_moves"]``, see diagnostics.py): the target, the
+        two readings before it, the reading(s) after it, and whether it cured the miss."""
         d = self._table
         self._beside_retries_left -= 1
-        self.beside_retries.append({"what": what, "target": list(target), "read": list(got),
-                                    "line": d.lines_sent})
+        entry = {"what": what, "target": list(target), "read": list(got),
+                 "readings_before": [list(first) if first is not None else None, list(got)],
+                 "readings_after": [], "cured": None, "result": "not sent",
+                 "line": d.lines_sent}
+        self.beside_retries.append(entry)
         d.log("DATA", f"{what}: the arm stands beside the target by ({got[0] - target[0]:+d}, "
                       f"{got[1] - target[1]:+d}) units; the same move is sent once more from "
                       "this reading")
         # a stop or a problem reported meanwhile is honoured before the move
         self._between_patches()
+        entry["result"] = "sent"
         # no lower bound: a move of a few units may finish at once (i1Profiler's recorded moves
         # to the previous target, 0..3 units, took 0.016 s); its arrival is read in any case
         win = (0.0, geo.move_window(got, target)[1])
@@ -1937,29 +1953,38 @@ class TableJob:
                          timeout=win[1] + 4.0, late_is_doubt=False)
         except tbl.MoveOutside as exc:
             again = d.position()
+            entry["readings_after"].append(list(again))
+            entry["took_s"] = round(exc.took, 3)
             if _near(again, target):
                 self.driven.append((a, target))
+                entry.update(cured=True, result="arrived, but slower than recorded")
                 raise StageFailed("movement_late_but_arrived", took=round(exc.took, 3),
                                   window=(round(exc.lo, 2), round(exc.hi, 2))) from None
+            entry.update(cured=False, result="slower than recorded and not arrived")
             raise d._doubt(f"{what}: after a slow move the arm reads {again}, not {target}")
         again = d.position()
+        entry["readings_after"].append(list(again))
         if not _near(again, target):
             first = again
             d.c_wait(ARRIVAL_RECHECK_S)
             again = d.position()
+            entry["readings_after"].append(list(again))
             d.log("DATA", f"{what}: after the second move the arm read {first}, "
                           f"{ARRIVAL_RECHECK_S:.1f} s later {again} (target {target})")
             if not _near(again, target):
                 d.outside_at = again
                 if _near(again, target, ARRIVAL_BESIDE_UNITS) and _near(first, target,
                                                                          ARRIVAL_BESIDE_UNITS):
+                    entry.update(cured=False, result="beside the target again")
                     d.log("DATA", f"{what}: beside the target again, by "
                                   f"({again[0] - target[0]:+d}, {again[1] - target[1]:+d}) "
                                   "units: the row ends cleanly, nothing is read there")
                     raise _ArrivedBeside("arrived_beside_the_target_again", target=target,
                                          read=again)
+                entry.update(cured=False, result="more than 1 mm off after the second move")
                 raise d._doubt(f"{what}: the arm reads {again}, not {target} (twice, after the "
                                "second move)")
+        entry.update(cured=True, result="arrived")
         d.log("DATA", f"{what}: the second move arrived at {again}")
         self.driven.append((a, target))
         return again
