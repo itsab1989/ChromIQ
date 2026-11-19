@@ -583,6 +583,12 @@ def seen_text(d: dict) -> str:
     return ", ".join(parts) if parts else tr("nothing it could name")
 
 
+def second_move_line() -> str:
+    """Safety review 448, SHOULD-4: shown in the live state while a row is read patch by patch."""
+    return tr("When the arm stops a little beside a patch, ChromIQ moves it there a second time, "
+              "by about 1 mm, before it reads the patch, so a second small movement is normal.")
+
+
 def reason_text(rid: str, detail: "dict | None" = None) -> str:
     """Why a step was refused or stopped, in a sentence (M-I1IO-DRIVE-REFUSED's {why})."""
     d = detail or {}
@@ -2217,6 +2223,14 @@ class TableMeasureWindow(QFrame):
             return
         kind = ev.get("event")
         if kind == "row_start":
+            # safety review 448, SHOULD-4: a row read patch by patch may move the arm a second
+            # time to a patch (job._move_again_beside); a strip row never does
+            live["patch_row"] = ev.get("kind") != "strip"
+        elif kind in ("patch_next", "strip_fallback"):
+            live["patch_row"] = True
+        elif kind == "strip_move":
+            live["patch_row"] = False
+        if kind == "row_start":
             live["now"] = tr("Now: moving to row {row} of page {page}.").format(
                 row=ev.get("row", "?"), page=ev.get("page", "?"))
         elif kind == "patch_next":
@@ -2262,6 +2276,8 @@ class TableMeasureWindow(QFrame):
                  tr("Arm: moved by the table now.")]
         if live.get("now"):
             lines.append(live["now"])
+        if live.get("patch_row"):
+            lines.append(second_move_line())
         lines.append(rows_read_line(live.get("page", 1),
                                     self.job.pages_in_chart() if self.job else 1,
                                     len(live.get("rows_read", ())), live.get("rows", 0)))
