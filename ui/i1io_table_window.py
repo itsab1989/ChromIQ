@@ -600,6 +600,18 @@ def second_move_line() -> str:
               "by about 1 mm, before it reads the patch, so a second small movement is normal.")
 
 
+#: the full stops a translated sentence can end with: the ASCII one, and the ideographic and
+#: full-width ones of the Japanese and Chinese catalogues
+SENTENCE_STOPS = ".\u3002\uff0e"
+
+
+def as_clause(sentence: str) -> str:
+    """*sentence* without its closing full stop, for a template that puts its own stop after
+    it ("could not be read: {why}. ..."). 4.3.48 merge: ``rstrip(".")`` left the Japanese and
+    Chinese "\u3002" in place, so every such page read "\u3002\u3002" there."""
+    return sentence.rstrip().rstrip(SENTENCE_STOPS)
+
+
 def reason_text(rid: str, detail: "dict | None" = None) -> str:
     """Why a step was refused or stopped, in a sentence (M-I1IO-DRIVE-REFUSED's {why})."""
     d = detail or {}
@@ -3074,7 +3086,7 @@ class TableMeasureWindow(QFrame):
         elif kind == "row_failed_strip":
             title, body = M.M_I1IO_DRIVE_ROW_FAILED_STRIP.render(
                 row=d.get("row", "?"), page=d.get("page", page),
-                why=reason_text(d.get("why", "")).rstrip("."))
+                why=as_clause(reason_text(d.get("why", ""))))
             if not d.get("again_allowed", True):
                 why = (reason_text("calibration_due") if d.get("calibration_due")
                        else reason_text("rows_read_again_limit"))
@@ -3082,7 +3094,7 @@ class TableMeasureWindow(QFrame):
         elif kind == "row_failed":
             title, body = M.M_I1IO_DRIVE_ROW_FAILED.render(
                 row=d.get("row", "?"), page=d.get("page", page),
-                why=reason_text(d.get("why", "")).rstrip("."))
+                why=as_clause(reason_text(d.get("why", ""))))
             if not d.get("again_allowed", True):
                 why = (reason_text("calibration_due") if d.get("calibration_due")
                        else reason_text("rows_read_again_limit"))
