@@ -83,7 +83,8 @@ def test_the_per_step_numbers_are_the_testers():
     assert cp.APPROACH == (4 + tbl.STEP_MAX_LINES["b_align"], 1 + 3)
     # 4.3.47 MUST-1 (safety review): CREEP and CHECK_MOVE +1 line each, the arm read again
     # after a first-visit question before the move it was asked for
-    assert (cp.AIMS, cp.CREEP, cp.CHECK_MOVE, cp.HOME) == ((8, 0), (30, 11), (6, 1), (8, 1))
+    # 4.3.49 (Basti's ruling: targets up to the aimed area): the creep may need up to 19 steps
+    assert (cp.AIMS, cp.CREEP, cp.CHECK_MOVE, cp.HOME) == ((8, 0), (48, 20), (6, 1), (8, 1))
     assert cp.spot_row(33) == (70, 33) and cp.STRIP_ROW == (19, 4)
     assert J.D1_CAPS == cp.AIMS and J.DZ_CAPS == cp.CREEP and J.D2_CAPS == cp.CHECK_MOVE
     assert (cp.ALLOWANCE_FRACTION, cp.ALLOWANCE_ROWS, cp.ALLOWANCE_ALIGNMENTS) == (0.10, 2, 1)
@@ -221,12 +222,13 @@ def test_a_densest_page_aligns_within_its_caps_on_the_simulator():
 # ---- the creep ---------------------------------------------------------------------------
 
 def test_the_creep_numbers_are_pinned():
-    assert (cp.CREEP_STEPS_MAX, cp.CREEP_PAUSE_S, geo.CREEP_STEP) == (10, 0.5, 50)
-    # enough for the whole front zone: it needs at most 8 steps
+    # 4.3.49: 19 steps (from 10), enough for an aimed area up to the absolute backstop
+    assert (cp.CREEP_STEPS_MAX, cp.CREEP_PAUSE_S, geo.CREEP_STEP) == (19, 0.5, 50)
+    # enough for the whole front zone up to the absolute backstop: at most 19 steps
     assert (geo.FRONT_CAP_Y - A.ymax) / geo.CREEP_STEP < cp.CREEP_STEPS_MAX
     # +1: S-7, the first arrival read again; +1: 4.3.47 MUST-1, the arm read again after the
     # creep's first-visit question
-    assert cp.CREEP == (2 * 10 + 8 + 1 + 1, 10 + 1)
+    assert cp.CREEP == (2 * 19 + 8 + 1 + 1, 19 + 1)
 
 
 def _front_run(**kw):
@@ -688,8 +690,9 @@ def test_a_turned_or_wrong_sheet_is_refused_before_any_move(name):
 
 
 def test_a_sheet_that_does_not_fit_names_its_rows_and_its_marks():
-    """A mark outside the area: refused with the reason, nothing moves after the aims."""
-    aims = [(x, y + 600) for x, y in H.demo_aims()]
+    """A mark outside the area: refused with the reason, nothing moves after the aims. (4.3.49,
+    Basti's ruling: the front follows the aims, so the mark lies beyond the right side.)"""
+    aims = [(x - 600, y) for x, y in H.demo_aims()]
     res, job, sim, _p = H.run_steps(["open", "align"], aims=aims)
     r = res[1]
     assert (r.kind, r.reason) == (J.Kind.REFUSED, "aims_outside_area")
@@ -746,15 +749,20 @@ def test_the_creep_never_takes_more_steps_than_allowed(monkeypatch):
     assert len(front) == 2
 
 
-def test_a_free_arm_pushed_outside_the_area_is_not_moved():
+def test_a_free_arm_pushed_outside_the_area_moves_only_to_its_allowed_target():
+    """4.3.49 (Basti's ruling of 19 Nov 2026, for the safety review): a free arm the person's
+    hand put outside AREA_RAW is no longer refused there; the move from it is judged by its
+    target alone (the arm IS where it reads), after the first-visit question."""
     job, sim, _t = H.make_job()
     p = H.Person(job, sim)
     assert p.drive(job.open()).ok and p.drive(job.align()).ok
     sim.hand_to(geo.AREA_RAW.xmax + 100, 1500)
     n = len(sim.received)
     r = p.drive(job.check_move())
-    assert (r.kind, r.reason) == (J.Kind.REFUSED, "free_arm_outside_area")
-    assert moves(sim.received[n:]) == []
+    assert r.ok, (r.reason, r.detail)
+    sent = [geo.decode_xyv(x.encode() + b"\r") for x in computed(sim.received[n:])]
+    assert sent and all(geo.CAP_AREA.contains((x, y)) for _c, x, y, _v in sent)
+    assert any(c == J.Confirm.FIRST_VISIT for _s, c, *_r in p.asked)
 
 
 def test_a_move_that_arrives_elsewhere_stops_everything():

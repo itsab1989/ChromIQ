@@ -115,7 +115,9 @@ def test_the_package_exists_and_is_complete():
         # round B (build step 10): strip rows (a first try)
         "strip.py",
         # the i1Pro 2 dual scan on the table (2026-11-18, a first try)
-        "dual_rows.py"}
+        "dual_rows.py",
+        # 4.3.49: the table's remembered reach (records and learns; sends nothing)
+        "reach.py"}
 
 
 #: build step 9: the only app modules that may import the package, and only lazily

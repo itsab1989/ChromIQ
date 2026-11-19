@@ -150,7 +150,18 @@ ARRIVAL_SLACK = 5
 #: sends the opening to an aim with no offset, and no recorded alignment or i1Profiler target
 #: goes beyond it). Never a target beyond it.
 FRONTMOST_AIM_Y = 3109
-FRONT_CAP_Y = FRONTMOST_AIM_Y
+#: 4.3.49 (Basti's ruling of 19 Nov 2026, FOR THE SAFETY REVIEW): the front of the target area
+#: is no longer the frontmost RECORDED aim (FRONTMOST_AIM_Y). It is what the person AIMED AT on
+#: this sheet (Alignment.aimed_front_y, the aimed area with the plan's run-out, passed to every
+#: check below as *cap_y*), on the evidence that i1Profiler drives the opening to the very points
+#: the person aimed the sight at (17 Nov 2026, three sessions, all three marks, within 1-5 units).
+#: Without an alignment, the proven MEASURING_AREA only (DEFAULT_TARGET_FRONT_Y).
+#: FRONT_CAP_Y is now only an ABSOLUTE BACKSTOP against a corrupted target (365 mm from home,
+#: NOT a physical end: the i1iO's published measuring depth is 230 mm and no recording shows the
+#: opening beyond 285.5 mm); the line builders and the USB gate check it on every computed line.
+REACH_CEILING_Y = 3700
+FRONT_CAP_Y = REACH_CEILING_Y - MARGIN
+DEFAULT_TARGET_FRONT_Y = MEASURING_AREA.ymax
 #: A swept rectangle may START where the arm reads after a clean arrival at the cap, within the
 #: arrival tolerance; never beyond this.
 FRONT_SWEEP_CAP_Y = FRONT_CAP_Y + ARRIVAL_SLACK
@@ -160,17 +171,34 @@ CAP_RAW = Area(AREA_RAW.xmin, AREA_RAW.xmax, AREA_RAW.ymin, FRONT_SWEEP_CAP_Y)
 CREEP_STEP = 50
 
 
-def areas(front_y=None) -> "tuple[Area, Area]":
+def table_cap(cap_y=None) -> int:
+    """The front of the target area for a sitting whose aimed area reaches *cap_y* (None: no
+    alignment): never beyond FRONT_CAP_Y, never behind the proven measuring area."""
+    if cap_y is None or not isinstance(cap_y, (int, float)) or cap_y != cap_y:
+        return DEFAULT_TARGET_FRONT_Y
+    return int(max(DEFAULT_TARGET_FRONT_Y, min(cap_y, FRONT_CAP_Y)))
+
+
+def table_area(cap_y=None) -> Area:
+    """The whole target area of a sitting (its sides as MEASURING_AREA, its front at
+    :func:`table_cap`), whatever this sitting has confirmed with the creep."""
+    return Area(MEASURING_AREA.xmin, MEASURING_AREA.xmax, MEASURING_AREA.ymin, table_cap(cap_y))
+
+
+def areas(front_y=None, cap_y=None) -> "tuple[Area, Area]":
     """(targets, swept rectangles) for a sitting that has confirmed the front zone up to
-    *front_y* (None: nothing confirmed, the proven zone only). Targets never beyond FRONT_CAP_Y,
-    swept rectangles never beyond FRONT_SWEEP_CAP_Y."""
+    *front_y* (None: nothing confirmed, the proven zone only), whose target area ends at *cap_y*
+    (:func:`table_cap`). Targets never beyond the cap, swept rectangles never beyond it plus the
+    arrival tolerance. (4.3.49: the job starts a sitting with *front_y* at the frontmost place
+    THIS table's motors already brought the opening to, minus the arrival tolerance.)"""
     if front_y is None or not isinstance(front_y, (int, float)) or front_y != front_y \
             or front_y <= MEASURING_AREA.ymax:
         return MEASURING_AREA, AREA_RAW
-    fy = int(min(front_y, FRONT_CAP_Y))
+    cap = table_cap(cap_y)
+    fy = int(min(front_y, cap))
     # a swept rectangle may start where the arm READS after a clean arrival at fy (within the
     # 5-unit arrival tolerance), never beyond the cap plus that tolerance
-    sy = min(fy + ARRIVAL_SLACK, FRONT_SWEEP_CAP_Y)
+    sy = min(fy + ARRIVAL_SLACK, cap + ARRIVAL_SLACK)
     return (Area(MEASURING_AREA.xmin, MEASURING_AREA.xmax, MEASURING_AREA.ymin, fy),
             Area(AREA_RAW.xmin, AREA_RAW.xmax, AREA_RAW.ymin, max(AREA_RAW.ymax, sy)))
 
@@ -210,26 +238,54 @@ RUN_OUT_MM = 10.0
 ACROSS_MM = 2.0
 
 
-def check_target(p, what: str, front_y=None) -> None:
-    tgt, _sweep = areas(front_y)
+def check_target(p, what: str, front_y=None, cap_y=None) -> None:
+    tgt, _sweep = areas(front_y, cap_y)
     if not tgt.contains(p):
-        if CAP_AREA.contains(p) and in_front_zone(p):
+        whole = table_area(cap_y)
+        if whole.contains(p) and in_front_zone(p):
             raise AreaRefused(f"{what}: table position X {p[0]}, Y {p[1]} lies in the front part "
                               f"of the table further than this sitting has confirmed (Y "
                               f"{tgt.ymax}); stage DZ feels its way there first")
+        if CAP_AREA.contains(p) and p[1] > whole.ymax:
+            raise AreaRefused(f"{what}: table position X {p[0]}, Y {p[1]} lies in front of the "
+                              f"area that was aimed at (targets up to Y {whole.ymax})")
         raise AreaRefused(f"{what}: table position X {p[0]}, Y {p[1]} lies outside the measuring "
                           f"area this program uses ({tgt.text()})")
 
 
-def check_path(a, b, what: str, front_y=None) -> None:
+def check_path(a, b, what: str, front_y=None, cap_y=None) -> None:
     """A move from the READ position *a* to the target *b*: the target inside MEASURING_AREA
     (with its margin), the whole swept rectangle inside AREA_RAW (the start is where the arm
     physically is, so it may lie in the margin, e.g. a free arm left beside a corner)."""
-    check_target(b, what + " (its end)", front_y)
-    sweep = areas(front_y)[1]
+    check_target(b, what + " (its end)", front_y, cap_y)
+    sweep = areas(front_y, cap_y)[1]
     if not sweep.contains_path(a, b):
         raise AreaRefused(f"{what}: the rectangle the arm may sweep from {tuple(a)} to {tuple(b)} "
                           f"leaves the measuring area ({sweep.text()})")
+
+
+def check_move_from_reading(a, b, what: str, front_y=None, cap_y=None) -> None:
+    """4.3.49 (Basti's ruling of 19 Nov 2026, FOR THE SAFETY REVIEW): a move from *a*, a FRESH
+    POSITION READING of where the arm physically stands (held or free, put there by the motors
+    or by the person's hand), to the target *b*. Only the target is judged (inside the target
+    area, as every computed target). The start is not compared with any recorded extent: the
+    arm IS there. The way between needs no box of its own: the table moves an X carriage on an
+    arm that travels along Y, each axis over one interval, so every point of the rectangle
+    spanned by a point the arm stands on and a point it may be driven to has an X and a Y each
+    of which the mechanism reaches (the same belief AREA_RAW's derivation states).
+
+    One place is kept out on PHYSICAL grounds, not historical ones: a start in the BACK STRIP
+    (Y below AREA_RAW's back edge, the home line and the resting place over the table's white
+    tile). There the head parks over the tile holder; every recording leaves it straight along
+    Y on the home line first (to_250, to_1498), and ChromIQ's own way out is those recorded
+    lines. A computed move never starts there."""
+    if not (a is not None and len(a) == 2 and all(math.isfinite(float(v)) for v in a)):
+        raise AreaRefused(f"{what}: no usable reading of where the arm stands ({a!r})")
+    if a[1] < AREA_RAW.ymin:
+        raise AreaRefused(f"{what}: a computed move from {tuple(a)}, in the back strip at the "
+                          f"resting place (Y below {AREA_RAW.ymin}): only the recorded ways out "
+                          "start there")
+    check_target(b, what + " (its end)", front_y, cap_y)
 
 
 def _visited(p) -> bool:
@@ -331,6 +387,21 @@ RECORDED_ALIGNMENTS = {
 }
 
 LENGTH_TOL_UNITS = 20       # 2 mm: the recorded aims of one chart agree within 1 mm
+#: 4.3.49 (FOR THE SAFETY REVIEW): the allowed difference between a side of the aimed triangle
+#: on the table and on the sheet grows with the side, by LENGTH_TOL_FRACTION of it. The table
+#: reads long sides 0.4-0.5 % long on the volunteer's real table (19 Nov 2026, crosses of an A4
+#: chart: 2764 and 2761 units for 2750, corner patches 2539 for 2530) and his eight earlier real
+#: alignments passed the flat 2 mm only by 1.6 mm at worst; one round of 19 Nov by 1.9 mm. A
+#: wrong point (a corner patch for a cross, a patch one row off) is 9 to 22 mm and stays refused.
+LENGTH_TOL_FRACTION = 0.004
+
+
+def length_tolerance(sheet_units: float) -> float:
+    """Units by which a side of the aimed triangle may differ from the sheet's: 2 mm plus 0.4 %
+    of the side (2.75 mm on 188 mm, 3.1 mm on 275 mm)."""
+    return LENGTH_TOL_UNITS + LENGTH_TOL_FRACTION * abs(float(sheet_units))
+
+
 ANGLE_TOL_DEG = 1.0         # recorded 89.9 to 90.5 degrees
 ROTATION_TOL_DEG = 3.0      # recorded within 0.8 degrees; a turned sheet is 90 or 180 off
 
@@ -357,12 +428,23 @@ class Alignment:
                 and min(ys) - across_mm <= u[1] <= max(ys) + across_mm)
 
     def target(self, u, what: str, run_out_mm: float = RUN_OUT_MM,
-               front_y=None) -> "tuple[int, int]":
+               front_y=None, cap_y=None) -> "tuple[int, int]":
         if not self.on_sheet(u, run_out_mm):
             raise AreaRefused(f"{what}: sheet position {u} lies outside the aimed marks")
         p = self.to_table(u)
-        check_target(p, what, front_y)
+        # 4.3.49: an alignment's targets are bounded by the area it was aimed at
+        check_target(p, what, front_y, self.aimed_front_y() if cap_y is None else cap_y)
         return p
+
+    def aimed_front_y(self) -> int:
+        """4.3.49 (Basti's ruling): the frontmost table Y of the area the person aimed at, with
+        the plan's run-out along the rows and ACROSS_MM across them (:meth:`on_sheet`'s area,
+        mapped onto the table). Every target the plan may compute lies inside it."""
+        xs = [a[0] for a in self.aims_mm]
+        ys = [a[1] for a in self.aims_mm]
+        corners = [(x, y) for x in (min(xs) - RUN_OUT_MM, max(xs) + RUN_OUT_MM)
+                   for y in (min(ys) - ACROSS_MM, max(ys) + ACROSS_MM)]
+        return max(self.to_table(c)[1] for c in corners)
 
 
 def _shift_back(points, area: Area) -> str:
@@ -420,10 +502,11 @@ def fit_model(aims_mm, readings) -> Alignment:
         raise AlignmentRefused(f"the sheet seems to be turned by about {abs(rot):.0f} degrees from "
                                f"the way it must lie (at most {ROTATION_TOL_DEG:.0f} is accepted)")
     for (want, got), name in zip(lens, ("marks 1 and 2", "marks 2 and 3")):
-        if abs(want - got) > LENGTH_TOL_UNITS:
+        tol = length_tolerance(want)
+        if abs(want - got) > tol:
             raise AlignmentRefused(f"{name} are {got / 10:.1f} mm apart on the table but "
                                    f"{want / 10:.1f} mm on the sheet (at most "
-                                   f"{LENGTH_TOL_UNITS / 10:.0f} mm difference is accepted): one "
+                                   f"{tol / 10:.1f} mm difference is accepted): one "
                                    "aim was probably on another point")
     if abs(ang - 90) > ANGLE_TOL_DEG:
         raise AlignmentRefused(f"the corner at mark 2 measures {ang:.1f} degrees on the table "
@@ -445,8 +528,8 @@ def fit_alignment(aims_mm, readings) -> Alignment:
     outside = [(n, p) for n, p in enumerate(pts, 1) if not CAP_AREA.contains(p)]
     if outside:
         n, p = outside[0]
-        front = (" (further to the front than any mark of your recorded i1Profiler alignments)"
-                 if p[1] > CAP_AREA.ymax else "")
+        front = (" (further to the front than ChromIQ ever lets the arm go, whatever a table "
+                 "has shown it)" if p[1] > CAP_AREA.ymax else "")
         raise AlignmentRefused(
             f"mark {n} was aimed at X {p[0]:.0f}, Y {p[1]:.0f}, outside the measuring area this "
             f"program uses ({CAP_AREA.text()}{front}; where it lies on your table is our "
@@ -454,3 +537,49 @@ def fit_alignment(aims_mm, readings) -> Alignment:
             "your recorded alignments put their marks). For all three marks the sheet would have "
             f"to lie {_shift_back(pts, CAP_AREA)}")
     return al
+
+
+# ---- 4.3.49: what to tell the person (words only: nothing here allows or refuses a move) ------
+
+def _mm_up(units: float) -> int:
+    """Units to whole millimetres, rounded up, with one more millimetre to spare."""
+    return int(math.ceil(max(0.0, units) / 10.0)) + 1 if units > 0 else 0
+
+
+def sheet_move_advice(readings) -> dict:
+    """How far the sheet would have to lie further back / front / left / right (whole mm, 0 =
+    not that way) so that all three aims lie inside CAP_AREA, the target area (mark 3 is the
+    check move's target, and the corner patches lie just inside the marks). Words for the
+    person only; :func:`fit_alignment` and the job's checks decide."""
+    pts = [tuple(map(float, p)) for p in readings]
+    return {"back_mm": _mm_up(max(p[1] for p in pts) - CAP_AREA.ymax),
+            "front_mm": _mm_up(CAP_AREA.ymin - min(p[1] for p in pts)),
+            "left_mm": _mm_up(CAP_AREA.xmin - min(p[0] for p in pts)),
+            "right_mm": _mm_up(max(p[0] for p in pts) - CAP_AREA.xmax)}
+
+
+def free_arm_push_advice(p) -> dict:
+    """How far a FREE arm read at *p* would have to be pushed by hand (whole mm; back = away
+    from the person, left / right as the person sees the table) to stand inside AREA_RAW, where
+    ChromIQ may start a move or its homing from a free arm. Words only."""
+    x, y = float(p[0]), float(p[1])
+    return {"back_mm": _mm_up(y - AREA_RAW.ymax), "front_mm": _mm_up(AREA_RAW.ymin - y),
+            "left_mm": _mm_up(AREA_RAW.xmin - x), "right_mm": _mm_up(x - AREA_RAW.xmax)}
+
+
+def reach_advice_mm(need_y, cap_y) -> int:
+    """4.3.49: whole mm (rounded up, one to spare) by which a sheet whose frontmost target is
+    at *need_y* must lie further back to fit a table whose targets end at *cap_y*. Words for
+    the person only."""
+    return _mm_up(float(need_y) - float(cap_y))
+
+
+def lengths_fit(aims_mm, readings) -> bool:
+    """Whether *readings* have the shape of *aims_mm* (the length, corner and turn checks of
+    :func:`fit_model`). Used to tell the person which points they aimed at."""
+    try:
+        fit_model(aims_mm, readings)
+    except AlignmentRefused:
+        return False
+    return True
+

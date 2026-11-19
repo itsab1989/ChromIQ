@@ -201,7 +201,7 @@ def test_planted_a_wider_offer_is_caught(tmp_path, monkeypatch, plant):
         # still refuses (no reading came with it), which is the second line of defence
         assert job._home_after_stop_why() in ("no_fresh_position_reading", "arm_not_held")
     elif plant == "any place":
-        monkeypatch.setattr(J, "homing_starts_here", lambda p, free: True)
+        monkeypatch.setattr(J, "homing_starts_here", lambda p, free, *cap: True)
         monkeypatch.setattr(J, "HOME_AFTER_STOP_AREA", J.geo.Area(-9999, 9999, -9999, 9999))
         job, sim, p, r = _stopped_at_the_homing(tmp_path, ALIGN_START)
         assert job._home_after_stop_why() is None          # the plant shows

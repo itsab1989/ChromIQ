@@ -166,7 +166,8 @@ class PlanRefused(Exception):
     pass
 
 
-def check_plan(p: RowPlan, at=None, front_y=None) -> None:
+def check_plan(p: RowPlan, at=None, front_y=None, cap_y=None) -> None:
+    """*cap_y* (4.3.49): the front of the area the person aimed at (geometry.table_cap)."""
     if p.speed not in (geo.DUAL_M2_SPEEDS if p.dual else geo.RECORDED_M2_SPEEDS):
         raise PlanRefused(f"speed {p.speed} is not a recorded scan speed"
                           + (" for a dual row" if p.dual else ""))
@@ -174,11 +175,13 @@ def check_plan(p: RowPlan, at=None, front_y=None) -> None:
         raise PlanRefused(f"{p.N} readings: more than a dual row may ask for "
                           f"({DUAL_N_MAX})")
     try:
-        geo.check_target(p.start, "the row start", front_y)
-        geo.check_target(p.end, "the row end", front_y)
-        geo.check_path(p.start, p.end, "the row", front_y)
+        geo.check_target(p.start, "the row start", front_y, cap_y)
+        geo.check_target(p.end, "the row end", front_y, cap_y)
+        geo.check_path(p.start, p.end, "the row", front_y, cap_y)
         if at is not None:
-            geo.check_path(at, p.start, "the way to the row start", front_y)
+            # 4.3.49: *at* is a fresh reading of where the arm stands (the ruling of 19 Nov
+            # 2026: only the target is judged, geo.check_move_from_reading)
+            geo.check_move_from_reading(at, p.start, "the way to the row start", front_y, cap_y)
     except geo.AreaRefused as exc:
         raise PlanRefused(str(exc)) from None
     if p.dist < 100:
@@ -226,7 +229,7 @@ def aims_of(i1io: dict, page: int):
 
 
 def sheet_rows(i1io: dict, page: int, al: geo.Alignment, speed: int = DEFAULT_SPEED,
-               front_y=None):
+               front_y=None, cap_y=None):
     """Every strip of one page as a RowPlan, serpentine, the first from the right end (as
     recorded: the arm comes from the third mark, bottom right)."""
     along = float(i1io["patch_mm"][1])
@@ -235,8 +238,8 @@ def sheet_rows(i1io: dict, page: int, al: geo.Alignment, speed: int = DEFAULT_SP
         r0, r1 = st["run_mm"]
         ua = sheet_table_mm(i1io, (st["x_mm"], r0))
         ub = sheet_table_mm(i1io, (st["x_mm"], r1))
-        a = al.target(ua, f"row {k + 1}'s run end", front_y=front_y)
-        b = al.target(ub, f"row {k + 1}'s run end", front_y=front_y)
+        a = al.target(ua, f"row {k + 1}'s run end", front_y=front_y, cap_y=cap_y)
+        b = al.target(ub, f"row {k + 1}'s run end", front_y=front_y, cap_y=cap_y)
         if (a[0] > b[0]) != (k % 2 == 1):
             a, b = b, a
         patches = []
@@ -244,7 +247,7 @@ def sheet_rows(i1io: dict, page: int, al: geo.Alignment, speed: int = DEFAULT_SP
             u = sheet_table_mm(i1io, q["centre_mm"])
             patches.append(Patch(str(q["sample_id"]), q["loc"],
                                  al.target(u, f"patch {q['loc']}", run_out_mm=0.5,
-                                           front_y=front_y),
+                                           front_y=front_y, cap_y=cap_y),
                                  half_mm=along / 2))
         plans.append(plan_row(f"p{page + 1}_row{k + 1}", a, b, speed, patches))
     return plans
@@ -310,7 +313,8 @@ def run_row(table: tbl.Table, inst, plan: RowPlan, log, outdir: str,
             at = again
         res.start_read = at
         try:
-            check_plan(plan, at, getattr(table, "front_y", None))
+            check_plan(plan, at, getattr(table, "front_y", None),
+                       getattr(table, "aimed_cap_y", None))
         except PlanRefused as exc:
             raise CleanFail(f"the plan was refused: {exc}") from None
         if confirm_move is not None and not confirm_move(at, plan.start):
@@ -376,7 +380,8 @@ def _run_uv_pass(table: tbl.Table, inst, plan: RowPlan, log, outdir: str) -> Row
             raise CleanFail(f"the arm stands at {at}, not at the end of the lamp pass "
                             f"{plan.start}")
         try:
-            check_plan(plan, at, getattr(table, "front_y", None))
+            check_plan(plan, at, getattr(table, "front_y", None),
+                       getattr(table, "aimed_cap_y", None))
         except PlanRefused as exc:
             raise CleanFail(f"the plan was refused: {exc}") from None
         if not inst.alive():

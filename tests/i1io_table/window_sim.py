@@ -33,8 +33,16 @@ class SlowTransport(ss.SimTransport):
 
 class WindowSim:
     def __init__(self, faults=None, delay_s: float = 0.0, cold: bool = False,
-                 app_marker_place=None, press: bool = False, **simkw):
+                 app_marker_place=None, press: bool = False, aims=None, **simkw):
         self.faults = faults
+        #: 4.3.49: the person's aims (p1 readings) instead of the sheet's demo aims, e.g. the
+        #: volunteer's real ones of 19 Nov 2026
+        self.aims = list(aims) if aims else None
+        #: 4.3.49: faults put into the simulated table as soon as it exists ((kind, cid), ...)
+        self.table_faults = list(simkw.pop("table_faults", ()) or ())
+        #: 4.3.49: where the tables' reaches are kept (default: 4.3.48's target area for every
+        #: table, job_harness.store_like_4348; the reach's own tests and drivers pass theirs)
+        self.reach_store = simkw.pop("reach_store", None)
         self.delay_s = delay_s
         self.cold = cold
         self.app_marker_place = app_marker_place
@@ -50,8 +58,11 @@ class WindowSim:
 
     def factory(self, sheet, page, run, stamp, ask):
         from workflow.i1io.table import job as J
-        self.sim = csim.CSimTable(part_c=True, aims=list(H.demo_aims(sheet)), cold=self.cold,
+        self.sim = csim.CSimTable(part_c=True, aims=self.aims or list(H.demo_aims(sheet)),
+                                  cold=self.cold,
                                   **self.simkw)
+        for kind, cid in self.table_faults:
+            self.sim.inject(kind, cid)
         self.helper = RS.HelperSim(self.sim, self.faults)
         transport = self.transport = SlowTransport(self.sim, self.delay_s)
         job = J.TableJob(sheet, page, run=run, stamp=stamp,
@@ -62,7 +73,9 @@ class WindowSim:
                          instrument_check=lambda: us.Check("ok", {"i1pro_devices": 1}),
                          app_marker_place=self.app_marker_place,
                          press_factory=self.helper.press_factory() if self.press else None,
-                         scan_factory=self.helper.scan_factory())
+                         scan_factory=self.helper.scan_factory(),
+                         reach_store=(self.reach_store if self.reach_store is not None
+                                      else H.store_like_4348()))
         self.helper.job = job
         self.jobs.append(job)
         return job

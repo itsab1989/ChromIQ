@@ -15,6 +15,7 @@ from tests.i1io_table import part_c_sim as csim
 from tests.i1io_table import session_sim as ss
 from workflow.i1io.table import geometry as geo
 from workflow.i1io.table import job as J
+from workflow.i1io.table import reach as rc
 from workflow.i1io.table import scan as sc
 from workflow.i1io.table import usb_system as us
 
@@ -67,6 +68,37 @@ def recorded_sheet(name: str, rows: int, cols: int = 28) -> "tuple[dict, tuple]"
              "orientation": "as in your i1Profiler session", "table_model": "i1iO 2",
              "head_model": "i1Pro 2", "pages": [{"strips": strips, "aim_points": aims}]}
     return sheet, pts
+
+
+class FixedReachStore(rc.ReachStore):
+    """4.3.49: a store that gives every table the same reach (the one a test assumes) and keeps
+    what the job stores in ``put_calls`` without changing what it gives."""
+
+    def __init__(self, reach: dict):
+        self.reach = dict(reach)
+        self.put_calls: "list[dict]" = []
+        super().__init__(lambda: "", lambda _t: None)
+
+    def salt(self) -> str:
+        return "0" * 32
+
+    def get(self, key):
+        return rc.Reach.from_dict(key, dict(self.reach))
+
+    def put(self, reach) -> bool:
+        self.put_calls.append(reach.as_dict())
+        reach.dirty = False
+        return True
+
+
+#: 4.3.49: a table that has shown ChromIQ nothing yet (the model's defaults; no motor arrival
+#: in the front zone remembered, so every sitting creeps as in 4.3.48). The tests written before
+#: the remembered reach run on it; the reach's own tests pass their own store.
+REACH_LIKE_4348: dict = {}
+
+
+def store_like_4348() -> FixedReachStore:
+    return FixedReachStore(REACH_LIKE_4348)
 
 
 OK_PREFLIGHT = us.Preflight("macos", {"platform": "darwin"}, us.Check("ok", {"i1pro_devices": 1}),
@@ -128,7 +160,7 @@ class Person:
 
 
 def make_job(sim=None, sheet=None, aims=None, folder=None, preflight=None, run=None, stamp=None,
-             other_program=None, ask_after_each_step=True, **simkw):
+             other_program=None, ask_after_each_step=True, reach_store=None, **simkw):
     sheet = sheet or demo_sheet()
     if sim is None:
         sim = csim.CSimTable(part_c=True, aims=aims or demo_aims(sheet), **simkw)
@@ -141,7 +173,8 @@ def make_job(sim=None, sheet=None, aims=None, folder=None, preflight=None, run=N
                      open_transport=lambda: transport,
                      preflight=lambda: preflight or OK_PREFLIGHT,
                      other_program=other_program or (lambda: False),
-                     ask_after_each_step=ask_after_each_step)
+                     ask_after_each_step=ask_after_each_step,
+                     reach_store=reach_store if reach_store is not None else store_like_4348())
     return job, sim, transport
 
 

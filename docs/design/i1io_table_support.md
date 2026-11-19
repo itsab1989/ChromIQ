@@ -1135,3 +1135,82 @@ is his; the behaviour below is what was built from it and awaits his confirmatio
   by patch, the live state says that the arm may move a second time by about 1 mm to a patch.
 * **Not tried on a real table.** Driven on screen against the less ideal simulated table only.
 
+
+### ⏳ Awaiting confirmation: where the arm may go follows what the person aimed at (4.3.49, 2026-11-19)
+
+**Confirmed by:** *nobody yet.*
+
+Basti's direction of 19 Nov 2026 (product direction, the behaviour below still awaits his
+confirmation on screen and the independent safety review): the person who aims at a sheet's points
+knows that the arm can reach them, so the recorded front cap no longer refuses aims or targets.
+
+* **The front of the targets is the aimed area.** Every computed target (patches, row ends, the
+  check move to mark 3, the creep) may lie up to the frontmost point of the area spanned by the three
+  aimed points, widened by the plan's run-out (10 mm along a row, 2 mm across), and never in front
+  of it. Without an alignment, the proven measuring area only (Y 2723). A fixed absolute backstop
+  (Y 3650, 365 mm from the resting place) stays in the line builders and the USB gate against a
+  corrupted target; it is not a physical end. The sides (X -1384..1716) and the back (Y 523) are
+  unchanged. The aims are refused for where they lie only beyond those sides, that back, or the
+  backstop, with how far to lay the sheet.
+* **The evidence it rests on.** In the volunteer's recordings of 17 Nov 2026 i1Profiler drove the
+  measuring opening to all three points the person had aimed the sight at, within 1 to 5 units
+  (three sessions). Those sheets lay in the middle of the table: no recording shows a motor target
+  in front of Y 2559, and none shows what the table does when the opening meets the end of its
+  travel.
+* **The careful approach stays for the first visit.** Beyond the proven area, and beyond where THIS
+  table's motors have already arrived, the arm still feels its way forward in steps of at most
+  5 mm, each arrival checked (the front-zone question, as in 4.3.48). The first step that does not
+  arrive ends the measurement cleanly; the page says how far short the arm stopped and how far to
+  lay the sheet back (`creep_step_did_not_arrive` with `short_mm`). Up to 19 steps.
+* **The table's remembered reach** (one settings value, `i1io_table_reach`): per table, under a
+  salted key made from the table's memory block (never its serial, never the unsalted hash), the
+  frontmost and rightmost places its opening was read at (a stable free-arm reading, or after a move
+  that arrived) and the frontmost target its motors arrived at. Only the last is used: a later
+  sitting on the same table does not feel its way forward again up to there. A stored value that is
+  not plausible is ignored. A different table starts from the defaults.
+* **Diagnostics for learning** (`reach.json` in every session folder): the salted key, the model
+  identity answers, the remembered reach before and now, every stable free-arm reading, the aims,
+  the first free-arm reading after the third aim with its difference to that aim (the sight's
+  offset), every non-zero status and refusal with where the arm was read before it, every creep that
+  stopped.
+* **Not tried on a real table.** Driven against the simulated table only.
+
+### ⏳ Awaiting confirmation: after the independent safety review of 4.3.49 (fix round, 2026-11-19)
+
+**Confirmed by:** *nobody yet.*
+
+What changed after the review (its MUSTs and SHOULDs), within the owner's rulings of 19 Nov 2026
+(recorded extent is not a fence; targets inside the aimed area are allowed; no extra guided step):
+
+* **The homing starts only where a recorded homing starts.** Its i1 is sent from the measuring
+  area's raw box, the home line near the resting place, or a held arm in the front zone up to
+  Y 3114 (the frontmost recorded aim plus the arrival tolerance), as in 4.3.48, whatever the aimed
+  area. A held arm further forward (the creep met the front end, or a front row ended there) is
+  first taken back along the way it came: to the last place a computed move of this measurement
+  verifiably arrived at, when it does not stand there, then to the most recent earlier such place a
+  homing may start from (over ground driven before, else one place back at a time); at most four
+  moves, each one m0 at 300 with its arrival read. Then the homing's own s0 p0 again, and its
+  recorded lines. A move back that does not arrive or is slow is a doubt: nothing more is sent and
+  the page says to end the measurement and open i1Profiler once, or to switch the table off. The
+  person is never asked to pull the arm back by hand. The hands-off GO before the homing covers the
+  moves back (they are part of it).
+* **The front-zone question says the risk before the arm moves** (M-I1IO-DRIVE-FRONT, revised):
+  the small steps go beyond where the arm has been, the front of the sheet may lie beyond where the
+  opening can go, the arm then meets the end of its travel in one step and stops there, what ChromIQ
+  does next, the power switch, and laying the sheet back instead.
+* **The page after such a stop** has its own headline (M-I1IO-DRIVE-FRONT-END, "The arm stopped
+  short of the front of this sheet") and says that Bring the arm home first goes back along the way
+  the arm came.
+* **A remembered reach is validated whole.** Every stored entry carries a version and a tag
+  (HMAC-SHA256 with this computer's salt over the key and the values); an entry edited by hand,
+  written by another build or stored under another key is ignored whole, and the session's
+  diagnostics say so (`reach.json` "ignored", a log line). The motor front is kept only together
+  with the front of the area aimed at in the sitting that learned it, never beyond it, and spares
+  the front-zone question and the creep only up to the smaller of the two and never beyond this
+  sitting's aimed area.
+* **Kept, decided:** the check move goes to mark 3 itself, also on a chart with crosses, where the
+  cross lies about 9.5 mm in front of the frontmost patch. It is the recorded sequence (i1Profiler
+  drives the opening to the very point the person aimed at, 17 Nov 2026) and the person's own check
+  of the alignment, and the cross lies inside the aimed area.
+* **Not tried on a real table.** Driven against the simulated table only; what the real table does
+  when the opening meets its front end is not known.

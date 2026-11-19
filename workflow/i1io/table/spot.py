@@ -156,7 +156,7 @@ class RowPlan:
 
 
 def plan_row(sheet: dict, page: int, index: int, alignment, front_y=None, kind: str = "spot",
-             only_locs=None, dual: bool = False) -> RowPlan:
+             only_locs=None, dual: bool = False, cap_y=None) -> RowPlan:
     """The row's plan. Spot (step 7): part C's ``sheet_spot_rows`` for this row: every patch's
     centre through the alignment (``Alignment.target``: on the aimed sheet, inside the area,
     not beyond the confirmed front), every row from column 0 (the end of marks 1 and 2, the
@@ -165,13 +165,14 @@ def plan_row(sheet: dict, page: int, index: int, alignment, front_y=None, kind: 
     stays the same). A target outside raises geometry's AreaRefused (the caller turns it into
     its id); nothing is sent either way.
 
-    Strip rows (round B): :func:`plan_strip_row`."""
+    Strip rows (round B): :func:`plan_strip_row`. *cap_y* (4.3.49): the front of this table's
+    target area (geometry.table_cap), passed to every target check."""
     if kind not in ROW_KINDS:
         raise RowRefused("row_kind_unknown", row_kind=kind)
     if kind == "strip":
         if dual:
-            return plan_dual_row(sheet, page, index, alignment, front_y, only_locs)
-        return plan_strip_row(sheet, page, index, alignment, front_y, only_locs)
+            return plan_dual_row(sheet, page, index, alignment, front_y, only_locs, cap_y=cap_y)
+        return plan_strip_row(sheet, page, index, alignment, front_y, only_locs, cap_y=cap_y)
     try:
         st = sheet["pages"][page]["strips"][index]
     except (KeyError, IndexError, TypeError):
@@ -181,7 +182,7 @@ def plan_row(sheet: dict, page: int, index: int, alignment, front_y=None, kind: 
         u = sc.sheet_table_mm(sheet, q["centre_mm"])
         pts.append(PatchTarget(str(q["sample_id"]), q["loc"],
                                alignment.target(u, f"patch {q['loc']}", run_out_mm=0.5,
-                                                front_y=front_y)))
+                                                front_y=front_y, cap_y=cap_y)))
     if SPOT_ROWS_SERPENTINE:            # tester 0.6.0's order (its wire-identity tests only)
         pts.sort(key=lambda t: t.target[0], reverse=(index % 2 == 1))
     else:
@@ -202,7 +203,7 @@ def strip_windows_ok(plan) -> "int | None":
 
 
 def plan_strip_row(sheet: dict, page: int, index: int, alignment, front_y=None,
-                   only_locs=None) -> RowPlan:
+                   only_locs=None, cap_y=None) -> RowPlan:
     """One row as a STRIP (tester 0.6.0 part C's E2/E3, ``scan.sheet_rows`` for this row): the
     run from just beyond one end of the row to just beyond the other, serpentine as the spot
     rows, at the slowest speed of :data:`STRIP_SPEEDS` that keeps the row within
@@ -223,7 +224,7 @@ def plan_strip_row(sheet: dict, page: int, index: int, alignment, front_y=None,
     last = None
     for speed in STRIP_SPEEDS:
         try:
-            plans = _one_strip(sheet, page, index, alignment, speed, front_y)
+            plans = _one_strip(sheet, page, index, alignment, speed, front_y, cap_y=cap_y)
         except (geo.AreaRefused, sc.PlanRefused) as exc:
             raise RowRefused("strip_row_too_long", page=page + 1, row=index + 1,
                              log_reason=str(exc)) from None
@@ -231,7 +232,7 @@ def plan_strip_row(sheet: dict, page: int, index: int, alignment, front_y=None,
         fewest = strip_windows_ok(plans)
         if plans.N <= STRIP_N_MAX and fewest is not None and fewest >= STRIP_MIN_READINGS:
             try:
-                sc.check_plan(plans, None, front_y)
+                sc.check_plan(plans, None, front_y, cap_y)
             except sc.PlanRefused as exc:
                 raise RowRefused("strip_row_too_long", page=page + 1, row=index + 1,
                                  log_reason=str(exc)) from None
@@ -266,7 +267,7 @@ def uv_pass_of(lamp) -> "sc.RowPlan":
 
 
 def plan_dual_row(sheet: dict, page: int, index: int, alignment, front_y=None,
-                  only_locs=None) -> RowPlan:
+                  only_locs=None, cap_y=None) -> RowPlan:
     """One row as a DUAL row: the lamp pass from just beyond the row's -X end to just beyond its
     +X end and the UV pass straight back, BOTH at the recorded 132 (``scan.DUAL_SPEED``), every
     row in the same direction (as recorded: the UV pass brings the arm back to the row's start).
@@ -285,10 +286,11 @@ def plan_dual_row(sheet: dict, page: int, index: int, alignment, front_y=None,
         raise RowRefused("strip_only_some_patches", page=page + 1, row=index + 1)
     from . import geometry as geo
     try:
-        lamp = _one_strip(sheet, page, index, alignment, sc.DUAL_SPEED, front_y, dual=True)
-        sc.check_plan(lamp, None, front_y)
+        lamp = _one_strip(sheet, page, index, alignment, sc.DUAL_SPEED, front_y, dual=True,
+                          cap_y=cap_y)
+        sc.check_plan(lamp, None, front_y, cap_y)
         uv = uv_pass_of(lamp)
-        sc.check_plan(uv, None, front_y)
+        sc.check_plan(uv, None, front_y, cap_y)
     except (geo.AreaRefused, sc.PlanRefused) as exc:
         raise RowRefused("strip_row_too_long", page=page + 1, row=index + 1,
                          log_reason=str(exc)) from None
@@ -301,7 +303,7 @@ def plan_dual_row(sheet: dict, page: int, index: int, alignment, front_y=None,
     return RowPlan(page, index, "strip", pts, scan=lamp)
 
 
-def _one_strip(sheet, page, index, alignment, speed, front_y, dual: bool = False):
+def _one_strip(sheet, page, index, alignment, speed, front_y, dual: bool = False, cap_y=None):
     """scan.sheet_rows for one row (the same targets, ends and serpentine order). *dual*: every
     row from its -X end (a dual row's UV pass brings the arm back there), at the dual speed."""
     along = float(sheet["patch_mm"][1])
@@ -309,8 +311,8 @@ def _one_strip(sheet, page, index, alignment, speed, front_y, dual: bool = False
     r0, r1 = st["run_mm"]
     ua = sc.sheet_table_mm(sheet, (st["x_mm"], r0))
     ub = sc.sheet_table_mm(sheet, (st["x_mm"], r1))
-    a = alignment.target(ua, f"row {index + 1}'s run end", front_y=front_y)
-    b = alignment.target(ub, f"row {index + 1}'s run end", front_y=front_y)
+    a = alignment.target(ua, f"row {index + 1}'s run end", front_y=front_y, cap_y=cap_y)
+    b = alignment.target(ub, f"row {index + 1}'s run end", front_y=front_y, cap_y=cap_y)
     if (a[0] > b[0]) != (False if dual else index % 2 == 1):
         a, b = b, a
     patches = []
@@ -318,7 +320,7 @@ def _one_strip(sheet, page, index, alignment, speed, front_y, dual: bool = False
         u = sc.sheet_table_mm(sheet, q["centre_mm"])
         patches.append(sc.Patch(str(q["sample_id"]), q["loc"],
                                 alignment.target(u, f"patch {q['loc']}", run_out_mm=0.5,
-                                                 front_y=front_y),
+                                                 front_y=front_y, cap_y=cap_y),
                                 half_mm=along / 2))
     return sc.plan_row(f"p{page + 1}_row{index + 1}", a, b, speed, patches, dual=dual)
 

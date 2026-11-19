@@ -63,6 +63,7 @@ from . import dual_rows as dl
 from . import geometry as geo
 from . import lines as cl
 from . import measurement as ms
+from . import reach as rc
 from . import reader as rd
 from . import scan as sc
 from . import session_table as tbl
@@ -380,6 +381,9 @@ def doubt_id(reason: str) -> str:
 _MODE_FLAG_RE = re.compile(r"f4 answered (\S*) where the recordings show (\S+) here")
 
 
+_A0_RE = re.compile(r"the table answered a0 with ([0-9A-Fa-f]+)")
+
+
 def mode_flag_detail(reason: str, step: str) -> dict:
     """Safety review 448, SHOULD-2: what the table answered about its hand-alignment mode (f4),
     what the recordings show at that point, and whether it was the opening, so the window can
@@ -416,6 +420,8 @@ def alignment_id(reason: str) -> str:
 
 
 def area_id(reason: str) -> str:
+    if "lies in front of the area that was aimed at" in reason:
+        return "target_beyond_the_aimed_area"
     if "front part of the table further than this sitting has confirmed" in reason:
         return "target_beyond_confirmed_front"
     if "swept" in reason or "rectangle" in reason:
@@ -439,15 +445,34 @@ def _near(p, q, d=5) -> bool:
     return p is not None and abs(p[0] - q[0]) <= d and abs(p[1] - q[1]) <= d
 
 
-def homing_starts_here(p, arm_free) -> bool:
+def homing_starts_here(p, arm_free, cap_y=None) -> bool:  # noqa: ARG001 - cap_y: see below
     """Where ChromIQ sends its homing from (4.3.47's rule in ``_end_of_job``, one place for it
     since 4.3.48): inside the measuring area's raw box (14 of i1Profiler's 16 recorded homings
     from a held arm out on the volunteer's table, in 9 recordings, and its 2 clean ones from a
     free arm start there; the other two lie 3-4 units beyond its X -1434), on the
     stretch of the home line near the resting place (START_GUARD), or, held, in the front zone up
-    to its cap. Nowhere else: no recording starts a homing at the alignment start (X 2507)."""
-    return p is not None and (geo.AREA_RAW.contains(p) or tbl.START_GUARD.contains(p)
-                              or (arm_free is False and geo.CAP_RAW.contains(p)))
+    to its cap. Nowhere else: no recording starts a homing at the alignment start (X 2507).
+
+    4.3.49 fix round (safety review 449, MUST-1): the homing's i1 is sent ONLY from these
+    places, as in 4.3.48 (the held front zone up to the frontmost recorded aim, Y 3109, plus the
+    arrival tolerance), whatever the aimed area of the sitting (*cap_y* is no longer used: the
+    first build of 4.3.49 widened the held region to it, and no recording starts a homing
+    there). A held arm further forward is first taken back along the way it came
+    (``CJob._way_back``)."""
+    if p is None:
+        return False
+    if geo.AREA_RAW.contains(p) or tbl.START_GUARD.contains(p):
+        return True
+    if arm_free is not False:
+        return False
+    return HELD_HOMING_AREA.contains(p)
+
+
+#: Where i1Profiler's homings of a HELD arm out on the table start, as 4.3.48 bounded them: the
+#: measuring area's raw box, its front extended to the frontmost recorded aim (Y 3109) plus the
+#: arrival tolerance (the simulator's own copy: part_c_sim.C_SWEEP_BOX).
+HELD_HOMING_AREA = geo.Area(geo.AREA_RAW.xmin, geo.AREA_RAW.xmax, geo.AREA_RAW.ymin,
+                            geo.FRONTMOST_AIM_Y + geo.ARRIVAL_SLACK)
 
 
 #: 4.3.48 (safety review 448, NOTE 1): the homing AFTER A STOP is offered only inside the
@@ -567,7 +592,8 @@ class TableJob:
                  other_program=None, ask_after_each_step: bool = True, reader_factory=None,
                  helper_check=None, instrument_check=None, chart_ti2=None,
                  app_marker_place: "tuple[Path, str] | None" = None, press_factory=None,
-                 scan_factory=None, latency_guard=None, stored_tile_white: bool = False):
+                 scan_factory=None, latency_guard=None, stored_tile_white: bool = False,
+                 reach_store=None):
         #: D-4b (an option, off until the owner decides): the white of this measurement scaled
         #: per band to the white tile values stored in the table's memory, as i1Profiler does.
         #: Off: the i1Pro 2's own white reference, as in a measurement by hand.
@@ -583,6 +609,15 @@ class TableJob:
         #: the per-band factors in use (None: off, or refused), and why they were refused
         self.white_scale: "tuple | None" = None
         self.white_scale_refused: "str | None" = None
+        #: 4.3.49 ("learn this table's reach once"): where the reaches of the tables this computer
+        #: has driven are kept (the window passes the app's settings; None: memory only), this
+        #: table's reach once the opening has read its memory block, and what the diagnostics
+        #: of this session say about it (reach.json in the session folder)
+        self._reach_store = reach_store if reach_store is not None else rc.MemoryReachStore()
+        self.reach: "rc.Reach | None" = None
+        self.reach_diag: dict = {"guided_step": {"ran": False}, "free_readings": [],
+                                 "motor_arrivals": 0, "aims": [], "p0_after_aims": [],
+                                 "pairs": [], "statuses": [], "refusals": [], "events": []}
         # the job's OWN copy (review of step 6): the caps are derived from it, and a caller
         # changing its chart afterwards changes nothing here
         self.sheet = copy.deepcopy(sheet)
@@ -615,9 +650,17 @@ class TableJob:
         self.front_need: "int | None" = None
         self.fit: "dict | None" = None
         self.driven: "list[tuple]" = []
+        #: 4.3.49 fix round (safety review 449, MUST-1): the targets computed moves of this
+        #: sitting verifiably ARRIVED at (read within the arrival tolerance), in order, since the
+        #: last homing: the way back to a recorded homing start goes only through these
+        self.arrived: "list[tuple[int, int]]" = []
+        #: the ways back sent in this sitting (diagnostics)
+        self.way_back_moves: "list[dict]" = []
+        self._way_back_cache = None
         self.worked: "set[str]" = set()
         self.runs: "dict[tuple[int, str], int]" = {}
         self.only_home = False
+        self.creep_stopped = False
         #: B': every problem the person reported, never lost (kind, the step it came in, the
         #: lines sent by then)
         self.problems: "list[tuple[str, str | None, int]]" = []
@@ -698,6 +741,9 @@ class TableJob:
         self.button_unavailable: "str | None" = None
         #: the marks answered by the instrument's button, (page, mark)
         self.button_aims: "list[tuple[int, int]]" = []
+        #: 4.3.49 (the volunteer's run of 19 Nov 2026): refused alignments in a row, so the
+        #: page can say more from the second one on (reset by an alignment that fits)
+        self.align_refusals_in_a_row = 0
         self._helper_check = helper_check or _default_helper_check
         self._instrument_check = instrument_check or us.instrument_now
         self._chart_ti2 = Path(chart_ti2) if chart_ti2 is not None else (
@@ -800,7 +846,15 @@ class TableJob:
         return p is not None and not d.motion_unconfirmed and not self.at_rest()
 
     def front_reached(self) -> int:
-        return geo.areas(self._table.front_y if self._table is not None else None)[0].ymax
+        return geo.areas(self._table.front_y if self._table is not None else None,
+                         self._cap())[0].ymax
+
+    def _cap(self) -> int:
+        """4.3.49 (Basti's ruling): the front of the target area: the area the person aimed at
+        on this sheet (geometry.Alignment.aimed_front_y); the proven measuring area without an
+        alignment."""
+        al = self.alignment
+        return geo.table_cap(al.aimed_front_y() if al is not None else None)
 
     def state(self) -> TableState:
         d = self._table
@@ -1036,11 +1090,22 @@ class TableJob:
             if d is not None and d.link_lost_at is not None:
                 rid = "link_lost"
             extra = mode_flag_detail(str(exc), step) if rid == "mode_flag_unexpected" else {}
+            if rid == "table_state_unknown":
+                m = _A0_RE.search(str(exc))
+                extra = {"a0": m.group(1)} if m else {}
             if extra and d is not None:
                 # fix2 (found on screen): the table contradicted what ChromIQ believed about the
                 # hand-alignment mode, so whether the motors hold the arm is NOT known; no page
                 # may then say "the arm is still free" (or that it is held)
                 d.arm_free = None
+            if rid in ("table_answered_a_status", "table_refused_a_line"):
+                # 4.3.49: every non-zero status and every refusal, with where the arm was read
+                # before it (the data a later model-wide reach would be learned from)
+                self._reach_note("status" if rid == "table_answered_a_status" else "refused",
+                                 step=step, reason=str(exc)[:200],
+                                 position_before=list(d.last_read) if d is not None and
+                                 d.last_read is not None else None,
+                                 arm_free=d.arm_free if d is not None else None)
             res = self._result(step, Kind.STOPPED, rid, log_reason=str(exc), **extra)
         elif isinstance(exc, (Stopped, KeyboardInterrupt)):
             if d is not None:
@@ -1096,6 +1161,9 @@ class TableJob:
         b.setdefault("notes", [])
         self._last_block = b
         self.diag.block(b)
+        if self.reach is not None:
+            self._reach_save()
+            self._write_reach_diag()
 
     # ---- the opening -------------------------------------------------------------------------
     def open(self) -> StepResult:
@@ -1267,6 +1335,7 @@ class TableJob:
             self.transport.gate = cl.wire_gate if self.dual is None else cl.make_wire_gate(d)
         d._touch_out = lambda: "asked after the step"
         state = d.opening()
+        self._load_reach(d)
         out = {"table": state, "system": pf.system}
         if self.opened_with_arm_out:
             out["arm_out"] = True
@@ -1372,7 +1441,8 @@ class TableJob:
         if step == "home" and not (self.out_known() or d.arm_free is True):
             return "arm_not_out_on_the_table"
         if step == "home" and d.arm_free is False and d.position_now is not None and \
-                not homing_starts_here(d.position_now, d.arm_free):
+                not homing_starts_here(d.position_now, d.arm_free) and \
+                self._way_back(d.position_now) is None:
             # 4.3.48: a HELD arm (the motors keep it where it was read) is never offered the
             # homing where the homing itself would refuse (``_end_of_job``): no recorded homing
             # starts there (the alignment start, say). A free arm may have been moved by hand
@@ -1823,6 +1893,13 @@ class TableJob:
         ys = sorted(set(list(range(y0, y1 + 1, 10)) + [y1]))
         return all(self._visited((x, y)) for x in xs for y in ys)
 
+    def _arrived_at(self, target) -> None:
+        t = (int(target[0]), int(target[1]))
+        if not self.arrived or self.arrived[-1] != t:
+            self.arrived.append(t)
+        if len(self.arrived) > 4000:          # a 990-patch page and its rows read again
+            del self.arrived[:-4000]
+
     def _confirm_new_part(self, a, b, *more, what: str):
         """The first-visit rule (part C): a move whose swept rectangles leave every place the arm
         was driven to (recordings, and this sitting) is confirmed first, ONCE; its rectangles
@@ -1844,7 +1921,16 @@ class TableJob:
         return ans == "yes"
 
     def _free_arm_inside(self, a) -> None:
-        if self._table.arm_free and not geo.AREA_RAW.contains(a):
+        """4.3.49 (Basti's ruling of 19 Nov 2026, FOR THE SAFETY REVIEW): a free arm is no
+        longer refused for standing outside AREA_RAW (where recordings happened to read it):
+        the person's hand put it there, so the mechanism reaches that place, and the move from
+        it is judged by its target alone (geo.check_move_from_reading). Only a reading that is
+        not a pair of finite numbers is refused."""
+        try:
+            ok = a is not None and all(math.isfinite(float(v)) for v in a) and len(a) == 2
+        except (TypeError, ValueError):
+            ok = False
+        if not ok:
             raise StageFailed("free_arm_outside_area", read=a)
 
     def _still(self, a):
@@ -1852,7 +1938,135 @@ class TableJob:
         b = self._table.position()
         if abs(a[0] - b[0]) > tbl.STILL_UNITS or abs(a[1] - b[1]) > tbl.STILL_UNITS:
             raise StageFailed("free_arm_moved_between_two_readings", first=a, second=b)
+        # 4.3.49: a stable reading of a free arm is a place the opening has been
+        due = getattr(self, "_p0_after_aims_due", None)
+        if due is not None:
+            self._p0_after_aims_due = None
+            self.reach_diag["p0_after_aims"].append({
+                "p0": list(b), "third_aim_p1": list(due),
+                "p0_minus_p1": [b[0] - due[0], b[1] - due[1]],
+                "note": "the first free-arm reading after the third aim; the person may have "
+                        "moved the arm since"})
+        self._learn(b, "free")
         return b
+
+    # ---- 4.3.49: this table's reach (reach.py, FOR THE SAFETY REVIEW) ------------------------
+    def _load_reach(self, d) -> None:
+        """At the opening, right after the table's memory block was read (before anything can
+        move): this table's remembered reach, by its salted key. No key (the block could not be
+        hashed): the model's defaults, learned for this sitting only, never stored."""
+        key = None
+        try:
+            key = rc.table_key(getattr(d, "memory_ident", None), self._reach_store.salt())
+        except Exception:      # noqa: BLE001 - not remembered, never a guess
+            key = None
+        try:
+            self.reach = self._reach_store.get(key) if key else rc.Reach()
+        except Exception:      # noqa: BLE001
+            self.reach = rc.Reach()
+        self._apply_reach()
+        r = self.reach
+        if r.ignored:
+            # 4.3.49 fix round (SHOULD-4): a stored entry not exactly as this build stores it
+            self.diag.log("INFO", f"this table's remembered reach was IGNORED ({r.ignored}): "
+                                  "the model's defaults are used, and ChromIQ feels its way "
+                                  "forward as on a table it has not driven")
+            self._reach_note("record_ignored", why=r.ignored)
+        self.reach_diag.update({
+            "key": key, "remembered": bool(key),
+            "model": {"a1": tbl.EXACT_DATA["identity"], "k2": tbl.EXACT_DATA["k2"]},
+            "at_open": r.as_dict(), "ignored": r.ignored,
+            "defaults": {"front_y": rc.DEFAULT_FRONT_Y, "right_end_x": rc.DEFAULT_RIGHT_END_X,
+                         "backstop_y": geo.FRONT_CAP_Y}})
+        self.diag.log("INFO", f"this table's reach: {'key ' + key if key else 'no key, kept for this sitting only'}; "
+                              f"front Y {r.front_y} ({r.front_how}), right X {r.right_end_x} "
+                              f"({r.right_how}), motors arrived up to Y {r.motor_front_y}")
+        self._seed_front_from_motors()
+        self._write_reach_diag()
+
+    def _apply_reach(self) -> None:
+        """The table module's gate checks every computed line against the same front as the job
+        (the aimed area); nothing of the remembered reach bounds a target."""
+        d = self._table
+        if d is None:
+            return
+        d.aimed_cap_y = self._cap() if self.alignment is not None else None
+
+    def _seed_front_from_motors(self) -> None:
+        """4.3.49: the creep (the careful approach, 5 mm steps, each arrival checked) is the first
+        motor visit beyond where THIS table's motors already arrived. A sitting starts with that
+        place as confirmed (reach.Reach.motor_front_y: the frontmost TARGET a computed move of
+        this table arrived at, within the arrival tolerance); nothing
+        beyond it is spared, and nothing beyond the aimed area is ever a target."""
+        d, r = self._table, self.reach
+        if d is None or r is None or r.motor_front_y is None:
+            return
+        # 4.3.49 fix round (SHOULD-4): never beyond the front of the area aimed at in the
+        # sitting that learned it (reach.from_dict keeps it only with that); never beyond THIS
+        # sitting's aimed area either (geo.areas caps every use of front_y by the job's cap)
+        if r.motor_aimed_y is None:
+            return
+        y = int(min(r.motor_front_y, r.motor_aimed_y))
+        if y > geo.MEASURING_AREA.ymax and (d.front_y is None or y > d.front_y):
+            d.front_y = y
+            d.log("DATA", f"this table's motors have already arrived at Y {r.motor_front_y}: the "
+                          f"front zone counts as confirmed up to Y {y}")
+
+    def _learn(self, p, how: str, target=None) -> None:
+        """Passive growth: a stable free-arm reading, or the reading after a computed move that
+        arrived within the tolerance (*target*: that move's target, which the arrival confirmed),
+        extends the remembered extremes (stored at once)."""
+        r = self.reach
+        if r is None:
+            return
+        t = round(self._table.t.now(), 3) if self._table is not None else None
+        if how == "free":
+            if len(self.reach_diag["free_readings"]) < 400:
+                self.reach_diag["free_readings"].append({"t": t, "at": list(p)})
+        elif how == "motor":
+            self.reach_diag["motor_arrivals"] += 1
+        try:
+            grew = r.learn(p, how)
+            if target is not None:
+                grew += [g for g in r.learn_motor_target(
+                    target, self._cap() if self.alignment is not None else None)
+                    if g not in grew]
+        except ValueError:
+            return
+        if grew:
+            self.reach_diag["events"].append({"t": t, "learned": how, "at": list(p),
+                                              "grew": grew})
+            if "front" in grew or "motor_front" in grew:
+                self.diag.log("DATA", f"this table's remembered reach grew ({how}, at "
+                                      f"{tuple(p)}): " + ", ".join(grew))
+            self._reach_save()
+
+    def _reach_save(self) -> None:
+        r = self.reach
+        if r is None or not r.dirty or not r.key:
+            return
+        try:
+            ok = self._reach_store.put(r)
+        except Exception:      # noqa: BLE001 - never in the way of the measurement
+            ok = False
+        if not ok:
+            self.diag.log("INFO", "this table's reach could not be stored this time")
+
+    def _reach_note(self, kind: str, **detail) -> None:
+        d = self._table
+        entry = dict(detail, kind=kind, t=round(d.t.now(), 3) if d is not None else None)
+        bucket = "statuses" if kind == "status" else "refusals"
+        if len(self.reach_diag[bucket]) < 200:
+            self.reach_diag[bucket].append(entry)
+
+    def _write_reach_diag(self) -> None:
+        """reach.json in the session folder (every diagnostics zip): no serial, no unsalted
+        hash; the salted key, the extremes and how each was learned, the readings."""
+        out = dict(self.reach_diag)
+        if self.reach is not None:
+            out["now"] = self.reach.as_dict()
+        out["aimed_front_y"] = self._cap() if self.alignment is not None else None
+        self.diag.write_json("reach.json", out)
 
     def _mark_answered(self) -> None:
         d = self._table
@@ -1889,6 +2103,8 @@ class TableJob:
         if abs(a[0] - b[0]) > tol or abs(a[1] - b[1]) > tol:
             raise StageFailed("free_arm_moved_while_asked" if free else "arm_moved_while_asked",
                               first=a, second=b)
+        if free:
+            self._learn(b, "free")
         # a problem reported while this line was on its way is honoured before the move
         self._soft_stop()
         return b
@@ -1905,7 +2121,7 @@ class TableJob:
         if a is None:
             raise StageFailed("no_fresh_position_reading")
         self._free_arm_inside(a)
-        geo.check_path(a, target, what, d.front_y)
+        geo.check_move_from_reading(a, target, what, d.front_y, self._cap())
         ok = yield from self._confirm_new_part(a, target, what=what)
         if not ok:
             raise PersonStopped("first_visit_declined")
@@ -1915,7 +2131,7 @@ class TableJob:
             # judged again, in full, from where the arm stands now (no question can follow:
             # the new reading lies within 5 units of a part just confirmed, widened by 10)
             self._free_arm_inside(b)
-            geo.check_path(b, target, what, d.front_y)
+            geo.check_move_from_reading(b, target, what, d.front_y, self._cap())
             if not self._seg_visited(b, target):
                 raise StageFailed("free_arm_moved_while_asked" if d.arm_free
                                   else "arm_moved_while_asked", first=a, second=b)
@@ -1928,6 +2144,7 @@ class TableJob:
             got = d.position()
             if _near(got, target):
                 self.driven.append((a, target))
+                self._arrived_at(target)
                 raise StageFailed("movement_late_but_arrived", took=round(exc.took, 3),
                                   window=(round(exc.lo, 2), round(exc.hi, 2))) from None
             raise d._doubt(f"{what}: after a slow move the arm reads {got}, not {target}")
@@ -1957,6 +2174,8 @@ class TableJob:
                     raise _ArrivedBeside("arrived_beside_the_target", target=target, read=got)
                 raise d._doubt(f"{what}: the arm reads {got}, not {target} (twice)")
         self.driven.append((a, target))
+        self._arrived_at(target)
+        self._learn(got, "motor", target)
         return got
 
     # ---- 4.3.48: one automatic retry of an arrival beside its target ---------------------------
@@ -2012,6 +2231,7 @@ class TableJob:
             entry["took_s"] = round(exc.took, 3)
             if _near(again, target):
                 self.driven.append((a, target))
+                self._arrived_at(target)
                 entry.update(cured=True, result="arrived, but slower than recorded")
                 raise StageFailed("movement_late_but_arrived", took=round(exc.took, 3),
                                   window=(round(exc.lo, 2), round(exc.hi, 2))) from None
@@ -2042,13 +2262,17 @@ class TableJob:
         entry.update(cured=True, result="arrived")
         d.log("DATA", f"{what}: the second move arrived at {again}")
         self.driven.append((a, target))
+        self._arrived_at(target)
+        self._learn(again, "motor", target)
         return again
         yield  # pragma: no cover  (a generator)
 
     def _alignment_homed(self) -> None:
+        self.arrived = []
         self.alignment = None
         self.front_need = None
         self.fit = None
+        self._apply_reach()
         self.worked.discard("d1")
         self.worked.discard("d2")
 
@@ -2120,12 +2344,19 @@ class TableJob:
         for _ in range(4):
             d._f4("01")
         self._block["data"]["aims"] = readings
+        self.reach_diag["aims"].append({"page": self.page + 1, "p1": [list(p) for p in readings]})
+        self._p0_after_aims_due = tuple(readings[-1]) if readings else None
         aims_mm = [tuple(sc.sheet_table_mm(sheet, a["page_mm"])) for a in aims]
         try:
             al = geo.fit_alignment(aims_mm, readings)
         except geo.AlignmentRefused as exc:
+            self.align_refusals_in_a_row += 1
             raise StageFailed(alignment_id(str(exc)), log_reason=str(exc),
-                              **_rows_beyond(sheet, self.page, aims_mm, readings)) from None
+                              **_rows_beyond(sheet, self.page, aims_mm, readings),
+                              **_aims_detail(sheet, self.page, aims, aims_mm, readings,
+                                             str(exc)),
+                              refusals_in_a_row=self.align_refusals_in_a_row) from None
+        self.align_refusals_in_a_row = 0
         self._block["data"]["checks"] = al.checks
         self.diag.write_json(f"{self._block['folder']}/alignment.json",
                              {"aims_mm": al.aims_mm, "readings": al.readings, "M": al.M,
@@ -2137,6 +2368,9 @@ class TableJob:
         self.front_need = None
         need = fit["front_need"]
         out = {"checks": al.checks, "fit": fit}
+        # 4.3.49 (Basti's ruling): the target area's front is now the aimed area's
+        self._apply_reach()
+        self._block["data"]["aimed_front_y"] = self._cap()
         if need is not None and need > self.front_reached():
             # review 9, NOTE: ANY way out of the front questions but "go on" + "yes" (a "back",
             # a "no", a stop thrown at the question) leaves the state "back" leaves: no
@@ -2159,6 +2393,7 @@ class TableJob:
                 if not kept:
                     self.alignment = None
                     self.fit = None
+                    self._apply_reach()
             raise PersonStopped("sheet_to_be_laid_further_back",
                                 back_mm=int((need - geo.MEASURING_AREA.ymax) / 10.0) + 1)
         return out
@@ -2166,7 +2401,7 @@ class TableJob:
     # ---- creep: part C's DZ ---------------------------------------------------------------------
     def _creep(self):
         d, al = self._table, self.alignment
-        need = min(int(self.front_need), geo.FRONT_CAP_Y)
+        need = min(int(self.front_need), self._cap())
         self._block["data"]["front_need_y"] = need
         mark = max(al.readings, key=lambda p: p[1])
         x = min(max(int(mark[0]), geo.MEASURING_AREA.xmin), geo.MEASURING_AREA.xmax)
@@ -2206,6 +2441,8 @@ class TableJob:
                 self._creep_failed(target, got, "step_did_not_arrive")
             d.front_y = max(d.front_y or 0, target[1])
             self.driven.append((here, target))
+            self._arrived_at(target)
+            self._learn(got, "motor", target)
             d.log("DATA", f"front zone reached: Y {d.front_y}")
             self._block["data"]["front_zone_reached_y"] = d.front_y
             d.c_wait(cp.CREEP_PAUSE_S)
@@ -2217,9 +2454,19 @@ class TableJob:
     def _creep_failed(self, target, got, why: str, **more) -> None:
         self._table.outside_at = got
         self.only_home = True
+        #: 4.3.49 fix round: why only the homing is left (the window's page after the homing
+        #: says what is true: no problem was reported)
+        self.creep_stopped = True
         self._block["data"]["creep_stopped_at"] = {"target": target, "read": got, "why": why}
+        # 4.3.49 (Basti's ruling): the creep is where a sheet aimed further than the arm can take
+        # the opening is found out; the page says how far short the arm stopped
+        need = self.front_need
+        short = (geo.reach_advice_mm(need, got[1]) if need is not None and got is not None
+                 else None)
+        self._reach_note("creep_stopped", target=list(target),
+                         read=list(got) if got is not None else None, why=why, need_y=need)
         raise StageFailed(f"creep_{why}", target=target, read=got,
-                          front_y=self.front_reached(), **more)
+                          front_y=self.front_reached(), need_y=need, short_mm=short, **more)
 
     # ---- check_move: part C's D2 -----------------------------------------------------------------
     def _check_move(self):
@@ -2239,6 +2486,101 @@ class TableJob:
         return {"read": self._table.position_now}
         yield  # pragma: no cover
 
+    # ---- 4.3.49 fix round (safety review 449, MUST-1): the way back to a homing start ------
+    def _way_back(self, here) -> "list[tuple[int, int]] | None":
+        """The places a HELD arm standing at *here* (a fresh reading where no recorded homing
+        starts) is taken back to before the homing, or None when there is no such way.
+
+        Only places computed moves of THIS sitting verifiably arrived at (``self.arrived``,
+        since the last homing), in the recorded form (m0 at 300, each arrival read):
+        1. the last of them, when the arm does not stand there now (the creep's step that met
+           the front end stopped short of its target: back to where the step before arrived);
+        2. then, while that place is no recorded homing start, back along the way the arm came:
+           to the most recent earlier arrival that IS a homing start, if the rectangle of the
+           way there lies on ground driven before (recordings or this sitting: the first-visit
+           rule's own test, so no question is needed), else one place back (the arrival the
+           arm came to this one from), and on from there.
+        At most cp.WAY_BACK_MOVES_MAX moves (else None: no way back); every place inside this
+        sitting's target area. Cached per state (the window asks it for every page)."""
+        d = self._table
+        if d is None or here is None or not self.arrived:
+            return None
+        key = (tuple(here), len(self.arrived), self.arrived[-1], len(self.driven),
+               d.front_y, self._cap())
+        if self._way_back_cache is not None and self._way_back_cache[0] == key:
+            return self._way_back_cache[1]
+        way = self._way_back_uncached(here)
+        self._way_back_cache = (key, way)
+        return way
+
+    def _way_back_uncached(self, here) -> "list[tuple[int, int]] | None":
+        d = self._table
+        area = geo.areas(d.front_y, self._cap())[0]
+        pts = [tuple(p) for p in self.arrived if area.contains(p)]
+        if not pts:
+            return None
+        way: "list[tuple[int, int]]" = []
+        i = len(pts) - 1
+        cur = pts[i]
+        if not _near(here, cur):
+            way.append(cur)
+        while not homing_starts_here(cur, False):
+            if i == 0 or len(way) >= cp.WAY_BACK_MOVES_MAX:
+                return None
+            # the most recent earlier arrival that is a homing start, over driven ground
+            # (the 50 most recent such places only: a bound on the work, never on safety)
+            nxt = None
+            seen = 0
+            for j in range(i - 1, -1, -1):
+                if homing_starts_here(pts[j], False):
+                    seen += 1
+                    if self._seg_visited(cur, pts[j]):
+                        nxt = j
+                        break
+                    if seen >= 50:
+                        break
+            # else one place back: the arm came from there to here
+            i = nxt if nxt is not None else i - 1
+            cur = pts[i]
+            way.append(cur)
+        return way or None
+
+    def _go_back(self, way) -> None:
+        """The moves of :meth:`_way_back`, each one m0 in the recorded form from the fresh
+        reading, its arrival read (once more after 0.3 s when off). A move that does not arrive,
+        or ends outside its time window, is a doubt: nothing more is sent (the arm may have met
+        something; the switch-off page or i1Profiler then bring it home)."""
+        d = self._table
+        self._step(f"{self._block['stage']}_way_back", *cp.WAY_BACK)
+        self.way_back_moves.append({"from": list(d.position_now), "to": [list(p) for p in way]})
+        d.log("DATA", f"no recorded homing starts at {d.position_now}: back along the way the arm "
+                      f"came first, to {', '.join(str(tuple(p)) for p in way)}")
+        for target in way:
+            a = d.position_now
+            what = "the way back before the homing"
+            geo.check_move_from_reading(a, target, what, d.front_y, self._cap())
+            win = geo.move_window(a, target)
+            try:
+                d.c_exchange(geo.m0_line(target[0], target[1]), 0, window=win,
+                             timeout=win[1] + 4.0, late_is_doubt=False)
+            except tbl.MoveOutside as exc:
+                got = d.position()
+                d.outside_at = got
+                raise d._doubt(f"{what}: the move to {tuple(target)} took {exc.took:.2f} s, "
+                               f"outside {exc.lo:.2f}-{exc.hi:.2f} s; the arm reads {got}") \
+                    from None
+            got = d.position()
+            if not _near(got, target):
+                first = got
+                d.c_wait(ARRIVAL_RECHECK_S)
+                got = d.position()
+                d.log("DATA", f"{what}: the arm read {first}, {ARRIVAL_RECHECK_S:.1f} s later "
+                              f"{got} (target {tuple(target)}); read again once")
+                if not _near(got, target):
+                    d.outside_at = got
+                    raise d._doubt(f"{what}: the arm reads {got}, not {tuple(target)} (twice)")
+            d.log("DATA", f"{what}: arrived at {got}")
+
     def _end_of_job(self, where=None) -> None:
         """*where* (the homing after a stop only): a further check of the fresh reading, on top of
         ``homing_starts_here`` (HOME_AFTER_STOP_AREA)."""
@@ -2249,9 +2591,25 @@ class TableJob:
         got = d.position()
         if last is not None and not _near(got, last) and d.arm_free is False:
             raise d._doubt(f"before the homing the arm reads {got}, not {last}")
-        if not homing_starts_here(got, d.arm_free) or (where is not None and not where(got)):
+        if where is None and d.arm_free is False and not homing_starts_here(got, False):
+            way = self._way_back(got)
+            if way:
+                # 4.3.49 fix round (safety review 449, MUST-1): no recorded homing starts here
+                # (the creep met the front end, or a front row ended here): back along the way
+                # the arm came first, then the homing's own s0 p0 again, then its i1
+                self._go_back(way)
+                self._step(f"{self._block['stage']}_end", *cp.HOME)
+                d.exchange("status")
+                last = d.position_now
+                got = d.position()
+                if not _near(got, last):
+                    raise d._doubt(f"before the homing the arm reads {got}, not {last}")
+        if not homing_starts_here(got, d.arm_free) or (
+                where is not None and not where(got)):
             raise StageFailed("homing_only_from_inside_the_area", read=got,
-                              arm_free=bool(d.arm_free))
+                              arm_free=bool(d.arm_free),
+                              **({"push": geo.free_arm_push_advice(got)} if d.arm_free
+                                 else {}))
         try:
             d.c_exchange(tbl.WIRE["home"], 0, window=(0.8, 8.0), timeout=15.0,
                          late_is_doubt=False)
@@ -3082,10 +3440,10 @@ class TableJob:
         try:
             try:
                 plan = (sp.plan_row(self.sheet, self.page, k, self.alignment,
-                                    self._table.front_y, kind=kind, only_locs=self.only_locs,
+                                    self._table.front_y, cap_y=self._cap(), kind=kind, only_locs=self.only_locs,
                                     dual=True) if self.dual is not None else
                         sp.plan_row(self.sheet, self.page, k, self.alignment,
-                                    self._table.front_y, kind=kind, only_locs=self.only_locs))
+                                    self._table.front_y, cap_y=self._cap(), kind=kind, only_locs=self.only_locs))
             except sp.RowRefused as exc:
                 if kind != "strip" or exc.reason not in ("strip_row_too_long",
                                                          "strip_only_some_patches",
@@ -3095,7 +3453,7 @@ class TableJob:
                 self.diag.log("DATA", f"row {row} is read patch by patch: {exc.reason} "
                                       + json.dumps(exc.detail, default=str))
                 plan = sp.plan_row(self.sheet, self.page, k, self.alignment,
-                                   self._table.front_y, kind="spot", only_locs=self.only_locs)
+                                   self._table.front_y, cap_y=self._cap(), kind="spot", only_locs=self.only_locs)
         except sp.RowRefused as exc:
             return self._result(step, Kind.REFUSED, exc.reason, row=row, **exc.detail)
         except geo.AreaRefused as exc:
@@ -3151,7 +3509,7 @@ class TableJob:
                 self._go_page = self.page
                 self.rows_again[self.page] = self.rows_again.get(self.page, 0) + 1
                 plan = sp.plan_row(self.sheet, self.page, plan.index, self.alignment,
-                                   self._table.front_y, kind="spot", only_locs=self.only_locs)
+                                   self._table.front_y, cap_y=self._cap(), kind="spot", only_locs=self.only_locs)
                 self.strip_fallbacks.setdefault(self.page, {})[plan.index] = "chosen_by_you"
                 attempt += 1
                 continue
@@ -3216,7 +3574,8 @@ class TableJob:
             here = d.position()
             self._free_arm_inside(here)
             first = plan.patches[0]
-            geo.check_path(here, first.target, f"the way to patch {first.loc}", d.front_y)
+            geo.check_move_from_reading(here, first.target, f"the way to patch {first.loc}",
+                                        d.front_y, self._cap())
             ok = yield from self._confirm_new_part(here, *[p.target for p in plan.patches],
                                                    what=f"row {plan.index + 1}")
             if not ok:
@@ -3496,6 +3855,10 @@ class TableJob:
             if res.kind != "done":
                 raise _RowFailed(_strip_clean_id(res.why), "")
             self.driven.append((scan_plan.start, scan_plan.end))
+            # run_row read the arm at the row start and at the row end, each within the
+            # arrival tolerance (a doubt otherwise)
+            self._arrived_at(scan_plan.start)
+            self._arrived_at(scan_plan.end)
             cut = stp.cut_row(scan_plan, str(folder), res.fired)
             stp.save_cut_info(str(folder), name, cut)
             rec["cut"] = {"ok": cut.ok, "reason": cut.reason,
@@ -3664,6 +4027,8 @@ class TableJob:
                         cid = "uv_pass_failed_clean"
                     raise _RowFailed(cid, "")
                 self.driven.append((pplan.start, pplan.end))
+                self._arrived_at(pplan.start)
+                self._arrived_at(pplan.end)
             # both passes ran: cut both by position, then the helper's M1 / M2
             try:
                 wl, lrows = sc.read_spec_csv(str(folder / f"{lamp.name}.spec.csv"))
@@ -4454,6 +4819,9 @@ class TableJob:
             "reports": self.reports, "way_back": wb,
             "adopted": [d.name for d in self._earlier_dirs]})
         self.phase = "closed"
+        if self.reach is not None:
+            self._reach_save()
+            self._write_reach_diag()
         self.diag.finish()
         return StepResult("close", Kind.OK, "", st, wb, detail=detail)
 
@@ -4483,6 +4851,51 @@ def _cold_failure_kind(d: tbl.Table, exc: Doubt) -> str:
             return "no_answer"
         return "bad_answer"
     return "after"
+
+
+def _corner_patches_mm(sheet: dict, page: int, aims_mm) -> "list[tuple[float, float]]":
+    """The patch nearest each mark, as the sheet lies on the table (mm): on a chart with
+    crosses, the coloured corner patch beside each cross (i1Profiler's charts are aimed at
+    those)."""
+    cells = [tuple(sc.sheet_table_mm(sheet, q["centre_mm"]))
+             for st in sheet["pages"][page]["strips"] for q in st["patches"]]
+    if not cells:
+        return []
+    return [min(cells, key=lambda c: math.dist(c, m)) for m in aims_mm]
+
+
+def _aims_detail(sheet: dict, page: int, aims, aims_mm, readings, reason: str) -> dict:
+    """4.3.49 (the volunteer's run of 19 Nov 2026): what the refusal page needs to say WHY and
+    WHAT TO DO, as numbers and ids only: the mark that lay outside and by how much, the two
+    lengths that did not match, how far the sheet would have to lie elsewhere, and whether the
+    aims fit the corner patches beside the crosses instead (the usual mix-up for someone who
+    knows i1Profiler's charts). Nothing here changes what is refused."""
+    out: dict = {}
+    try:
+        out["sheet_move"] = geo.sheet_move_advice(readings)
+    except (TypeError, ValueError, IndexError):
+        pass
+    m = re.match(r"mark (\d) was aimed at X (-?\d+), Y (-?\d+)", reason)
+    if m:
+        out["outside_mark"] = int(m.group(1))
+    m = re.match(r"marks (\d) and (\d) are ([0-9.]+) mm apart on the table but ([0-9.]+) mm "
+                 r"on the sheet \(at most ([0-9.]+) mm", reason)
+    if m:
+        out["lengths"] = {"marks": [int(m.group(1)), int(m.group(2))],
+                          "table_mm": float(m.group(3)), "sheet_mm": float(m.group(4)),
+                          "allowed_mm": float(m.group(5))}
+    m = re.match(r"the corner at mark 2 measures ([0-9.]+) degrees", reason)
+    if m:
+        out["corner_deg"] = float(m.group(1))
+    if aims and all(a.get("target") == "cross" for a in aims):
+        try:
+            corners = _corner_patches_mm(sheet, page, aims_mm)
+            if (len(corners) == 3 and not geo.lengths_fit(aims_mm, readings)
+                    and geo.lengths_fit(corners, readings)):
+                out["aimed_at"] = "corner_patches"
+        except (KeyError, IndexError, TypeError, ValueError):
+            pass
+    return out
 
 
 def _rows_beyond(sheet: dict, page: int, aims_mm, readings) -> dict:

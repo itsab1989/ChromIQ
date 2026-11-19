@@ -155,12 +155,14 @@ def _first_start(p) -> bool:         # the simulator's own copy of where spot 1 
     return -1360 <= p[0] <= -1200 and 2600 <= p[1] <= 2700
 
 
-def _memory_a(tile=None) -> str:
-    """The SYNTHETIC memory block: a made-up serial; at bytes 88-231 filler, or *tile*: 36
+def _memory_a(tile=None, serial: "str | None" = None) -> str:
+    """The SYNTHETIC memory block: a made-up serial (*serial*, 4.3.49: another simulated table;
+    at most 11 characters, so it stays in bytes 20-30); at bytes 88-231 filler, or *tile*: 36
     made-up white tile values (D-4b tests; never a real table's)."""
     import struct
     head = "6801000056312E31"
-    body = head + "0102030405060708090A0B0C" + FAKE_SERIAL.encode("ascii").hex().upper()
+    serial = (serial or FAKE_SERIAL)[:11].ljust(11, "0")
+    body = head + "0102030405060708090A0B0C" + serial.encode("ascii").hex().upper()
     out = body + "AB" * ((512 - len(body)) // 2)
     if tile is not None:
         vals = struct.pack("<36f", *tile).hex().upper()
@@ -197,7 +199,7 @@ class Fault:
 
 FAULT_KINDS = ("no_answer", "no_done", "late", "bad_checksum", "garbled", "status",
                "wrong_cid", "stray", "extra_line", "blocked", "drift", "unplug", "free",
-               "identity", "refuse", "a0_other", "k2_other", "memory_short",
+               "identity", "refuse", "a0_other", "a0_after_hand", "k2_other", "memory_short",
                "memory_bad_start", "long_line", "slow_motion", "fast_motion")
 
 
@@ -520,7 +522,8 @@ class SimTable:
         if cid == "k2":
             return 0, ("0B600000000014" if kind == "k2_other" else K2), 0.0
         if cid == "u8":
-            data = _memory_a(self.stored_tile) if a == "000060000100" else _memory_b()
+            data = (_memory_a(self.stored_tile, getattr(self, "serial", None))
+                    if a == "000060000100" else _memory_b())
             if kind == "memory_short":
                 data = data[:-2]
             if kind == "memory_bad_start":
@@ -529,6 +532,10 @@ class SimTable:
         if cid == "a0":
             if kind == "a0_other":
                 return 0, "120000", 0.0
+            if kind == "a0_after_hand":
+                # the volunteer's real table, 19 Nov 2026 (two openings, 12:37 and 12:38):
+                # `:$a00530000B9` after the arm had been moved by hand and put back
+                return 0, "530000", 0.0
             return 0, ("111800" if self.cold else "130000"), 0.0
         if cid == "f4":
             if kind == "free":

@@ -140,11 +140,15 @@ def make_gate(table):
             if start is None:
                 raise tbl.ForbiddenLine(f"a computed {cid} without a fresh position reading")
             _c, x, y, _v = geo.decode_xyv(line)
-            tgt, sweep = geo.areas(getattr(table, "front_y", None))
+            # 4.3.49 (Basti's ruling, FOR THE SAFETY REVIEW): the front of what this sitting
+            # allows is the area the person AIMED AT (the job sets ``aimed_cap_y`` from the
+            # alignment, None without one: the proven measuring area only)
+            cap_y = getattr(table, "aimed_cap_y", None)
+            tgt, sweep = geo.areas(getattr(table, "front_y", None), cap_y)
             if getattr(table, "creep", False) and cid == "m0":
                 # one creep step: at most CREEP_STEP per axis from the fresh reading, at most
                 # CREEP_STEP beyond what this sitting has confirmed, never beyond the cap
-                lim = min(tgt.ymax + geo.CREEP_STEP, geo.FRONT_CAP_Y)
+                lim = min(tgt.ymax + geo.CREEP_STEP, geo.table_cap(cap_y))
                 tgt = geo.Area(tgt.xmin, tgt.xmax, tgt.ymin, lim)
                 sweep = geo.Area(sweep.xmin, sweep.xmax, sweep.ymin, max(sweep.ymax, lim))
                 if abs(x - start[0]) > geo.CREEP_STEP or abs(y - start[1]) > geo.CREEP_STEP:
@@ -153,9 +157,19 @@ def make_gate(table):
             if not tgt.contains((x, y)):
                 raise tbl.ForbiddenLine(f"{cid} to ({x}, {y}): beyond what this sitting allows "
                                         f"({tgt.text()})")
-            if not sweep.contains_path(start, (x, y)):
-                raise tbl.ForbiddenLine(f"{cid} from {start} to ({x}, {y}): the swept rectangle "
-                                        "leaves the measuring area")
+            # 4.3.49 (Basti's ruling of 19 Nov 2026, FOR THE SAFETY REVIEW): the swept
+            # rectangle is no longer compared with a box of where recordings happened to read
+            # the arm. Its start is the fresh reading of where the arm physically stands, its
+            # end passed the target check above, and the table moves each axis over one
+            # interval, so every point of the rectangle is reachable
+            # (geo.check_move_from_reading). The creep's per-step limit above stays, and no
+            # computed move starts in the back strip at the resting place (the physical reason
+            # is in geo.check_move_from_reading).
+            del sweep
+            if start[1] < geo.AREA_RAW.ymin:
+                raise tbl.ForbiddenLine(f"{cid} from {start}: a computed move from the back strip "
+                                        "at the resting place")
+
         return cid, motion, label
     return gate
 

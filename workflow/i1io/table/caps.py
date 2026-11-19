@@ -40,7 +40,10 @@ LAYOUT_MAXIMA = {"per_row": 33, "rows": 30, "per_page": 990, "pages": 667}
 
 #: How often a creep (the feel-forward step) may run per page, and its own lines / movements
 #: (part C's stage DZ: 2 x CREEP_STEPS_MAX + 8 lines, CREEP_STEPS_MAX + 1 movements).
-CREEP_STEPS_MAX = 10
+#: 4.3.49 (Basti's ruling: targets up to what the person aimed at): 19, from 10, so that an
+#: aimed area up to geometry's absolute backstop (FRONT_CAP_Y 3650) can be felt to from the proven
+#: front (2723): 927 units in steps of at most 50. The step rule itself is unchanged.
+CREEP_STEPS_MAX = 19
 CREEP_PAUSE_S = 0.5
 #: S-7 (owner-results round): +1 line, the arrival of the move to the front edge read once more
 #: 4.3.47 MUST-1 (safety review): +1 line, the arm read again after the creep's first-visit
@@ -56,8 +59,17 @@ AIMS = (8, 0)              # three p1, s0, f4 x 4 (stage D1)
 CHECK_MOVE = (6, 1)        # stage D2: p0 (twice if free), m0, p0 (+1: S-7, the arrival read again)
 #                            (+1: 4.3.47 MUST-1, read again after a first-visit question)
 HOME = (8, 1)              # stage F: s0 p0 i1 s0 f0 f4 f4 p0
-#: One alignment cycle: the way out, the aims, the creep, the check move and the homing.
-ALIGN_CYCLE = tuple(sum(v) for v in zip(APPROACH, AIMS, CREEP, CHECK_MOVE, HOME))
+#: 4.3.49 fix round (safety review 449, MUST-1): a HELD arm standing where no recorded homing
+#: starts (in front of Y 3114, after the creep met the front end or after a front row) is first
+#: taken back along the way it came, to places the motors verifiably brought it to in this
+#: sitting (job._way_back), at most WAY_BACK_MOVES_MAX moves of m0, p0 (+ p0 read again after
+#: 0.3 s) each; the homing's own s0 p0 is then sent once more before its i1 (+2 lines).
+WAY_BACK_MOVES_MAX = 4
+WAY_BACK = (3 * WAY_BACK_MOVES_MAX, WAY_BACK_MOVES_MAX)
+#: One alignment cycle: the way out, the aims, the creep, the check move, the way back and the
+#: homing.
+ALIGN_CYCLE = tuple(sum(v) for v in zip(APPROACH, AIMS, CREEP, CHECK_MOVE,
+                                         (WAY_BACK[0] + 2, WAY_BACK[1]), HOME))
 #: A strip row (stage E2's row step 12 / 2, and its front-row ends 7 / 2).
 STRIP_ROW = (12 + 7, 2 + 2)
 #: THE DUAL ROW (2026-11-18): a strip row plus its UV pass straight back (the recorded zero-length
