@@ -292,3 +292,15 @@ def test_not_while_a_scan_move_may_be_pending(tmp_path, fault):
     assert job.home_after_stop().reason == "movement_may_be_unfinished"
     assert job._after_end() == {"next": []}
     assert len(sim.received) == n
+
+
+def test_not_when_the_person_said_send_nothing_more_after_the_stop(tmp_path):
+    """The stop itself would allow the offer; the person then chose "Send nothing more" on the
+    stopped page: their word stands, nothing is offered (planted fault P7 found this missing)."""
+    job, sim, p, r = _stopped_at_the_homing(tmp_path, OUT_HELD)
+    assert job.way_back() == J.WayBack.HOME_AFTER_STOP
+    job.report_problem("stop now")
+    assert job.way_back() != J.WayBack.HOME_AFTER_STOP
+    n = len(sim.received)
+    assert job.home_after_stop().reason == "stopped_by_person"
+    assert sim.received[n:] == []
