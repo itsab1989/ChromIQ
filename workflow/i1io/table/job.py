@@ -429,6 +429,21 @@ def homing_starts_here(p, arm_free) -> bool:
                               or (arm_free is False and geo.CAP_RAW.contains(p)))
 
 
+#: 4.3.48 (safety review 448, NOTE 1): the homing AFTER A STOP is offered only inside the
+#: envelope of the recorded homings from a HELD arm out on the table, narrower than
+#: ``homing_starts_here`` (4.3.47's rule for the usual homing, unchanged). 16 homings in 9 of
+#: the volunteer's recordings, all status 0: 15 at the end of a job (R1 338.379 (-1314, 1643),
+#: 546.843 (-1285, 1757); R2 706.049 (-1263, 1785); S2 179.201 (1169, 2560), 371.169
+#: (-1088, 1636), 497.615 (1172, 1663), 586.887 (1176, 2120), 769.808 (1179, 1665); 17 Nov
+#: 240.899 (-1352, 1646), 122.470 (-1311, 2181), 148.689 (-1307, 2182); 18 Nov 249.679
+#: (-1437, 1794), 80.377 (-1438, 1868), 292.945 (-1343, 1864)) and i1Profiler's own at-open
+#: recovery, R1 85.848, from (1102, 1202). X -1438..1179, Y 1202..2560; nothing beyond: not the
+#: front zone, not X 1180..1766, not the alignment start. The two starts at X -1437 and -1438
+#: lie 3-4 units beyond the measuring area's raw box (X from -1434), where 4.3.47's homing
+#: refuses anyway (``homing_starts_here``), so the box begins at X -1434.
+HOME_AFTER_STOP_AREA = geo.Area(geo.AREA_RAW.xmin, 1179, 1202, 2560)
+
+
 #: 4.3.48: the stops after which ChromIQ may offer its own homing (``home_after_stop``): the
 #: first reason the table module closed the sending with must start with one of these. Each is
 #: a PLACE check whose answer the table gave in its recorded form (status 0, the position), with
@@ -1463,7 +1478,7 @@ class TableJob:
             return "no_fresh_position_reading"
         if d.arm_free is not False or d.mode_on:
             return "arm_not_held"
-        if not homing_starts_here(p, d.arm_free):
+        if not homing_starts_here(p, d.arm_free) or not HOME_AFTER_STOP_AREA.contains(p):
             return "homing_not_from_here"
         return None
 
@@ -1500,7 +1515,7 @@ class TableJob:
         self.runs[(self.page, "f")] = self.runs.get((self.page, "f"), 0) + 1
         self._start_block("home_after_stop")
         try:
-            self._end_of_job()
+            self._end_of_job(where=HOME_AFTER_STOP_AREA.contains)
         finally:
             d.current_step = None
             d.close_for_sending("the homing after the stop has ended; nothing more is sent in "
@@ -2184,7 +2199,9 @@ class TableJob:
         return {"read": self._table.position_now}
         yield  # pragma: no cover
 
-    def _end_of_job(self) -> None:
+    def _end_of_job(self, where=None) -> None:
+        """*where* (the homing after a stop only): a further check of the fresh reading, on top of
+        ``homing_starts_here`` (HOME_AFTER_STOP_AREA)."""
         d = self._table
         self._step(f"{self._block['stage']}_end", *cp.HOME)
         d.exchange("status")
@@ -2192,7 +2209,7 @@ class TableJob:
         got = d.position()
         if last is not None and not _near(got, last) and d.arm_free is False:
             raise d._doubt(f"before the homing the arm reads {got}, not {last}")
-        if not homing_starts_here(got, d.arm_free):
+        if not homing_starts_here(got, d.arm_free) or (where is not None and not where(got)):
             raise StageFailed("homing_only_from_inside_the_area", read=got,
                               arm_free=bool(d.arm_free))
         try:
