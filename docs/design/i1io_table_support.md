@@ -1135,3 +1135,42 @@ is his; the behaviour below is what was built from it and awaits his confirmatio
   by patch, the live state says that the arm may move a second time by about 1 mm to a patch.
 * **Not tried on a real table.** Driven on screen against the less ideal simulated table only.
 
+
+### ⏳ Awaiting confirmation: where the arm may go follows what the person aimed at (4.3.49, 2026-11-19)
+
+**Confirmed by:** *nobody yet.*
+
+Basti's direction of 19 Nov 2026 (product direction, the behaviour below still awaits his
+confirmation on screen and the independent safety review): the person who aims at a sheet's points
+knows that the arm can reach them, so the recorded front cap no longer refuses aims or targets.
+
+* **The front of the targets is the aimed area.** Every computed target (patches, row ends, the
+  check move to mark 3, the creep) may lie up to the frontmost point of the area spanned by the three
+  aimed points, widened by the plan's run-out (10 mm along a row, 2 mm across), and never in front
+  of it. Without an alignment, the proven measuring area only (Y 2723). A fixed absolute backstop
+  (Y 3650, 365 mm from the resting place) stays in the line builders and the USB gate against a
+  corrupted target; it is not a physical end. The sides (X -1384..1716) and the back (Y 523) are
+  unchanged. The aims are refused for where they lie only beyond those sides, that back, or the
+  backstop, with how far to lay the sheet.
+* **The evidence it rests on.** In the volunteer's recordings of 17 Nov 2026 i1Profiler drove the
+  measuring opening to all three points the person had aimed the sight at, within 1 to 5 units
+  (three sessions). Those sheets lay in the middle of the table: no recording shows a motor target
+  in front of Y 2559, and none shows what the table does when the opening meets the end of its
+  travel.
+* **The careful approach stays for the first visit.** Beyond the proven area, and beyond where THIS
+  table's motors have already arrived, the arm still feels its way forward in steps of at most
+  5 mm, each arrival checked (the front-zone question, as in 4.3.48). The first step that does not
+  arrive ends the measurement cleanly; the page says how far short the arm stopped and how far to
+  lay the sheet back (`creep_step_did_not_arrive` with `short_mm`). Up to 19 steps.
+* **The table's remembered reach** (one settings value, `i1io_table_reach`): per table, under a
+  salted key made from the table's memory block (never its serial, never the unsalted hash), the
+  frontmost and rightmost places its opening was read at (a stable free-arm reading, or after a move
+  that arrived) and the frontmost target its motors arrived at. Only the last is used: a later
+  sitting on the same table does not feel its way forward again up to there. A stored value that is
+  not plausible is ignored. A different table starts from the defaults.
+* **Diagnostics for learning** (`reach.json` in every session folder): the salted key, the model
+  identity answers, the remembered reach before and now, every stable free-arm reading, the aims,
+  the first free-arm reading after the third aim with its difference to that aim (the sight's
+  offset), every non-zero status and refusal with where the arm was read before it, every creep that
+  stopped.
+* **Not tried on a real table.** Driven against the simulated table only.
