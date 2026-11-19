@@ -277,12 +277,6 @@ static void cq_handle_line(const char *line) {
 		 * recogniser cut ("start", "end", "both", "noleader", "shifted"). */
 		if (!cq_json_get(line, "margin", cq_swipe_margin, sizeof(cq_swipe_margin)))
 			cq_swipe_margin[0] = '\0';
-		/* The strip shift test (4.3.50): the readings come back as the patch
-		 * finder delivers a run-up taken as patch 1 ("start[:k]") or the white
-		 * after the last patch taken as one ("end[:k]"), k patches moved
-		 * (all when k is left out). */
-		if (!cq_json_get(line, "slip", cq_swipe_slip, sizeof(cq_swipe_slip)))
-			cq_swipe_slip[0] = '\0';
 		cq_swipe_reversed = 0;
 		/* "reversed":true is a bare token — cq_json_get only reads strings,
 		 * so probe for the raw text. */
@@ -622,7 +616,6 @@ char cq_swipe_fault[16]  = "";
 char cq_swipe_reason[96] = "";
 char cq_swipe_ruler[16]  = "";
 char cq_swipe_margin[16] = "";
-char cq_swipe_slip[16]   = "";
 
 static void cq_sleep_ms(int ms) {
 #ifdef NT

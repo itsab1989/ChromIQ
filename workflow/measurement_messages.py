@@ -10814,89 +10814,6 @@ M_STRIP_FAILED_OTHER = _m(
     "What the instrument reported: {reason}",
     approved=False)
 
-# --- PROPOSED: a strip read one patch out at an end (4.3.50) ---------------
-#: The patch finder study of 2026-11-19: ArgyllCMS's strip patch finder is
-#: told only how many patches a strip has, and can take the white paper where
-#: the movement began (or ended) as a patch. Every reading from that end then
-#: moves one place and one real patch is lost; when a later boundary is missed
-#: the readings fall back into step and the colour check keeps the strip (a
-#: tester's i1Pro 2, 88.2 against its limit of 95). The helper's shift test
-#: (native/chartread_helper/chromiq_shift.c) refuses it as a misread, with
-#: "Readings moved by one patch at the start|end of the strip (shift score S,
-#: limit L)" as {reason}; core.measure_pace.misread_kind picks "shifted_start"
-#: or "shifted_end" from it. Start and end are those of the MOVEMENT (a strip
-#: read from its far end starts at its last patch).
-M_STRIP_FAILED_SHIFTED_START = _m(
-    "M-STRIP-FAILED-SHIFTED-START",
-    "The white paper where the movement began was read as a patch",
-    "The instrument accepted this strip, but the readings at the start of "
-    "your movement do not match their patches. Each of them matches the "
-    "patch next to it instead, and the first one looks like the white paper. "
-    "The white space where the movement began was taken for a patch, so the "
-    "readings from there moved one place along the strip and one patch was "
-    "lost. ChromIQ did not keep this strip. The strips you have already read "
-    "are not affected.\n\n"
-    "This usually happens when the movement starts on the strip's label or "
-    "on the line under it, or when the instrument jolts as it starts to "
-    "move.\n\n"
-    "What to do: put the instrument down on clean white paper between the "
-    "label and the first patch, clear of the label. If your instrument gives "
-    "a short beep when it is ready, wait for it. Then read the strip again in "
-    "one smooth movement at an even speed, until the instrument is on the "
-    "white paper after the last patch.\n\n"
-    "If this strip is refused again and again although you start and end on "
-    "clean white paper, leave it for now and read it later patch by patch "
-    "(“Patch-by-patch mode (-p)” on the Measure tab).\n\n"
-    "What ChromIQ's check found: {reason}",
-    approved=False)
-
-M_STRIP_FAILED_SHIFTED_END = _m(
-    "M-STRIP-FAILED-SHIFTED-END",
-    "The white paper where the movement ended was read as a patch",
-    "The instrument accepted this strip, but the readings at the end of your "
-    "movement do not match their patches. Each of them matches the patch "
-    "next to it instead, and the last one looks like the white paper. The "
-    "white space where the movement ended was taken for a patch, so the "
-    "readings there moved one place along the strip and one patch was lost. "
-    "ChromIQ did not keep this strip. The strips you have already read are "
-    "not affected.\n\n"
-    "This usually happens when the movement slows down, stops or jolts near "
-    "the last patch, or ends on a mark or a label after it.\n\n"
-    "What to do: put the instrument down on the white paper before the "
-    "strip. If your instrument gives a short beep when it is ready, wait for "
-    "it. Then read the strip again in one smooth movement at an even speed, "
-    "and keep going until the instrument is well past the last patch, on "
-    "clean white paper.\n\n"
-    "If this strip is refused again and again although you start and end on "
-    "clean white paper, leave it for now and read it later patch by patch "
-    "(“Patch-by-patch mode (-p)” on the Measure tab).\n\n"
-    "What ChromIQ's check found: {reason}",
-    approved=False)
-
-#: The Measure log's line for the same refusal, with the figures (the
-#: misread event's "shift" record). {strip}: the strip's label; {score},
-#: {limit}: the shift score and the limit it reached, one decimal.
-M_STRIP_SHIFT_REFUSED = _m(
-    "M-STRIP-SHIFT-REFUSED",
-    "Strip {strip} refused by the shift check",
-    "Strip {strip} was not kept: its readings fit the patches one place "
-    "along better than their own, as when the white paper is read as a patch "
-    "(shift score {score}, limit {limit}). Read it again.",
-    approved=False)
-
-#: The same when it rests on one patch (the record's "k" is 1): the first or
-#: last reading is the white paper itself where a colour far from it was
-#: expected. {score}: that reading's lightness L*, {limit}: the least L* that
-#: counts as paper, one decimal.
-M_STRIP_SHIFT_REFUSED_PAPER = _m(
-    "M-STRIP-SHIFT-REFUSED-PAPER",
-    "Strip {strip} refused: a reading at one end is the white paper",
-    "Strip {strip} was not kept: the reading at one end of the movement is the "
-    "white paper (lightness {score}, paper from {limit}) where a colour far "
-    "from the paper was expected, as when the white paper is read as a patch. "
-    "Read it again.",
-    approved=False)
-
 M_STRIP_FAILED_BUTTON = _m(
     "M-STRIP-FAILED-BUTTON",
     "You can also use the button on your instrument",
@@ -11050,8 +10967,6 @@ STRIP_FAILED_ADVICE = {
     "edges": M_STRIP_FAILED_EDGES,
     "too_fast": M_STRIP_FAILED_TOO_FAST,
     "too_short": M_STRIP_FAILED_TOO_SHORT,
-    "shifted_start": M_STRIP_FAILED_SHIFTED_START,
-    "shifted_end": M_STRIP_FAILED_SHIFTED_END,
     "other": M_STRIP_FAILED_OTHER,
 }
 STRIP_FAILED_MESSAGES = (*STRIP_FAILED_ADVICE.values(), M_STRIP_FAILED_BUTTON)
@@ -11267,6 +11182,99 @@ M_STRIP_END_SLIPPED_EARLY = _m(
     "that is filed one place too early, and at the end the instrument takes "
     "the white paper after the last patch for a patch of its own, so the last "
     "patch of the strip gets the reading of the paper.\n\n"
+    + _slip_tail(),
+    approved=False)
+
+#: THE SHIFT SCORE AT AN END (4.3.50, the patch finder study of 2026-11-19):
+#: `slipped_strip.shift_at_an_end`, asked only when the rules above find
+#: nothing. It scores the first (or last) two or three readings TOGETHER
+#: against "moved one place, with the white paper first", so these words say
+#: only that: they name no paper reading (the first one is not tested for
+#: it), claim nothing about the rest of the strip, and name the other cause
+#: that looks the same (a print far from its design). {first} to {last}: the
+#: readings the score rests on, in strip order; {base} / {best}: their mean
+#: ΔE00 against their own expected colours / against the colours one place
+#: along (the paper for the end patch). Same buttons as every slip question.
+M_STRIP_ENDS_SHIFTED_LATE = _m(
+    "M-STRIP-ENDS-SHIFTED-LATE",
+    "The start of strip {strip} was probably read one patch out of place",
+    "The first readings of strip {strip}, patches {first} to {last}, match "
+    "the colours one place earlier better than their own colours: for patch "
+    "{first} the white paper in front of the strip, and for each of the "
+    "others the patch just before it. On average they miss their own "
+    "expected colours by {base} ΔE00, but those colours by only {best} ΔE00. "
+    "ChromIQ compared only these readings, so it cannot say whether the rest "
+    "of the strip is in step.\n\n"
+    "This usually happens when the instrument takes the white paper in front "
+    "of the first patch for a patch of its own. The readings after it are "
+    "then filed one place too far along, at least for a few patches.\n\n"
+    "A print whose colours are far from the chart's design can look the "
+    "same, for example a print much lighter than planned. If you read the "
+    "strip again carefully and this question comes back, the print is the "
+    "likely cause: then keep the reading.\n\n"
+    + _slip_tail(),
+    approved=False)
+
+#: The mirror at the strip's last patches: the white paper after the strip,
+#: and the patch just after each of the others.
+M_STRIP_ENDS_SHIFTED_EARLY = _m(
+    "M-STRIP-ENDS-SHIFTED-EARLY",
+    "The end of strip {strip} was probably read one patch out of place",
+    "The last readings of strip {strip}, patches {first} to {last}, match the "
+    "colours one place later better than their own colours: for patch "
+    "{last} the white paper after the strip, and for each of the others the "
+    "patch just after it. On average they miss their own expected colours by "
+    "{base} ΔE00, but those colours by only {best} ΔE00. ChromIQ compared "
+    "only these readings, so it cannot say whether the rest of the strip is "
+    "in step.\n\n"
+    "This usually happens when the instrument takes the white paper after "
+    "the last patch for a patch of its own. The readings before it are then "
+    "filed one place too early, at least for a few patches.\n\n"
+    "A print whose colours are far from the chart's design can look the "
+    "same, for example a print much lighter than planned. If you read the "
+    "strip again carefully and this question comes back, the print is the "
+    "likely cause: then keep the reading.\n\n"
+    + _slip_tail(),
+    approved=False)
+
+#: The shift score's one-reading finding (k = 1): the first (or last)
+#: reading, as read, is light and nearly neutral like the paper (L* 85 or
+#: more, chroma 12 or less) while it misses its own expected colour by 50
+#: CIE76 or more. One reading cannot tell a shift from a patch that did not
+#: print, so the words give both causes and how to tell them apart.
+#: {first}: that patch; {base}: its ΔE00 from its own expected colour.
+M_STRIP_END_PAPER_LATE = _m(
+    "M-STRIP-END-PAPER-LATE",
+    "The first reading of strip {strip} looks like the white paper",
+    "Patch {first} of strip {strip} came out with a colour like the white "
+    "paper, but its own expected colour is far from the paper: the reading "
+    "misses it by {base} ΔE00. ChromIQ looked only at this one reading.\n\n"
+    "There are two usual causes. The instrument may have taken the white "
+    "paper in front of the first patch for a patch of its own; then the "
+    "readings after it may be filed one place too far along. Or patch "
+    "{first} did not print, for example because a nozzle is blocked or an "
+    "ink ran out.\n\n"
+    "Look at patch {first} on the printed chart. If it is white or very "
+    "pale, the print is the cause: reading the strip again will not change "
+    "that, so keep the reading. If the patch printed well, read the strip "
+    "again.\n\n"
+    + _slip_tail(),
+    approved=False)
+
+M_STRIP_END_PAPER_EARLY = _m(
+    "M-STRIP-END-PAPER-EARLY",
+    "The last reading of strip {strip} looks like the white paper",
+    "Patch {last} of strip {strip} came out with a colour like the white "
+    "paper, but its own expected colour is far from the paper: the reading "
+    "misses it by {base} ΔE00. ChromIQ looked only at this one reading.\n\n"
+    "There are two usual causes. The instrument may have taken the white "
+    "paper after the last patch for a patch of its own; then the readings "
+    "before it may be filed one place too early. Or patch {last} did not "
+    "print, for example because a nozzle is blocked or an ink ran out.\n\n"
+    "Look at patch {last} on the printed chart. If it is white or very pale, "
+    "the print is the cause: reading the strip again will not change that, "
+    "so keep the reading. If the patch printed well, read the strip "
+    "again.\n\n"
     + _slip_tail(),
     approved=False)
 
@@ -13503,8 +13511,6 @@ CATALOGUE = {m.id: m for m in (
     M_STRIP_FAILED_INCONSISTENT_AGAIN,
     M_STRIP_REVERSED_TURN,
     M_STRIP_TURNED,
-    M_STRIP_SHIFT_REFUSED,
-    M_STRIP_SHIFT_REFUSED_PAPER,
     M_STRIP_RULER_NOT_COVERED,
     M_I1PRO2_LIGHTS_LEFT_ON,
     M_FILTER_REFUSED,
@@ -13551,6 +13557,8 @@ CATALOGUE = {m.id: m for m in (
     M_STRIP_ONE_SLIPPED_LATE, M_STRIP_ONE_SLIPPED_EARLY,
     M_STRIP_END_SLIPPED_EARLY, M_STRIP_MID_SLIPPED_LATE,
     M_STRIP_MID_SLIPPED_EARLY,
+    M_STRIP_ENDS_SHIFTED_LATE, M_STRIP_ENDS_SHIFTED_EARLY,
+    M_STRIP_END_PAPER_LATE, M_STRIP_END_PAPER_EARLY,
     M_REPORT_PATCH_SHIFTED_LATE, M_REPORT_PATCH_SHIFTED_EARLY,
     M_REPORT_EVENNESS_SPREAD, M_REPORT_NEUTRAL_AIMS_BUNCHED,
     M_LIMIT_RECOMMENDED,

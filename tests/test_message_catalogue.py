@@ -393,6 +393,10 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-STRIP-ONE-SLIPPED-LATE", "M-STRIP-ONE-SLIPPED-EARLY",
     "M-STRIP-END-SLIPPED-EARLY", "M-STRIP-MID-SLIPPED-LATE",
     "M-STRIP-MID-SLIPPED-EARLY",
+    # 4.3.50 (2026-11-20): the same question when the shift score finds the
+    # readings at one end of a strip moved by one place
+    "M-STRIP-ENDS-SHIFTED-LATE", "M-STRIP-ENDS-SHIFTED-EARLY",
+    "M-STRIP-END-PAPER-LATE", "M-STRIP-END-PAPER-EARLY",
     "M-REPORT-PATCH-SHIFTED-LATE", "M-REPORT-PATCH-SHIFTED-EARLY",
     # Basti's rulings of 2026-10-23 (4.3.10, forum 149811): the evenness rows
     # ask for the patch block's spread in each direction, and the grey rows'
@@ -414,10 +418,6 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-STRIP-FAILED-TOO-FAST", "M-STRIP-FAILED-OTHER", "M-STRIP-FAILED-BUTTON",
     # "Reading is too short" gets its own text (Basti, 2026-10-21)
     "M-STRIP-FAILED-TOO-SHORT",
-    # 4.3.50 (the patch finder study, 2026-11-19): the helper's shift test,
-    # the white paper at one end of the movement read as a patch, and its log line
-    "M-STRIP-FAILED-SHIFTED-START", "M-STRIP-FAILED-SHIFTED-END",
-    "M-STRIP-SHIFT-REFUSED", "M-STRIP-SHIFT-REFUSED-PAPER",
     # M3 (4.3.8 beta 3): the engine could not save the readings, proposed 2026-10-21
     "M-AUTOSAVE-NOT-SAVED",
     # M3 (4.3.8 beta 3): the line under the chart while a save failed, 2026-10-21

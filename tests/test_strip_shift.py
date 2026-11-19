@@ -1,17 +1,23 @@
-"""4.3.50: the strip SHIFT test (patch finder study, 2026-11-19), its numbers.
+"""4.3.50: the strip SHIFT score (patch finder study, 2026-11-19), its numbers.
 
 ArgyllCMS's strip patch finder is told only how many patches a strip has. The
 white run-up before the first patch is a flat stretch too; when the strip's
 label or a jolt at the start puts an edge in front of it, the finder can take
 the run-up as patch 1, and every reading from there moves by one (all of them,
 or only the first few when a later boundary is missed). A tester's i1Pro 2
-strip came back like that with its first three patches moved, and the colour
-check kept it (88.2 against its limit of 95).
+strip came back like that with its first three patches moved, and nothing
+asked: the colour check kept it (88.2 against its limit of 95) and the
+"Strip may be misaligned" check missed it (its first reading, L* 83.5, is
+below the L* 85 its short-slip rule asks of a paper reading).
 
-The helper now refuses such a strip (``native/chartread_helper/chromiq_shift.c``,
-called in ``chromiq_chartread.c`` after the colour check). These tests run its
-Python twin, ``workflow/strip_shift.py``, which ``test_strip_shift_c.py`` holds
-to the C file number for number, on:
+The score (``workflow/strip_shift.py``) now feeds that check: when its own rules
+find nothing, ``workflow.slipped_strip.shift_at_an_end`` asks the score, and a
+finding raises the same question with the same answers (read it again, keep
+it, stop). Nothing is refused (tests/test_strip_shift_in_the_app.py,
+tests/test_strip_shift_in_the_helper.py). "Flagged" below means "the score
+says moved". It was first written as a refusal in the helper
+(chromiq_shift.c); the review of 2026-11-20 sent it to the question, and the
+helper is back to 4.3.49's. These tests run the score on:
 
 * ``tests/data/strip_shift_regression.json``: anonymous strips derived from the
   measurements on the developer's disk (only numbers: the chart's paper XYZ,
@@ -55,7 +61,7 @@ def _run(st):
 
 # --------------------------------------------------------------- the real cases
 
-def test_the_kept_misread_of_2026_11_19_is_refused(strips):
+def test_the_kept_misread_of_2026_11_19_is_found(strips):
     """Case 2 of the study: the run-up taken as patch 1, the real A3 dropped,
     A4 on in step. The colour check passed it (worst patch 88.2 < 95)."""
     case = strips[0]
@@ -65,7 +71,7 @@ def test_the_kept_misread_of_2026_11_19_is_refused(strips):
     assert r.score == pytest.approx(49.0, abs=0.5)
 
 
-def test_every_real_misread_the_colour_check_keeps_is_refused(strips):
+def test_every_real_misread_the_colour_check_keeps_is_found(strips):
     kept = [st for st in strips if st["label"] == "misread" and st["werror"] < 95]
     assert len(kept) == 2
     for st in kept:
@@ -80,7 +86,7 @@ def test_the_real_misreads_the_colour_check_already_stops_score_high_too(strips)
     assert sum(_run(st).flagged for st in stopped) >= 4
 
 
-def test_no_correct_strip_is_refused(strips):
+def test_no_correct_strip_is_found(strips):
     honest = [st for st in strips if st["label"] == "honest"]
     assert len(honest) == 400
     flagged = [i for i, st in enumerate(honest) if _run(st).flagged]
@@ -131,24 +137,24 @@ def _rate(strips, k, end):
 
 
 @pytest.mark.parametrize("end", [0, 1])
-def test_a_whole_strip_moved_is_refused(strips, end):
+def test_a_whole_strip_moved_is_found(strips, end):
     """92 % on all real strips; this fixture holds the 150 hardest, and a
     whole strip moved by one must also FIT moved by one (the FMAX guard)."""
     assert _rate(strips, 999, end) >= 0.78
 
 
 @pytest.mark.parametrize("end", [0, 1])
-def test_three_patches_moved_then_in_step_is_refused(strips, end):
+def test_three_patches_moved_then_in_step_is_found(strips, end):
     assert _rate(strips, 3, end) >= 0.90
 
 
 @pytest.mark.parametrize("end", [0, 1])
-def test_two_patches_moved_then_in_step_is_mostly_refused(strips, end):
+def test_two_patches_moved_then_in_step_is_mostly_found(strips, end):
     assert _rate(strips, 2, end) >= 0.70
 
 
 @pytest.mark.parametrize("end", [0, 1])
-def test_one_patch_moved_is_refused_by_the_papers_fingerprint(strips, end):
+def test_one_patch_moved_is_found_by_the_papers_fingerprint(strips, end):
     """The commonest pattern of the study's simulation: the run-up taken as
     patch 1, the real patch 1 dropped, the rest in step. Caught where patch 1's
     colour is far from the paper (most of a chart); where it is near the paper
@@ -254,7 +260,7 @@ RAMPS = {
 
 @pytest.mark.parametrize("name", list(RAMPS))
 @pytest.mark.parametrize("n", [6, 12, 30])
-def test_a_ramp_is_never_refused_when_read_correctly(name, n):
+def test_a_ramp_is_never_called_moved_when_read_correctly(name, n):
     rng = np.random.default_rng(n)
     exp = _ramp(n, RAMPS[name])
     for _ in range(200):
@@ -272,7 +278,7 @@ def test_a_ramp_that_starts_on_white_stays_silent_even_when_moved(n):
         assert not S.shift_test(_moved(_print(exp, rng, True), n, 0), exp, PAPER_EXP).flagged
 
 
-def test_a_ramp_that_starts_dark_is_refused_when_moved():
+def test_a_ramp_that_starts_dark_is_found_when_moved():
     """A dark first patch read as paper is not a print difference."""
     rng = np.random.default_rng(4)
     exp = _ramp(12, RAMPS["grey from black"])
@@ -289,21 +295,17 @@ def test_too_short_or_unreadable_is_not_judged():
     assert not S.shift_test(exp, [(0.0, 0.0, 0.0)] * 8, PAPER_EXP).flagged
 
 
-def test_the_twin_says_what_the_header_says():
-    h = (Path(__file__).parents[1] / "native" / "chartread_helper" / "chromiq_shift.h").read_text(encoding="utf-8")
-    for name, val in (("CQS_T3", S.T3), ("CQS_T2", S.T2), ("CQS_F2", S.F2),
-                      ("CQS_QMIN", S.QMIN), ("CQS_NMIN", S.NMIN), ("CQS_P_L", S.P_L),
-                      ("CQS_P_C", S.P_C), ("CQS_P_D", S.P_D), ("CQS_W", S.W),
-                      ("CQS_T3_W", S.T3_W), ("CQS_FMAX", S.FMAX)):
-        line = next(ln for ln in h.splitlines() if ln.startswith(f"#define {name} "))
-        assert math.isclose(float(line.split()[2]), val), line
+def test_the_thresholds_are_the_measured_ones():
+    """The numbers the margins above were measured with (the first builder's
+    corpus and the review's). A change here must be measured again."""
+    assert (S.T3, S.T2, S.F2, S.QMIN, S.NMIN) == (10.0, 20.0, 0.5, 0.5, 4)
+    assert (S.P_L, S.P_C, S.P_D, S.W, S.T3_W, S.FMAX) == (85.0, 12.0, 50.0, 95.0, 20.0, 60.0)
 
 
 # ------------------------------------------------- a wrong strip is not a shift
 
 def test_a_strip_read_in_place_of_another_is_never_called_moved():
-    """With -S (ChromIQ's default) no wrong-strip question stands in front of
-    the shift test. A strip of the same chart swiped in place of another fits
+    """A strip of the same chart swiped in place of another fits
     its own row better than any shift (the guard on other rows): measured on
     the real strips, 0 of 4,931 such swipes flagged (1,916 without it)."""
     rng = np.random.default_rng(11)
@@ -331,7 +333,7 @@ def test_a_strip_from_another_chart_is_rarely_called_moved():
     assert flagged <= 0.03 * 600
 
 
-def test_a_moved_strip_is_still_refused_with_the_other_rows_known():
+def test_a_moved_strip_is_still_found_with_the_other_rows_known():
     rng = np.random.default_rng(13)
     hits = 0
     for _ in range(300):

@@ -736,6 +736,11 @@ class MeasureManager(QObject):
         #: already asked about the read in progress.
         self._measured_strips: dict = {}
         self._design_strips: dict = {}
+        #: The chart's expected XYZ per strip, in strip order, and its
+        #: brightest expected colour (the paper), for the shift score of the
+        #: misaligned-strip check (`_check_part_of_strip_slipped`, 4.3.50).
+        self._design_xyz_rows: dict = {}
+        self._design_paper_xyz = None
         #: The questions waiting, oldest first: [(strip, like), ...]. The one
         #: on screen is always the first, and a later read never replaces it
         #: (review of 6de015eb): an instrument reads while a window is open,
@@ -2317,6 +2322,8 @@ class MeasureManager(QObject):
         """
         self._measured_strips = {}
         self._design_strips = {}
+        self._design_xyz_rows = {}
+        self._design_paper_xyz = None
         self._read_twice_pending = []
         self._suspect_strips = {}
         if not chart or not self._loc_strip:
@@ -2332,6 +2339,7 @@ class MeasureManager(QObject):
                 self._design_strips = self._by_strip(
                     {loc: tuple(float(v) for v in dev)
                      for loc, dev in zip(design.sample_locs, design.rgb)})
+            self._learn_design_xyz(design)
         except Exception:      # noqa: BLE001 — never block a measurement
             log.warning("read-twice check: no design values from %s", chart,
                         exc_info=True)
@@ -2346,6 +2354,26 @@ class MeasureManager(QObject):
         except Exception:      # noqa: BLE001 — never block a measurement
             log.warning("read-twice check: could not read what %s already "
                         "holds", ti3, exc_info=True)
+
+    def _learn_design_xyz(self, design) -> None:
+        """The chart's expected XYZ per strip in the order the strip is read
+        (the read map's order, `_build_read_map`) and its brightest expected
+        colour, for `slipped_strip.shift_in_strip_read`: the paper the shift
+        score compares the end readings with, and the OTHER rows a reading
+        must not fit better (a strip swiped in place of another is not a
+        shift). Anything missing leaves them empty: the score then takes the
+        strip's own brightest colour and skips the other-row guard."""
+        xyz = {loc: tuple(float(v) for v in x)
+               for loc, x in zip(design.sample_locs, design.xyz)}
+        if not xyz:
+            return
+        rows: dict = {}
+        for loc in self._read_order:
+            s = self._loc_strip.get(loc)
+            if s and loc in xyz:
+                rows.setdefault(s, []).append(xyz[loc])
+        self._design_xyz_rows = rows
+        self._design_paper_xyz = max(xyz.values(), key=lambda v: v[1])
 
     def _by_strip(self, values: dict) -> dict:
         """{strip: [value, ...]} in place order, from {loc: value}."""
@@ -2402,6 +2430,7 @@ class MeasureManager(QObject):
         # neighbours' design colours at 37 ΔE (the net's bar is 35) and went
         # unseen; against the prediction it fits at 0.2. The tab hands its
         # `_with_expected` over (`set_expected_for_slip_check`).
+        raw = patches
         adapt = getattr(self, "_expected_for_slip_check", None)
         if adapt is not None:
             try:
@@ -2409,8 +2438,20 @@ class MeasureManager(QObject):
             except Exception:      # noqa: BLE001 - the engine's own then
                 log.debug("expected colours for the slip check failed",
                           exc_info=True)
-        from workflow.slipped_strip import slipped_run_in_strip_read
+        from workflow.slipped_strip import (shift_in_strip_read,
+                                            slipped_run_in_strip_read)
         run = slipped_run_in_strip_read(patches)
+        if run is None:
+            # 4.3.50: the first (or last) two or three readings scored
+            # together (workflow/strip_shift.py), against the chart's own
+            # expected colours, which its limits were measured with. The
+            # same question as every finding above, never a refusal.
+            strip_now = str(ev.get("strip", "?")).strip().upper()
+            rows = getattr(self, "_design_xyz_rows", None) or {}
+            others = [r for s, r in rows.items()
+                      if str(s).strip().upper() != strip_now]
+            run = shift_in_strip_read(raw, getattr(self, "_design_paper_xyz",
+                                                   None), others)
         if run is None:
             return None
         locs = [str(p.get("loc") or "?") for p in patches]
@@ -2428,15 +2469,17 @@ class MeasureManager(QObject):
         """The dict `strip_partly_misaligned` carries, for *run* (a
         `workflow.slipped_strip.SlippedRun`) over the patches *locs*."""
         first, last = locs[run.first], locs[run.last]
-        whole = run.covers(len(locs))
+        whole = run.covers(len(locs)) and not getattr(run, "shift_k", 0)
         log.warning("strip %s: patches %s to %s look %s (mean dE76 %.1f as "
-                    "read, %.1f %s; dE00 %s / %s)", strip, first, last,
+                    "read, %.1f %s; dE00 %s / %s)%s", strip, first, last,
                     "filed back to front" if run.reversed else
                     f"read {abs(run.offset)} patch(es) "
                     + ("late" if run.offset > 0 else "early"),
                     run.base_de, run.shifted_de,
                     "the other way round" if run.reversed else "shifted",
-                    run.base_de00, run.shifted_de00)
+                    run.base_de00, run.shifted_de00,
+                    (f"; shift score at the {run.kind}, {run.shift_k} "
+                     "reading(s)") if getattr(run, "shift_k", 0) else "")
 
         return {
             "strip": strip, "offset": run.offset, "reversed": run.reversed,
@@ -2456,6 +2499,10 @@ class MeasureManager(QObject):
             "kind": run.kind,
             "twice": locs[run.twice] if run.twice is not None else None,
             "single": run.single,
+            # 4.3.50: a finding of the shift score at an end, resting on
+            # this many readings there (1, 2 or 3; 0 for the rules above):
+            # its own words say only what that score measured.
+            "shift_k": int(getattr(run, "shift_k", 0) or 0),
             # ΔE00, the unit of the report's tables (None only if the
             # ΔE00 sums failed, and then the window says "?").
             "base": run.base_de00, "best": run.shifted_de00,
@@ -4226,7 +4273,6 @@ class MeasureManager(QObject):
 
         elif kind == "strip_ready":
             strip = ev.get("strip", "")
-            self._ready_strip_label = str(strip or "")   # 4.3.50: the shift line
             _sent_before = self._commands_sent
             self._gesture_arrived(strip)
             if self._window_hold == "asked":
@@ -4972,13 +5018,6 @@ class MeasureManager(QObject):
                 # B1: whether this instrument's button can answer the window
                 # (the engine knows the connected model and the strip mode).
                 self.misread_button_retry = bool(ev.get("button_retry"))
-                # 4.3.50: the helper's own shift test refused the strip (the
-                # white paper at one end of the movement read as a patch).
-                # The window explains it (M-STRIP-FAILED-SHIFTED-*); the
-                # Measure log keeps the figures.
-                shift = ev.get("shift")
-                if isinstance(shift, dict):
-                    self._log_shift_refusal(shift)
                 self.strip_error.emit(detail or "misread")
                 self.misread_button_retry = False
             elif ekind == "patch_not_found":
@@ -5212,25 +5251,6 @@ class MeasureManager(QObject):
         m = _PATCH_NOT_FOUND_RE.search(line)
         if m:
             self.info_message.emit("patch_not_found", tr("Patch '{name}' not found.").format(name=m.group(1)))
-
-    def _log_shift_refusal(self, shift: dict) -> None:
-        """M-STRIP-SHIFT-REFUSED (-PAPER when it rests on one patch) in the
-        Measure log, with the figure and the limit it reached (the helper's
-        misread event, 4.3.50)."""
-        from core.i18n import decimal_text
-        from workflow import measurement_messages as M
-        try:
-            score = float(shift.get("score", 0.0))
-            limit = float(shift.get("limit", 0.0))
-        except (TypeError, ValueError):
-            return
-        strip = getattr(self, "_ready_strip_label", "") or "?"
-        msg = (M.M_STRIP_SHIFT_REFUSED_PAPER if shift.get("k") == 1
-               else M.M_STRIP_SHIFT_REFUSED)
-        _title, body = msg.render(
-            strip=strip, score=decimal_text(score, 1), limit=decimal_text(limit, 1))
-        log.info("strip %s refused by the shift check: %s", strip, shift)
-        self.info_message.emit("strip_shift", body)
 
     def _handle_line(self, line: str, on_line: Callable[[str], None]) -> None:
         on_line(line)

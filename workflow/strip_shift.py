@@ -1,19 +1,37 @@
-"""The strip SHIFT test's Python twin (4.3.50, the patch finder study of 2026-11-19).
-
-The test itself runs in the helper (``native/chartread_helper/chromiq_shift.c``),
-on every strip the instrument's patch finder accepted, after the colour check
-and before the strip is kept. This module computes exactly the same numbers, so
-the suite can check the C file against it (``tests/test_strip_shift_c.py``) and
-run the regression set of real strips without building anything. Nothing in the
-app calls it.
+"""The strip SHIFT score (4.3.50, the patch finder study of 2026-11-19).
 
 What it decides: whether the first (or last) two or three readings of a strip
 fit "moved by one patch, with the white paper in front" clearly better than
 the colours they were filed under, or whether the first (or last) reading is
-the white paper itself where a colour far from it was expected. That is what happens when ArgyllCMS's strip
-patch finder takes the white run-up before the first patch (or the white after
-the last) as a patch. See chromiq_shift.h for the full rule and the reasons for
-its numbers.
+the white paper itself where a colour far from it was expected. That is what
+happens when ArgyllCMS's strip patch finder takes the white run-up before the
+first patch (or the white after the last) as a patch.
+
+It is ONE of the finders of the "Strip may be misaligned" check: the app calls
+it through `workflow.slipped_strip.shift_at_an_end`, only when that check's
+own rules find nothing, and a finding raises the same question (read it
+again, keep it, stop). It never refuses a strip. It was first built into the
+helper as a refusal (chromiq_shift.c, removed again after the review of
+2026-11-20); the arithmetic and the thresholds are the same, measured on the
+first builder's corpus (~/Desktop/ChromIQ-work/2026-11-19_shift450) and the
+review's (~/Desktop/ChromIQ-work/2026-11-19_shift450_review).
+
+THE SCORE. For each end of the strip, in the order it was filed, and for the
+first k = 2 and k = 3 patches from that end: A_k = mean dE of each reading
+against its own expected colour, B_k = mean dE against the colour it would
+have if the readings had moved by one (paper at the end, then the patch
+before), D_k = mean dE between those two expected colours; s_k = A_k - B_k.
+dE is CIE76 in L*a*b* D50 of Y-normalised readings (the helper's colour
+check). Flagged when s_3 >= T3, or s_2 >= T2 and s_2 >= F2 * D_2, and for
+either D_k >= QMIN * M (M = the median dE between any two expected colours of
+the strip: where the two explanations lie closer than the strip's own colours
+do, a shift cannot be told from a print that misses the design). One patch
+(k = 1, only when k = 2/3 found nothing): the end reading AS READ has
+L* >= P_L and chroma <= P_C and misses its own colour by P_D or more. A strip
+whose worst patch misses by W or more needs s_3 >= T3_W and skips k = 1. A
+finding stands only if the strip fits the explanation within FMAX and no
+OTHER row of the chart fits the reading better (a strip swiped in place of
+another is not a shift).
 
 Pure arithmetic, no Qt, no files.
 """
@@ -23,23 +41,23 @@ from dataclasses import dataclass, field
 import math
 from typing import Sequence
 
-#: The thresholds, the same numbers as chromiq_shift.h (CQS_*).
+#: The thresholds (they were CQS_* in the first build's chromiq_shift.h).
 T3 = 10.0
 T2 = 20.0
 F2 = 0.5
 QMIN = 0.5
 NMIN = 4
-#: k = 1, the paper's fingerprint (CQS_P_*): the end reading as read is
+#: k = 1, the paper's fingerprint: the end reading as read is
 #: paper-like while it misses its own expected colour by P_D or more.
 P_L = 85.0
 P_C = 12.0
 P_D = 50.0
 #: A strip that fits nothing (worst patch >= W, the colour check's WERR_TH):
-#: s_3 must reach T3_W, and k = 1 is not judged (CQS_W, CQS_T3_W).
+#: s_3 must reach T3_W, and k = 1 is not judged .
 W = 95.0
 T3_W = 20.0
 #: A finding stands only if the strip fits the explanation within FMAX, and
-#: no other row of the chart fits the reading better (CQS_FMAX).
+#: no other row of the chart fits the reading better.
 FMAX = 60.0
 
 _W = (0.9642, 1.0000, 0.8249)

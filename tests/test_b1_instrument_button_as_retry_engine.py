@@ -195,11 +195,10 @@ def test_the_gate_is_opened_only_at_the_misread_prompt_and_the_page_hold():
     button gesture (`cq_gesture_hold`, tests/test_button_gestures_engine.py)
     and in Preferences' "Try it" (`cq_run_button_test`), which reads nothing
     at all. All are waits outside any scan; nowhere else may a press be
-    reported. Since 4.3.50 the strip shift test's refusal opens it too: it is
-    the misread prompt, with the misread's own event and wait."""
+    reported."""
     text = (SRC / "chromiq_chartread.c").read_text(encoding="utf-8")
     opens = [m.start() for m in re.finditer(r"cq_switch_gate_set\(1\)", text)]
-    assert len(opens) == 7, f"the switch gate is opened {len(opens)} times"
+    assert len(opens) == 6, f"the switch gate is opened {len(opens)} times"
     wanted = {
         "strip hold here": ("cq_json && ch == 'h'", '\\"event\\":\\"held\\"'),
         "misread prompt": ("Strip read failed due to misread",

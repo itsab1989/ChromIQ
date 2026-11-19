@@ -11505,6 +11505,17 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             turnable = bool(in_step and callable(can) and can())
             if turnable:
                 message = M.M_STRIP_REVERSED_TURN
+        elif int(f.get("shift_k") or 0) >= 1:
+            # 4.3.50: the shift score at an end of the strip (asked only when
+            # the rules above found nothing). Its words say only what it
+            # measured: one paper-like reading (k = 1), or the end readings
+            # together fitting "one place along" better (k = 2, 3).
+            if int(f.get("shift_k") or 0) == 1:
+                message = (M.M_STRIP_END_PAPER_LATE if late
+                           else M.M_STRIP_END_PAPER_EARLY)
+            else:
+                message = (M.M_STRIP_ENDS_SHIFTED_LATE if late
+                           else M.M_STRIP_ENDS_SHIFTED_EARLY)
         elif f.get("whole") and int(f.get("shift") or 1) >= 2:
             # The engine's net also finds a strip two patches out (4.3.11)
             message = (M.M_STRIP_WHOLE_SLIPPED_TWO_LATE if late
