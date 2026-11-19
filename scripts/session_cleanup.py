@@ -303,7 +303,7 @@ def plan_and_kept(session_id: str = "") -> "tuple[list, list]":
     quiet = QUIET_FOR_S if something_running() else 0
     open_paths = held_open_paths()
     items, kept = [], []
-    for label, _n, _b, _hint, deletable, paths in disk_report._rows():
+    for label, _n, _b, _hint, deletable, paths in disk_report._rows(deletable_only=True):
         if not deletable:
             continue
         for p in paths:

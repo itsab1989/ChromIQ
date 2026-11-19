@@ -54,17 +54,25 @@ def _sum(paths) -> tuple[int, int]:
     return len(paths), sum(_size(p) for p in paths)
 
 
-def _rows() -> list[tuple]:
+def _rows(deletable_only: bool = False) -> list[tuple]:
     """``(label, items, bytes, hint, deletable, paths)``. Only DELETABLE rows count
     toward ``--check``: evidence, transcripts and the running session's own
     scratch are reported but must never be what a failing check reaches for
-    (challenge G, 2026-10-02)."""
+    (challenge G, 2026-10-02).
+
+    *deletable_only* (4.3.49, for ``session_cleanup.py``'s plan): only the
+    DELETABLE rows, and unsized (``bytes`` 0; the plan sizes each item it
+    keeps). Sizing every row walked ``~/Desktop/ChromIQ-work``, the transcripts
+    and every Claude scratch folder, which the cleanup never deletes from: a
+    dry run took minutes once the work folder was large."""
     tmp = Path(tempfile.gettempdir())
     rows = []
 
     def add(label, paths, hint, deletable):
+        if deletable_only and not deletable:
+            return
         paths = [p for p in paths if p.exists()]
-        n, b = _sum(paths)
+        n, b = (len(paths), 0) if deletable_only else _sum(paths)
         rows.append((label, n, b, hint, deletable, paths))
 
     add("$TMPDIR chromiq-* folders",

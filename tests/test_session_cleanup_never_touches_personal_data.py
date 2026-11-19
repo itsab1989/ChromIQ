@@ -213,26 +213,76 @@ def test_a_worktree_never_plans_its_own_removal(tmp_path, monkeypatch):
     assert other in planned
 
 
+#: Run in a child, as the hook and an agent's shell run it, with stdin a pipe
+#: that stays open. Only the disk is left out: the plan and the baseline line
+#: are stubbed, because what is measured here is main()'s handling of stdin,
+#: and the real plan's time grows with the developer's own folders (4.3.49:
+#: 120 s were not enough once ~/Desktop/ChromIQ-work was large). The plan's
+#: own speed is pinned below, on a sandboxed tree.
+_STDIN_CHILD = """
+import sys
+sys.path.insert(0, sys.argv[1])
+import session_cleanup as S
+S.plan_and_kept = lambda session_id="": ([], [])
+S.disk_report.since_baseline = lambda: None
+sys.exit(S.main(["--quiet"]))
+"""
+
+
 def test_a_dry_run_with_an_open_stdin_does_not_wait_for_it():
     """An agent's shell hands the script a stdin that is open and never ends.
     Reading it waited for ever, so the dry run looked hung (2026-10-04)."""
     import subprocess, sys
     from pathlib import Path
-    script = Path(__file__).resolve().parents[1] / "scripts" / "session_cleanup.py"
-    proc = subprocess.Popen([sys.executable, str(script), "--quiet"],
+    scripts = Path(__file__).resolve().parents[1] / "scripts"
+    proc = subprocess.Popen([sys.executable, "-c", _STDIN_CHILD, str(scripts)],
                             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, text=True,
                             encoding="utf-8")
     try:
         # Not communicate(): it closes stdin, which is exactly what an
         # agent's shell does not do. Keep it open and wait for the exit.
-        rc = proc.wait(timeout=120)
+        # Idle this takes well under a second (one 0.5 s select); the budget
+        # is for a gate that loads every core.
+        rc = proc.wait(timeout=60)
     except subprocess.TimeoutExpired:
         proc.kill()
-        raise AssertionError("the dry run waited on an open stdin")
+        raise AssertionError("the dry run did not finish in 60 s with an open "
+                             "stdin: it waited on it")
     finally:
         proc.stdin.close()
-    assert rc == 0 and "systemMessage" in proc.stdout.read()
+    out = proc.stdout.read()
+    assert rc == 0, proc.stderr.read()
+    assert "systemMessage" in out and "would free 0.00 GB" in out
+
+
+def test_the_plan_never_walks_what_it_may_not_delete(monkeypatch, tmp_path):
+    """Why the real dry run took minutes: it sized every row of the disk
+    report, ~/Desktop/ChromIQ-work, the transcripts and the Claude scratch
+    among them, though it never deletes from any of them. A large, sandboxed
+    HOME is not walked at all now; what the plan may delete still is."""
+    import disk_report as D
+    import session_cleanup as S
+    home = tmp_path / "home"
+    work = home / "Desktop" / "ChromIQ-work"
+    for k in range(50):
+        (work / f"d{k}").mkdir(parents=True)
+        (work / f"d{k}" / "f.bin").write_bytes(b"x" * 1000)
+    monkeypatch.setattr(D, "HOME", home)
+    walked = []
+    real_size = D._size
+    monkeypatch.setattr(D, "_size", lambda p: walked.append(Path(p)) or real_size(p))
+    rows = D._rows(deletable_only=True)
+    assert rows and all(r[4] for r in rows), "only deletable rows"
+    assert not any(str(p).startswith(str(home)) for p in walked)
+    assert "Desktop session reports (~/Desktop/ChromIQ-work)" not in [
+        r[0] for r in rows]
+    # the report itself (disk_report.py, --check) still sizes that row
+    walked.clear()
+    assert D._sum([work]) == (1, 50 * 1000)
+    assert walked == [work]
+    # the guard is untouched: the work folder is never ours to delete
+    assert not S.is_ours(work)
 
 
 # ---- beta 12: another session's RUNNING work is in use, and kept ------------
@@ -267,7 +317,7 @@ def three_folders(monkeypatch):
     monkeypatch.setattr(S, "merged_worktrees", lambda: [])
     # Only these three are ever planned, so a run with --yes below can touch
     # nothing else on the machine (no real /private/tmp sandbox, no prune).
-    monkeypatch.setattr(S.disk_report, "_rows", lambda: [
+    monkeypatch.setattr(S.disk_report, "_rows", lambda deletable_only=False: [
         ("$TMPDIR chromiq-* folders", 3, 0, "", True, [idle, fresh, held])])
     monkeypatch.setattr(S, "_git", lambda *a: S.subprocess.CompletedProcess(a, 0, "", ""))
     fh = open(held / "f.txt", encoding="utf-8")
