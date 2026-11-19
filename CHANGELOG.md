@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **X-Rite i1iO table (beta): ChromIQ brings the arm home itself where the recordings allow it.** After a stop at which ChromIQ found the arm away from its resting place right before its own homing, with the motors holding it out over the bed and the table answering everything as recorded, the stopped page now offers "Bring the arm home". It asks you to take your hands away first, then sends the arm home exactly the way i1Profiler ends a job, once, and says whether the arm arrived. After every other kind of stop, and wherever no recorded homing starts (for example at the place where the aiming begins), the old advice stays: open i1Profiler once, or use the table's power switch.
+- **X-Rite i1iO table (beta): a START with the arm still out.** The question before ChromIQ connects has a third answer, "The arm is out". ChromIQ then connects, reads where the arm is and moves nothing by itself; when the motors hold the arm inside the measuring area it offers to bring it home and then goes on as usual, otherwise it says plainly why it cannot. "Bring the arm home" is no longer offered for a held arm where the homing would then refuse.
+- **X-Rite i1iO table (beta): a patch the arm stopped a little beside is moved to once more.** When the arm stops 0.6 to 1 mm beside a patch in a patch-by-patch row, ChromIQ now sends the same move once more from where it stands, as i1Profiler does on the same table, before it gives up on the row. Only a second miss fails the row, so dense pages no longer use up their two rows read again on ordinary scatter.
+
 ## v4.3.47
 
 **For everyone updating from 4.3.46: this version is mainly for owners of an X-Rite i1iO 2 table who try the beta option “X-Rite i1iO support”. The calibration fix of 4.3.46 worked on the first real table: the white calibration was made, and the arm drove to the place where the aiming starts. One step later the measurement stopped, because a rule of ours was too strict for a real arm, which settles a little when the table lets it go. That is corrected, and the page after such a stop now has a button and says what to do. Everything after that point (aiming at the three marks and reading the rows) has still run only against a simulated table, so please read the honest limits below. For everyone, this version also fixes a few smaller things: the scan arrow in a small Measure tab, the files a chart keeps when you open it with no project open, the tooltip of “Open Chart File (.ti2)”, the ruler check (beta) on some i1Pro 2 instruments, and the film recorder guide. The charts ChromIQ makes, your measurements and your profiles do not change.**

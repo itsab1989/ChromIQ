@@ -3373,6 +3373,10 @@ class TableMeasureWindow(QFrame):
                 body = body + "\n\n" + reason_text(res.reason, res.detail)
             else:
                 why = reason_text(res.reason, res.detail)
+                if wb == "home_after_stop":
+                    # 4.3.48: the place check right before a homing, in plain words
+                    why = tr("Right before its usual homing, ChromIQ read the arm away from its "
+                             "resting place, out over the table, where it did not expect it.")
                 if wb == "open_i1profiler_once" and j is not None and j.phase == "open":
                     # 4.3.48: why ChromIQ does not bring the arm home itself this time
                     why += " " + tr("ChromIQ brings the arm home itself only after a stop at "

@@ -1097,3 +1097,31 @@ is his; the behaviour below is what was built from it and awaits his confirmatio
 * **cfgmgr32 asked again when the list grew (N1).** A device plugged in between the size call and
   the list call (CR_BUFFER_SMALL) makes ChromIQ ask again, up to three times, instead of "cannot
   tell" and a refused START.
+
+### ⏳ Awaiting confirmation: the arm home without i1Profiler, and one more move beside a patch (4.3.48, 2026-11-19)
+
+**Confirmed by:** *nobody yet.*
+
+* **The homing after a stop (way back `home_after_stop`).** Offered only when the first reason the
+  sending stopped is the place check right before a homing (the arm read away from its resting
+  place), the answer to that reading was understood and is the last line the table answered, the
+  motors hold the arm (`f4` read 00, no hand-alignment mode), nothing moves or may be pending, the
+  link works, the person did not choose "Send nothing more", the i1Pro 2 is in the arm, and the arm
+  stands where recorded homings start (inside the measuring area's raw box, on the home line near
+  rest, or held in the front zone). It asks the hands-off GO, then sends 4.3.47's homing (s0 p0 i1
+  s0 f0 f4 f4 p0), once per session; the table module lets only s0, p0, i1, f0 and f4 through, with
+  the homing's own 8 lines and 1 movement on top of the caps, and nothing is sent afterwards. Not
+  offered after any other stop (answer not understood, refusal, no answer, lost link, caps, a move
+  that did not arrive or was slow, a failed homing, i1Profiler started, the person's stop).
+* **A START with the arm out.** The ready question has a third answer, "The arm is out" (only
+  the bed ticked). ChromIQ connects with the usual opening, reads the arm once (`;p025`) and moves
+  nothing; a held arm inside the area is offered the usual homing (`home`), after which the
+  measurement goes on; a held arm elsewhere, a free arm (the opening reads f4 = 01) or a table just
+  switched on keep the old advice (i1Profiler, the power switch).
+* **The usual homing is not offered for a held arm where it would refuse** (`homing_not_from_here`).
+* **One more move beside a patch.** In a patch row, an arrival read twice 6..10 units beside its
+  target after a normal move is moved to once more from the fresh reading (the same m0 line); a
+  second miss fails the row (`arrived_beside_the_target_again`); at most two such moves per row
+  attempt; caps `spot_row_step` + 2 x (3, 1), each page + (rows + 2) x 2 x (3, 1).
+* **Not tried on a real table.** Driven on screen against the less ideal simulated table only.
+
