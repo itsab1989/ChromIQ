@@ -10018,33 +10018,33 @@ alone.
 
 *New 2026-11-19 for 4.3.49 (Basti: "if the tab tells and guides users to remeasure certain strips then it would be an annoyance if this then makes them loose the other condition files"; a first try, never run on a real instrument): the Measure tab's status line before START (whole text on hover and once in the log) when "Refine / resume" is ticked on a dual measurement in which some strips have M0 only (read after M1 and M2 ended, or read again without the UV pass). Continue Measurement then guides the reader to those strips, as the refinement guide does. Replaces M-DUAL-CONTINUE-M0 for every measurement the engine keeps the record of. Shown in the beta while awaiting approval.*
 
-> **Dual scan: Continue Measurement also completes strips {strips}**
+> **Dual scan: Continue Measurement also reads {strips} again**
 >
-> These strips of this measurement have M0 only: {strips}. The other strips keep their M1 and M2. Continue Measurement starts with a calibration, reads the strips not read yet with both passes, and takes you to {strips} to read each of them again with both passes. Then the whole measurement has M1 and M2.
+> M1 and M2 are missing from {strips} of this measurement, read with M0 only. The other strips keep their M1 and M2. Continue Measurement starts with a calibration, reads the strips not read yet with both passes, and takes you back to {strips} for a new reading with both passes. Then the whole measurement has M1 and M2.
 
 ### M-DUAL-FILL-OFFER · PROPOSED · the X-Rite i1Pro 2 dual scan (Preferences > Beta), Measure, 2026-11-19
 
 *New 2026-11-19 for 4.3.49 (a first try): the same status line while "Refine / resume" is NOT ticked, so a person about to measure the whole chart again learns that ticking it completes the strips with M0 only instead. {resume} is the tick's label, {start} the Start button's. Shown in the beta while awaiting approval.*
 
-> **Dual scan: strips {strips} have M0 only**
+> **Dual scan: M1 and M2 are missing from {strips}**
 >
-> In the measurement of this chart, these strips have M0 only: {strips}. The other strips keep their M1 and M2. To complete it, tick “{resume}” and press “{start}”: ChromIQ takes you to these strips and reads them again with both passes. Starting without the tick measures the whole chart again as a new measurement.
+> In the measurement of this chart, M1 and M2 are missing from {strips}, read with M0 only. The other strips keep their M1 and M2. To complete the measurement, tick “{resume}” and press “{start}”: ChromIQ takes you back to {strips} for a new reading with both passes. Starting without the tick measures the whole chart again as a new measurement.
 
 ### M-COND-CONTINUE-FILL · PROPOSED · "X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every scan" (Preferences > Beta), Measure, 2026-11-19
 
-*New 2026-11-19 for 4.3.49 (Basti: the same rules for the i1Pro 3): the status line before START when "Refine / resume" is ticked on an i1Pro 3 measurement of that Beta in which some strips have the main condition only (a reading the instrument gave without the other two). {own} is the main condition, {first} / {second} the other two. Shown in the beta while awaiting approval.*
+*New 2026-11-19 for 4.3.49 (Basti: the same rules for the i1Pro 3): the status line before START when "Refine / resume" is ticked on an i1Pro 3 measurement of that Beta in which some strips have the main condition only (a reading the instrument gave without the other two). {own} is the main condition, {first} / {second} the other two; {strips} is "strip C" or "strips C, D" (two catalogue keys, a real singular and plural). Shown in the beta while awaiting approval.*
 
-> **Continue Measurement also completes strips {strips}**
+> **Continue Measurement also reads {strips} again**
 >
-> These strips of this measurement have {own} only: {strips}. The other strips keep {first} and {second} as well. Continue Measurement reads the strips not read yet and takes you to {strips} to read them again, so that the whole measurement has all three conditions.
+> {first} and {second} are missing from {strips} of this measurement, read with {own} only. The other strips keep {first} and {second} as well. Continue Measurement reads the strips not read yet and takes you back to {strips} for a new reading, so that the whole measurement has all three conditions.
 
 ### M-COND-FILL-OFFER · PROPOSED · "X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every scan" (Preferences > Beta), Measure, 2026-11-19
 
 *New 2026-11-19 for 4.3.49: the same while "Refine / resume" is not ticked. Shown in the beta while awaiting approval.*
 
-> **Strips {strips} have {own} only**
+> **{first} and {second} are missing from {strips}**
 >
-> In the measurement of this chart, these strips have {own} only: {strips}. The other strips keep {first} and {second} as well. To complete it, tick “{resume}” and press “{start}”: ChromIQ takes you to these strips and reads them again with all three conditions. Starting without the tick measures the whole chart again as a new measurement.
+> In the measurement of this chart, {first} and {second} are missing from {strips}, read with {own} only. The other strips keep {first} and {second} as well. To complete the measurement, tick “{resume}” and press “{start}”: ChromIQ takes you back to {strips} for a new reading with all three conditions. Starting without the tick measures the whole chart again as a new measurement.
 
 ### M-DUAL-PASS-HELD · PROPOSED · the X-Rite i1Pro 2 dual scan (Preferences > Beta), Measure, 2026-11-19
 

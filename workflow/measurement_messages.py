@@ -12041,24 +12041,24 @@ M_DUAL_PASS_ONE_NO_CAL_KEPT = _m(
 #: Measurement takes the reader to them (the guided re-read).
 M_DUAL_CONTINUE_FILL = _m(
     "M-DUAL-CONTINUE-FILL",
-    "Dual scan: Continue Measurement also completes strips {strips}",
-    "These strips of this measurement have M0 only: {strips}. The other "
-    "strips keep their M1 and M2. Continue Measurement starts with a "
-    "calibration, reads the strips not read yet with both passes, and "
-    "takes you to {strips} to read each of them again with both passes. "
-    "Then the whole measurement has M1 and M2.",
+    "Dual scan: Continue Measurement also reads {strips} again",
+    "M1 and M2 are missing from {strips} of this measurement, read with M0 "
+    "only. The other strips keep their M1 and M2. Continue Measurement "
+    "starts with a calibration, reads the strips not read yet with both "
+    "passes, and takes you back to {strips} for a new reading with both "
+    "passes. Then the whole measurement has M1 and M2.",
     approved=False)
 
 #: 4.3.49: before START, the same measurement while "Refine / resume" is
 #: not ticked: how to complete it instead of measuring everything again.
 M_DUAL_FILL_OFFER = _m(
     "M-DUAL-FILL-OFFER",
-    "Dual scan: strips {strips} have M0 only",
-    "In the measurement of this chart, these strips have M0 only: {strips}. "
-    "The other strips keep their M1 and M2. To complete it, tick “{resume}” "
-    "and press “{start}”: ChromIQ takes you to these strips and reads them "
-    "again with both passes. Starting without the tick measures the whole "
-    "chart again as a new measurement.",
+    "Dual scan: M1 and M2 are missing from {strips}",
+    "In the measurement of this chart, M1 and M2 are missing from {strips}, "
+    "read with M0 only. The other strips keep their M1 and M2. To complete "
+    "the measurement, tick “{resume}” and press “{start}”: ChromIQ takes "
+    "you back to {strips} for a new reading with both passes. Starting "
+    "without the tick measures the whole chart again as a new measurement.",
     approved=False)
 
 #: 4.3.49 (Basti, 2026-11-19: the same for the i1Pro 3): before START, a
@@ -12066,22 +12066,24 @@ M_DUAL_FILL_OFFER = _m(
 #: have the main condition only.
 M_COND_CONTINUE_FILL = _m(
     "M-COND-CONTINUE-FILL",
-    "Continue Measurement also completes strips {strips}",
-    "These strips of this measurement have {own} only: {strips}. The other "
-    "strips keep {first} and {second} as well. Continue Measurement reads "
-    "the strips not read yet and takes you to {strips} to read them again, "
-    "so that the whole measurement has all three conditions.",
+    "Continue Measurement also reads {strips} again",
+    "{first} and {second} are missing from {strips} of this measurement, "
+    "read with {own} only. The other strips keep {first} and {second} as "
+    "well. Continue Measurement reads the strips not read yet and takes you "
+    "back to {strips} for a new reading, so that the whole measurement has "
+    "all three conditions.",
     approved=False)
 
 #: 4.3.49: ...and while "Refine / resume" is not ticked.
 M_COND_FILL_OFFER = _m(
     "M-COND-FILL-OFFER",
-    "Strips {strips} have {own} only",
-    "In the measurement of this chart, these strips have {own} only: "
-    "{strips}. The other strips keep {first} and {second} as well. To "
-    "complete it, tick “{resume}” and press “{start}”: ChromIQ takes you to "
-    "these strips and reads them again with all three conditions. Starting "
-    "without the tick measures the whole chart again as a new measurement.",
+    "{first} and {second} are missing from {strips}",
+    "In the measurement of this chart, {first} and {second} are missing "
+    "from {strips}, read with {own} only. The other strips keep {first} and "
+    "{second} as well. To complete the measurement, tick “{resume}” and "
+    "press “{start}”: ChromIQ takes you back to {strips} for a new reading "
+    "with all three conditions. Starting without the tick measures the whole "
+    "chart again as a new measurement.",
     approved=False)
 
 #: 4.3.49: a jump, a move or a change of strip asked for while the engine

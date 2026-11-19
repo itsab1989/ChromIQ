@@ -200,7 +200,7 @@ def test_m1_m2_of_strips_already_read_survive_an_end_and_the_session_end(
     assert [(x.cond, x.usable) for x in ic.choices_for(main)] == [
         ("M0", True), ("M1", False), ("M2", False)]
     why = ic.no_file_reason(main)
-    assert "B, C" in why and "keep their M1 and M2" in why
+    assert "strips B, C" in why and "keep their M1 and M2" in why
     assert _aged_prune(base, cdir) == []                  # held: kept
     assert storage.read_dual_record(main).dual
 
@@ -446,7 +446,7 @@ def test_i1pro3_an_end_midway_then_continue_keeps_and_completes(
         _read(s, m0=True)
         _done(s, unread=True)
     assert _strips(ic.m0_only_locs(main)) == ["B"]
-    assert "B" in ic.no_file_reason(main)
+    assert "missing from strip B" in ic.no_file_reason(main)   # singular
     with ReplaySession(base, rp, extra_args=_a3(cdir, resume=True)) as s:
         _read(s)
         _read(s)
@@ -606,11 +606,11 @@ def test_the_measure_tab_offers_and_guides_to_the_strips_with_m0_only(
     on = _S({ic.SETTING: True, D.SETTING: True})
     off = _fill_fake(base, False, on)
     assert TabMeasure._fill_note_text(off) == M.M_DUAL_FILL_OFFER.render(
-        strips="B", resume=tr_("Refine / resume existing measurement (-r)"),
+        strips=tr_("strip {names}").format(names="B"), resume=tr_("Refine / resume existing measurement (-r)"),
         start=tr_("Continue Measurement"))
     res = _fill_fake(base, True, on)
     assert TabMeasure._fill_note_text(res) == M.M_DUAL_CONTINUE_FILL.render(
-        strips="B")
+        strips=tr_("strip {names}").format(names="B"))
     assert TabMeasure._fill_guided_strips(res, []) == ["B", "C", "D"]
     assert TabMeasure._fill_guided_strips(res, ["D", "A"]) == ["A", "B", "C", "D"]
     # the dual scan switched off: Continue is refused, nothing is offered
@@ -638,5 +638,24 @@ def test_the_i1pro3_note_names_its_own_conditions(tmp_path, monkeypatch, qapp):
         _done(s, unread=True)
     res = _fill_fake(base, True, _S({ic.SETTING: True}))
     assert TabMeasure._fill_note_text(res) == M.M_COND_CONTINUE_FILL.render(
-        strips="B", own="M0", first="M1", second="M2")
+        strips=tr_("strip {names}").format(names="B"), own="M0", first="M1",
+        second="M2")
     assert TabMeasure._fill_guided_strips(res, []) == ["B", "C", "D"]
+
+
+def test_a_guide_only_for_the_gaps_ends_as_an_ordinary_read_and_counts_right():
+    """On screen (2026-11-19, proof/c2-en): a Continue whose guide existed only
+    to complete strips with M0 only ended in "Re-measurement Complete" saying
+    "All 0 chart strips have been re-measured" and talking of the profile
+    you checked. It is not a refinement: the ordinary ending; and with a
+    refinement list as well, the count covers every strip the guide visited."""
+    import inspect
+    from types import SimpleNamespace
+    from ui.tabs.tab_measure import TabMeasure
+    src = inspect.getsource(TabMeasure._show_all_done_dialog) if hasattr(
+        TabMeasure, "_show_all_done_dialog") else inspect.getsource(TabMeasure)
+    assert 'and not getattr(self, "_fill_only_guide", False))' in src
+    f = SimpleNamespace(_strip_list=["B"], _fill_guided=["B", "C", "D"])
+    assert TabMeasure._guided_strip_count(f) == 3
+    f = SimpleNamespace(_strip_list=["B", "E"], _fill_guided=[])
+    assert TabMeasure._guided_strip_count(f) == 2

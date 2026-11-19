@@ -262,11 +262,11 @@ def test_m1_and_m2_that_ended_are_completed_by_continue(qapp, tmp_path):
     rec.helper_lamp_only("A", "dual_needs_ruler")
     rec.save(Run.dual_pass_record(main))
     why = ic.no_file_reason(main)
-    assert "Continue Measurement" in why and "M0 only: A" in why
+    assert "Continue Measurement" in why and "missing from strip A" in why
     assert "measure the chart again" not in why
     # the note before START
     from ui.tabs.tab_measure import TabMeasure
-    fill = M.M_DUAL_CONTINUE_FILL.render(strips="A")
+    fill = M.M_DUAL_CONTINUE_FILL.render(strips="strip A")
     fake = SimpleNamespace(_dual_plan_now=lambda: plan,
                            _fill_note_text=lambda: fill)
     assert TabMeasure._dual_before_start_text(fake) == fill

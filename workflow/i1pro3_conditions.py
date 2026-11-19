@@ -267,6 +267,16 @@ def strips_of(locs: "list[str]", strip_of=None) -> "list[str]":
     return out
 
 
+def strips_phrase(strips: "list[str]") -> str:
+    """"strip C" / "strips C, D" for the sentences that name them (a real
+    singular and plural, the house rule)."""
+    from core.i18n import tr
+    names = ", ".join(strips)
+    if len(strips) == 1:
+        return tr("strip {names}").format(names=names)
+    return tr("strips {names}").format(names=names)
+
+
 def condition_file(main_ti3: "str | Path | None", cond: "str | None"
                    ) -> "Path | None":
     """The file holding *main_ti3*'s readings under *cond*: the main file
@@ -371,28 +381,28 @@ def no_file_reason(main: Path) -> str:
     if gaps:
         # 4.3.49 (Basti, 2026-11-19): the other conditions of the strips
         # already read are kept; these strips have the main condition only
+        named = strips_phrase(gaps)
         if dual.read_dual_record(main).dual:
             return tr(
-                "M1 and M2 are not available yet, because these strips have "
-                "M0 only: {strips}. The other strips keep their M1 and M2. To "
-                "complete them, go to the Measure tab, tick “Refine / resume "
-                "existing measurement (-r)” and press Continue Measurement, "
-                "with the dual scan still switched on: ChromIQ takes you to "
-                "these strips and reads each of them again with both passes. "
-                "Until then this measurement can be built from M0 only."
-                ).format(strips=", ".join(gaps))
+                "M1 and M2 are not available yet, because they are missing "
+                "from {strips}, read with M0 only. The other strips keep their "
+                "M1 and M2. To complete the measurement, go to the Measure "
+                "tab, tick “Refine / resume existing measurement (-r)” and "
+                "press Continue Measurement, with the dual scan still switched "
+                "on: ChromIQ takes you back to {strips} for a new reading with "
+                "both passes. Until then this measurement can be built from M0 "
+                "only.").format(strips=named)
         own = file_condition(main) or "M0"
         others = [c for c in CONDITIONS if c != own]
         return tr(
-            "{first} and {second} are not available yet, because these "
-            "strips have {own} only: {strips}. The other strips keep their "
-            "{first} and {second}. To complete them, go to the Measure tab, "
-            "tick “Refine / resume existing measurement (-r)” and press "
-            "Continue Measurement: ChromIQ takes you to these strips and "
-            "reads them again with all three conditions. Until then this "
-            "measurement can be built from {own} only.").format(
-                first=others[0], second=others[1], own=own,
-                strips=", ".join(gaps))
+            "{first} and {second} are not available yet, because they are "
+            "missing from {strips}, read with {own} only. The other strips "
+            "keep their {first} and {second}. To complete the measurement, go "
+            "to the Measure tab, tick “Refine / resume existing measurement "
+            "(-r)” and press Continue Measurement: ChromIQ takes you back to "
+            "{strips} for a new reading with all three conditions. Until then "
+            "this measurement can be built from {own} only.").format(
+                first=others[0], second=others[1], own=own, strips=named)
     if dual.read_dual_record(main).dual or _ended(main):
         # The i1Pro 2 dual scan (review of 2026-11-18): its M1 and M2 come
         # from a second pass per strip, and exist only once every strip has it.

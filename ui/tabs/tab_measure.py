@@ -9327,7 +9327,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         lay.setSpacing(16)
         lay.setContentsMargins(24, 20, 24, 20)
         pl = getattr(self, "_guided_patch_list", None) or []
-        opening = remeasured_opening(len(self._strip_list), len(pl))
+        opening = remeasured_opening(self._guided_strip_count(), len(pl))
         finish_label = tr("Finish")
         cont_label = tr("Continue Measuring Manually")
         check = re.sub(r"^\s*\d+\s*[.)]\s*", "",
@@ -10200,6 +10200,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             and bool(self._strip_list)
         )
         self._guided_refinement_active = guided
+        self._fill_only_guide = False
+        self._fill_guided = []
         self._resume_active = resume_cb.isChecked()
 
         # #211: PATCH BY PATCH, THE GUIDE GOES PATCH BY PATCH (Basti,
@@ -10221,6 +10223,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                     and not bool(getattr(params, "patch_by_patch", False))):
                 filled = self._fill_guided_strips(strips)
                 if filled != strips:
+                    # the guide goes there as for a refinement; when there
+                    # was no refinement list, it ends as an ordinary read
+                    self._fill_only_guide = not self._guided_refinement_active
+                    self._fill_guided = list(filled)
                     strips = filled
                     self._guided_refinement_active = True
             self._manager.set_guided_strips(strips)
@@ -12862,7 +12868,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         strips = self._fill_strips(main)
         if not strips:
             return "", ""
-        names = ", ".join(strips)
+        names = _c.strips_phrase(strips)
         dual = storage.read_dual_record(main).dual
         own = _c.file_condition(main) or "M0"
         first, second = [c for c in _c.CONDITIONS if c != own]
@@ -12880,6 +12886,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         return M.M_COND_FILL_OFFER.render(
             strips=names, own=own, first=first, second=second,
             resume=resume, start=start)
+
+    def _guided_strip_count(self) -> int:
+        """The strips the guide took the reader to: the refinement list, or
+        (4.3.49) that list with the strips completed beside it."""
+        return len(getattr(self, "_fill_guided", None) or self._strip_list)
 
     def _fill_guided_strips(self, listed: "list[str]") -> "list[str]":
         """At a Continue Measurement in strip mode: the strips to take the
@@ -16483,7 +16494,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # THE TABLE'S REFINEMENT ENDS IN THE SAME WINDOW as the guided
         # re-measurement (review 11, opinion ii): "Re-measurement Complete"
         # with M-REFINE-REBUILD, after the table has let go.
-        refining = bool(self._guided_refinement_active
+        # 4.3.49: a guide that only completed strips with the main condition
+        # only (no refinement list) is not a refinement: the ordinary ending
+        refining = bool((self._guided_refinement_active
+                         and not getattr(self, "_fill_only_guide", False))
                         or (table and getattr(self, "_table_refining", False)))
 
         # Suspend the event filter while the dialog is open so that keyboard
@@ -16493,7 +16507,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
 
         # Verification read of a colour-managed print: a dedicated dialog that
         # never offers "Build Profile" and warns this file is verification-only.
-        if self._verify_run and not is_cal and not self._guided_refinement_active \
+        if self._verify_run and not is_cal and not (
+                self._guided_refinement_active
+                and not getattr(self, "_fill_only_guide", False)) \
                 and not table:
             from PyQt6.QtWidgets import QHBoxLayout, QPushButton
             dlg = QDialog(self)
@@ -16562,7 +16578,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # Verification, Basti 2026-10-22): the strips went back into the dated
         # verification, which builds no profile, so this window says so and
         # offers Finish, never "Go to Build Profile" (M-REFINE-VERIFY-DONE).
-        if self._verify_run and not is_cal and self._guided_refinement_active:
+        if self._verify_run and not is_cal and self._guided_refinement_active \
+                and not getattr(self, "_fill_only_guide", False):
             self._show_verification_reread_done()
             return
 
@@ -16610,7 +16627,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             # #211: patch by patch, it counts the patches the guide visited.
             _pl = (getattr(self, "_table_refine_locs", None) or [] if table
                    else getattr(self, "_guided_patch_list", None) or [])
-            _opening = remeasured_opening(len(self._strip_list), len(_pl))
+            _opening = remeasured_opening(self._guided_strip_count(), len(_pl))
             import html as _html
             _rt, _rb = self._refine_rebuild_texts()
             _rebuild = ("<br><br><b>" + _html.escape(_rt) + "</b><br>"
