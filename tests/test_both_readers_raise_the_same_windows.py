@@ -43,15 +43,17 @@ HELPER_C = (Path(__file__).resolve().parent.parent
 #:
 #: and prove it is a move by running the same test on master in a separate
 #: worktree before touching anything else.
+# +54 on 2026-11-19 (4.3.49): cq_dd_held_command and its prototype inserted
+# above these lines in chromiq_chartread.c (a move, nothing else changed)
 HELPER_LINES = {
     "capability":  ("Need reflection spot, strip, xy or chart reading capability,",
-                    "Need reflection spot, strip, xy or chart reading capability", 3311),
+                    "Need reflection spot, strip, xy or chart reading capability", 3365),
     "ccmx_set":    ("Setting Colorimeter Correction Matrix failed with error :'x' (0x1)",
-                    "Setting Colorimeter Correction Matrix failed with error", 3370),
+                    "Setting Colorimeter Correction Matrix failed with error", 3424),
     "ccmx_read":   ("Reading CCMX/CCSS File 'x.ccmx' failed with error 2:'nope'",
-                    "Reading CCMX/CCSS File", 3392),
+                    "Reading CCMX/CCSS File", 3446),
     "mode_set":    ("Setting instrument mode failed with error :'unsupported' (0x2)",
-                    "Setting instrument mode failed with error", 3738),
+                    "Setting instrument mode failed with error", 3792),
     "init_fail":   ("Initialising instrument failed with message 'Communications failure'",
                     None, None),
     "coms_fail":   ("Establishing communications with instrument failed with message 'timeout'",
