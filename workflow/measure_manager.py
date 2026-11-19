@@ -4226,6 +4226,7 @@ class MeasureManager(QObject):
 
         elif kind == "strip_ready":
             strip = ev.get("strip", "")
+            self._ready_strip_label = str(strip or "")   # 4.3.50: the shift line
             _sent_before = self._commands_sent
             self._gesture_arrived(strip)
             if self._window_hold == "asked":
@@ -4971,6 +4972,13 @@ class MeasureManager(QObject):
                 # B1: whether this instrument's button can answer the window
                 # (the engine knows the connected model and the strip mode).
                 self.misread_button_retry = bool(ev.get("button_retry"))
+                # 4.3.50: the helper's own shift test refused the strip (the
+                # white paper at one end of the movement read as a patch).
+                # The window explains it (M-STRIP-FAILED-SHIFTED-*); the
+                # Measure log keeps the figures.
+                shift = ev.get("shift")
+                if isinstance(shift, dict):
+                    self._log_shift_refusal(shift)
                 self.strip_error.emit(detail or "misread")
                 self.misread_button_retry = False
             elif ekind == "patch_not_found":
@@ -5204,6 +5212,22 @@ class MeasureManager(QObject):
         m = _PATCH_NOT_FOUND_RE.search(line)
         if m:
             self.info_message.emit("patch_not_found", tr("Patch '{name}' not found.").format(name=m.group(1)))
+
+    def _log_shift_refusal(self, shift: dict) -> None:
+        """M-STRIP-SHIFT-REFUSED in the Measure log, with the shift score and
+        the limit it reached (the helper's misread event, 4.3.50)."""
+        from core.i18n import decimal_text
+        from workflow import measurement_messages as M
+        try:
+            score = float(shift.get("score", 0.0))
+            limit = float(shift.get("limit", 0.0))
+        except (TypeError, ValueError):
+            return
+        strip = getattr(self, "_ready_strip_label", "") or "?"
+        _title, body = M.M_STRIP_SHIFT_REFUSED.render(
+            strip=strip, score=decimal_text(score, 1), limit=decimal_text(limit, 1))
+        log.info("strip %s refused by the shift check: %s", strip, shift)
+        self.info_message.emit("strip_shift", body)
 
     def _handle_line(self, line: str, on_line: Callable[[str], None]) -> None:
         on_line(line)

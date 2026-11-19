@@ -587,7 +587,8 @@ def misread_kind(detail: str) -> str:
     """Which Strip Read Failed text a driver's misread sentence gets (B1/M1).
 
     ``"too_many"``, ``"too_few"``, ``"inconsistent"``, ``"edges"``,
-    ``"too_fast"``, ``"too_short"`` or ``"other"``. The sentences are the
+    ``"too_fast"``, ``"too_short"``, ``"shifted_start"``, ``"shifted_end"``
+    (4.3.50, the helper's own shift test) or ``"other"``. The sentences are the
     drivers' own and are the same in the i1Pro, i1Pro 3 and ColorMunki drivers
     (i1pro.c:455-475, i1pro3.c:419-439, munki.c:465-485). "Reading is too
     short" (Basti, 2026-10-21) is raised when the scan ended before the
@@ -599,6 +600,12 @@ def misread_kind(detail: str) -> str:
     internal check (i1pro_imp.c:2961), keeps the general text.
     """
     low = (detail or "").lower()
+    # 4.3.50: ChromIQ's own shift test (chromiq_shift.c), not a driver's
+    # sentence: the white paper at one end of the movement read as a patch.
+    if "moved by one patch at the start" in low:
+        return "shifted_start"
+    if "moved by one patch at the end" in low:
+        return "shifted_end"
     if "too many patches" in low:
         return "too_many"
     if "not enough patches" in low:

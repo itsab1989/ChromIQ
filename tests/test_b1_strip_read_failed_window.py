@@ -34,6 +34,12 @@ DRIVER_SENTENCES = {
     "Swipe didn't start and end on the media": "edges",
     "Not enough samples per patch - Slow Down!": "too_fast",
     "Reading is too short": "too_short",
+    # 4.3.50: not a driver's sentence but the helper's own shift test
+    # (chromiq_shift.c); the white paper at one end of the movement read as a patch
+    "Readings moved by one patch at the start of the strip (shift score 49.0, limit 10.0)":
+        "shifted_start",
+    "Readings moved by one patch at the end of the strip (shift score 23.5, limit 20.0)":
+        "shifted_end",
     "Number of patches to match is wrong": "other",
     "Light level is too low": "other",
     "White calibration reading is inconsistent": "other",
@@ -88,7 +94,10 @@ def test_each_text_names_the_drivers_words_and_says_what_to_do(kind):
     title, body = M.STRIP_FAILED_ADVICE[kind].render(reason="XYZ sentence")
     assert "{" not in title + body
     assert "What to do:" in body
-    assert body.rstrip().endswith("What the instrument reported: XYZ sentence")
+    # the shift test's texts quote ChromIQ's own check, not the instrument (4.3.50)
+    said = ("What ChromIQ's check found: " if kind.startswith("shifted_")
+            else "What the instrument reported: ")
+    assert body.rstrip().endswith(said + "XYZ sentence")
     assert "—" not in title + body          # no em dash (CLAUDE.md)
     assert "white paper" in body
 

@@ -96,6 +96,7 @@ add_executable(chromiq-chartread
   ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_usbwatch.c
   ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_tablescan.c
   ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_presswait.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_shift.c
   ${INSTLIB}/alphix.c
 )
 target_include_directories(chromiq-chartread PRIVATE
@@ -391,6 +392,17 @@ add_executable(i1pro2_dual_maths_test EXCLUDE_FROM_ALL
 target_include_directories(i1pro2_dual_maths_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 if(NOT WIN32)
   target_link_libraries(i1pro2_dual_maths_test PRIVATE m)
+endif()
+
+# The strip shift test (4.3.50): chromiq_shift.c alone, on strips read from
+# stdin (tests/test_strip_shift_c.py). No instrument, no USB.
+add_executable(strip_shift_test EXCLUDE_FROM_ALL
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests/strip_shift_test.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_shift.c
+)
+target_include_directories(strip_shift_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+if(NOT WIN32)
+  target_link_libraries(strip_shift_test PRIVATE m)
 endif()
 
 # The i1Pro 2 dual scan, step 2 (2026-11-18): its requests through the real

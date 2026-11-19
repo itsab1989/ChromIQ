@@ -938,6 +938,42 @@ int cq_replay_dual_take(int n, const cq_dual_cal **cal, const double **lamp,
 	return 1;
 }
 
+/* The strip shift test (4.3.50): "slip":"start[:k]" hands the readings back
+ * as ArgyllCMS's patch finder does when it takes the white run-up before the
+ * first patch as patch 1: paper first, then the first k-1 patches one place
+ * late, patch k-1 lost, the rest in step (k left out or 0: the whole strip,
+ * the last patch lost). "end[:k]" is the same from the far end (the white
+ * after the last patch taken as one). In swipe order, like the instrument.
+ * Not applied to the dual scan's strips (cq_replay_dual_strip). */
+static void cq_replay_slip(ipatch *vals, int npatch) {
+	int end, k = 0, i;
+	const char *c;
+	ipatch *o;
+	if (cq_swipe_slip[0] == '\0' || npatch < 2)
+		return;
+	end = strncmp(cq_swipe_slip, "end", 3) == 0;
+	if (!end && strncmp(cq_swipe_slip, "start", 5) != 0)
+		return;
+	if ((c = strchr(cq_swipe_slip, ':')) != NULL)
+		k = atoi(c + 1);
+	if (k <= 0 || k > npatch)
+		k = npatch;
+	if ((o = malloc(sizeof(ipatch) * npatch)) == NULL)
+		return;
+	memcpy(o, vals, sizeof(ipatch) * npatch);
+	for (i = 0; i < k; i++) {
+		int at = end ? npatch - 1 - i : i;			/* position from that end */
+		int from = end ? at + 1 : at - 1;			/* the patch one place nearer it */
+		if (i == 0) {
+			vals[at].XYZ[0] = cq_paper[0];
+			vals[at].XYZ[1] = cq_paper[1];
+			vals[at].XYZ[2] = cq_paper[2];
+		} else
+			vals[at] = o[from];
+	}
+	free(o);
+}
+
 static inst_code cq_read_strip(inst *p, char *name, int npatch, char *pname,
 	int sguide, double pwid, double gwid, double twid, ipatch *vals) {
 	cq_inst *cq = (cq_inst *)p;
@@ -970,6 +1006,7 @@ static inst_code cq_read_strip(inst *p, char *name, int npatch, char *pname,
 				cq_swipe_as[0] = '\0';
 				cq_swipe_reversed = 0;
 				cq_swipe_fault[0] = '\0';
+				cq_swipe_slip[0] = '\0';
 				cq_swipe_pending = 1;
 			}
 		}
@@ -1058,6 +1095,7 @@ static inst_code cq_read_strip(inst *p, char *name, int npatch, char *pname,
 				vals[i].mtype = inst_mrt_reflective;
 				vals[i].sp.spec_n = 0;
 			}
+			cq_replay_slip(vals, npatch);	/* 4.3.50: the strip shift test */
 			cq_replay_cond_note(st, npatch, cq_swipe_reversed);
 			return inst_ok;
 		}

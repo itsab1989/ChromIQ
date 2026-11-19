@@ -150,7 +150,7 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src);
  *
  * ⚠ BUMP THIS IN THE SAME COMMIT AS ANY CHANGE TO THE HELPER, and rebuild and
  * commit native/chromiq-chartread. The test tells you the expected value. */
-#define CQ_HELPER_BUILD "chromiq-chartread 2026-11-19d legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures+exit-guard+save-after-close+i1pro2-lights+i1pro3-lights+i1pro3-lights-choices+ruler-check+usb-step-detail+i1pro2-beta-paused+i1pro2-lights-quiet+resume-spectral-check+hold-interruptible+i1pro2-ruler-back+own-row-direction+turn-round+filter-event+i1pro3-conditions+conditions-commit-last+margin-tolerance+ruler-trigger-wait+margin-one-way+margin-accounted+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule+i1pro2-dual-device+i1pro2-dual-safety+i1io-table-dual+i1io-table-dual-fix2+i1io-table-dual-calreset+i1pro2-dual-gaps+conditions-kept"
+#define CQ_HELPER_BUILD "chromiq-chartread 2026-11-19e legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures+exit-guard+save-after-close+i1pro2-lights+i1pro3-lights+i1pro3-lights-choices+ruler-check+usb-step-detail+i1pro2-beta-paused+i1pro2-lights-quiet+resume-spectral-check+hold-interruptible+i1pro2-ruler-back+own-row-direction+turn-round+filter-event+i1pro3-conditions+conditions-commit-last+margin-tolerance+ruler-trigger-wait+margin-one-way+margin-accounted+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule+i1pro2-dual-device+i1pro2-dual-safety+i1io-table-dual+i1io-table-dual-fix2+i1io-table-dual-calreset+i1pro2-dual-gaps+conditions-kept+strip-shift-check"
 const char *cq_helper_build_string(void);
 
 
@@ -347,6 +347,7 @@ extern char cq_swipe_fault[16];
 extern char cq_swipe_reason[96];   /* B1: a misread's driver sentence */
 extern char cq_swipe_ruler[16];    /* the ruler check: the fake ruler's mode */
 extern char cq_swipe_margin[16];   /* the margin tolerance: the fake segments */
+extern char cq_swipe_slip[16];     /* 4.3.50: the fake patch finder took a white run-up as a patch */
 
 /* #202: a pending instrument trigger injected by {"cmd":"trigger"} (replay
  * only). The replay instrument then does what the i1Pro driver does when its

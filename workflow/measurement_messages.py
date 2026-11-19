@@ -10814,6 +10814,76 @@ M_STRIP_FAILED_OTHER = _m(
     "What the instrument reported: {reason}",
     approved=False)
 
+# --- PROPOSED: a strip read one patch out at an end (4.3.50) ---------------
+#: The patch finder study of 2026-11-19: ArgyllCMS's strip patch finder is
+#: told only how many patches a strip has, and can take the white paper where
+#: the movement began (or ended) as a patch. Every reading from that end then
+#: moves one place and one real patch is lost; when a later boundary is missed
+#: the readings fall back into step and the colour check keeps the strip (a
+#: tester's i1Pro 2, 88.2 against its limit of 95). The helper's shift test
+#: (native/chartread_helper/chromiq_shift.c) refuses it as a misread, with
+#: "Readings moved by one patch at the start|end of the strip (shift score S,
+#: limit L)" as {reason}; core.measure_pace.misread_kind picks "shifted_start"
+#: or "shifted_end" from it. Start and end are those of the MOVEMENT (a strip
+#: read from its far end starts at its last patch).
+M_STRIP_FAILED_SHIFTED_START = _m(
+    "M-STRIP-FAILED-SHIFTED-START",
+    "The white paper where the movement began was read as a patch",
+    "The instrument accepted this strip, but the readings at the start of "
+    "your movement do not match their patches. Each of them matches the "
+    "patch next to it instead, and the first one looks like the white paper. "
+    "The white space where the movement began was taken for a patch, so the "
+    "readings from there moved one place along the strip and one patch was "
+    "lost. ChromIQ did not keep this strip. The strips you have already read "
+    "are not affected.\n\n"
+    "This usually happens when the movement starts on the strip's label or "
+    "on the line under it, or when the instrument jolts as it starts to "
+    "move.\n\n"
+    "What to do: put the instrument down on clean white paper between the "
+    "label and the first patch, clear of the label. If your instrument gives "
+    "a short beep when it is ready, wait for it. Then read the strip again in "
+    "one smooth movement at an even speed, until the instrument is on the "
+    "white paper after the last patch.\n\n"
+    "If this strip is refused again and again although you start and end on "
+    "clean white paper, leave it for now and read it later patch by patch "
+    "(“Patch-by-patch mode (-p)” on the Measure tab).\n\n"
+    "What ChromIQ's check found: {reason}",
+    approved=False)
+
+M_STRIP_FAILED_SHIFTED_END = _m(
+    "M-STRIP-FAILED-SHIFTED-END",
+    "The white paper where the movement ended was read as a patch",
+    "The instrument accepted this strip, but the readings at the end of your "
+    "movement do not match their patches. Each of them matches the patch "
+    "next to it instead, and the last one looks like the white paper. The "
+    "white space where the movement ended was taken for a patch, so the "
+    "readings there moved one place along the strip and one patch was lost. "
+    "ChromIQ did not keep this strip. The strips you have already read are "
+    "not affected.\n\n"
+    "This usually happens when the movement slows down, stops or jolts near "
+    "the last patch, or ends on a mark or a label after it.\n\n"
+    "What to do: put the instrument down on the white paper before the "
+    "strip. If your instrument gives a short beep when it is ready, wait for "
+    "it. Then read the strip again in one smooth movement at an even speed, "
+    "and keep going until the instrument is well past the last patch, on "
+    "clean white paper.\n\n"
+    "If this strip is refused again and again although you start and end on "
+    "clean white paper, leave it for now and read it later patch by patch "
+    "(“Patch-by-patch mode (-p)” on the Measure tab).\n\n"
+    "What ChromIQ's check found: {reason}",
+    approved=False)
+
+#: The Measure log's line for the same refusal, with the figures (the
+#: misread event's "shift" record). {strip}: the strip's label; {score},
+#: {limit}: the shift score and the limit it reached, one decimal.
+M_STRIP_SHIFT_REFUSED = _m(
+    "M-STRIP-SHIFT-REFUSED",
+    "Strip {strip} refused by the shift check",
+    "Strip {strip} was not kept: its readings fit the patches one place "
+    "along better than their own, as when the white paper is read as a patch "
+    "(shift score {score}, limit {limit}). Read it again.",
+    approved=False)
+
 M_STRIP_FAILED_BUTTON = _m(
     "M-STRIP-FAILED-BUTTON",
     "You can also use the button on your instrument",
@@ -10967,6 +11037,8 @@ STRIP_FAILED_ADVICE = {
     "edges": M_STRIP_FAILED_EDGES,
     "too_fast": M_STRIP_FAILED_TOO_FAST,
     "too_short": M_STRIP_FAILED_TOO_SHORT,
+    "shifted_start": M_STRIP_FAILED_SHIFTED_START,
+    "shifted_end": M_STRIP_FAILED_SHIFTED_END,
     "other": M_STRIP_FAILED_OTHER,
 }
 STRIP_FAILED_MESSAGES = (*STRIP_FAILED_ADVICE.values(), M_STRIP_FAILED_BUTTON)
@@ -13418,6 +13490,7 @@ CATALOGUE = {m.id: m for m in (
     M_STRIP_FAILED_INCONSISTENT_AGAIN,
     M_STRIP_REVERSED_TURN,
     M_STRIP_TURNED,
+    M_STRIP_SHIFT_REFUSED,
     M_STRIP_RULER_NOT_COVERED,
     M_I1PRO2_LIGHTS_LEFT_ON,
     M_FILTER_REFUSED,

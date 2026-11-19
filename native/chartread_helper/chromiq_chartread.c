@@ -212,6 +212,7 @@ typedef struct {
 #define CHROMIQ_EXT 1
 #include "chromiq_ext.h"
 #include "chromiq_usbwatch.h"	/* CHROMIQ_EXT 4.3.36: which USB step failed */
+#include "chromiq_shift.h"		/* CHROMIQ_EXT 4.3.50: the strip shift test */
 
 /* CHROMIQ_EXT: ChromIQ owns measurement sound (#131, Knut 2026-07-26).
  *
@@ -2170,6 +2171,50 @@ static int cq_detect_misalign(ipatch *vals, int navail, chcol **scb, int stipa,
 	 && *best_mean <= m0 * CQ_MIS_RATIO)
 		return best_off;
 	return 0;
+}
+
+/* CHROMIQ_EXT (4.3.50, the patch finder study of 2026-11-19): the strip
+ * SHIFT test (chromiq_shift.c), on the readings exactly as they would be
+ * filed under row scb (DTP51 offset and direction applied as the transfer
+ * applies them). The paper is the chart's brightest expected colour. Only
+ * reads what the instrument already returned; nothing is sent to it. */
+static int cq_strip_shift_check(ipatch *vals, chcol **scb, chcol **scols,
+                                 int npat, int stipa, int skipp, int boff,
+                                 int bdir, cq_shift_result *res) {
+	double (*rd)[3], (*ex)[3], paper[3] = { 0.0, 0.0, 0.0 };
+	int i, j, fl;
+
+	memset(res, 0, sizeof(*res));
+	if (stipa < CQS_NMIN)
+		return 0;
+	for (i = 0; i < npat; i++) {
+		if (scols[i] != NULL && scols[i]->eXYZ[1] > paper[1]) {
+			for (j = 0; j < 3; j++)
+				paper[j] = scols[i]->eXYZ[j];
+		}
+	}
+	rd = malloc(sizeof(*rd) * stipa);
+	ex = malloc(sizeof(*ex) * stipa);
+	if (rd == NULL || ex == NULL) {
+		free(rd); free(ex);
+		return 0;
+	}
+	for (i = 0; i < stipa; i++) {
+		int ix = i + skipp + boff;
+		if (bdir != 0)
+			ix = stipa - 1 - ix;
+		if (vals[ix].XYZ_v == 0) {	/* nothing to judge by */
+			free(rd); free(ex);
+			return 0;
+		}
+		for (j = 0; j < 3; j++) {
+			rd[i][j] = vals[ix].XYZ[j];
+			ex[i][j] = scb[i]->eXYZ[j];
+		}
+	}
+	fl = cq_shift_test((const double (*)[3])rd, (const double (*)[3])ex, stipa, paper, res);
+	free(rd); free(ex);
+	return fl;
 }
 
 /* JSON-mode replacement for the blocking error/confirm prompts: identical
@@ -5328,6 +5373,72 @@ a1log *log			/* verb, debug & error log */
 						}
 						printf("\n");
 						break;
+					}
+
+					/* CHROMIQ_EXT (4.3.50, the patch finder study of
+					 * 2026-11-19): the strip SHIFT test. ArgyllCMS's strip
+					 * patch finder can take the white run-up before the first
+					 * patch (or the white after the last) as a patch, and
+					 * every reading from that end moves by one; when a later
+					 * boundary is missed the readings fall back into step and
+					 * the colour check above, which judges the strip's worst
+					 * patch against rough expected colours, keeps it (a tester's
+					 * i1Pro 2 strip, 88.2 against 95). Refused here like a
+					 * misread, with the misread's own prompt and keys, before
+					 * anything is kept. Not after "use it anyway" at the
+					 * colour check (that answer breaks out above); after the
+					 * wrong-strip question it does run, because that answer
+					 * only said which strip this is, and a strip moved by one
+					 * is exactly what fits another row better. Only with
+					 * warnings on (-S switches it off with the others), only
+					 * for ChromIQ (--json). It looks at readings already
+					 * taken: nothing is sent to the instrument. */
+					if (cq_json && emit_warnings != 0) {
+						cq_shift_result sres;
+						if (cq_strip_shift_check(vals, &scols[oroi * stipa], scols, npat,
+						                         stipa, skipp, boff, bdir, &sres)) {
+							/* where the instrument met it: the strip's start
+							 * as filed is the scan's end when read in reverse */
+							int at_start = (sres.end == 0) == (bdir == 0);
+							char det_[160];
+							if (cap2 & inst2_no_feedback)
+								bad_beep();
+							cq_lights_say(0);	/* CHROMIQ_EXT: red twice (Beta) */
+							snprintf(det_, sizeof(det_),
+							         "Readings moved by one patch at the %s of the strip"
+							         " (shift score %.1f, limit %.1f)",
+							         at_start ? "start" : "end", sres.score,
+							         sres.k == 3 ? CQS_T3 : CQS_T2);
+							printf("\nStrip read failed due to misread (%s)\n", det_);
+							printf("  shift check: k %d, s2 %.1f/%.1f, s3 %.1f/%.1f, D2 %.1f/%.1f,"
+							       " D3 %.1f/%.1f, median %.1f\n", sres.k,
+							       sres.s[0][0], sres.s[1][0], sres.s[0][1], sres.s[1][1],
+							       sres.d[0][0], sres.d[1][0], sres.d[0][1], sres.d[1][1], sres.m);
+							printf("Hit Esc to give up, any other key to retry%s:",fl_end); do_fflush();
+							cq_emit_raw("{\"event\":\"error\",\"kind\":\"misread\","
+							            "\"detail\":\"%s\",\"button_retry\":%s,"
+							            "\"shift\":{\"at\":\"%s\",\"k\":%d,\"score\":%.2f,"
+							            "\"limit\":%.1f}}", det_,
+							            cq_button_retry_ok(it, uswitch) ? "true" : "false",
+							            at_start ? "start" : "end", sres.k, sres.score,
+							            sres.k == 3 ? CQS_T3 : CQS_T2);
+							cq_switch_gate_set(1);
+							ch = cq_wait_char();
+							cq_switch_gate_set(0);
+							if (ch == 0x1b || ch == 0x3 || ch == 'q' || ch == 'Q') {
+								printf("\n");
+								cq_write_ti3_atomic();	/* CHROMIQ_EXT: never lose readings */
+								cq_emit_simple("aborted");
+								if (nn != NULL) free(nn);
+								free(vals);
+								it->del(it);
+								if (pfname != NULL)
+									free(pfname);
+								return -1;
+							}
+							printf("\n");
+							continue;		/* read the same strip again */
+						}
 					}
 
 					/* Must be OK - save the readings */

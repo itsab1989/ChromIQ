@@ -248,11 +248,13 @@ def test_the_build_string():
     # due, a strip after an unusable calibration refused once, the dual header kept on a
     # refused resume; nothing for the table);
     # 2026-11-19d = 19c + the record of the other conditions kept after an end, partial
-    # files, Continue completes them (4.3.49; nothing for the table), last
-    assert "chromiq-chartread 2026-11-19d " in h
+    # files, Continue completes them (4.3.49; nothing for the table);
+    # 2026-11-19e = 19d + the strip shift test (4.3.50, chromiq_shift.c: a hand strip
+    # read one patch out at an end is refused; nothing for the table), last
+    assert "chromiq-chartread 2026-11-19e " in h
     assert ("+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule"
             "+i1pro2-dual-device+i1pro2-dual-safety+i1io-table-dual+i1io-table-dual-fix2"
-            "+i1io-table-dual-calreset+i1pro2-dual-gaps+conditions-kept\"") in h
+            "+i1io-table-dual-calreset+i1pro2-dual-gaps+conditions-kept+strip-shift-check\"") in h
 
 
 def _base_tree(tmp: Path) -> Path:
