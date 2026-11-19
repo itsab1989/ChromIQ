@@ -158,6 +158,23 @@ def test_a_fire_the_last_ready_check_did_not_allow_sends_nothing(trace):
     assert [x for x in w if x[1] == "d4"] == [("CTL", "d4", REC_LAMP), ("CTL", "d4", REC_DARK5)]
 
 
+def test_one_fire_per_yes_and_a_later_no_clears_the_yes(trace):
+    """Re-review 2026-11-19 (planted faults Q5, Q6 passed every test before): the driver's
+    second line fires a pass ONCE per ready check that said yes, and a ready check that says
+    no afterwards takes the earlier yes back."""
+    lines = _scn(trace, "onceper")
+    fires = [ln for ln in lines if ln.startswith("FIRE")]
+    assert len(fires) == 3, lines
+    assert fires[0].startswith("FIRE rc=0")
+    assert fires[1].startswith("FIRE rc=-1") and "lit_sent=0 dark_sent=0" in fires[1]
+    assert fires[2].startswith("FIRE rc=-1") and "lit_sent=0 dark_sent=0" in fires[2]
+    readies = [ln for ln in lines if ln.startswith("READY")]
+    assert readies[0].startswith("READY lamp 1") and readies[1].startswith("READY lamp 1")
+    assert readies[2].startswith("READY lamp -1")
+    assert [x for x in _wire(lines) if x[1] == "d4" and x[2] == REC_LAMP] == [
+        ("CTL", "d4", REC_LAMP)]
+
+
 def test_the_helper_fires_only_an_armed_pass_and_keeps_only_a_checked_tile():
     """SHOULD-3 R10 / R14, pinned in chromiq_tablescan.c itself (its static functions run only
     inside the helper's table-scan mode, which opens a real instrument): the pass fired is the

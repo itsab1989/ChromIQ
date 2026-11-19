@@ -377,6 +377,21 @@ int main(int argc, char **argv) {
 	fire(p, CQ_TDUAL_PASS_UV, 550);			/* delivered lamp, but no ready for UV: nothing */
 	end(p);
 
+	/* re-review 2026-11-19: ONE fire per yes, and a later "no" clears an earlier yes */
+	scn = "onceper";
+	p = make(instI1Pro2, I1PRO_CAP2_UV_LED | I1PRO_CAP2_ZEB_RUL);
+	on(p);
+	lights(p); msec_sleep(10);
+	ready(p, CQ_TDUAL_PASS_LAMP, 550, 1);
+	fire(p, CQ_TDUAL_PASS_LAMP, 550);		/* allowed: the lamp pass */
+	msec_sleep(10);
+	lights(p); msec_sleep(10);
+	fire(p, CQ_TDUAL_PASS_LAMP, 550);		/* the same yes again: nothing */
+	ready(p, CQ_TDUAL_PASS_LAMP, 550, 1);		/* a yes ... */
+	ready(p, CQ_TDUAL_PASS_LAMP, 5000, 1);		/* ... then a no (count out of range) */
+	fire(p, CQ_TDUAL_PASS_LAMP, 550);		/* the earlier yes does not count: nothing */
+	end(p);
+
 	/* not a dual session (an original i1Pro, or no UV LED): nothing at all */
 	scn = "revad";
 	p = make(instI1Pro, I1PRO_CAP2_UV_LED);

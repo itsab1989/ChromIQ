@@ -95,6 +95,27 @@ def test_a_uv_pass_two_or_more_readings_off_is_refused(k):
     assert abs(f["uv"]["best_readings"] - k) <= 0.5, f
 
 
+@pytest.mark.parametrize("best,gain,refuse,checked", [
+    (0.75, 0.05, False, True), (-0.75, 0.05, False, True),
+    (1.0, 0.0050, True, True), (-1.0, 0.0050, True, True),
+    (1.0, 0.0049, False, False), (1.5, 0.0049, False, False),
+])
+def test_the_decision_is_one_reading_and_a_gain_of_0_005(monkeypatch, best, gain, refuse,
+                                                          checked):
+    """Re-review 2026-11-19 (planted fault Q8, the threshold moved from 1.0 to 2.0 readings,
+    passed every test: on the invented streams the gain gate decides near the edge). The
+    decision itself, pinned: refused at |best| >= 1.0 reading WITH R squared gain >= 0.005;
+    below 1.0 accepted; at 1.0 or more with a smaller gain not judged (never refused)."""
+    lamp, uv, lr, ur = _passes(0.0)
+
+    def fit(plan, signal, first_s, start_s):
+        return {"best_readings": best, "best_motion_start_s": start_s,
+                "r2_best": 0.9 + gain, "r2_assumed": 0.9, "spread": 0.5}
+    monkeypatch.setattr(dl, "_layout_fit", fit)
+    f = dl.uv_timing_fit(lamp, uv, lr, ur)
+    assert (f["refuse"], f["checked"]) == (refuse, checked), f
+
+
 def test_a_row_of_one_colour_is_not_judged_and_not_refused():
     lamp, uv, lr, ur = _passes(3.0, flat=True)
     f = dl.uv_timing_fit(lamp, uv, lr, ur)
