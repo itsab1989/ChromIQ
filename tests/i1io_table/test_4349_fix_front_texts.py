@@ -78,7 +78,12 @@ def test_in_the_window_the_stop_page_and_its_homing_bring_the_arm_home(
     assert win._title.text() == tr("The arm stopped short of the front of this sheet")
     assert tr("Bring the arm home") in p.labels()
     p.press("Bring the arm home")
-    page = p.drive_until(("after_problem", "refused", "stopped", "end_of_session"))
+    page = p.drive_until(("after_problem", "refused", "stopped", "end_of_session",
+                          "home_after_stop_done"))
+    # no problem was reported: the page says the arm is home, not "After the problem you
+    # reported"
+    assert page == "home_after_stop_done", (page, win._text.text())
+    assert win._title.text() == tr("The arm is at its resting place")
     t = sim.sim
     assert t.violations == [], t.violations
     assert t.pos[1] <= 250, t.pos                   # at its resting place

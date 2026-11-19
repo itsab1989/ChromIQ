@@ -660,6 +660,7 @@ class TableJob:
         self.worked: "set[str]" = set()
         self.runs: "dict[tuple[int, str], int]" = {}
         self.only_home = False
+        self.creep_stopped = False
         #: B': every problem the person reported, never lost (kind, the step it came in, the
         #: lines sent by then)
         self.problems: "list[tuple[str, str | None, int]]" = []
@@ -2453,6 +2454,9 @@ class TableJob:
     def _creep_failed(self, target, got, why: str, **more) -> None:
         self._table.outside_at = got
         self.only_home = True
+        #: 4.3.49 fix round: why only the homing is left (the window's page after the homing
+        #: says what is true: no problem was reported)
+        self.creep_stopped = True
         self._block["data"]["creep_stopped_at"] = {"target": target, "read": got, "why": why}
         # 4.3.49 (Basti's ruling): the creep is where a sheet aimed further than the arm can take
         # the opening is found out; the page says how far short the arm stopped

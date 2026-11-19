@@ -3033,6 +3033,12 @@ class TableMeasureWindow(QFrame):
             self._close_job()
             return
         if step == "home" and self.job.only_home:
+            if getattr(self.job, "creep_stopped", False) and self._arm_at_rest() \
+                    and not self.job.problems:
+                # 4.3.49 fix round: the arm came home after the creep met the front end; no
+                # problem was reported, so not "After the problem you reported"
+                self._show_home_after_stop_done()
+                return
             self._show_after_problem()
             return
         if step == "home" and getattr(self, "_home_then_stop", False):
