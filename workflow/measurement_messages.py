@@ -12450,7 +12450,7 @@ M_I1IO_DRIVE_HOME_AFTER_STOP = _m(
     "is moving or waiting.\n\n"
     "ChromIQ can bring the arm home for you, once: press Bring the arm home. ChromIQ "
     "first asks you to take your hands away from the table and the arm. Then it reads "
-    "where the arm is, sends it home exactly the way i1Profiler ends a job, and checks "
+    "where the arm is, sends it home the way i1Profiler ends a job, and checks "
     "that the table reports it at its resting place. Nothing else is sent, and afterwards "
     "ChromIQ sends nothing more in this measurement.\n\n"
     "If you would rather not, leave the arm where it is: {instead} open i1Profiler 3.8.6 or "

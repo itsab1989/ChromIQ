@@ -3643,8 +3643,8 @@ class TableMeasureWindow(QFrame):
         from workflow import measurement_messages as M
         title, body = _refused(M, tr(
             "The table has just been switched on, and you said that the arm is out over the "
-            "table. A table that has just been switched on is started with a command that was "
-            "recorded only with the arm at its resting place, so ChromIQ sends nothing. Please "
+            "table. A table that has just been switched on is started with a command that has "
+            "never been recorded with the arm out over the table, so ChromIQ sends nothing. Please "
             "press Close, open i1Profiler 3.8.6 or older once and let it find the table: it "
             "starts the table and should bring the arm home. Then quit it and press START "
             "MEASUREMENT again."))

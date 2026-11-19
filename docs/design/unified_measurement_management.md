@@ -10467,7 +10467,7 @@ alone.
 >
 > ChromIQ has stopped and sends nothing more to the table by itself in this measurement. The arm last reported {where}. The motors hold it there, and nothing is moving or waiting.
 >
-> ChromIQ can bring the arm home for you, once: press Bring the arm home. ChromIQ first asks you to take your hands away from the table and the arm. Then it reads where the arm is, sends it home exactly the way i1Profiler ends a job, and checks that the table reports it at its resting place. Nothing else is sent, and afterwards ChromIQ sends nothing more in this measurement.
+> ChromIQ can bring the arm home for you, once: press Bring the arm home. ChromIQ first asks you to take your hands away from the table and the arm. Then it reads where the arm is, sends it home the way i1Profiler ends a job, and checks that the table reports it at its resting place. Nothing else is sent, and afterwards ChromIQ sends nothing more in this measurement.
 >
 > If you would rather not, leave the arm where it is: {instead} open i1Profiler 3.8.6 or older once and let it find the table; it should bring the arm home. You can always stop the table at once with its power switch.
 >

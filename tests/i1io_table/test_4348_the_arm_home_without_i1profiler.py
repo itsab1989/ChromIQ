@@ -5,8 +5,9 @@ so this would not be needed anymore?"
 
 What the recordings of the volunteer's table show (PRIVATE analysis, the work folder):
 * i1Profiler sends its homing ``i1`` from a HELD arm out on the table at the end of every job:
-  s0 p0 i1 s0 f0 f4 f4, 16 recordings, every start inside the measuring area's raw box, 2.6-3.9 s.
-  That is exactly 4.3.47's own homing (``_end_of_job``, plus a reading at rest).
+  s0 p0 i1 s0 f0 f4 f4: 16 homings in 9 recordings (15 at the end of a job, plus i1Profiler's
+  at-open recovery from (1102, 1202)), X -1438..1179, Y 1202..2560, 2.6-3.9 s. These are 4.3.47's
+  own homing lines (``_end_of_job``, plus a reading at rest).
 * From a FREE arm: twice cleanly (2.36 s, 4.02 s), once answered with status 3 (2 ms after a
   button press). No homing at all starts at the alignment start (X 2507), held or free.
 * No opening of a table whose arm is out is recorded, except once at (1058, 317), where i1Profiler

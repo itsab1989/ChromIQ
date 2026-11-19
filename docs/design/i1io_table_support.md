@@ -1106,9 +1106,11 @@ is his; the behaviour below is what was built from it and awaits his confirmatio
   sending stopped is the place check right before a homing (the arm read away from its resting
   place), the answer to that reading was understood and is the last line the table answered, the
   motors hold the arm (`f4` read 00, no hand-alignment mode), nothing moves or may be pending, the
-  link works, the person did not choose "Send nothing more", the i1Pro 2 is in the arm, and the arm
-  stands where recorded homings start (inside the measuring area's raw box, on the home line near
-  rest, or held in the front zone). It asks the hands-off GO, then sends 4.3.47's homing (s0 p0 i1
+  link works, the person did not choose "Send nothing more", the i1Pro 2 is in the arm, nothing has
+  moved in this sitting yet (no movement line, no start-up: an arm out after ChromIQ's own homing is
+  a mechanical doubt, never an offer; safety review 448, MUST-1), and the arm stands where i1Profiler's
+  recorded homings from a held arm started (X -1434..1179, Y 1202..2560: 16 homings in 9 recordings,
+  inside the measuring area's raw box; safety review 448, NOTE 1). It asks the hands-off GO, then sends 4.3.47's homing (s0 p0 i1
   s0 f0 f4 f4 p0), once per session; the table module lets only s0, p0, i1, f0 and f4 through, with
   the homing's own 8 lines and 1 movement on top of the caps, and nothing is sent afterwards. Not
   offered after any other stop (answer not understood, refusal, no answer, lost link, caps, a move
@@ -1123,5 +1125,13 @@ is his; the behaviour below is what was built from it and awaits his confirmatio
   target after a normal move is moved to once more from the fresh reading (the same m0 line); a
   second miss fails the row (`arrived_beside_the_target_again`); at most two such moves per row
   attempt; caps `spot_row_step` + 2 x (3, 1), each page + (rows + 2) x 2 x (3, 1).
+* **Fix round after the independent safety review of 4.3.48 (2026-11-19).** The job itself (not
+  only the window) refuses the start-up of a just-switched-on table after "The arm is out"
+  (`arm_out_start_up_not_recorded`). An unexpected answer about the hand-alignment mode (`f4`) gets
+  one sentence per case: still on at the opening, switched on where the motors should hold the arm,
+  motors holding where the mode should be on, or a neutral sentence. Every automatic second move to
+  a patch is written into the row's result block in the diagnostics (`second_moves`: target, the
+  two readings before, the reading(s) after, whether it cured the miss). While a row is read patch
+  by patch, the live state says that the arm may move a second time by about 1 mm to a patch.
 * **Not tried on a real table.** Driven on screen against the less ideal simulated table only.
 

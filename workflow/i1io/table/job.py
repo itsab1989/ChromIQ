@@ -438,8 +438,9 @@ def _near(p, q, d=5) -> bool:
 
 def homing_starts_here(p, arm_free) -> bool:
     """Where ChromIQ sends its homing from (4.3.47's rule in ``_end_of_job``, one place for it
-    since 4.3.48): inside the measuring area's raw box (i1Profiler's 16 recorded homings out on
-    the volunteer's table, held, and its 2 clean ones from a free arm all start there), on the
+    since 4.3.48): inside the measuring area's raw box (14 of i1Profiler's 16 recorded homings
+    from a held arm out on the volunteer's table, in 9 recordings, and its 2 clean ones from a
+    free arm start there; the other two lie 3-4 units beyond its X -1434), on the
     stretch of the home line near the resting place (START_GUARD), or, held, in the front zone up
     to its cap. Nowhere else: no recording starts a homing at the alignment start (X 2507)."""
     return p is not None and (geo.AREA_RAW.contains(p) or tbl.START_GUARD.contains(p)
