@@ -49,9 +49,4 @@ def test_the_entry_names_the_options_as_the_app_shows_them():
     assert "Instrument for the dual scan:" in text
 
 
-def test_the_version_is_4348_everywhere():
-    from core.version import APP_VERSION
-    assert APP_VERSION == "4.3.48"
-    assert "badge/version-4.3.48-" in (ROOT / "README.md").read_text(encoding="utf-8")
-    assert '"softwareVersion": "4.3.48"' in (ROOT / "docs/index.html").read_text(
-        encoding="utf-8")
+# The version pin moved to tests/test_4349_release_review.py with the 4.3.49 bump.

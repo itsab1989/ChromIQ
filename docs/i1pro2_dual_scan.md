@@ -197,8 +197,8 @@ good; the Measure tab then still says **"Dual scan: M1 and M2 stop for this meas
 To give those strips their M1 and M2, stop as usual (**Save Partial & Quit** if strips are
 still missing), then tick **"Refine / resume existing measurement (-r)"** and press **Continue
 Measurement**, with the dual scan still switched on. Before you press it, the line under the log
-names the strips (**"Dual scan: Continue Measurement also completes strips B, C"**; without the
-tick it says how to do it: **"Dual scan: strips B, C have M0 only"**). ChromIQ asks for a
+names the strips (**"Dual scan: Continue Measurement also reads strips B, C again"**; without
+the tick it says how to do it: **"Dual scan: M1 and M2 are missing from strips B, C"**). ChromIQ asks for a
 calibration first, as at every start, reads the strips not read yet with both passes, and takes
 you to each strip that has M0 only, as the refinement guide does, to read it again with both
 passes. When every strip has both passes, Build Profile offers M1 and M2 again. Until then,

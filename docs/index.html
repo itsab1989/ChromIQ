@@ -28,7 +28,7 @@
   "operatingSystem": "macOS, Windows, Linux",
   "applicationCategory": "DesignApplication",
   "applicationSubCategory": "Colour management / printer profiling",
-  "softwareVersion": "4.3.48",
+  "softwareVersion": "4.3.49",
   "license": "https://www.gnu.org/licenses/gpl-3.0.html",
   "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"},
   "url": "https://itsab1989.github.io/ChromIQ/",
@@ -455,7 +455,10 @@ footer .sp{flex:1}
           a little, which 4.3.47 corrects; the three aims and reading the rows have still run only
           against a simulated table. Windows and Linux are untested (4.3.46 offers the
           table&rsquo;s Windows driver, not yet tried with a real table), and ChromIQ sends only commands
-          recorded from i1Profiler. Other i1iO tables are not supported yet. Off until you turn it on in
+          recorded from i1Profiler. Other i1iO tables are not supported yet. New in 4.3.49: the table goes as far forward as the
+          points you aimed at, so on a sheet laid far towards you the arm may meet the end of its
+          travel; ChromIQ asks first, feels its way there in 5 mm steps and offers to bring the arm
+          home along the way it came. This has run only on a simulated table. Off until you turn it on in
           <b>Preferences &rsaquo; Beta</b>; with it off, nothing changes. Your report is welcome on
           <a href="https://github.com/itsab1989/ChromIQ/issues/129">GitHub issue 129</a>.</p>
         <p><b class="mono" style="color:var(--amb)">IN BETA &middot; X-RITE i1PRO 2 DUAL SCAN</b><br>
@@ -466,7 +469,9 @@ footer .sp{flex:1}
           against them, and no part of it has run on a real instrument yet. On those recordings M1 and
           M2 agree with i1Profiler&rsquo;s to a few hundredths of a &Delta;E00 when the instrument&rsquo;s
           own factor is known; with the standard factor, M2 was off by about 0.2 on average on strongly
-          brightened paper. Off until you turn it on in <b>Preferences &rsaquo; Beta</b>.</p>
+          brightened paper. Since 4.3.49 the strips already read keep their M1 and M2 when one strip
+          is read with M0 only, and Continue Measurement completes such strips. Off until you turn it
+          on in <b>Preferences &rsaquo; Beta</b>.</p>
       </div>
       <div style="display:grid;gap:22px">
       <figure class="shot" style="--edge:var(--grn)">

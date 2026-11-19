@@ -33,6 +33,9 @@ def test_the_guide_quotes_the_app_s_own_names():
     assert session.parent_label() in text and session.switch_label() in text
     for msg in (M.M_DUAL_MODEL_ASK, M.M_DUAL_ENDED, M.M_DUAL_BEFORE_START):
         assert msg.render(strip="A", reason="", usb="", where="", chosen="M2")[0] in text
+    # the two notes about strips with M0 only (4.3.49), as the Measure tab shows them
+    for msg in (M.M_DUAL_CONTINUE_FILL, M.M_DUAL_FILL_OFFER):
+        assert msg.render(strips="strips B, C", resume="", start="")[0] in text
     for s in ("Instrument for the dual scan:", "Ask before the next measurement",
               "Another instrument (not an i1Pro 2)", "Spectral filter type (-F)",
               "Skip initial calibration (-N)", "High resolution spectral mode (-H)",

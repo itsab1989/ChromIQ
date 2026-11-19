@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-4.3.48-7c5cff">
+  <img alt="Version" src="https://img.shields.io/badge/version-4.3.49-7c5cff">
   <img alt="Downloads" src="https://img.shields.io/endpoint?url=https://itsab1989.github.io/github-traffic-downloads-dashboard/assets/badges/itsab1989_ChromIQ-downloads.json">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2a9d8f">
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-blue">
@@ -655,6 +655,15 @@ ways:
 > - New in 4.3.48: with the i1Pro 2 dual scan (beta, see below) on as well,
 >   the table reads M1 and M2 besides M0, patch by patch or in rows. Like the
 >   rest of the drive, this has not yet run on a real table.
+> - New in 4.3.49: the table goes as far forward as the points you aimed at.
+>   The cross hairs sit about 3 cm in front of the measuring opening, so on a
+>   sheet laid far towards you the arm may meet the end of its travel: ChromIQ
+>   asks first, then feels its way there in steps of 5 mm, stops at the first
+>   step that does not arrive, and offers to bring the arm home along the way
+>   it came. Nobody has yet seen what a real table does at that moment; if the
+>   motor keeps working, switch the table off. Lay the sheet a few centimetres
+>   further away from you than in i1Profiler to avoid it. These changes come
+>   from one owner's first real run and have run only on a simulated table.
 > - The option is off by default, and with it off nothing changes.
 
 Why it may be worth it all the same: X-Rite has ended support for these
@@ -688,9 +697,11 @@ first try: [The dual scan, step by step](docs/i1pro2_dual_scan.md).
 > when the instrument's own factor is known; with the standard factor ChromIQ
 > uses for every i1Pro 2, M2 was off by about 0.2 ΔE00 on average on strongly
 > brightened paper. By hand the dual scan needs the ruler, a failed pass means
-> both passes of the strip are read again, and M1 and M2 cannot be taken up
-> again with Continue Measurement once they have ended. With the option off,
-> nothing changes.
+> both passes of the strip are read again, and a strip read with M0 only keeps
+> M0 only until it is read again with both passes; since 4.3.49 every other
+> strip keeps its M1 and M2, and Continue Measurement completes such strips.
+> "High resolution spectral mode (-H)" is refused with the dual scan. With the
+> option off, nothing changes.
 
 ### Tools menu — standalone utilities
 The masthead **Tools** button opens a menu of conversions and checks you can run
