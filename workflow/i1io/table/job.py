@@ -50,6 +50,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 import threading
 import time
 from dataclasses import dataclass, field, replace
@@ -371,6 +372,22 @@ def doubt_id(reason: str) -> str:
     if "status" in reason:
         return "table_answered_a_status"
     return "table_answer_unexpected"
+
+
+_MODE_FLAG_RE = re.compile(r"f4 answered (\S*) where the recordings show (\S+) here")
+
+
+def mode_flag_detail(reason: str, step: str) -> dict:
+    """Safety review 448, SHOULD-2: what the table answered about its hand-alignment mode (f4),
+    what the recordings show at that point, and whether it was the opening, so the window can
+    say the one sentence that is true for this case (mode on at an opening, mode on where the
+    motors should hold the arm, mode off where they should have let it go, an answer no
+    recording shows)."""
+    m = _MODE_FLAG_RE.search(reason)
+    if not m:
+        return {}
+    return {"mode_answer": m.group(1), "mode_expected": m.group(2),
+            "at_opening": step == "open"}
 
 
 #: AlignmentRefused reasons (geometry's words) -> ids; detail keeps the numbers
@@ -1006,7 +1023,8 @@ class TableJob:
             rid = doubt_id(str(exc))
             if d is not None and d.link_lost_at is not None:
                 rid = "link_lost"
-            res = self._result(step, Kind.STOPPED, rid, log_reason=str(exc))
+            extra = mode_flag_detail(str(exc), step) if rid == "mode_flag_unexpected" else {}
+            res = self._result(step, Kind.STOPPED, rid, log_reason=str(exc), **extra)
         elif isinstance(exc, (Stopped, KeyboardInterrupt)):
             if d is not None:
                 d.close_for_sending("stopped by you")

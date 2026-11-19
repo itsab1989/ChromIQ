@@ -755,11 +755,20 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
         "homing_not_from_here": tr(
             "ChromIQ does not bring the arm home from where it stands: no recording shows the "
             "table's homing starting from there."),
+        # safety review 448, SHOULD-2: one sentence per case, each true (mode_flag_detail);
+        # this one when nothing says which case it was
         "mode_flag_unexpected": tr(
-            "The table reported that it is still in the mode for aiming by hand, in which the "
-            "motors let the arm go. That happens when an earlier measurement stopped while the "
-            "arm was free. ChromIQ does not move an arm in that state, because no recording "
-            "shows how i1Profiler takes it back from there."),
+            "The table answered the question about its mode for aiming by hand in a way no "
+            "recording shows at this point. ChromIQ cannot tell whether the motors hold the "
+            "arm, so it sends nothing more to the table."),
+        "moved_in_this_sitting": tr(
+            "The arm has already moved in this measurement. ChromIQ brings the arm home after a "
+            "stop only when it found the arm out at the start, before anything moved, so it "
+            "sends nothing more to the table now."),
+        "arm_out_start_up_not_recorded": tr(
+            "You said the arm is out over the table. The table has just been switched on, and "
+            "its start-up has never been recorded with the arm out over the table, so ChromIQ "
+            "does not start it now. Nothing was sent to the table."),
         "arm_not_out_on_the_table": tr("The arm is not out on the table."),
         "arm_not_out_on_the_sheet": tr("The arm is not out over the sheet."),
         "needs_alignment": tr("The sheet has to be aimed at first."),
@@ -863,6 +872,25 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
                   "instrument connected.")
     if rid.startswith("session_") or rid == "step_cap":
         return tr("The measurement reached the number of commands ChromIQ allows for it.")
+    if rid == "mode_flag_unexpected":
+        got, want = d.get("mode_answer"), d.get("mode_expected")
+        if want == "00" and got == "01" and d.get("at_opening"):
+            return tr(
+                "The table reported that it is still in the mode for aiming by hand, in which the "
+                "motors let the arm go. That happens when an earlier measurement stopped while the "
+                "arm was free. ChromIQ does not move an arm in that state, because no recording "
+                "shows how i1Profiler takes it back from there.")
+        if want == "00" and got == "01":
+            return tr(
+                "The table reported that it has switched into the mode for aiming by hand, in "
+                "which the motors let the arm go, at a point where its motors should be holding "
+                "the arm. No recording shows this, so ChromIQ does not move the arm and sends "
+                "nothing more to the table.")
+        if want == "01" and got == "00":
+            return tr(
+                "The table reported that its motors are holding the arm, at a point where the "
+                "mode for aiming by hand should be on, with the motors letting the arm go. No "
+                "recording shows this, so ChromIQ sends nothing more to the table.")
     if rid in texts:
         return texts[rid]
     # never the id itself on screen (review 11, M-1): it is in the log and in the
