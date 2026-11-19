@@ -508,3 +508,32 @@ data".
   0.011 means at the standard 1.156); every wrong row's UV pass (8 of 8) refused by the pairing.
   With the 1.0 mm edge alone the same rows give M0 0.104 / 0.254 / 1.326 (one patch at the edge)
   and, on i1Profiler's M0, M2 0.013 and M1 0.006 means.
+
+### 10a. Fix round after the table safety review (2026-11-19)
+
+**Confirmed by:** *nobody yet.* Built, tested against the simulated table (4.3.47's less ideal
+one) and the real helper's replay instrument, and driven on screen; never run on a real table.
+
+* **On 4.3.47's table rules.** The branch carries v4.3.46 and v4.3.47. The UV pass is preceded
+  by one more position reading when a question was answered (or the arm let go) after the lamp
+  pass's last reading; a held arm that moved more than 5 units stops the step before anything
+  moves. The UV pass's start beside its target by 6 to 10 units fails the row cleanly (read it
+  again, or patch by patch); further off stays a doubt. A dual row's front-zone row ends follow
+  the strip row's arrival rule. Caps: the UV pass 10 lines (8 recorded + 1 read-again + 1 own
+  reading), 2 movements; a dual row 29 / 6.
+* **The lamp pass's dark** is taken at least 170 ms after the lamp went out (i1Profiler: 131 to
+  180 ms on the volunteer's table); the UV pass's dark follows at once, as recorded.
+* **The UV pass's timing is checked against the chart.** Its 380-400 nm readings are laid over
+  the chart's patches for every motion start within 6 readings; a pass whose best start is 1
+  reading (about 0.7 mm) or more from the assumed one, with a clear gain, fails the row
+  (`uv_pass_timing_off`). Both passes' best-fitting motion starts are written into every dual
+  row's record and the session log. On the recorded rows: every correct pass accepted, every
+  pass 2 or more readings off refused.
+* **The driver fires only the pass its last ready check allowed**, once (behind the helper's own
+  arm step).
+* **Texts.** The ES-2000 is no longer said to lack the UV light or ruler (ArgyllCMS ties that to
+  part number EO2-XR-UF); the model question sends ES-2000 owners to "i1Pro 2" and says ChromIQ
+  notices a unit without the UV light by itself. A button whose label is an i1 product name keeps
+  its case. After Stop while a step ran, the report page says the arm does not go on. The failed
+  row's message says ChromIQ uses none of the row's values (its raw readings stay in the session
+  folder).
