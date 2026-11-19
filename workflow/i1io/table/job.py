@@ -2170,9 +2170,12 @@ class TableJob:
             if _near(got, target):
                 self.driven.append((a, target))
                 self._arrived_at(target)
-                raise StageFailed("movement_late_but_arrived", took=round(exc.took, 3),
+                # 4.3.50: the id says which side of the window the move ended on
+                raise StageFailed("movement_early_but_arrived" if exc.took < exc.lo
+                                  else "movement_late_but_arrived", took=round(exc.took, 3),
                                   window=(round(exc.lo, 2), round(exc.hi, 2))) from None
-            raise d._doubt(f"{what}: after a slow move the arm reads {got}, not {target}")
+            raise d._doubt(f"{what}: after a move outside its time window the arm reads {got}, "
+                           f"not {target}")
         got = d.position()
         if not _near(got, target):
             # S-7 (the volunteer's table, 17 Nov 2026: i1Profiler's own arrivals on 48 patches

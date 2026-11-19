@@ -959,6 +959,9 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
         "table_did_not_answer": tr("The table did not answer."),
         "table_refused_a_line": tr("The table refused a command."),
         "movement_outside_time_window": tr("A movement took longer or shorter than recorded."),
+        # 4.3.50: the arm arrived, but the move ended outside its time window (either side)
+        "movement_late_but_arrived": tr("A movement took longer or shorter than recorded."),
+        "movement_early_but_arrived": tr("A movement took longer or shorter than recorded."),
         "arm_not_where_expected": tr("The arm did not report the place it was sent to."),
         "target_outside_area": tr("The place lies outside the area ChromIQ sends the arm to."),
         "target_off_sheet": tr("The place lies outside the three points of the sheet you "
