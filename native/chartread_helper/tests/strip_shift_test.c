@@ -3,12 +3,12 @@
  * workflow/strip_shift.py and compares every number. No instrument, no USB.
  *
  * Input, one strip after the other:
- *   STRIP <n>
+ *   STRIP <n> <other_best, -1: not known>
  *   <paper X Y Z>
  *   <read X Y Z> <expected X Y Z>      n lines, in row order
  * Output per strip:
  *   RESULT <i> <flagged> <end> <k> <score> <s[0][0]> <s[0][1]> <s[1][0]> <s[1][1]>
- *          <d[0][0]> <d[0][1]> <d[1][0]> <d[1][1]> <m> <chroma> <pd>   (%.17g)
+ *          <d[0][0]> <d[0][1]> <d[1][0]> <d[1][1]> <m> <chroma> <pd> <werror> <fit> <other> <guarded>
  * then "ALL DONE".
  * AGPL-3.0 - see ../../instlib/License.txt. */
 #include <stdio.h>
@@ -19,7 +19,8 @@
 int main(void) {
 	char word[32];
 	int n, idx = 0;
-	while (scanf("%31s %d", word, &n) == 2) {
+	double other;
+	while (scanf("%31s %d %lf", word, &n, &other) == 3) {
 		double paper[3], (*rd)[3], (*ex)[3];
 		cq_shift_result r;
 		int i;
@@ -33,11 +34,11 @@ int main(void) {
 			if (scanf("%lf %lf %lf %lf %lf %lf", &rd[i][0], &rd[i][1], &rd[i][2],
 			          &ex[i][0], &ex[i][1], &ex[i][2]) != 6)
 				return 4;
-		cq_shift_test((const double (*)[3])rd, (const double (*)[3])ex, n, paper, &r);
-		printf("RESULT %d %d %d %d %.17g %.17g %.17g %.17g %.17g %.17g %.17g %.17g %.17g %.17g %.17g %.17g\n",
+		cq_shift_test((const double (*)[3])rd, (const double (*)[3])ex, n, paper, other, &r);
+		printf("RESULT %d %d %d %d %.17g %.17g %.17g %.17g %.17g %.17g %.17g %.17g %.17g %.17g %.17g %.17g %.17g %.17g %.17g %d\n",
 		       idx++, r.flagged, r.end, r.k, r.score,
 		       r.s[0][0], r.s[0][1], r.s[1][0], r.s[1][1],
-		       r.d[0][0], r.d[0][1], r.d[1][0], r.d[1][1], r.m, r.chroma, r.pd);
+		       r.d[0][0], r.d[0][1], r.d[1][0], r.d[1][1], r.m, r.chroma, r.pd, r.werror, r.fit, r.other, r.guarded);
 		free(rd);
 		free(ex);
 	}

@@ -47,6 +47,27 @@
  * its expected colour is far from the paper (dE >= CQS_P_D). On the real
  * strips the brightest such reading of a correct strip is L* 69.7.
  *
+ * A STRIP THAT FITS NOTHING. ChromIQ runs the helper with -S, so the
+ * colour check (WERR_TH 95) does not stand in front of this test. A strip
+ * whose worst patch misses its design by CQS_W or more (a wrong chart, a
+ * strip far off its design) can line up with "moved by one" by chance: on
+ * the real strips two such files did (s_3 10.2; one end reading the paper).
+ * For those the test asks s_3 >= CQS_T3_W and skips k = 1; the real
+ * misreads among them score 25.9 to 62.9.
+ *
+ * A WRONG STRIP IS NOT A SHIFT. With -S the helper's wrong-strip question
+ * does not run either, and a strip swiped in place of another fits its own
+ * row as badly as it fits it moved by one; unguarded, the test flagged 39 %
+ * of such swipes on the real strips. So a finding stands only when the strip
+ * fits the explanation: F = the better of the mean dE as filed past the
+ * moved patches and the mean dE of the whole strip moved by one must be at
+ * most CQS_FMAX, and no OTHER row of the chart may fit the reading better
+ * than F (other_best, worked out by the caller over every row, both ways).
+ * Measured: wrong strips of the same chart flagged 0 of 4,931 (1,916
+ * without), another chart's strips 37 of 3,151 (1,202); moved strips still
+ * caught 92 to 97 % (k >= 2); of the ten real misreads one is lost, a strip
+ * that was also filed back to front (F 99.7).
+ *
  * AGPL-3.0 like the rest of ChromIQ's helper code (see License.txt). */
 #ifndef CHROMIQ_SHIFT_H
 #define CHROMIQ_SHIFT_H
@@ -63,6 +84,11 @@ extern "C" {
 #define CQS_P_L   85.0	/* k = 1: the end reading's L* at least this ...   */
 #define CQS_P_C   12.0	/* ... its chroma at most this ...                 */
 #define CQS_P_D   50.0	/* ... and its expected colour this far from paper */
+#define CQS_W     95.0	/* a strip whose worst patch misses its design by this
+					 * much (the colour check's WERR_TH) misses it everywhere: */
+#define CQS_T3_W  20.0	/* ... then s_3 must reach this, and k = 1 is not judged */
+#define CQS_FMAX  60.0	/* a finding stands only if the strip fits "moved by one"
+					 * (or, past the moved patches, as filed) within this mean dE */
 
 typedef struct {
 	int    flagged;		/* 1: the strip looks moved by one patch           */
@@ -75,14 +101,20 @@ typedef struct {
 	/* every figure, for the log and the tests: [end][k-2] */
 	double s[2][2], d[2][2];
 	double m;			/* the strip's median dE between expected colours  */
+	double werror;		/* the strip's worst patch (the colour check's figure) */
+	double fit;			/* F of the finding (see above)                     */
+	double other;		/* the best fit of any other row (caller's figure)  */
+	int    guarded;		/* 1: a finding withdrawn by the two guards         */
 } cq_shift_result;
 
 /* read[i], expd[i]: XYZ (0..100) of patch i in ROW order, as it would be
  * filed; paper: the expected XYZ of the chart's paper (its brightest expected
- * patch). Returns res->flagged. n < CQS_NMIN, no readable Y or a failed
- * allocation: not flagged. */
+ * patch); other_best: the best mean dE of the reading against any OTHER row
+ * of the chart (negative: not known, that guard is skipped). Returns
+ * res->flagged. n < CQS_NMIN, no readable Y or a failed allocation: not
+ * flagged. */
 int cq_shift_test(const double (*read)[3], const double (*expd)[3], int n,
-                  const double paper[3], cq_shift_result *res);
+                  const double paper[3], double other_best, cq_shift_result *res);
 
 #ifdef __cplusplus
 }

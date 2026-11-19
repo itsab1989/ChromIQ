@@ -2179,9 +2179,9 @@ static int cq_detect_misalign(ipatch *vals, int navail, chcol **scb, int stipa,
  * applies them). The paper is the chart's brightest expected colour. Only
  * reads what the instrument already returned; nothing is sent to it. */
 static int cq_strip_shift_check(ipatch *vals, chcol **scb, chcol **scols,
-                                 int npat, int stipa, int skipp, int boff,
+                                 int npat, int totpa, int stipa, int skipp, int boff,
                                  int bdir, cq_shift_result *res) {
-	double (*rd)[3], (*ex)[3], paper[3] = { 0.0, 0.0, 0.0 };
+	double (*rd)[3], (*ex)[3], paper[3] = { 0.0, 0.0, 0.0 }, other = -1.0;
 	int i, j, fl;
 
 	memset(res, 0, sizeof(*res));
@@ -2212,7 +2212,32 @@ static int cq_strip_shift_check(ipatch *vals, chcol **scb, chcol **scols,
 			ex[i][j] = scb[i]->eXYZ[j];
 		}
 	}
-	fl = cq_shift_test((const double (*)[3])rd, (const double (*)[3])ex, stipa, paper, res);
+	/* the best fit of the reading against every OTHER row, both ways round
+	 * (the colour check's ynorm and CIE76 per row): a wrong strip is not a
+	 * shift (chromiq_shift.h) */
+	{
+		int r, dir;
+		for (r = 0; r < totpa; r++) {
+			if (&scols[r * stipa] == scb)
+				continue;
+			for (dir = 0; dir < 2; dir++) {
+				double sr = 0.0, se = 0.0, yn, sum = 0.0;
+				for (i = 0; i < stipa; i++) {
+					sr += rd[dir ? stipa - 1 - i : i][1];
+					se += scols[r * stipa + i]->eXYZ[1];
+				}
+				if (!(sr > 1e-6) || !(se > 1e-6))
+					continue;
+				yn = se / sr;
+				for (i = 0; i < stipa; i++)
+					sum += xyzLabDE(yn, rd[dir ? stipa - 1 - i : i], scols[r * stipa + i]->eXYZ);
+				sum /= stipa;
+				if (other < 0.0 || sum < other)
+					other = sum;
+			}
+		}
+	}
+	fl = cq_shift_test((const double (*)[3])rd, (const double (*)[3])ex, stipa, paper, other, res);
 	free(rd); free(ex);
 	return fl;
 }
@@ -5389,14 +5414,17 @@ a1log *log			/* verb, debug & error log */
 					 * colour check (that answer breaks out above); after the
 					 * wrong-strip question it does run, because that answer
 					 * only said which strip this is, and a strip moved by one
-					 * is exactly what fits another row better. Only with
-					 * warnings on (-S switches it off with the others), only
-					 * for ChromIQ (--json). It looks at readings already
-					 * taken: nothing is sent to the instrument. */
-					if (cq_json && emit_warnings != 0) {
+					 * is exactly what fits another row better. NOT switched
+					 * off by -S: ChromIQ starts the helper with -S by default
+					 * (its own misread tests replace the colour check), and a
+					 * strip moved by one is not a warning to suppress but a
+					 * wrong reading. Only for ChromIQ (--json). It looks at
+					 * readings already taken: nothing is sent to the
+					 * instrument. */
+					if (cq_json) {
 						cq_shift_result sres;
 						if (cq_strip_shift_check(vals, &scols[oroi * stipa], scols, npat,
-						                         stipa, skipp, boff, bdir, &sres)) {
+						                         totpa, stipa, skipp, boff, bdir, &sres)) {
 							/* where the instrument met it: the strip's start
 							 * as filed is the scan's end when read in reverse */
 							int at_start = (sres.end == 0) == (bdir == 0);
@@ -5404,7 +5432,8 @@ a1log *log			/* verb, debug & error log */
 							if (cap2 & inst2_no_feedback)
 								bad_beep();
 							cq_lights_say(0);	/* CHROMIQ_EXT: red twice (Beta) */
-							double lim_ = sres.k == 3 ? CQS_T3 : sres.k == 2 ? CQS_T2 : CQS_P_L;
+							double lim_ = sres.k == 3 ? (sres.werror >= CQS_W ? CQS_T3_W : CQS_T3)
+							            : sres.k == 2 ? CQS_T2 : CQS_P_L;
 							if (sres.k == 1)	/* the paper's fingerprint: one patch */
 								snprintf(det_, sizeof(det_),
 								         "Readings moved by one patch at the %s of the strip"

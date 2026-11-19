@@ -35,13 +35,14 @@ static int cqs_cmp(const void *a, const void *b) {
 }
 
 int cq_shift_test(const double (*read)[3], const double (*expd)[3], int n,
-                  const double paper[3], cq_shift_result *res) {
+                  const double paper[3], double other_best, cq_shift_result *res) {
 	double (*lr)[3] = NULL, (*le)[3] = NULL, lp[3], *pd = NULL;
 	double sr = 0.0, se = 0.0, yn;
 	int i, j, e, k, np;
 
 	memset(res, 0, sizeof(*res));
 	res->score = -1e9;
+	res->other = other_best;
 	if (read == NULL || expd == NULL || paper == NULL || n < CQS_NMIN)
 		return 0;
 	for (i = 0; i < n; i++) {
@@ -65,6 +66,11 @@ int cq_shift_test(const double (*read)[3], const double (*expd)[3], int n,
 		cqs_lab(expd[i], 1.0, le[i]);
 	}
 	cqs_lab(paper, 1.0, lp);
+	for (i = 0; i < n; i++) {
+		double w = cqs_de(lr[i], le[i]);
+		if (w > res->werror)
+			res->werror = w;
+	}
 	for (i = k = 0; i < n; i++)
 		for (j = i + 1; j < n; j++)
 			pd[k++] = cqs_de(le[i], le[j]);
@@ -90,7 +96,8 @@ int cq_shift_test(const double (*read)[3], const double (*expd)[3], int n,
 					res->score = s;
 				if (!(res->m > 0.0) || dd < CQS_QMIN * res->m)
 					continue;	/* the two explanations cannot be told apart here */
-				ok = kk == 3 ? s >= CQS_T3 : (s >= CQS_T2 && s >= CQS_F2 * dd);
+				ok = kk == 3 ? s >= (res->werror >= CQS_W ? CQS_T3_W : CQS_T3)
+				             : (s >= CQS_T2 && s >= CQS_F2 * dd);
 				if (ok && (!res->flagged || s > res->score)) {
 					res->flagged = 1;
 					res->end = e;
@@ -101,7 +108,7 @@ int cq_shift_test(const double (*read)[3], const double (*expd)[3], int n,
 		}
 	}
 	/* k = 1, the paper's fingerprint, only when k = 2 / 3 found nothing */
-	for (e = 0; e < 2 && !res->flagged; e++) {
+	for (e = 0; e < 2 && !res->flagged && res->werror < CQS_W; e++) {
 		int ix = e == 0 ? 0 : n - 1;
 		double raw[3], c, dp;
 		cqs_lab(read[ix], 1.0, raw);		/* as read, not Y-normalised */
@@ -114,6 +121,31 @@ int cq_shift_test(const double (*read)[3], const double (*expd)[3], int n,
 			res->score = raw[0];
 			res->chroma = c;
 			res->pd = dp;
+		}
+	}
+	/* the two guards: the strip must fit the explanation, and no other row
+	 * may explain the reading better */
+	res->other = other_best;
+	if (res->flagged) {
+		int k0 = res->k, e0 = res->end;
+		double rest = 0.0, whole = 0.0, f;
+		int nr = 0;
+		for (i = 0; i < n; i++) {
+			int ix = e0 == 0 ? i : n - 1 - i;
+			const double *sh = i == 0 ? lp : le[e0 == 0 ? ix - 1 : ix + 1];
+			whole += cqs_de(lr[ix], sh);
+			if (i >= k0) {
+				rest += cqs_de(lr[ix], le[ix]);
+				nr++;
+			}
+		}
+		whole /= n;
+		rest = nr > 0 ? rest / nr : 1e9;
+		f = rest < whole ? rest : whole;
+		res->fit = f;
+		if (f > CQS_FMAX || (other_best >= 0.0 && other_best < f)) {
+			res->flagged = 0;
+			res->guarded = 1;
 		}
 	}
 	free(lr); free(le); free(pd);

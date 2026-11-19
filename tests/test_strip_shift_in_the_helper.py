@@ -198,7 +198,10 @@ def test_a_chart_read_correctly_is_never_refused(tmp_path):
         _end(s)
 
 
-def test_warnings_off_switches_the_shift_test_off_too(tmp_path):
+def test_warnings_off_does_not_switch_it_off(tmp_path):
+    """ChromIQ starts the helper with -S by default (its own misread tests
+    replace the colour check): a strip moved by one is a wrong reading, not a
+    warning to suppress."""
     base = _chart(tmp_path)
     letter = _a_strip_the_test_sees(base, 3, 0)
     s = _session(base, ["-S"])
@@ -206,8 +209,29 @@ def test_warnings_off_switches_the_shift_test_off_too(tmp_path):
         s.wait_event("strip_ready")
         _goto(s, letter)
         evs = _swipe(s, slip="start:3")
+        assert [e for e in evs if e.get("event") == "error"], evs
+        assert not [e for e in evs if e.get("event") == "strip_read"]
+        s.send(cmd="retry")
+        s.wait_event("strip_ready", strip=letter, after=s.event_index() - 3, timeout=10)
+        evs = _swipe(s)
         assert [e for e in evs if e.get("event") == "strip_read"], evs
-        assert not [e for e in evs if e.get("event") == "error"]
+    finally:
+        _end(s)
+
+
+def test_a_strip_swiped_in_place_of_another_is_not_refused_as_moved(tmp_path):
+    """With -S, every strip of the chart read in the place of strip A: none
+    is refused by the shift test (a wrong strip is not a shift)."""
+    base = _chart(tmp_path)
+    _steps, rows = parse_ti2_rows(base.with_suffix(".ti2"))
+    letters = sorted(rows)
+    s = _session(base, ["-S"])
+    try:
+        s.wait_event("strip_ready")
+        for other in letters[1:]:
+            _goto(s, letters[0])
+            evs = _swipe(s, **{"as": other})
+            assert not [e for e in evs if e.get("event") == "error"], (other, evs)
     finally:
         _end(s)
 
