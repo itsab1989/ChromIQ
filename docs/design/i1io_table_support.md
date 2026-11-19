@@ -1214,3 +1214,32 @@ What changed after the review (its MUSTs and SHOULDs), within the owner's ruling
   of the alignment, and the cross lies inside the aimed area.
 * **Not tried on a real table.** Driven against the simulated table only; what the real table does
   when the opening meets its front end is not known.
+
+### ⏳ Awaiting confirmation: the open points of the 4.3.49 reviews (2026-11-19, for 4.3.50)
+
+**Confirmed by:** *nobody yet.*
+
+Built and tested against the simulated table only. Nothing new is sent: no new line, no new
+form, no helper change.
+
+* **A creep step answered with an error, refused, or not answered** (safety review 449,
+  SHOULD-2). Until 4.3.49 these got the general stop page ("open i1Profiler once"). Now their
+  own page (M-I1IO-DRIVE-FRONT-STOPPED): what happened (one sentence per case), that nothing more
+  is sent, the reading before the step and the step's target, and the way on: the power switch
+  (at once when the step was never reported finished, otherwise when the motor keeps running),
+  End measurement, ten seconds off, i1Profiler once. ChromIQ's own homing (with the way back) is
+  not offered after these: it is offered only after a stop at which the table answered every line
+  as recorded. The page after the ending keeps the same way. A step that ended outside its time
+  window says so, with where the arm reads. The front-zone question now says that an error answer
+  or no answer stops ChromIQ at once (re-review S-4).
+* **The way back before the homing** (re-review 449, S-2, S-3). Its first leg is at most one creep
+  step (plus the arrival tolerance) on each axis, or over ground already driven; otherwise there
+  is no way back and the homing is refused with nothing sent. A way back never ends in front of
+  the frontmost recorded aim (Y 3109), so that an arrival read a few units further forward cannot
+  leave the homing refused with no way on. Pinned by tests that turn red when the 4-move bound,
+  the ground test of a jump, the clearing at a homing, or the "usual homing only" condition is
+  planted out (S-1), and the geometry's own back-strip refusal (safety review G2).
+* **A multipage refinement aims every page in its own sitting** (the owner's requirement): pinned
+  by a two-page refinement whose second page lies elsewhere, and a census of the code (only the
+  aiming gives the job a sheet position; the next page and every homing clear it).
+* **The dual scan's M1 and M2 per row**: `i1pro2_dual_scan.md` section 13.
