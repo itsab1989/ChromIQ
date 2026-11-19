@@ -9461,5 +9461,6 @@
  "about {n} mm to the right": "omtrent {n} mm mot høyre",
  "about {n} mm towards the back of the table (away from you)": "omtrent {n} mm mot baksiden av bordet (bort fra deg)",
  "about {n} mm towards the front of the table (towards you)": "omtrent {n} mm mot forsiden av bordet (mot deg)",
- "{first} and {second}": "{first} og {second}"
+ "{first} and {second}": "{first} og {second}",
+ "The arm could not go as far towards the front of the table as this sheet needs: it stopped about {mm} mm short, most likely at the end of its travel. The cross hairs sit about 3 cm in front of the measuring opening, so they can be aimed at points the opening cannot reach. ChromIQ moves the arm no further forward. Please let ChromIQ bring the arm home, then lay the sheet about {mm} mm further towards the back of the table (away from you) and start the measurement again.": "Armen kunne ikke gå så langt mot forsiden av bordet som dette arket trenger: den stoppet omtrent {mm} mm før, mest sannsynlig ved enden av bevegelsen sin. Trådkorset sitter omtrent 3 cm foran måleåpningen, så du kan sikte med det på punkter som åpningen ikke når. ChromIQ flytter ikke armen lenger fram. La ChromIQ kjøre armen til hvileplassen, legg så arket omtrent {mm} mm lenger mot baksiden av bordet (bort fra deg) og start målingen på nytt."
 }

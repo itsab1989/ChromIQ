@@ -9461,5 +9461,6 @@
  "about {n} mm to the right": "向右约 {n} mm",
  "about {n} mm towards the back of the table (away from you)": "向扫描台后方（远离你）约 {n} mm",
  "about {n} mm towards the front of the table (towards you)": "向扫描台前方（朝向你）约 {n} mm",
- "{first} and {second}": "{first}，并{second}"
+ "{first} and {second}": "{first}，并{second}",
+ "The arm could not go as far towards the front of the table as this sheet needs: it stopped about {mm} mm short, most likely at the end of its travel. The cross hairs sit about 3 cm in front of the measuring opening, so they can be aimed at points the opening cannot reach. ChromIQ moves the arm no further forward. Please let ChromIQ bring the arm home, then lay the sheet about {mm} mm further towards the back of the table (away from you) and start the measurement again.": "机械臂无法移动到这张纸所需的桌面前方位置：它在大约 {mm} mm 之前停住了，很可能是到了行程的尽头。瞄准十字线位于测量口前方约 3 cm，因此可以用它瞄准测量口够不到的点。ChromIQ 不会再把机械臂往前移动。请让 ChromIQ 把机械臂移回静止位置，然后把纸向桌子后方（远离你的方向）再移约 {mm} mm，并重新开始测量。"
 }

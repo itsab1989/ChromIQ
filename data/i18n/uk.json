@@ -10525,5 +10525,6 @@
  "about {n} mm to the right": "приблизно на {n} мм праворуч",
  "about {n} mm towards the back of the table (away from you)": "приблизно на {n} мм до задньої сторони столу (від себе)",
  "about {n} mm towards the front of the table (towards you)": "приблизно на {n} мм до передньої сторони столу (до себе)",
- "{first} and {second}": "{first} і {second}"
+ "{first} and {second}": "{first} і {second}",
+ "The arm could not go as far towards the front of the table as this sheet needs: it stopped about {mm} mm short, most likely at the end of its travel. The cross hairs sit about 3 cm in front of the measuring opening, so they can be aimed at points the opening cannot reach. ChromIQ moves the arm no further forward. Please let ChromIQ bring the arm home, then lay the sheet about {mm} mm further towards the back of the table (away from you) and start the measurement again.": "Важіль не зміг просунутися до передньої сторони столу так далеко, як потрібно для цього аркуша: він зупинився приблизно на {mm} мм раніше, найімовірніше в кінці свого ходу. Перехрестя прицілу розташоване приблизно на 3 см перед вимірювальним отвором, тому ним можна навести на точки, до яких отвір не дістає. ChromIQ більше не рухає важіль уперед. Дозвольте ChromIQ повернути важіль у положення спокою, потім покладіть аркуш приблизно на {mm} мм далі до задньої сторони столу (від себе) і запустіть вимірювання знову."
 }

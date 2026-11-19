@@ -53,7 +53,9 @@ STEP6_MODULES = {"job.py", "caps.py", "usb_system.py", "diagnostics.py",
                  "strip.py",
                  # the i1Pro 2 dual scan on the table (2026-11-18): the dual row's cut, its
                  # files, its pass adapter
-                 "dual_rows.py"}
+                 "dual_rows.py",
+                 # 4.3.49: the table's remembered reach (records and learns; never sends)
+                 "reach.py"}
 
 
 def test_the_package_holds_the_five_moved_modules_and_the_job():
@@ -68,7 +70,9 @@ STDLIB = {"__future__", "csv", "json", "os", "time", "dataclasses", "pathlib", "
           "getpass",      # diagnostics.py: the user's name, only to keep it OUT of the log
           "io", "shutil",  # step 7: the readings' CSV; one copy of the measurement on Save
           "hashlib",       # review 8, S-4: the filing note's checksum of the measurement
-          "struct"}        # D-4b: the table's 36 stored white tile values (bytes 88-231 only)
+          "struct",        # D-4b: the table's 36 stored white tile values (bytes 88-231 only)
+          # 4.3.49 (reach.py): the table's salted key, and the salt made on this computer
+          "hmac", "secrets"}
 #: step 7: the measurement is made with the APP's own functions for a measurement (the
 #: i1Profiler import's pairing, the measurement states, the atomic replace), never a second
 #: writer of its own; nothing else of the app is imported

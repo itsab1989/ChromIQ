@@ -166,9 +166,8 @@ class PlanRefused(Exception):
     pass
 
 
-def check_plan(p: RowPlan, at=None, front_y=None, cap_y=None, ends=None) -> None:
-    """*cap_y* (4.3.49): the front of this table's target area (geometry.table_cap); *ends*:
-    its known ends (reach.Reach), from which no move starts."""
+def check_plan(p: RowPlan, at=None, front_y=None, cap_y=None) -> None:
+    """*cap_y* (4.3.49): the front of the area the person aimed at (geometry.table_cap)."""
     if p.speed not in (geo.DUAL_M2_SPEEDS if p.dual else geo.RECORDED_M2_SPEEDS):
         raise PlanRefused(f"speed {p.speed} is not a recorded scan speed"
                           + (" for a dual row" if p.dual else ""))
@@ -182,8 +181,7 @@ def check_plan(p: RowPlan, at=None, front_y=None, cap_y=None, ends=None) -> None
         if at is not None:
             # 4.3.49: *at* is a fresh reading of where the arm stands (the ruling of 19 Nov
             # 2026: only the target is judged, geo.check_move_from_reading)
-            geo.check_move_from_reading(at, p.start, "the way to the row start", front_y, cap_y,
-                                        ends)
+            geo.check_move_from_reading(at, p.start, "the way to the row start", front_y, cap_y)
     except geo.AreaRefused as exc:
         raise PlanRefused(str(exc)) from None
     if p.dist < 100:
@@ -316,7 +314,7 @@ def run_row(table: tbl.Table, inst, plan: RowPlan, log, outdir: str,
         res.start_read = at
         try:
             check_plan(plan, at, getattr(table, "front_y", None),
-                       getattr(table, "reach_cap_y", None), getattr(table, "reach_ends", None))
+                       getattr(table, "aimed_cap_y", None))
         except PlanRefused as exc:
             raise CleanFail(f"the plan was refused: {exc}") from None
         if confirm_move is not None and not confirm_move(at, plan.start):
@@ -383,7 +381,7 @@ def _run_uv_pass(table: tbl.Table, inst, plan: RowPlan, log, outdir: str) -> Row
                             f"{plan.start}")
         try:
             check_plan(plan, at, getattr(table, "front_y", None),
-                       getattr(table, "reach_cap_y", None), getattr(table, "reach_ends", None))
+                       getattr(table, "aimed_cap_y", None))
         except PlanRefused as exc:
             raise CleanFail(f"the plan was refused: {exc}") from None
         if not inst.alive():

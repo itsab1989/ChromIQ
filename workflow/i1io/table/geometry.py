@@ -150,16 +150,16 @@ ARRIVAL_SLACK = 5
 #: sends the opening to an aim with no offset, and no recorded alignment or i1Profiler target
 #: goes beyond it). Never a target beyond it.
 FRONTMOST_AIM_Y = 3109
-#: 4.3.49 ("learn this table's reach once", FOR THE SAFETY REVIEW): the front of the target
-#: area is no longer the frontmost RECORDED aim (FRONTMOST_AIM_Y, a SIGHT position, about 31 mm
-#: in front of anywhere the opening had been). It is THIS TABLE's learned front minus MARGIN
-#: (reach.Reach.front_bound, passed to every check below as *cap_y*). For a table that has not
-#: shown ChromIQ more, the learned front is the frontmost p0 of the recordings (2773), so the
-#: target area ends at the proven MEASURING_AREA's front (DEFAULT_TARGET_FRONT_Y).
-#: FRONT_CAP_Y is now only the ABSOLUTE ceiling no learned reach can raise a target beyond
-#: (345 mm from home: the i1iO's published measuring depth is 230 mm, and no recording shows the
+#: 4.3.49 (Basti's ruling of 19 Nov 2026, FOR THE SAFETY REVIEW): the front of the target area
+#: is no longer the frontmost RECORDED aim (FRONTMOST_AIM_Y). It is what the person AIMED AT on
+#: this sheet (Alignment.aimed_front_y, the aimed area with the plan's run-out, passed to every
+#: check below as *cap_y*), on the evidence that i1Profiler drives the opening to the very points
+#: the person aimed the sight at (17 Nov 2026, three sessions, all three marks, within 1-5 units).
+#: Without an alignment, the proven MEASURING_AREA only (DEFAULT_TARGET_FRONT_Y).
+#: FRONT_CAP_Y is now only an ABSOLUTE BACKSTOP against a corrupted target (365 mm from home,
+#: NOT a physical end: the i1iO's published measuring depth is 230 mm and no recording shows the
 #: opening beyond 285.5 mm); the line builders and the USB gate check it on every computed line.
-REACH_CEILING_Y = 3500
+REACH_CEILING_Y = 3700
 FRONT_CAP_Y = REACH_CEILING_Y - MARGIN
 DEFAULT_TARGET_FRONT_Y = MEASURING_AREA.ymax
 #: A swept rectangle may START where the arm reads after a clean arrival at the cap, within the
@@ -172,24 +172,25 @@ CREEP_STEP = 50
 
 
 def table_cap(cap_y=None) -> int:
-    """The front of the target area for a table whose learned bound is *cap_y* (None: nothing
-    learned): never beyond FRONT_CAP_Y, never behind the proven measuring area."""
+    """The front of the target area for a sitting whose aimed area reaches *cap_y* (None: no
+    alignment): never beyond FRONT_CAP_Y, never behind the proven measuring area."""
     if cap_y is None or not isinstance(cap_y, (int, float)) or cap_y != cap_y:
         return DEFAULT_TARGET_FRONT_Y
     return int(max(DEFAULT_TARGET_FRONT_Y, min(cap_y, FRONT_CAP_Y)))
 
 
 def table_area(cap_y=None) -> Area:
-    """The whole target area of a table (its sides as MEASURING_AREA, its front at
+    """The whole target area of a sitting (its sides as MEASURING_AREA, its front at
     :func:`table_cap`), whatever this sitting has confirmed with the creep."""
     return Area(MEASURING_AREA.xmin, MEASURING_AREA.xmax, MEASURING_AREA.ymin, table_cap(cap_y))
 
 
 def areas(front_y=None, cap_y=None) -> "tuple[Area, Area]":
     """(targets, swept rectangles) for a sitting that has confirmed the front zone up to
-    *front_y* (None: nothing confirmed, the proven zone only), on a table whose target area
-    ends at *cap_y* (:func:`table_cap`). Targets never beyond that, swept rectangles never
-    beyond it plus the arrival tolerance."""
+    *front_y* (None: nothing confirmed, the proven zone only), whose target area ends at *cap_y*
+    (:func:`table_cap`). Targets never beyond the cap, swept rectangles never beyond it plus the
+    arrival tolerance. (4.3.49: the job starts a sitting with *front_y* at the frontmost place
+    THIS table's motors already brought the opening to, minus the arrival tolerance.)"""
     if front_y is None or not isinstance(front_y, (int, float)) or front_y != front_y \
             or front_y <= MEASURING_AREA.ymax:
         return MEASURING_AREA, AREA_RAW
@@ -246,8 +247,8 @@ def check_target(p, what: str, front_y=None, cap_y=None) -> None:
                               f"of the table further than this sitting has confirmed (Y "
                               f"{tgt.ymax}); stage DZ feels its way there first")
         if CAP_AREA.contains(p) and p[1] > whole.ymax:
-            raise AreaRefused(f"{what}: table position X {p[0]}, Y {p[1]} lies beyond this "
-                              f"table's known reach (targets up to Y {whole.ymax})")
+            raise AreaRefused(f"{what}: table position X {p[0]}, Y {p[1]} lies in front of the "
+                              f"area that was aimed at (targets up to Y {whole.ymax})")
         raise AreaRefused(f"{what}: table position X {p[0]}, Y {p[1]} lies outside the measuring "
                           f"area this program uses ({tgt.text()})")
 
@@ -263,24 +264,7 @@ def check_path(a, b, what: str, front_y=None, cap_y=None) -> None:
                           f"leaves the measuring area ({sweep.text()})")
 
 
-#: the words of the refusal of a start at a learned end (job.area_id maps it)
-AT_AN_END = "within the margin of the table's"
-
-
-def check_start_not_at_an_end(a, what: str, ends=None) -> None:
-    """4.3.49 (FOR THE SAFETY REVIEW, the analysis section i: the only non-zero status in 825
-    recorded answers came from a homing started at the right stop): no computed move and no
-    homing starts within the margin of a known end of THIS table (*ends*: a reach.Reach, or
-    None: nothing known, nothing refused here)."""
-    if ends is None:
-        return
-    side = ends.near_end(a)
-    if side:
-        raise AreaRefused(f"{what}: from {tuple(a)}, {AT_AN_END} {side} end (move the arm "
-                          f"{ends.away_from_end_mm(a, side)} mm away from it first)")
-
-
-def check_move_from_reading(a, b, what: str, front_y=None, cap_y=None, ends=None) -> None:
+def check_move_from_reading(a, b, what: str, front_y=None, cap_y=None) -> None:
     """4.3.49 (Basti's ruling of 19 Nov 2026, FOR THE SAFETY REVIEW): a move from *a*, a FRESH
     POSITION READING of where the arm physically stands (held or free, put there by the motors
     or by the person's hand), to the target *b*. Only the target is judged (inside the target
@@ -302,7 +286,6 @@ def check_move_from_reading(a, b, what: str, front_y=None, cap_y=None, ends=None
                           f"resting place (Y below {AREA_RAW.ymin}): only the recorded ways out "
                           "start there")
     check_target(b, what + " (its end)", front_y, cap_y)
-    check_start_not_at_an_end(a, what, ends)
 
 
 def _visited(p) -> bool:
@@ -449,8 +432,19 @@ class Alignment:
         if not self.on_sheet(u, run_out_mm):
             raise AreaRefused(f"{what}: sheet position {u} lies outside the aimed marks")
         p = self.to_table(u)
-        check_target(p, what, front_y, cap_y)
+        # 4.3.49: an alignment's targets are bounded by the area it was aimed at
+        check_target(p, what, front_y, self.aimed_front_y() if cap_y is None else cap_y)
         return p
+
+    def aimed_front_y(self) -> int:
+        """4.3.49 (Basti's ruling): the frontmost table Y of the area the person aimed at, with
+        the plan's run-out along the rows and ACROSS_MM across them (:meth:`on_sheet`'s area,
+        mapped onto the table). Every target the plan may compute lies inside it."""
+        xs = [a[0] for a in self.aims_mm]
+        ys = [a[1] for a in self.aims_mm]
+        corners = [(x, y) for x in (min(xs) - RUN_OUT_MM, max(xs) + RUN_OUT_MM)
+                   for y in (min(ys) - ACROSS_MM, max(ys) + ACROSS_MM)]
+        return max(self.to_table(c)[1] for c in corners)
 
 
 def _shift_back(points, area: Area) -> str:

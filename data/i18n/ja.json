@@ -9461,5 +9461,6 @@
  "about {n} mm to the right": "右へ約 {n} mm",
  "about {n} mm towards the back of the table (away from you)": "テーブルの奥へ（手前から離れる方向に）約 {n} mm",
  "about {n} mm towards the front of the table (towards you)": "テーブルの手前へ（自分の方へ）約 {n} mm",
- "{first} and {second}": "{first}、{second}"
+ "{first} and {second}": "{first}、{second}",
+ "The arm could not go as far towards the front of the table as this sheet needs: it stopped about {mm} mm short, most likely at the end of its travel. The cross hairs sit about 3 cm in front of the measuring opening, so they can be aimed at points the opening cannot reach. ChromIQ moves the arm no further forward. Please let ChromIQ bring the arm home, then lay the sheet about {mm} mm further towards the back of the table (away from you) and start the measurement again.": "アームは、このシートに必要なところまでテーブルの手前側へ進めませんでした。約 {mm} mm 手前で止まりました。おそらく移動範囲の端です。照準の十字線は測定開口部より約 3 cm 手前にあるため、開口部が届かない点にも照準を合わせられます。ChromIQ はアームをこれ以上手前へ動かしません。ChromIQ にアームを待機位置へ戻させてから、シートをテーブルの奥側（あなたから離れる方向）へ約 {mm} mm ずらし、測定をもう一度開始してください。"
 }

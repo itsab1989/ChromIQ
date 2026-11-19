@@ -140,11 +140,10 @@ def make_gate(table):
             if start is None:
                 raise tbl.ForbiddenLine(f"a computed {cid} without a fresh position reading")
             _c, x, y, _v = geo.decode_xyv(line)
-            # 4.3.49 (FOR THE SAFETY REVIEW): the front of what this sitting allows is THIS
-            # table's learned reach minus the margin (the job sets ``reach_cap_y`` from
-            # reach.Reach.front_bound at the opening and after the guided step; unset: the
-            # proven measuring area only)
-            cap_y = getattr(table, "reach_cap_y", None)
+            # 4.3.49 (Basti's ruling, FOR THE SAFETY REVIEW): the front of what this sitting
+            # allows is the area the person AIMED AT (the job sets ``aimed_cap_y`` from the
+            # alignment, None without one: the proven measuring area only)
+            cap_y = getattr(table, "aimed_cap_y", None)
             tgt, sweep = geo.areas(getattr(table, "front_y", None), cap_y)
             if getattr(table, "creep", False) and cid == "m0":
                 # one creep step: at most CREEP_STEP per axis from the fresh reading, at most
@@ -170,12 +169,7 @@ def make_gate(table):
             if start[1] < geo.AREA_RAW.ymin:
                 raise tbl.ForbiddenLine(f"{cid} from {start}: a computed move from the back strip "
                                         "at the resting place")
-            # 4.3.49: never a computed move from within the margin of a known end of this table
-            ends = getattr(table, "reach_ends", None)
-            side = ends.near_end(start) if ends is not None else None
-            if side:
-                raise tbl.ForbiddenLine(f"{cid} from {start}: a computed move from within the "
-                                        f"margin of the table's {side} end")
+
         return cid, motion, label
     return gate
 

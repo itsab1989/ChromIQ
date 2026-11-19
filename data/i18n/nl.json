@@ -9461,5 +9461,6 @@
  "about {n} mm to the right": "ongeveer {n} mm naar rechts",
  "about {n} mm towards the back of the table (away from you)": "ongeveer {n} mm naar de achterkant van de tafel (van je af)",
  "about {n} mm towards the front of the table (towards you)": "ongeveer {n} mm naar de voorkant van de tafel (naar je toe)",
- "{first} and {second}": "{first} en {second}"
+ "{first} and {second}": "{first} en {second}",
+ "The arm could not go as far towards the front of the table as this sheet needs: it stopped about {mm} mm short, most likely at the end of its travel. The cross hairs sit about 3 cm in front of the measuring opening, so they can be aimed at points the opening cannot reach. ChromIQ moves the arm no further forward. Please let ChromIQ bring the arm home, then lay the sheet about {mm} mm further towards the back of the table (away from you) and start the measurement again.": "De arm kon niet zo ver naar de voorkant van de tafel als dit vel nodig heeft: hij bleef ongeveer {mm} mm ervoor staan, hoogstwaarschijnlijk aan het einde van zijn baan. Het vizierkruis zit ongeveer 3 cm voor de meetopening, dus je kunt ermee richten op punten die de opening niet bereikt. ChromIQ beweegt de arm niet verder naar voren. Laat ChromIQ de arm naar zijn rustplaats brengen, leg het vel daarna ongeveer {mm} mm verder naar de achterkant van de tafel (van je af) en start de meting opnieuw."
 }

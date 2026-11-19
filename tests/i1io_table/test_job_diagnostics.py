@@ -34,7 +34,9 @@ def test_the_session_is_written_through_the_runs_members(tmp_path):
     assert names == ["TABLE_IN_USE.acknowledged.json", "TABLE_IN_USE.json",   # fix round 10
                      "chart_identity.json",                                  # review 12
                      "d1-1/alignment.json", "d1-1/result.json", "d2-1/result.json",
-                     "dz-1/result.json", "f-1/result.json", "session.log",
+                     "dz-1/result.json", "f-1/result.json",
+                     "reach.json",                     # 4.3.49: the table's reach, for learning
+                     "session.log",
                      "session_summary.json", "summary.json"]   # step 8: the ending summary
 
 

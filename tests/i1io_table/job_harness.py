@@ -91,11 +91,10 @@ class FixedReachStore(rc.ReachStore):
         return True
 
 
-#: 4.3.49: the reach that gives exactly 4.3.48's target area (front at the frontmost recorded aim,
-#: Y 3109 = 3159 - the margin), learned from a free-arm reading, guided step not done. The tests
-#: written before "learn this table's reach once" run on it, so they keep testing what they
-#: tested (the creep, the check move, the rows); the reach's own tests pass their own store.
-REACH_LIKE_4348 = {"front_y": geo.FRONTMOST_AIM_Y + rc.MARGIN, "front_how": "free"}
+#: 4.3.49: a table that has shown ChromIQ nothing yet (the model's defaults; no motor arrival
+#: in the front zone remembered, so every sitting creeps as in 4.3.48). The tests written before
+#: the remembered reach run on it; the reach's own tests pass their own store.
+REACH_LIKE_4348: dict = {}
 
 
 def store_like_4348() -> FixedReachStore:
@@ -110,8 +109,6 @@ DEFAULT = {J.Confirm.START_UP: "yes", J.Confirm.GO: "yes", J.Confirm.SHEET_LAID:
            J.Confirm.ARM_FELT: "free", J.Confirm.AIMED: "aimed", J.Confirm.FRONT_CHOICE: "back",
            J.Confirm.FRONT_YES: "yes", J.Confirm.FIRST_VISIT: "yes",
            J.Confirm.MARKER: "switched off and on", J.Confirm.READY_TO_OPEN: "yes",
-           # 4.3.49: the guided step of "learn this table's reach once"
-           J.Confirm.REACH_PUSH: "pushed", J.Confirm.REACH_DONE: "go on",
            #: the person's report after a step that moved (tester: "did it do what was
            #: described?"; its AutoConsole answered "yes")
            "report": "as described",
@@ -148,14 +145,6 @@ class Person:
             assert ans is not None, f"no scripted answer for {res.confirm}"
             if res.confirm == J.Confirm.AIMED and ans == "aimed":
                 self.sim.aim(res.detail["mark"])
-            if res.confirm == J.Confirm.REACH_PUSH and ans == "pushed" and \
-                    self.script.get("push", True):
-                # 4.3.49: the person pushes the free arm gently to the front, as far as it goes
-                self.sim.push_to_front()
-            if res.confirm == J.Confirm.REACH_DONE and ans == "go on" and \
-                    self.script.get("pull_back", True):
-                # ...and pulls it back a little, away from the end, before letting go
-                self.sim.pull_back()
             asked = res.confirm
             res = self.job.answer(asked, ans)
             if (asked in (J.Confirm.ROW_FAILED, J.Confirm.ROW_FAILED_STRIP)

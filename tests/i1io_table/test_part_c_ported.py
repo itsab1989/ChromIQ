@@ -71,7 +71,7 @@ def test_the_front_edge_is_the_frontmost_sensor_reading_not_a_sight_reading():
     assert R.ymax < P1_FRONTMOST[1] - 300           # the sight reading is ~31 mm further front
     assert A.ymax == R.ymax - 50 and A.ymax < max(p[1] for p in P0_FRONTMOST)
     with pytest.raises(geo.AreaRefused, match="DZ"):
-        geo.check_target((0, A.ymax + 1), "x")
+        geo.check_target((0, A.ymax + 1), "x", cap_y=AIMED)
     assert A.contains(P0_FRONT_AFTER_MOTOR)
     for dx, dy in geo.SIGHT_TO_SENSOR_SEEN:
         assert -323 <= dy <= -306 and -120 <= dx <= -83
@@ -82,9 +82,12 @@ def test_the_front_edge_is_the_frontmost_sensor_reading_not_a_sight_reading():
     # the cap: the frontmost recorded aim (p1, R1 412.443), nothing added (fix 3)
     assert geo.FRONTMOST_AIM_Y == P1_FRONTMOST[1] == max(
         p[1] for pts in geo.RECORDED_ALIGNMENTS.values() for p in pts)
-    assert geo.FRONT_CAP_Y == 3109 == geo.CAP_AREA.ymax
+    # 4.3.49 (Basti's ruling): the frontmost recorded aim is kept as a documented number; the
+    # stateless cap is now the absolute backstop (365 mm from home)
+    assert geo.FRONTMOST_AIM_Y == 3109
+    assert geo.FRONT_CAP_Y == 3650 == geo.CAP_AREA.ymax
     assert geo.ARRIVAL_SLACK == 5
-    assert geo.FRONT_SWEEP_CAP_Y == 3114 == geo.CAP_RAW.ymax
+    assert geo.FRONT_SWEEP_CAP_Y == 3655 == geo.CAP_RAW.ymax
 
 
 CAP = geo.CAP_AREA
@@ -125,8 +128,17 @@ def test_a_computed_move_at_an_unrecorded_speed_is_refused(speed):
         cl.classify(geo._line("m0", 0, 2000, speed))
 
 
+#: 4.3.49 (Basti's ruling, changed from the tester's body): the front of a sitting's targets is
+#: the area the person AIMED AT (the job sets ``aimed_cap_y``), no longer the fixed frontmost
+#: recorded aim. These ported tests keep their numbers by aiming exactly there (Y 3109); the
+#: line builders, classify and the USB gate keep a fixed ABSOLUTE BACKSTOP (geo.FRONT_CAP_Y).
+AIMED = geo.FRONTMOST_AIM_Y
+BACKSTOP = geo.FRONT_CAP_Y
+
+
 class _T:
     position_now = None
+    aimed_cap_y = AIMED
 
 
 # 4.3.49 (Basti's ruling of 19 Nov 2026, for the safety review): changed from the tester's body.
@@ -175,8 +187,10 @@ def test_every_fixed_part_c_line_is_byte_for_byte_its_recorded_form():
 
 
 def test_the_simulator_keeps_its_own_copy_of_the_area_and_speeds():
-    assert csim.C_TARGET_BOX == (CAP.xmin, CAP.xmax, CAP.ymin, CAP.ymax)
-    assert csim.C_SWEEP_BOX == (R.xmin, R.xmax, R.ymin, geo.CAP_RAW.ymax)
+    # 4.3.49: the simulator's front for targets is now PHYSICAL (its own front end, 5 mm inside)
+    assert csim.C_TARGET_BOX[:3] == (CAP.xmin, CAP.xmax, CAP.ymin)
+    assert csim.C_SWEEP_BOX[:3] == (R.xmin, R.xmax, R.ymin)
+    assert csim.FRONT_END_Y - csim.FRONT_END_MARGIN < BACKSTOP
     assert csim.C_PROVEN_Y == (A.ymax, R.ymax) and csim.C_CREEP == geo.CREEP_STEP
     assert csim.C_SPEEDS_M2 == geo.RECORDED_M2_SPEEDS
     src = (PKG / "i1io_part_c_sim.py").read_text(encoding="utf-8")
@@ -203,11 +217,14 @@ def test_the_recorded_alignments_pass_the_checks_and_reach_into_the_front_zone()
         al = geo.fit_alignment(aims, pts)
         assert abs(al.checks["rotation_deg"]) < 1.0
         assert max(p[1] for p in al.readings) > A.ymax
-    # on the frontmost recorded mark: still inside; one unit more: refused (fix 3)
+    # 4.3.49 (Basti's ruling): a mark beyond the frontmost recorded aim is no longer refused;
+    # only one beyond the absolute backstop is
     pts = geo.RECORDED_ALIGNMENTS["R1 401.6"]
-    geo.fit_alignment(_aims_mm(pts), pts)
-    with pytest.raises(geo.AlignmentRefused, match="further to the front than any mark"):
-        geo.fit_alignment(_aims_mm(pts), [(x, y + 1) for x, y in pts])
+    geo.fit_alignment(_aims_mm(pts), [(x, y + 1) for x, y in pts])
+    dy = BACKSTOP - 3109
+    geo.fit_alignment(_aims_mm(pts), [(x, y + dy) for x, y in pts])
+    with pytest.raises(geo.AlignmentRefused, match="further to the front than ChromIQ ever"):
+        geo.fit_alignment(_aims_mm(pts), [(x, y + dy + 1) for x, y in pts])
 
 
 RECORDED_SPOT_TARGETS = {
@@ -493,25 +510,27 @@ def test_the_gate_lets_a_front_target_through_only_up_to_the_confirmed_y():
     assert gate(geo.m2_line(0, 2900, 54))[2] == "scan move"
     with pytest.raises(tbl.ForbiddenLine):
         gate(geo.m0_line(0, 2901))
-    t.front_y = geo.FRONT_CAP_Y + 500                        # never beyond the cap
+    t.front_y = AIMED + 500                                  # never beyond the aimed front
     t.creep = True
-    t.position_now = (0, geo.FRONT_CAP_Y - 10)
+    t.position_now = (0, AIMED - 10)
     with pytest.raises(geo.AreaRefused):
-        geo.m0_line(0, geo.FRONT_CAP_Y + 1)
+        geo.m0_line(0, BACKSTOP + 1)
     with pytest.raises(tbl.ForbiddenLine):
-        gate(geo._line("m0", 0, geo.FRONT_CAP_Y + 1, 300))
-    assert gate(geo.m0_line(0, geo.FRONT_CAP_Y))[2] == "computed m0"
+        gate(geo._line("m0", 0, AIMED + 1, 300))
+    assert gate(geo.m0_line(0, AIMED))[2] == "computed m0"
 
 
 def test_the_front_limits_at_their_edges():
     """Planted-fault pass of fix 2: the cap inside areas(), the 5-unit sweep slack, one creep
     step beyond the confirmed Y and no more, from a reading inside the slack."""
-    for fy in (geo.FRONT_CAP_Y, geo.FRONT_CAP_Y + 1, 5000, 1e9):
-        t_, s_ = geo.areas(fy)
-        assert t_.ymax == geo.FRONT_CAP_Y == 3109 and s_.ymax == geo.FRONT_SWEEP_CAP_Y == 3114
+    for fy in (AIMED, AIMED + 1, 5000, 1e9):
+        t_, s_ = geo.areas(fy, AIMED)
+        assert t_.ymax == AIMED == 3109 and s_.ymax == AIMED + geo.ARRIVAL_SLACK == 3114
+    for fy in (BACKSTOP + 1, 1e9):          # 4.3.49: never beyond the backstop, aimed or not
+        assert geo.areas(fy, 1e9)[0].ymax == BACKSTOP
     with pytest.raises(geo.AreaRefused):
-        geo.check_target((0, geo.FRONT_CAP_Y + 1), "x", front_y=5000)
-    t_, s_ = geo.areas(2900)
+        geo.check_target((0, AIMED + 1), "x", front_y=5000, cap_y=AIMED)
+    t_, s_ = geo.areas(2900, AIMED)
     assert (t_.ymax, s_.ymax) == (2900, 2905)
     t = _T()
     t.front_y, t.creep = 2900, False
@@ -532,12 +551,12 @@ def test_the_front_limits_at_their_edges():
 def test_a_target_on_the_cap_is_allowed_once_the_creep_confirmed_it():
     """Y 3109: refused while nothing (or less) is confirmed; the creep step that reaches it is
     allowed; once confirmed, an m0 and a scan move to it pass the gate."""
-    assert geo.FRONT_CAP_Y == 3109
+    assert AIMED == 3109
     with pytest.raises(geo.AreaRefused, match="DZ"):
-        geo.check_target((0, 3109), "x")
+        geo.check_target((0, 3109), "x", cap_y=AIMED)
     with pytest.raises(geo.AreaRefused, match="DZ"):
-        geo.check_target((0, 3109), "x", front_y=3108)
-    geo.check_target((0, 3109), "x", front_y=3109)
+        geo.check_target((0, 3109), "x", front_y=3108, cap_y=AIMED)
+    geo.check_target((0, 3109), "x", front_y=3109, cap_y=AIMED)
     t = _T()
     gate = cl.make_gate(t)
     t.front_y, t.creep, t.position_now = 3060, True, (0, 3060)
@@ -550,36 +569,36 @@ def test_a_target_on_the_cap_is_allowed_once_the_creep_confirmed_it():
     t.position_now = (0, 3115)
     # 4.3.49 (changed from the tester's body): see test_the_front_limits_at_their_edges
     assert gate(geo.m0_line(0, 2000))[2] == "computed m0"
-    assert csim._inside(csim.C_TARGET_BOX, (0, 3109))
-    assert csim._inside(csim.C_SWEEP_BOX, (0, 3114))
-    assert not csim._inside(csim.C_SWEEP_BOX, (0, 3115))
+
 
 
 @pytest.mark.parametrize("front_y", [None, 2723, 3060, 3109, 3110, 3159, 5000, float("inf"),
                                      float("nan"), 1e9])
 @pytest.mark.parametrize("creep", [False, True])
 def test_y_3110_is_refused_always(front_y, creep):
-    """One unit beyond the cap: refused by both builders, by classify, by the gate with every
-    confirmed Y and with the creep on or off, by check_target, and by the simulator's box."""
-    for build in (lambda: geo.m0_line(0, 3110), lambda: geo.m2_line(0, 3110, 54)):
+    """One unit beyond the AIMED front (4.3.49, changed from the tester's body: the aimed area
+    replaces the fixed cap at the sitting's layers): refused by the gate with every confirmed Y
+    and with the creep on or off, and by check_target; one unit beyond the absolute backstop:
+    refused by both builders, by classify and by the USB gate as well."""
+    for build in (lambda: geo.m0_line(0, BACKSTOP + 1), lambda: geo.m2_line(0, BACKSTOP + 1, 54)):
         with pytest.raises(geo.AreaRefused):
             build()
-    raw_m0, raw_m2 = geo._line("m0", 0, 3110, 300), geo._line("m2", 0, 3110, 54)
-    for raw in (raw_m0, raw_m2):
+    for raw in (geo._line("m0", 0, BACKSTOP + 1, 300), geo._line("m2", 0, BACKSTOP + 1, 54)):
         with pytest.raises(tbl.ForbiddenLine):
             cl.classify(raw)
         with pytest.raises(tbl.ForbiddenLine):
             cl.wire_gate(raw)
+    raw_m0, raw_m2 = geo._line("m0", 0, 3110, 300), geo._line("m2", 0, 3110, 54)
     with pytest.raises(geo.AreaRefused):
-        geo.check_target((0, 3110), "x", front_y=front_y)
+        geo.check_target((0, 3110), "x", front_y=front_y, cap_y=AIMED)
     t = _T()
     t.front_y, t.creep, t.position_now = front_y, creep, (0, 3080)
     gate = cl.make_gate(t)
     for raw in (raw_m0, raw_m2):
         with pytest.raises(tbl.ForbiddenLine):
             gate(raw)
-    assert geo.areas(front_y)[0].ymax <= 3109 and geo.areas(front_y)[1].ymax <= 3114
-    assert not csim._inside(csim.C_TARGET_BOX, (0, 3110))
+    assert geo.areas(front_y, AIMED)[0].ymax <= 3109
+    assert geo.areas(front_y, AIMED)[1].ymax <= 3114
 
 
 def test_the_gate_s_own_creep_limit_stops_at_the_cap_without_classify(monkeypatch):

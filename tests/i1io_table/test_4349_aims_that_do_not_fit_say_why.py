@@ -53,16 +53,29 @@ def _sheet_mm(sheet):
 
 # ---- the job: the numbers the page needs, nothing moved ----------------------------------------
 
-def test_his_aims_at_the_crosses_fit_the_sheet_and_are_refused_for_the_front_only():
+def test_his_aims_at_the_crosses_are_accepted_as_he_aimed_them():
+    """4.3.49 (Basti's ruling): the front follows what he aimed at, so his aims are accepted
+    (they were refused for the front in 4.3.48)."""
     sheet = H.demo_sheet()
     al = geo.fit_model(_sheet_mm(sheet), CROSSES_1)           # the shape fits
     assert abs(al.checks["angle_deg"] - 90) < 0.3
-    res, job, sim, _p = H.run_steps(["open", "align"], aims=CROSSES_1)
+    res, job, sim, _p = H.run_steps(["open", "align"], aims=CROSSES_1,
+                                    script={J.Confirm.FRONT_CHOICE: "go on"})
+    assert res[1].ok, (res[1].reason, res[1].detail)
+
+
+#: his aims, the sheet 10 mm further to the right: mark 3 lies beyond the right side (X -1384,
+#: 5 mm inside the right stop the evidence shows), which is still refused
+OFF_THE_RIGHT = _shift(CROSSES_1, -100, 0)
+
+
+def test_aims_beyond_the_right_side_say_by_how_much():
+    res, job, sim, _p = H.run_steps(["open", "align"], aims=OFF_THE_RIGHT)
     r = res[1]
     assert (r.kind, r.reason) == (J.Kind.REFUSED, "aims_outside_area")
-    assert r.detail["outside_mark"] == 2
-    # 14.4 mm beyond the cap (Y 3109) for marks 2 and 3: 16 mm back, with 1 mm to spare
-    assert r.detail["sheet_move"] == {"back_mm": 16, "front_mm": 0, "left_mm": 0,
+    assert r.detail["outside_mark"] == 3
+    # 7.8 mm beyond the side: 9 mm to the left, with 1 mm to spare
+    assert r.detail["sheet_move"] == {"back_mm": 0, "front_mm": 0, "left_mm": 9,
                                       "right_mm": 0}
     assert r.detail["refusals_in_a_row"] == 1
     assert _moves_after_aims(sim.received) == []
@@ -78,7 +91,7 @@ def test_his_aims_at_the_corner_patches_are_named_as_such():
 
 
 def test_refusals_in_a_row_are_counted_and_a_fit_resets_them():
-    job, sim, _t = H.make_job(aims=CROSSES_1)
+    job, sim, _t = H.make_job(aims=OFF_THE_RIGHT)
     p = H.Person(job, sim)
     assert p.drive(job.open()).ok
     assert p.drive(job.align()).detail["refusals_in_a_row"] == 1
@@ -122,7 +135,7 @@ def test_the_homing_of_a_free_arm_at_the_front_says_how_far_to_push_it():
     assert r.detail["arm_free"] is True and r.detail["push"]["back_mm"] > 0
     assert _moves_after_aims(sim.received) == []
     # pushed back by hand as the page says (simulated hand), the homing then runs
-    job, sim, _t = H.make_job(aims=CROSSES_1)
+    job, sim, _t = H.make_job(aims=OFF_THE_RIGHT)
     p = H.Person(job, sim)
     assert p.drive(job.open()).ok
     p.drive(job.align())
@@ -186,12 +199,12 @@ def _to_first_refusal(qtbot, monkeypatch, tmp_path, settings, aims):
 
 def test_the_page_says_the_aims_fit_and_how_far_to_lay_the_sheet(qtbot, monkeypatch, tmp_path,
                                                                  settings):
-    win, sim, p = _to_first_refusal(qtbot, monkeypatch, tmp_path, settings, CROSSES_1)
+    win, sim, p = _to_first_refusal(qtbot, monkeypatch, tmp_path, settings, OFF_THE_RIGHT)
     text = win._text.text()
     assert tr("The three marks you aimed at do not fit this sheet.") not in text
-    assert "so you aimed at the right points" in text and "mark 2 lies further out" in text
-    assert "about 16 mm towards the back of the table (away from you)" in text
-    assert "to the left" not in text
+    assert "so you aimed at the right points" in text and "mark 3 lies further out" in text
+    assert "about 9 mm to the left" in text
+    assert "towards the back" not in text
     assert set(p.labels()) >= {"Carry on", "End measurement"}
     # aimed again at the same place: the second refusal says so
     p.press("Carry on")

@@ -299,13 +299,29 @@ def stored_white_reason(why: str) -> str:
     return words.get(why, tr("ChromIQ could not use them"))
 
 
+def table_reach_store():
+    """4.3.49: where the tables' remembered reaches are kept (workflow.i1io.table.reach): one
+    value in ChromIQ's settings, sandboxed by CHROMIQ_SETTINGS_FILE like every other. Each load
+    and save makes its own AppSettings, so the job's thread may use it."""
+    from core.settings import AppSettings
+    from workflow.i1io.table import reach as rc
+
+    def load() -> str:
+        return str(AppSettings().get(rc.SETTINGS_KEY, "") or "")
+
+    def save(text: str) -> None:
+        AppSettings().set(rc.SETTINGS_KEY, text)
+    return rc.ReachStore(load, save)
+
+
 def default_job_factory(sheet: dict, page: int, run, stamp: str, ask: bool):
     """The real job: ChromIQ's own USB route, the real helper, the app-level marker place."""
     from workflow.i1io.table import job as J
     from workflow.i1io.table_settle import app_marker_place
     from core.app_nap import latency_critical
     return J.TableJob(sheet, page, run=run, stamp=stamp, ask_after_each_step=ask,
-                      app_marker_place=app_marker_place(), latency_guard=latency_critical)
+                      app_marker_place=app_marker_place(), latency_guard=latency_critical,
+                      reach_store=table_reach_store())
 
 
 #: replaced by the on-screen driver (and the tests) with the simulated table
@@ -921,6 +937,9 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
         "target_outside_area": tr("The place lies outside the area ChromIQ sends the arm to."),
         "target_off_sheet": tr("The place lies outside the three points of the sheet you "
                                "aimed at."),
+        # 4.3.49: in front of the area aimed at (the same words: the aimed points bound it)
+        "target_beyond_the_aimed_area": tr("The place lies outside the three points of the "
+                                           "sheet you aimed at."),
         "path_leaves_area": tr("The way there would leave the area ChromIQ allows."),
         "target_beyond_confirmed_front": tr(
             "The place lies further forward than the arm has felt its way in this sitting."),
@@ -1081,6 +1100,16 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
                                           "alignment_refused"):
         return tr("The three marks you aimed at do not fit this sheet. Nothing has moved over "
                   "your sheet; please aim again, in the order shown.")
+    if rid == "creep_step_did_not_arrive" and d.get("short_mm"):
+        # 4.3.49 (Basti's ruling: the targets follow what was aimed at): the creep is where an
+        # aim further forward than the arm can take its measuring opening is found out
+        return tr("The arm could not go as far towards the front of the table as this sheet "
+                  "needs: it stopped about {mm} mm short, most likely at the end of its travel. "
+                  "The cross hairs sit about 3 cm in front of the measuring opening, so they "
+                  "can be aimed at points the opening cannot reach. ChromIQ moves the arm no "
+                  "further forward. Please let ChromIQ bring the arm home, then lay the sheet "
+                  "about {mm} mm further towards the back of the table (away from you) and "
+                  "start the measurement again.").format(mm=d.get("short_mm"))
     if rid.startswith("creep_"):
         return tr("Feeling the way forward stopped at a step that did not arrive exactly.")
     if rid.startswith("instrument_"):

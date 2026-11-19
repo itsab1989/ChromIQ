@@ -103,7 +103,8 @@ class CSimTable(SimTable):
     """0.4.0's simulated table with part C's mode switched on (`part_c=True`)."""
 
     def __init__(self, *a, part_c=True, aims=None, real_table=True, front_end=FRONT_END_Y,
-                 right_end=None, sight_offset=SIGHT_OFFSET, serial=None, **kw):
+                 right_end=None, sight_offset=SIGHT_OFFSET, serial=None,
+                 motors_have_been_to=None, **kw):
         super().__init__(*a, **kw)
         self.part_c = part_c
         #: 4.3.49: the physical ends of the opening's travel (right_end None: no right stop,
@@ -116,6 +117,8 @@ class CSimTable(SimTable):
             self.serial = str(serial)
         #: every time a hand or a move reached an end: (what, x, y)
         self.at_end_events: "list[tuple[str, float, float]]" = []
+        #: computed targets within 5 mm of the front end or beyond it: (cid, x, y)
+        self.end_targets: "list[tuple[str, int, int]]" = []
         #: 4.3.47 fix2: arrivals a few units off and the resting arm relaxing (see REAL_*);
         #: False: the ideal table the frozen tester 0.6.0 captures were made on
         self.real_table = real_table
@@ -132,8 +135,9 @@ class CSimTable(SimTable):
         self.p1_count = 0
         self.lamp_rng = random.Random(5)
         self.scan_moves = []
-        #: the frontmost Y the motors have brought the arm to in this simulated sitting
-        self.front_seen = float(C_PROVEN_Y[0])
+        #: the frontmost Y the motors have brought the arm to (4.3.49: on this simulated TABLE,
+        #: earlier sittings included: *motors_have_been_to*)
+        self.front_seen = float(max(C_PROVEN_Y[0], motors_have_been_to or 0))
         #: the dual row: this sitting may read dual rows (m2 at 132, d1 210 in its place)
         self.dual = False
         self.last_scan_end = None          # where the last scan move ended (the UV pass's start)
@@ -205,12 +209,16 @@ class CSimTable(SimTable):
                 # the recorded zero-length m0 goes to the position p0 just reported, which may
                 # differ by a unit or two from where the simulated arm "really" stands
                 self.zero_m0_at = len(self.received) - 1
-            # 4.3.49: the sides and the back as before; the front is PHYSICAL (FRONT_END_Y)
-            front = (C_TARGET_BOX[3] if self.front_end is None
-                     else self.front_end - FRONT_END_MARGIN)
-            if not _inside((C_TARGET_BOX[0], C_TARGET_BOX[1], C_TARGET_BOX[2], front), (x, y)):
-                raise SimViolation(f"{cid} to ({x}, {y}) outside the area (front: Y {front:.0f}, "
-                                   "5 mm inside the table's front end)")
+            # 4.3.49 (Basti's ruling): the sides and the back as before (a violation); the front
+            # is PHYSICAL: a target within 5 mm of the simulated front end, or beyond it, is
+            # what the real table may meet when a person aims further than its arm can take the
+            # opening. What the real table then does is NOT KNOWN (no recording); the simulator
+            # records it (``end_targets``) and its arm stalls at the end (``_clamp``)
+            if not _inside((C_TARGET_BOX[0], C_TARGET_BOX[1], C_TARGET_BOX[2], math.inf),
+                           (x, y)):
+                raise SimViolation(f"{cid} to ({x}, {y}) outside the area")
+            if self.front_end is not None and y > self.front_end - FRONT_END_MARGIN:
+                self.end_targets.append((cid, x, y))
             # 4.3.49 (Basti's ruling of 19 Nov 2026): the arm stands where the simulated table
             # has it, so the way from there is not judged against where recordings happened to
             # read it; a computed move from the back strip at the resting place stays a violation

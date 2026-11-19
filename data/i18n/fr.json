@@ -9461,5 +9461,6 @@
  "about {n} mm to the right": "d'environ {n} mm vers la droite",
  "about {n} mm towards the back of the table (away from you)": "d'environ {n} mm vers l'arrière de la table (en l'éloignant de toi)",
  "about {n} mm towards the front of the table (towards you)": "d'environ {n} mm vers l'avant de la table (vers toi)",
- "{first} and {second}": "{first} et {second}"
+ "{first} and {second}": "{first} et {second}",
+ "The arm could not go as far towards the front of the table as this sheet needs: it stopped about {mm} mm short, most likely at the end of its travel. The cross hairs sit about 3 cm in front of the measuring opening, so they can be aimed at points the opening cannot reach. ChromIQ moves the arm no further forward. Please let ChromIQ bring the arm home, then lay the sheet about {mm} mm further towards the back of the table (away from you) and start the measurement again.": "Le bras n'a pas pu aller aussi loin vers l'avant de la table que cette feuille le demande : il s'est arrêté environ {mm} mm avant, très probablement en fin de course. Le réticule se trouve environ 3 cm devant l'ouverture de mesure, on peut donc viser avec lui des points que l'ouverture ne peut pas atteindre. ChromIQ n'avance plus le bras. Laisse ChromIQ ramener le bras à sa position de repos, puis place la feuille environ {mm} mm plus vers l'arrière de la table (loin de toi) et relance la mesure."
 }
