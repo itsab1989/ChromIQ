@@ -380,6 +380,9 @@ def doubt_id(reason: str) -> str:
 _MODE_FLAG_RE = re.compile(r"f4 answered (\S*) where the recordings show (\S+) here")
 
 
+_A0_RE = re.compile(r"the table answered a0 with ([0-9A-Fa-f]+)")
+
+
 def mode_flag_detail(reason: str, step: str) -> dict:
     """Safety review 448, SHOULD-2: what the table answered about its hand-alignment mode (f4),
     what the recordings show at that point, and whether it was the opening, so the window can
@@ -698,6 +701,9 @@ class TableJob:
         self.button_unavailable: "str | None" = None
         #: the marks answered by the instrument's button, (page, mark)
         self.button_aims: "list[tuple[int, int]]" = []
+        #: 4.3.49 (the volunteer's run of 19 Nov 2026): refused alignments in a row, so the
+        #: page can say more from the second one on (reset by an alignment that fits)
+        self.align_refusals_in_a_row = 0
         self._helper_check = helper_check or _default_helper_check
         self._instrument_check = instrument_check or us.instrument_now
         self._chart_ti2 = Path(chart_ti2) if chart_ti2 is not None else (
@@ -1036,6 +1042,9 @@ class TableJob:
             if d is not None and d.link_lost_at is not None:
                 rid = "link_lost"
             extra = mode_flag_detail(str(exc), step) if rid == "mode_flag_unexpected" else {}
+            if rid == "table_state_unknown":
+                m = _A0_RE.search(str(exc))
+                extra = {"a0": m.group(1)} if m else {}
             if extra and d is not None:
                 # fix2 (found on screen): the table contradicted what ChromIQ believed about the
                 # hand-alignment mode, so whether the motors hold the arm is NOT known; no page
@@ -1844,7 +1853,16 @@ class TableJob:
         return ans == "yes"
 
     def _free_arm_inside(self, a) -> None:
-        if self._table.arm_free and not geo.AREA_RAW.contains(a):
+        """4.3.49 (Basti's ruling of 19 Nov 2026, FOR THE SAFETY REVIEW): a free arm is no
+        longer refused for standing outside AREA_RAW (where recordings happened to read it):
+        the person's hand put it there, so the mechanism reaches that place, and the move from
+        it is judged by its target alone (geo.check_move_from_reading). Only a reading that is
+        not a pair of finite numbers is refused."""
+        try:
+            ok = a is not None and all(math.isfinite(float(v)) for v in a) and len(a) == 2
+        except (TypeError, ValueError):
+            ok = False
+        if not ok:
             raise StageFailed("free_arm_outside_area", read=a)
 
     def _still(self, a):
@@ -1905,7 +1923,7 @@ class TableJob:
         if a is None:
             raise StageFailed("no_fresh_position_reading")
         self._free_arm_inside(a)
-        geo.check_path(a, target, what, d.front_y)
+        geo.check_move_from_reading(a, target, what, d.front_y)
         ok = yield from self._confirm_new_part(a, target, what=what)
         if not ok:
             raise PersonStopped("first_visit_declined")
@@ -1915,7 +1933,7 @@ class TableJob:
             # judged again, in full, from where the arm stands now (no question can follow:
             # the new reading lies within 5 units of a part just confirmed, widened by 10)
             self._free_arm_inside(b)
-            geo.check_path(b, target, what, d.front_y)
+            geo.check_move_from_reading(b, target, what, d.front_y)
             if not self._seg_visited(b, target):
                 raise StageFailed("free_arm_moved_while_asked" if d.arm_free
                                   else "arm_moved_while_asked", first=a, second=b)
@@ -2124,8 +2142,13 @@ class TableJob:
         try:
             al = geo.fit_alignment(aims_mm, readings)
         except geo.AlignmentRefused as exc:
+            self.align_refusals_in_a_row += 1
             raise StageFailed(alignment_id(str(exc)), log_reason=str(exc),
-                              **_rows_beyond(sheet, self.page, aims_mm, readings)) from None
+                              **_rows_beyond(sheet, self.page, aims_mm, readings),
+                              **_aims_detail(sheet, self.page, aims, aims_mm, readings,
+                                             str(exc)),
+                              refusals_in_a_row=self.align_refusals_in_a_row) from None
+        self.align_refusals_in_a_row = 0
         self._block["data"]["checks"] = al.checks
         self.diag.write_json(f"{self._block['folder']}/alignment.json",
                              {"aims_mm": al.aims_mm, "readings": al.readings, "M": al.M,
@@ -2251,7 +2274,9 @@ class TableJob:
             raise d._doubt(f"before the homing the arm reads {got}, not {last}")
         if not homing_starts_here(got, d.arm_free) or (where is not None and not where(got)):
             raise StageFailed("homing_only_from_inside_the_area", read=got,
-                              arm_free=bool(d.arm_free))
+                              arm_free=bool(d.arm_free),
+                              **({"push": geo.free_arm_push_advice(got)} if d.arm_free
+                                 else {}))
         try:
             d.c_exchange(tbl.WIRE["home"], 0, window=(0.8, 8.0), timeout=15.0,
                          late_is_doubt=False)
@@ -3216,7 +3241,8 @@ class TableJob:
             here = d.position()
             self._free_arm_inside(here)
             first = plan.patches[0]
-            geo.check_path(here, first.target, f"the way to patch {first.loc}", d.front_y)
+            geo.check_move_from_reading(here, first.target, f"the way to patch {first.loc}",
+                                        d.front_y)
             ok = yield from self._confirm_new_part(here, *[p.target for p in plan.patches],
                                                    what=f"row {plan.index + 1}")
             if not ok:
@@ -4483,6 +4509,51 @@ def _cold_failure_kind(d: tbl.Table, exc: Doubt) -> str:
             return "no_answer"
         return "bad_answer"
     return "after"
+
+
+def _corner_patches_mm(sheet: dict, page: int, aims_mm) -> "list[tuple[float, float]]":
+    """The patch nearest each mark, as the sheet lies on the table (mm): on a chart with
+    crosses, the coloured corner patch beside each cross (i1Profiler's charts are aimed at
+    those)."""
+    cells = [tuple(sc.sheet_table_mm(sheet, q["centre_mm"]))
+             for st in sheet["pages"][page]["strips"] for q in st["patches"]]
+    if not cells:
+        return []
+    return [min(cells, key=lambda c: math.dist(c, m)) for m in aims_mm]
+
+
+def _aims_detail(sheet: dict, page: int, aims, aims_mm, readings, reason: str) -> dict:
+    """4.3.49 (the volunteer's run of 19 Nov 2026): what the refusal page needs to say WHY and
+    WHAT TO DO, as numbers and ids only: the mark that lay outside and by how much, the two
+    lengths that did not match, how far the sheet would have to lie elsewhere, and whether the
+    aims fit the corner patches beside the crosses instead (the usual mix-up for someone who
+    knows i1Profiler's charts). Nothing here changes what is refused."""
+    out: dict = {}
+    try:
+        out["sheet_move"] = geo.sheet_move_advice(readings)
+    except (TypeError, ValueError, IndexError):
+        pass
+    m = re.match(r"mark (\d) was aimed at X (-?\d+), Y (-?\d+)", reason)
+    if m:
+        out["outside_mark"] = int(m.group(1))
+    m = re.match(r"marks (\d) and (\d) are ([0-9.]+) mm apart on the table but ([0-9.]+) mm "
+                 r"on the sheet \(at most ([0-9.]+) mm", reason)
+    if m:
+        out["lengths"] = {"marks": [int(m.group(1)), int(m.group(2))],
+                          "table_mm": float(m.group(3)), "sheet_mm": float(m.group(4)),
+                          "allowed_mm": float(m.group(5))}
+    m = re.match(r"the corner at mark 2 measures ([0-9.]+) degrees", reason)
+    if m:
+        out["corner_deg"] = float(m.group(1))
+    if aims and all(a.get("target") == "cross" for a in aims):
+        try:
+            corners = _corner_patches_mm(sheet, page, aims_mm)
+            if (len(corners) == 3 and not geo.lengths_fit(aims_mm, readings)
+                    and geo.lengths_fit(corners, readings)):
+                out["aimed_at"] = "corner_patches"
+        except (KeyError, IndexError, TypeError, ValueError):
+            pass
+    return out
 
 
 def _rows_beyond(sheet: dict, page: int, aims_mm, readings) -> dict:

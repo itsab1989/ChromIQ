@@ -232,6 +232,30 @@ def check_path(a, b, what: str, front_y=None) -> None:
                           f"leaves the measuring area ({sweep.text()})")
 
 
+def check_move_from_reading(a, b, what: str, front_y=None) -> None:
+    """4.3.49 (Basti's ruling of 19 Nov 2026, FOR THE SAFETY REVIEW): a move from *a*, a FRESH
+    POSITION READING of where the arm physically stands (held or free, put there by the motors
+    or by the person's hand), to the target *b*. Only the target is judged (inside the target
+    area, as every computed target). The start is not compared with any recorded extent: the
+    arm IS there. The way between needs no box of its own: the table moves an X carriage on an
+    arm that travels along Y, each axis over one interval, so every point of the rectangle
+    spanned by a point the arm stands on and a point it may be driven to has an X and a Y each
+    of which the mechanism reaches (the same belief AREA_RAW's derivation states).
+
+    One place is kept out on PHYSICAL grounds, not historical ones: a start in the BACK STRIP
+    (Y below AREA_RAW's back edge, the home line and the resting place over the table's white
+    tile). There the head parks over the tile holder; every recording leaves it straight along
+    Y on the home line first (to_250, to_1498), and ChromIQ's own way out is those recorded
+    lines. A computed move never starts there."""
+    if not (a is not None and len(a) == 2 and all(math.isfinite(float(v)) for v in a)):
+        raise AreaRefused(f"{what}: no usable reading of where the arm stands ({a!r})")
+    if a[1] < AREA_RAW.ymin:
+        raise AreaRefused(f"{what}: a computed move from {tuple(a)}, in the back strip at the "
+                          f"resting place (Y below {AREA_RAW.ymin}): only the recorded ways out "
+                          "start there")
+    check_target(b, what + " (its end)", front_y)
+
+
 def _visited(p) -> bool:
     return any(box.contains(p) for box in DRIVEN)
 
@@ -331,6 +355,21 @@ RECORDED_ALIGNMENTS = {
 }
 
 LENGTH_TOL_UNITS = 20       # 2 mm: the recorded aims of one chart agree within 1 mm
+#: 4.3.49 (FOR THE SAFETY REVIEW): the allowed difference between a side of the aimed triangle
+#: on the table and on the sheet grows with the side, by LENGTH_TOL_FRACTION of it. The table
+#: reads long sides 0.4-0.5 % long on the volunteer's real table (19 Nov 2026, crosses of an A4
+#: chart: 2764 and 2761 units for 2750, corner patches 2539 for 2530) and his eight earlier real
+#: alignments passed the flat 2 mm only by 1.6 mm at worst; one round of 19 Nov by 1.9 mm. A
+#: wrong point (a corner patch for a cross, a patch one row off) is 9 to 22 mm and stays refused.
+LENGTH_TOL_FRACTION = 0.004
+
+
+def length_tolerance(sheet_units: float) -> float:
+    """Units by which a side of the aimed triangle may differ from the sheet's: 2 mm plus 0.4 %
+    of the side (2.75 mm on 188 mm, 3.1 mm on 275 mm)."""
+    return LENGTH_TOL_UNITS + LENGTH_TOL_FRACTION * abs(float(sheet_units))
+
+
 ANGLE_TOL_DEG = 1.0         # recorded 89.9 to 90.5 degrees
 ROTATION_TOL_DEG = 3.0      # recorded within 0.8 degrees; a turned sheet is 90 or 180 off
 
@@ -420,10 +459,11 @@ def fit_model(aims_mm, readings) -> Alignment:
         raise AlignmentRefused(f"the sheet seems to be turned by about {abs(rot):.0f} degrees from "
                                f"the way it must lie (at most {ROTATION_TOL_DEG:.0f} is accepted)")
     for (want, got), name in zip(lens, ("marks 1 and 2", "marks 2 and 3")):
-        if abs(want - got) > LENGTH_TOL_UNITS:
+        tol = length_tolerance(want)
+        if abs(want - got) > tol:
             raise AlignmentRefused(f"{name} are {got / 10:.1f} mm apart on the table but "
                                    f"{want / 10:.1f} mm on the sheet (at most "
-                                   f"{LENGTH_TOL_UNITS / 10:.0f} mm difference is accepted): one "
+                                   f"{tol / 10:.1f} mm difference is accepted): one "
                                    "aim was probably on another point")
     if abs(ang - 90) > ANGLE_TOL_DEG:
         raise AlignmentRefused(f"the corner at mark 2 measures {ang:.1f} degrees on the table "
@@ -454,3 +494,42 @@ def fit_alignment(aims_mm, readings) -> Alignment:
             "your recorded alignments put their marks). For all three marks the sheet would have "
             f"to lie {_shift_back(pts, CAP_AREA)}")
     return al
+
+
+# ---- 4.3.49: what to tell the person (words only: nothing here allows or refuses a move) ------
+
+def _mm_up(units: float) -> int:
+    """Units to whole millimetres, rounded up, with one more millimetre to spare."""
+    return int(math.ceil(max(0.0, units) / 10.0)) + 1 if units > 0 else 0
+
+
+def sheet_move_advice(readings) -> dict:
+    """How far the sheet would have to lie further back / front / left / right (whole mm, 0 =
+    not that way) so that all three aims lie inside CAP_AREA, the target area (mark 3 is the
+    check move's target, and the corner patches lie just inside the marks). Words for the
+    person only; :func:`fit_alignment` and the job's checks decide."""
+    pts = [tuple(map(float, p)) for p in readings]
+    return {"back_mm": _mm_up(max(p[1] for p in pts) - CAP_AREA.ymax),
+            "front_mm": _mm_up(CAP_AREA.ymin - min(p[1] for p in pts)),
+            "left_mm": _mm_up(CAP_AREA.xmin - min(p[0] for p in pts)),
+            "right_mm": _mm_up(max(p[0] for p in pts) - CAP_AREA.xmax)}
+
+
+def free_arm_push_advice(p) -> dict:
+    """How far a FREE arm read at *p* would have to be pushed by hand (whole mm; back = away
+    from the person, left / right as the person sees the table) to stand inside AREA_RAW, where
+    ChromIQ may start a move or its homing from a free arm. Words only."""
+    x, y = float(p[0]), float(p[1])
+    return {"back_mm": _mm_up(y - AREA_RAW.ymax), "front_mm": _mm_up(AREA_RAW.ymin - y),
+            "left_mm": _mm_up(AREA_RAW.xmin - x), "right_mm": _mm_up(x - AREA_RAW.xmax)}
+
+
+def lengths_fit(aims_mm, readings) -> bool:
+    """Whether *readings* have the shape of *aims_mm* (the length, corner and turn checks of
+    :func:`fit_model`). Used to tell the person which points they aimed at."""
+    try:
+        fit_model(aims_mm, readings)
+    except AlignmentRefused:
+        return False
+    return True
+

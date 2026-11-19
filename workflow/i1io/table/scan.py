@@ -178,7 +178,9 @@ def check_plan(p: RowPlan, at=None, front_y=None) -> None:
         geo.check_target(p.end, "the row end", front_y)
         geo.check_path(p.start, p.end, "the row", front_y)
         if at is not None:
-            geo.check_path(at, p.start, "the way to the row start", front_y)
+            # 4.3.49: *at* is a fresh reading of where the arm stands (the ruling of 19 Nov
+            # 2026: only the target is judged, geo.check_move_from_reading)
+            geo.check_move_from_reading(at, p.start, "the way to the row start", front_y)
     except geo.AreaRefused as exc:
         raise PlanRefused(str(exc)) from None
     if p.dist < 100:

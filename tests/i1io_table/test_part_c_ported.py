@@ -129,9 +129,13 @@ class _T:
     position_now = None
 
 
+# 4.3.49 (Basti's ruling of 19 Nov 2026, for the safety review): changed from the tester's body.
+# A start outside AREA_RAW is a place the arm physically stands and no longer refused; a start
+# in the back strip at the resting place, and no fresh reading, still are.
 @pytest.mark.parametrize("start,ok", [((0, 2000), True), ((R.xmin, R.ymin), True),
-                                      ((R.xmin - 1, 2000), False), ((0, R.ymax + 1), False),
-                                      ((1102, 0), False), (None, False)])
+                                      ((R.xmin - 1, 2000), True), ((0, R.ymax + 1), True),
+                                      ((1102, 0), False), ((0, R.ymin - 1), False),
+                                      (None, False)])
 def test_the_gate_checks_the_whole_swept_rectangle_from_a_fresh_reading(start, ok):
     t = _T()
     t.position_now = start
@@ -384,8 +388,12 @@ def test_m0_at_any_other_speed_is_refused_by_the_builder_and_the_gate():
 def test_the_plan_check_refuses_an_unrecorded_speed_and_a_way_from_outside():
     plan = sc.plan_row("x", (-1000, 2000), (1000, 2000), 54)
     sc.check_plan(plan, at=(0, 2000))
+    # 4.3.49 (Basti's ruling of 19 Nov 2026, for the safety review): changed from the tester's
+    # body. The way from a fresh reading outside AREA_RAW is judged by its target alone (the
+    # arm IS where it reads); a row whose own end lies outside stays refused
+    sc.check_plan(plan, at=(-1500, 2000))
     with pytest.raises(sc.PlanRefused):
-        sc.check_plan(plan, at=(-1500, 2000))           # the way from outside the area
+        sc.check_plan(sc.plan_row("x", (-1500, 2000), (1000, 2000), 54), at=(0, 2000))
     with pytest.raises(sc.PlanRefused):
         sc.check_plan(sc.plan_row("x", (-1000, 2000), (1000, 2000), 200))
 
@@ -511,8 +519,9 @@ def test_the_front_limits_at_their_edges():
     t.position_now = (0, 2905)
     assert gate(geo.m0_line(0, 2000))[2] == "computed m0"         # a reading within the slack
     t.position_now = (0, 2906)
-    with pytest.raises(tbl.ForbiddenLine):
-        gate(geo.m0_line(0, 2000))                                 # one unit beyond it
+    # 4.3.49 (changed from the tester's body): a reading beyond the slack is where the arm
+    # physically stands; the move back from there is judged by its target alone
+    assert gate(geo.m0_line(0, 2000))[2] == "computed m0"
     t.creep = True
     t.position_now = (0, 2905)
     assert gate(geo.m0_line(0, 2950))[2] == "computed m0"         # one step beyond 2900
@@ -539,8 +548,8 @@ def test_a_target_on_the_cap_is_allowed_once_the_creep_confirmed_it():
     t.position_now = (0, 3114)                                     # read within the slack
     assert gate(geo.m0_line(0, 2000))[2] == "computed m0"
     t.position_now = (0, 3115)
-    with pytest.raises(tbl.ForbiddenLine):
-        gate(geo.m0_line(0, 2000))
+    # 4.3.49 (changed from the tester's body): see test_the_front_limits_at_their_edges
+    assert gate(geo.m0_line(0, 2000))[2] == "computed m0"
     assert csim._inside(csim.C_TARGET_BOX, (0, 3109))
     assert csim._inside(csim.C_SWEEP_BOX, (0, 3114))
     assert not csim._inside(csim.C_SWEEP_BOX, (0, 3115))

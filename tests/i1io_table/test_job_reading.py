@@ -666,14 +666,15 @@ def test_a_row_into_a_part_no_recording_reached_asks_first_and_no_moves_nothing(
     assert len(moves(sim.received)) == n_moves and helper.reads == 0
 
 
-def test_a_free_arm_left_outside_the_area_starts_no_row(tmp_path):
+def test_a_free_arm_left_outside_the_area_is_not_refused_for_where_it_stands(tmp_path):
+    """4.3.49 (Basti's ruling of 19 Nov 2026, for the safety review): the person's hand put the
+    arm there, so it is not refused for standing outside AREA_RAW; the way to the row's first
+    patch is judged by that target alone."""
     job, sim, helper, run, p = job_for(tmp_path)
     ready_to_read(job, p)
     sim.hand_to(-1480, 2340)                                # beside the area's corner
-    n_moves = len(moves(sim.received))
     r = p.drive(job.read_row())
-    assert (r.kind, r.reason) == (J.Kind.REFUSED, "free_arm_outside_area")
-    assert len(moves(sim.received)) == n_moves and helper.reads == 0
+    assert r.reason != "free_arm_outside_area", (r.reason, r.detail)
 
 
 def test_a_failed_calibration_on_the_own_tile_leaves_no_white_until_seated_again(tmp_path):

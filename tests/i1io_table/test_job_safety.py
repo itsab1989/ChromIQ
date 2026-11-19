@@ -746,15 +746,20 @@ def test_the_creep_never_takes_more_steps_than_allowed(monkeypatch):
     assert len(front) == 2
 
 
-def test_a_free_arm_pushed_outside_the_area_is_not_moved():
+def test_a_free_arm_pushed_outside_the_area_moves_only_to_its_allowed_target():
+    """4.3.49 (Basti's ruling of 19 Nov 2026, for the safety review): a free arm the person's
+    hand put outside AREA_RAW is no longer refused there; the move from it is judged by its
+    target alone (the arm IS where it reads), after the first-visit question."""
     job, sim, _t = H.make_job()
     p = H.Person(job, sim)
     assert p.drive(job.open()).ok and p.drive(job.align()).ok
     sim.hand_to(geo.AREA_RAW.xmax + 100, 1500)
     n = len(sim.received)
     r = p.drive(job.check_move())
-    assert (r.kind, r.reason) == (J.Kind.REFUSED, "free_arm_outside_area")
-    assert moves(sim.received[n:]) == []
+    assert r.ok, (r.reason, r.detail)
+    sent = [geo.decode_xyv(x.encode() + b"\r") for x in computed(sim.received[n:])]
+    assert sent and all(geo.CAP_AREA.contains((x, y)) for _c, x, y, _v in sent)
+    assert any(c == J.Confirm.FIRST_VISIT for _s, c, *_r in p.asked)
 
 
 def test_a_move_that_arrives_elsewhere_stops_everything():

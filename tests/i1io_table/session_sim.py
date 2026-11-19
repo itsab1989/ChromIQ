@@ -197,7 +197,7 @@ class Fault:
 
 FAULT_KINDS = ("no_answer", "no_done", "late", "bad_checksum", "garbled", "status",
                "wrong_cid", "stray", "extra_line", "blocked", "drift", "unplug", "free",
-               "identity", "refuse", "a0_other", "k2_other", "memory_short",
+               "identity", "refuse", "a0_other", "a0_after_hand", "k2_other", "memory_short",
                "memory_bad_start", "long_line", "slow_motion", "fast_motion")
 
 
@@ -529,6 +529,10 @@ class SimTable:
         if cid == "a0":
             if kind == "a0_other":
                 return 0, "120000", 0.0
+            if kind == "a0_after_hand":
+                # the volunteer's real table, 19 Nov 2026 (two openings, 12:37 and 12:38):
+                # `:$a00530000B9` after the arm had been moved by hand and put back
+                return 0, "530000", 0.0
             return 0, ("111800" if self.cold else "130000"), 0.0
         if cid == "f4":
             if kind == "free":

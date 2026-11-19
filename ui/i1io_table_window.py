@@ -612,6 +612,116 @@ def as_clause(sentence: str) -> str:
     return sentence.rstrip().rstrip(SENTENCE_STOPS)
 
 
+def _ways_text(advice: dict) -> str:
+    """'about 19 mm towards the back of the table (away from you) and about 6 mm to the left'
+    from a geometry advice dict ({"back_mm", "front_mm", "left_mm", "right_mm"}); "" when
+    nothing is to move."""
+    parts = []
+    for key, text in (("back_mm", tr("about {n} mm towards the back of the table (away from "
+                                     "you)")),
+                      ("front_mm", tr("about {n} mm towards the front of the table (towards "
+                                      "you)")),
+                      ("left_mm", tr("about {n} mm to the left")),
+                      ("right_mm", tr("about {n} mm to the right"))):
+        try:
+            n = int((advice or {}).get(key) or 0)
+        except (TypeError, ValueError):
+            n = 0
+        if n > 0:
+            parts.append(text.format(n=n))
+    if not parts:
+        return ""
+    return (tr("{first} and {second}").format(first=", ".join(parts[:-1]), second=parts[-1])
+            if len(parts) > 1 else parts[0])
+
+
+def push_text(push: dict) -> str:
+    """4.3.49: how far to push a free arm by hand, in words ("" when it need not move)."""
+    return _ways_text(push)
+
+
+def aims_text(rid: str, d: dict) -> str:
+    """4.3.49 (the volunteer's run of 19 Nov 2026): the refused aims, saying WHICH check did
+    not fit, by how much, and what to do. "" for the ids that keep the general sentence."""
+    patch = d.get("aim_target") == "patch"
+    again = (tr("Then press Carry on and aim again at the centre of each corner patch, in the "
+                "order shown.") if patch else
+             tr("Then press Carry on and aim again at the centre of each cross, in the order "
+                "1, 2, 3."))
+    if rid == "aims_outside_area":
+        ways = _ways_text(d.get("sheet_move") or {})
+        first = (tr("Your three aims have the right shape for this sheet, so you aimed at the "
+                    "right points. But mark {n} lies further out on the table than ChromIQ lets "
+                    "the arm go (no recording shows the table's arm that far out), so nothing "
+                    "has moved over your sheet.").format(n=d.get("outside_mark", "?")))
+        if ways:
+            return first + " " + tr("Please lay the sheet {ways}. {again}").format(
+                ways=ways, again=again)
+        return first + " " + again
+    if rid in ("aims_distance_1_2", "aims_distance_2_3"):
+        ln = d.get("lengths") or {}
+        try:
+            a, b = ln["marks"]
+            first = tr("Marks {a} and {b} are {table} mm apart on the table, but {sheet} mm "
+                       "apart on this sheet (ChromIQ accepts up to {allowed} mm difference), so "
+                       "at least one aim was on another point. Nothing has moved over your "
+                       "sheet.").format(a=a, b=b, table=f"{float(ln['table_mm']):.1f}",
+                                        sheet=f"{float(ln['sheet_mm']):.1f}",
+                                        allowed=f"{float(ln['allowed_mm']):.1f}")
+        except (KeyError, TypeError, ValueError):
+            return ""
+        if d.get("aimed_at") == "corner_patches":
+            return first + " " + tr(
+                "Your three aims fit the coloured corner patches beside the crosses exactly. "
+                "Charts made in i1Profiler are aimed at such a patch, but this chart is aimed "
+                "at its crosses: the thin printed cross in a small square near each corner of "
+                "the paper, with the number 1, 2 or 3 beside it.") + " " + again
+        return first + " " + again
+    if rid == "aims_corner_not_square" and d.get("corner_deg") is not None:
+        return tr("The corner at mark 2 measures {deg} degrees on the table, but it is a right "
+                  "angle on the sheet (ChromIQ accepts 1 degree either way), so one aim was "
+                  "probably off. Nothing has moved over your sheet.").format(
+                      deg=f"{float(d['corner_deg']):.1f}") + " " + again
+    if rid == "aims_not_moved":
+        return tr("Two of the three readings lie less than 1 cm apart: the arm was not moved "
+                  "from one mark to the next before Aimed was pressed. Nothing has moved over "
+                  "your sheet. Please push the arm to each mark in turn, and press Aimed (or "
+                  "the button on the i1Pro 2) only when the cross hairs sit on that mark.")
+    return ""
+
+
+ALIGNMENT_REFUSALS = ("sheet_marks_on_one_line", "sheet_turned", "alignment_refused")
+
+
+def is_alignment_refusal(rid: str) -> bool:
+    """The ids of refused aims (job.alignment_id)."""
+    return bool(rid) and (rid.startswith("aims_") or rid in ALIGNMENT_REFUSALS)
+
+
+def table_state_text(a0) -> str:
+    """4.3.49 (the volunteer's run of 19 Nov 2026): the table answered its status question (a0)
+    with a value no recording shows. Nothing that moves was sent and the arm was not read."""
+    a0 = str(a0 or "")
+    first = (tr("The table answered ChromIQ's first question about its state with {a0}. The "
+                "recordings ChromIQ is built from show only two answers: 111800 (just "
+                "switched on) and 130000 (started). So ChromIQ sent nothing that could move the "
+                "arm, and it has not read where the arm is.").format(a0=a0) if a0 else
+             tr("The table answered ChromIQ's first question about its state in a way the "
+                "recordings ChromIQ is built from do not show. So ChromIQ sent nothing that "
+                "could move the arm, and it has not read where the arm is."))
+    try:
+        moved = bool(int(a0[:2], 16) & 0x40)
+    except ValueError:
+        moved = False
+    seen = (" " + tr("A table has answered this way after its arm was moved by hand.")
+            if moved else "")
+    return first + seen + " " + tr(
+        "To go on, switch the table off at its power switch, wait a few seconds, switch it on "
+        "again and press START MEASUREMENT: when the table then reports that it was just "
+        "switched on, ChromIQ offers the start-up i1Profiler uses for that, which brings the "
+        "arm to its resting place. If the table still answers this way, use the way below.")
+
+
 def reason_text(rid: str, detail: "dict | None" = None) -> str:
     """Why a step was refused or stopped, in a sentence (M-I1IO-DRIVE-REFUSED's {why})."""
     d = detail or {}
@@ -941,6 +1051,27 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
             "The readings this measurement would complete were made with another factor for "
             "M1 and M2, so they cannot go into one file."),
     }
+    if rid == "table_state_unknown":
+        return table_state_text(d.get("a0"))
+    if rid in ("free_arm_outside_area", "homing_only_from_inside_the_area"):
+        push = push_text(d.get("push") or {})
+        if rid == "free_arm_outside_area":
+            if push:
+                return tr("The free arm stands outside the part of the table where ChromIQ "
+                          "starts a move from, so nothing has moved. Please push the arm gently "
+                          "by hand {push}, let go of it, and press Carry on. ChromIQ reads the "
+                          "arm again before anything moves, and asks you first to take your "
+                          "hands away.").format(push=push)
+            return tr("The free arm stands outside the part of the table where ChromIQ starts "
+                      "a move from, so nothing has moved.")
+        if push and d.get("arm_free"):
+            return tr("ChromIQ does not bring the arm home from where it stands now: no "
+                      "recording shows the table's homing starting there. The arm is free, so "
+                      "you can move it: please push it gently by hand {push}, let go of it, and "
+                      "press Bring the arm home again.").format(push=push)
+        return texts["homing_not_from_here"]
+    if rid.startswith("aims_") and aims_text(rid, d):
+        return aims_text(rid, d)
     if (rid.startswith("aims_") or rid in ("sheet_marks_on_one_line", "sheet_turned",
                                            "alignment_refused")) and d.get("aim_target") == "patch":
         return tr("The three corner patches you aimed at do not fit this sheet. Nothing has "
@@ -3069,6 +3200,14 @@ class TableMeasureWindow(QFrame):
             else:
                 title, body = M.M_I1IO_DRIVE_AIM.render(mark=d.get("mark", "?"),
                                                         corner=corner_text(d.get("corner", "")))
+                if d.get("target") == "cross":
+                    # 4.3.49 (the volunteer's run of 19 Nov 2026): which spot, unmistakably
+                    body += "\n\n" + tr(
+                        "Mark {mark} is the thin printed cross in a small square near the "
+                        "corner of the paper, with the number {mark} beside it. Put the cross "
+                        "hairs on the centre of that cross, not on the coloured patch next to "
+                        "it: charts made in i1Profiler are aimed at a corner patch, but this "
+                        "chart has its own crosses for aiming.").format(mark=d.get("mark", "?"))
             if d.get("button") and d.get("button_token"):
                 # round B (proposed text): the instrument's own button answers too
                 body += "\n\n" + (M.M_I1IO_DRIVE_AIM_BUTTON_PATCH.render(patch=patch)[1]
@@ -3493,6 +3632,20 @@ class TableMeasureWindow(QFrame):
             why += "\n\n" + self._arm_out_text()
             buttons = [b for b in buttons if b[0] != tr("Carry on")] or \
                 [(tr("End measurement"), self._on_end_pressed)]
+        if after is None and is_alignment_refusal(res.reason):
+            # 4.3.49 (the volunteer's run of 19 Nov 2026: five refused aim rounds, then the
+            # stop): the page never loops silently. From the second refusal in a row it says
+            # so, and End measurement is always on the page, not only in the footer
+            n = int(detail.get("refusals_in_a_row") or 0)
+            if n >= 2:
+                why += "\n\n" + tr(
+                    "The aims have not fitted {n} times in a row now. If the reason above does "
+                    "not help, press End measurement: ChromIQ then tells you how to bring the "
+                    "arm home, and the diagnostics file of this measurement shows us what "
+                    "happened.").format(n=n)
+            if not any(b[0] == tr("End measurement") for b in buttons) and self.job is not None \
+                    and self.job.ended is None and self.job.phase == "open":
+                buttons = list(buttons) + [(tr("End measurement"), self._on_end_pressed)]
         title, body = _refused(M, why)
         if after is not None:
             self._show("refused", title, body, [(tr("Close"), after)])

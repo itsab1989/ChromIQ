@@ -153,9 +153,18 @@ def make_gate(table):
             if not tgt.contains((x, y)):
                 raise tbl.ForbiddenLine(f"{cid} to ({x}, {y}): beyond what this sitting allows "
                                         f"({tgt.text()})")
-            if not sweep.contains_path(start, (x, y)):
-                raise tbl.ForbiddenLine(f"{cid} from {start} to ({x}, {y}): the swept rectangle "
-                                        "leaves the measuring area")
+            # 4.3.49 (Basti's ruling of 19 Nov 2026, FOR THE SAFETY REVIEW): the swept
+            # rectangle is no longer compared with a box of where recordings happened to read
+            # the arm. Its start is the fresh reading of where the arm physically stands, its
+            # end passed the target check above, and the table moves each axis over one
+            # interval, so every point of the rectangle is reachable
+            # (geo.check_move_from_reading). The creep's per-step limit above stays, and no
+            # computed move starts in the back strip at the resting place (the physical reason
+            # is in geo.check_move_from_reading).
+            del sweep
+            if start[1] < geo.AREA_RAW.ymin:
+                raise tbl.ForbiddenLine(f"{cid} from {start}: a computed move from the back strip "
+                                        "at the resting place")
         return cid, motion, label
     return gate
 

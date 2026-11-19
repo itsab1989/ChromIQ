@@ -169,16 +169,18 @@ class CSimTable(SimTable):
                 self.zero_m0_at = len(self.received) - 1
             if not _inside(C_TARGET_BOX, (x, y)):
                 raise SimViolation(f"{cid} to ({x}, {y}) outside the area")
-            lo = (min(here[0], x), min(here[1], y))
-            hi = (max(here[0], x), max(here[1], y))
-            if not (_inside(C_SWEEP_BOX, lo) and _inside(C_SWEEP_BOX, hi)):
-                raise SimViolation(f"{cid} from {here} to ({x}, {y}) sweeps outside the area")
+            # 4.3.49 (Basti's ruling of 19 Nov 2026): the arm stands where the simulated table
+            # has it, so the way from there is not judged against where recordings happened to
+            # read it; a computed move from the back strip at the resting place stays a violation
+            if here[1] < C_SWEEP_BOX[2]:
+                raise SimViolation(f"{cid} from {here} to ({x}, {y}): from the back strip")
             known = max(C_PROVEN_Y[0], self.front_seen)
-            if y > known or hi[1] > max(C_PROVEN_Y[1], self.front_seen):
+            # 4.3.49: the front-zone oracle judges the target (the start is where the arm is)
+            if y > known:
                 if cid == "m2":
                     raise SimViolation(f"a scan move to Y {y} beyond where the motors have been "
                                        f"(Y {known:.0f})")
-                if y > known + C_CREEP or hi[1] > known + C_CREEP:
+                if y > known + C_CREEP:
                     raise SimViolation(f"m0 to Y {y} more than 5 mm beyond the confirmed front "
                                        f"(Y {known:.0f})")
                 if abs(x - here[0]) > C_CREEP or abs(y - here[1]) > C_CREEP:
