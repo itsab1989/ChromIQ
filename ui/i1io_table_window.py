@@ -3458,9 +3458,10 @@ class TableMeasureWindow(QFrame):
                 if wb == "open_i1profiler_once" and j is not None and j.phase == "open":
                     # 4.3.48: why ChromIQ does not bring the arm home itself this time
                     why += " " + tr("ChromIQ brings the arm home itself only after a stop at "
-                                    "which the table answered every line as recorded, and "
-                                    "only from a place where a recorded homing starts. This "
-                                    "stop is not one of those, so please use the way below.")
+                                    "which the table answered every line as recorded and "
+                                    "nothing had moved yet in this measurement, and only from "
+                                    "a place where a recorded homing starts. This stop is not "
+                                    "one of those, so please use the way below.")
                 body = why + "\n\n" + body
             if getattr(res, "step", "") == "home_after_stop":
                 body = tr("ChromIQ could not bring the arm home.") + " " + body

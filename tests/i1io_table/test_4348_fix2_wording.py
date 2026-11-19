@@ -35,3 +35,11 @@ def test_the_german_place_check_sentence_says_where_the_arm_stands():
     assert de[key].startswith("Unmittelbar vor seiner üblichen Rückfahrt hat ChromIQ gelesen, "
                               "wo der Arm steht: nicht an seinem Ruheplatz, sondern draußen über "
                               "dem Tisch")
+
+
+def test_the_no_offer_sentence_names_the_condition_of_must_1():
+    """The page after a stop without the offer lists the conditions; after MUST-1 it must name
+    'nothing had moved yet', or a stop after ChromIQ's own homing would read as one of those."""
+    src = (ROOT / "ui/i1io_table_window.py").read_text(encoding="utf-8")
+    assert '"which the table answered every line as recorded and "' in src
+    assert '"nothing had moved yet in this measurement, and only from "' in src
