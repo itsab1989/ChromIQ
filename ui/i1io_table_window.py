@@ -1103,13 +1103,17 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
     if rid == "creep_step_did_not_arrive" and d.get("short_mm"):
         # 4.3.49 (Basti's ruling: the targets follow what was aimed at): the creep is where an
         # aim further forward than the arm can take its measuring opening is found out
+        # 4.3.49 fix round (safety review 449, MUST-1): the homing from there works: back along
+        # the way the arm came first (job._way_back), then the homing; never a pull by hand
         return tr("The arm could not go as far towards the front of the table as this sheet "
                   "needs: it stopped about {mm} mm short, most likely at the end of its travel. "
                   "The cross hairs sit about 3 cm in front of the measuring opening, so they "
                   "can be aimed at points the opening cannot reach. ChromIQ moves the arm no "
-                  "further forward. Please let ChromIQ bring the arm home, then lay the sheet "
-                  "about {mm} mm further towards the back of the table (away from you) and "
-                  "start the measurement again.").format(mm=d.get("short_mm"))
+                  "further forward.\n\nPlease press Bring the arm home. ChromIQ asks you to take "
+                  "your hands away first, then takes the arm back along the way it came, to a "
+                  "place it has already reached in this measurement, and brings it home from "
+                  "there. Then lay the sheet about {mm} mm further towards the back of the table "
+                  "(away from you) and start the measurement again.").format(mm=d.get("short_mm"))
     if rid.startswith("creep_"):
         return tr("Feeling the way forward stopped at a step that did not arrive exactly.")
     if rid.startswith("instrument_"):
@@ -3676,6 +3680,10 @@ class TableMeasureWindow(QFrame):
                     and self.job.ended is None and self.job.phase == "open":
                 buttons = list(buttons) + [(tr("End measurement"), self._on_end_pressed)]
         title, body = _refused(M, why)
+        if res.reason == "creep_step_did_not_arrive" and detail.get("short_mm"):
+            # 4.3.49 fix round (safety review 449, SHOULD-3): the arm did move, and met what is
+            # most likely the end of its travel
+            title, body = M.M_I1IO_DRIVE_FRONT_END.render(why=why)
         if after is not None:
             self._show("refused", title, body, [(tr("Close"), after)])
             return

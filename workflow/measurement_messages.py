@@ -12459,10 +12459,14 @@ M_I1IO_DRIVE_ROW_FAILED_STRIP = _m(
 M_I1IO_DRIVE_FRONT = _m(
     "M-I1IO-DRIVE-FRONT",
     "Part of this sheet lies further forward than usual",
-    "Part of this sheet lies further towards the front of the table than "
-    "the arm has gone in our recordings. ChromIQ can feel its way there "
-    "first, in steps of 5 mm, and it stops at the first step that does not "
-    "arrive exactly.\n\n"
+    "Part of this sheet lies further towards the front of the table than the arm has "
+    "gone before, in our recordings and on this table. To get there, ChromIQ feels its way "
+    "forward in small steps of 5 mm and checks after each step that the arm arrived.\n\n"
+    "The cross hairs sit about 3 cm in front of the measuring opening, so the front of this "
+    "sheet may lie beyond where the arm can take the opening. Then the arm reaches the end of "
+    "its travel during one of these small steps and stops there. ChromIQ notices that the step "
+    "did not arrive, moves the arm no further forward and offers to bring it home. If you hear "
+    "the motor keep running after that, switch the table off at its power switch.\n\n"
     "Or lay the sheet about {back_mm} mm further back and aim at it again: "
     "then the arm does not need to go there at all.",
     approved=False)
@@ -12650,6 +12654,14 @@ M_I1IO_DRIVE_STOPPED_BY_YOU = _m(
 M_I1IO_DRIVE_REFUSED = _m(
     "M-I1IO-DRIVE-REFUSED",
     "ChromIQ did not do this step",
+    "{why}\n\nThe true state of the table and the arm is shown on the Measure tab.",
+    approved=False)
+
+#: 4.3.49 fix round (safety review 449, SHOULD-3): the page after the creep met what is most
+#: likely the end of the arm's travel; the arm DID move, so not "ChromIQ did not do this step"
+M_I1IO_DRIVE_FRONT_END = _m(
+    "M-I1IO-DRIVE-FRONT-END",
+    "The arm stopped short of the front of this sheet",
     "{why}\n\nThe true state of the table and the arm is shown on the Measure tab.",
     approved=False)
 
@@ -13145,7 +13157,8 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_CHECK_MARK, M_I1IO_DRIVE_ROW_FAILED,
     M_I1IO_DRIVE_ROW_NOT_AGAIN, M_I1IO_DRIVE_REPORT, M_I1IO_DRIVE_PROBLEM,
     M_I1IO_DRIVE_NOTE, M_I1IO_DRIVE_NEXT_PAGE, M_I1IO_DRIVE_STOPPED_BY_YOU,
-    M_I1IO_DRIVE_REFUSED, M_I1IO_DRIVE_HOME_OFFERED, M_I1IO_DRIVE_SWITCH_OFF,
+    M_I1IO_DRIVE_REFUSED, M_I1IO_DRIVE_FRONT_END, M_I1IO_DRIVE_HOME_OFFERED,
+    M_I1IO_DRIVE_SWITCH_OFF,
     M_I1IO_DRIVE_STOPPED, M_I1IO_DRIVE_LINK_LOST,
     M_I1IO_DRIVE_LINK_LOST_SWITCH_OFF, M_I1IO_DRIVE_COLD,
     M_I1IO_DRIVE_COLD_WAY_OUT, M_I1IO_DRIVE_FREE_LEFT, M_I1IO_DRIVE_STOPPED_END_FIRST,
