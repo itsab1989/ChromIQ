@@ -3302,7 +3302,10 @@ class TableMeasureWindow(QFrame):
                 mac = M.M_I1IO_DRIVE_READER_CONSENT_MAC.render()[1]
             title, body = M.M_I1IO_DRIVE_READER_CONSENT.render(mac=mac)
         elif kind == "row_failed_strip":
-            title, body = M.M_I1IO_DRIVE_ROW_FAILED_STRIP.render(
+            # 4.3.50: a dual row that keeps its lamp pass as M0 only has its own words
+            msg = (M.M_I1IO_DRIVE_ROW_M0_ONLY_STRIP if d.get("m0_kept")
+                   else M.M_I1IO_DRIVE_ROW_FAILED_STRIP)
+            title, body = msg.render(
                 row=d.get("row", "?"), page=d.get("page", page),
                 why=as_clause(reason_text(d.get("why", ""))))
             if not d.get("again_allowed", True):
@@ -3310,7 +3313,9 @@ class TableMeasureWindow(QFrame):
                        else reason_text("rows_read_again_limit"))
                 body += "\n\n" + M.M_I1IO_DRIVE_ROW_NOT_AGAIN.render(why=why)[1]
         elif kind == "row_failed":
-            title, body = M.M_I1IO_DRIVE_ROW_FAILED.render(
+            msg = (M.M_I1IO_DRIVE_ROW_M0_ONLY if d.get("m0_kept")
+                   else M.M_I1IO_DRIVE_ROW_FAILED)
+            title, body = msg.render(
                 row=d.get("row", "?"), page=d.get("page", page),
                 why=as_clause(reason_text(d.get("why", ""))))
             if not d.get("again_allowed", True):

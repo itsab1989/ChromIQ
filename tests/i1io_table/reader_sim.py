@@ -695,7 +695,9 @@ class FakeHelperProc:
             if self.dual:
                 lines = _dual_head(lines, self.dual_args)
             path.write_text("\n".join(lines), encoding="ascii")
-            if self.dual:
+            if self.dual and self.index not in self.helper.faults.get("no_conditions_at", ()):
+                # 4.3.50 test fault "no_conditions_at": {reader index, ...}: that reader writes
+                # its row file but no M1 / M2 (as a helper whose conditions ended)
                 self._save_conditions(path, lines)
         if event:
             self._emit({"event": "saved", "path": str(path), "read_patches": len(self.read)})

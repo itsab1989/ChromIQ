@@ -217,6 +217,9 @@ AWAITING_APPROVAL: "set[str]" = {
     # 2026-11-18, final fix round: the offer to make strips the table's default (the owner)
     "M-I1IO-DRIVE-STRIP-DEFAULT-OFFER",
     "M-I1IO-DRIVE-ROW-FAILED-STRIP",
+    # 4.3.50: a dual row on the table with M0 only (its second pass failed), as by hand
+    "M-I1IO-DRIVE-ROW-M0-ONLY-STRIP",
+    "M-I1IO-DRIVE-ROW-M0-ONLY",
     "M-I1IO-DRIVE-REFINE-NOT-ON-CHART",
     "M-I1IO-DRIVE-EARLIER-ELSEWHERE",  # review 12 of the i1iO table drive (2026-11-17)
     "M-I1IO-DRIVE-RESUME",

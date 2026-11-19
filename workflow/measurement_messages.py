@@ -12662,6 +12662,40 @@ M_I1IO_DRIVE_ROW_FAILED_STRIP = _m(
     "  •  End this step.",
     approved=False)
 
+#: 4.3.50 (Basti's rule of 19 Nov 2026, as by hand): a dual row whose first pass (the lamp) was
+#: read and kept while its second pass (the UV light) could not be used: the row has M0 only,
+#: every other row keeps its M1 and M2. {why} the second pass's reason as a clause
+M_I1IO_DRIVE_ROW_M0_ONLY_STRIP = _m(
+    "M-I1IO-DRIVE-ROW-M0-ONLY-STRIP",
+    "Row {row} has M0 only for now",
+    "The arm is held where the strip move ended. Before it moves again, ChromIQ asks you to "
+    "take your hands away from the table and the arm.\n\n"
+    "The first pass of row {row} on page {page}, with the lamp, was read and is kept, so this "
+    "row has its M0 values. Its second pass, with the UV light, could not be used: {why}. So "
+    "this row has no M1 and M2 yet; every other row keeps its own. What would you like to "
+    "do?\n"
+    "  •  Read it again as a strip, with both passes.\n"
+    "  •  Read it patch by patch: slower, and the careful way.\n"
+    "  •  Skip this row: it keeps M0 only. Continue Measurement, with the dual scan still "
+    "switched on, reads it again later with both passes.\n"
+    "  •  End this step.",
+    approved=False)
+
+#: ...the same for a row read patch by patch whose reading program wrote no M1 and M2
+M_I1IO_DRIVE_ROW_M0_ONLY = _m(
+    "M-I1IO-DRIVE-ROW-M0-ONLY",
+    "Row {row} has M0 only for now",
+    "Row {row} of page {page} was read, and its M0 values are kept, but the reading program did "
+    "not write its M1 and M2 values. So this row has no M1 and M2 yet; every other row keeps "
+    "its own.\n\n"
+    "\u2022  Read it again: ChromIQ first asks you to take your hands away, then reads the row "
+    "again with the UV light too. At most two rows of a page are read again.\n"
+    "\u2022  Skip it: the row keeps M0 only. Continue Measurement, with the dual scan still "
+    "switched on, reads it again later.\n"
+    "\u2022  End this step: nothing more is read now, and nothing moves until you choose what "
+    "happens next.",
+    approved=False)
+
 M_I1IO_DRIVE_FRONT = _m(
     "M-I1IO-DRIVE-FRONT",
     "Part of this sheet lies further forward than usual",
@@ -13384,6 +13418,7 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_ROW_NOT_AGAIN, M_I1IO_DRIVE_REPORT, M_I1IO_DRIVE_PROBLEM,
     M_I1IO_DRIVE_NOTE, M_I1IO_DRIVE_NEXT_PAGE, M_I1IO_DRIVE_STOPPED_BY_YOU,
     M_I1IO_DRIVE_REFUSED, M_I1IO_DRIVE_FRONT_END, M_I1IO_DRIVE_FRONT_STOPPED,
+    M_I1IO_DRIVE_ROW_M0_ONLY_STRIP, M_I1IO_DRIVE_ROW_M0_ONLY,
     M_I1IO_DRIVE_HOME_OFFERED,
     M_I1IO_DRIVE_SWITCH_OFF,
     M_I1IO_DRIVE_STOPPED, M_I1IO_DRIVE_LINK_LOST,

@@ -2727,18 +2727,25 @@ class TableJob:
             facts = classify(base, self._chart_ti2)
             unread = unread_locations(base, self._chart_ti2)
             asked = self._requested[0]
-            if facts.state is Ti3State.COMPLETE and asked:
+            fill = self._m0_only_to_fill(base)
+            if fill:
+                # 4.3.50 (Basti's rule of 19 Nov 2026, as by hand): Continue Measurement with the
+                # dual scan also reads again the patches of the run's dual measurement that are
+                # M0 only (their rows' second pass failed or was not made), so that they get
+                # M1 and M2; the measurement stays the base, their new readings replace theirs
+                detail["fill_m0_only"] = len(fill)
+            if facts.state is Ti3State.COMPLETE and (asked or fill):
                 # open point a: a refinement re-reads the patches asked for (the strips the
                 # quality check named) on the complete measurement, which stays the base
-                self._requested = (set(asked), base)
+                self._requested = (set(asked or ()) | fill, base)
                 self._apply_locs()
                 detail["refine"] = len(self.only_locs)
             elif facts.state is not Ti3State.PARTIAL or not unread:
                 return self._result("options", Kind.REFUSED, "nothing_to_resume",
                                     state=facts.state.value, **detail)
             else:
-                self._requested = (set(unread) if asked is None else asked & set(unread),
-                                   base)
+                self._requested = ((set(unread) if asked is None else asked & set(unread))
+                                   | fill, base)
                 self._apply_locs()
                 detail["resume_unread"] = len(self.only_locs)
         clash = self._fields_clash(rep.options)
@@ -2773,6 +2780,22 @@ class TableJob:
         if not rep.ok:
             return self._result("options", Kind.REFUSED, "option_refused", **detail)
         return self._result("options", Kind.OK, "", **detail)
+
+    def _m0_only_to_fill(self, base: Path) -> "set[str]":
+        """4.3.50: with the dual scan on, the read patches of the run's DUAL measurement *base*
+        that are M0 only (``i1pro3_conditions.m0_only_locs``: not in its partial pair, or every
+        read patch when it has no pair); empty otherwise (the dual scan off, a single-scan base,
+        an average: never completed by Continue, as by hand)."""
+        if self.dual is None:
+            return set()
+        try:
+            import workflow.i1pro3_conditions as ic
+            import workflow.dual_scan.storage as S
+            if not S.read_dual_record(base).dual:
+                return set()
+            return set(ic.m0_only_locs(base))
+        except Exception:      # noqa: BLE001 - unreadable: nothing promised, nothing added
+            return set()
 
     def _dual_refusal(self, opts: "sp.ReadOptions") -> "str | None":
         """The dual scan on the table (2026-11-18): an option or a measurement it cannot go on
@@ -3531,6 +3554,13 @@ class TableJob:
             ask = Confirm.ROW_FAILED_STRIP if plan.kind == "strip" else Confirm.ROW_FAILED
             ans = yield Ask(ask, {
                 "row": plan.index + 1, "page": self.page + 1, "why": rec["why"],
+                # 4.3.50: the row's M0 readings are kept (its M1 / M2 are not): a dual row
+                # whose second pass failed, or a dual row read patch by patch whose reader
+                # wrote no M1 / M2
+                "m0_kept": bool(self.dual is not None and rec["accepted"]
+                                and not rec.get("conditions")
+                                and (rec.get("m0_only") or rec["why"]
+                                     == "dual_conditions_missing")),
                 "loc": rec.get("failed_loc"), "read": len(rec["accepted"]),
                 "patches": len(plan.patches), "kind": plan.kind,
                 "again_allowed": self._again_refused() is None
@@ -3960,6 +3990,7 @@ class TableJob:
                             for q in lamp.patches], lamp.aperture_mm, dual=True)
         uv = sp.uv_pass_of(lamp)
         scan = None
+        results: dict = {}
         self._progress(event="row_start", row=plan.index + 1, kind="strip",
                        locs=[p.loc for p in plan.patches], dual=True)
         try:
@@ -4006,7 +4037,6 @@ class TableJob:
                 rec["front_row_ends_confirmed"] = True
             if self._hands_off_due:
                 raise _RowFailed("strip_move_refused_here", "")
-            results = {}
             for which, pplan in (("lamp", lamp), ("uv", uv)):
                 if which == "uv":
                     # between the two passes: a stop or a problem reported during the lamp
@@ -4138,6 +4168,13 @@ class TableJob:
             rec["status"] = "read"
             self._progress(event="row_end", row=plan.index + 1, status="read")
         except _RowFailed as f:
+            # 4.3.50 (Basti's rule of 19 Nov 2026, as by hand): the lamp pass ran to its end and
+            # only the second pass (UV) failed or was refused: the row keeps its lamp pass as
+            # M0 only (its M1 / M2 are missing; every other row keeps its own). The row still
+            # counts as failed, so the person is asked as before and may read it again
+            if f.reason != "lamp_pass_timing_off" and getattr(results.get("lamp"), "kind",
+                                                               None) == "done":
+                self._keep_lamp_pass(rec, plan, lamp, folder, name, f.reason)
             self._progress(event="row_end", row=plan.index + 1, status="failed", loc=f.loc)
             rec.update(status="failed", why=f.reason, failed_loc=f.loc or None)
         except PersonStopped as exc:
@@ -4154,9 +4191,51 @@ class TableJob:
             self._block["data"].setdefault("rows", []).append(
                 {k: rec[k] for k in ("page", "row", "attempt", "status", "why", "reader_ti3")}
                 | {"read": len(rec["accepted"]), "failed": 0, "kind": "strip", "dual": True,
+                   "m0_only": bool(rec.get("m0_only")),
                    "notes": [n for v in (rec.get("scan") or {}).values()
                              for n in v.get("notes", [])]})
         return rec
+
+    def _keep_lamp_pass(self, rec: dict, plan, lamp, folder: Path, name: str,
+                        why: str) -> bool:
+        """4.3.50: a dual row whose second pass failed after a complete lamp pass keeps the lamp
+        pass as M0 only, when it can be cut cleanly on its own (``dual_rows.cut_lamp_only``),
+        its own timing is not refused and every patch is plausible. Writes the row's M0 file
+        (no M1 / M2 files: ``rec["conditions"]`` None) and its accepted readings; nothing is
+        sent. False (and nothing kept) otherwise: the row stays unread, as before."""
+        try:
+            wl, lrows = sc.read_spec_csv(str(folder / f"{lamp.name}.spec.csv"))
+        except (OSError, ValueError):
+            return False
+        cut = dl.cut_lamp_only(lamp, lrows)
+        cut.wavelengths = list(wl)
+        timing = dl.lamp_timing(lamp, lrows, wl)
+        _write_json(folder / f"{name}.lamp_only_cut.json",
+                    {"ok": cut.ok, "reason": cut.reason, "info": cut.info, "timing": timing,
+                     "second_pass": why})
+        if not cut.ok or timing.get("lamp_refuse"):
+            self.diag.log("DATA", f"{name}: the lamp pass is not kept on its own "
+                                  f"({cut.reason or 'lamp_pass_timing_off'})")
+            return False
+        xyz0 = stp._xyz(cut.lamp, cut.wavelengths)
+        for xyz in xyz0:
+            if sp.plausible(xyz) or not all(math.isfinite(v) for v in xyz):
+                return False
+        white = dl.white_for_place(self.cal_place)
+        row_file = f"{name}.strip{stp.ROW_FILE_SUFFIX}"
+        c0 = dl.condition_cut(lamp, cut, cut.lamp)
+        stp.write_row_file(str(folder / row_file), c0, self.options_report.options)
+        dl.add_keywords(str(folder / row_file), dl.dual_keywords(self.dual, white))
+        rec["reader_ti3"] = row_file
+        rec["conditions"] = None
+        rec["accepted"] = stp.accepted_entries(c0, row_file)
+        rec["m0_only"] = why
+        for a in rec["accepted"]:
+            self._progress(event="patch_read", row=plan.index + 1, loc=a["loc"],
+                           xyz=list(a["xyz"]))
+        self.diag.log("DATA", f"{name}: the second pass could not be used ({why}); the lamp "
+                              f"pass is kept as M0 only ({len(rec['accepted'])} patches)")
+        return True
 
     def _between_patches(self) -> None:
         self._soft_stop()
@@ -4292,83 +4371,154 @@ class TableJob:
         return self._result("measurement", kind, a.reason, measurement=a.as_dict(), **extra)
 
     def _dual_measurement(self, a) -> dict:
-        """The dual scan (2026-11-18): M1 and M2 of the assembled measurement, assembled from
-        the same row records (each patch from its M0 row) and named by the main file's readings
-        as the i1Pro 3 Beta's files are (``conditions/<hash>-M1.ti3``, CHROMIQ_CONDITION_OF,
-        MEASUREMENT_CONDITION). Refused (said, logged, M0 stays) when any patch lacks them."""
+        """The dual scan: M1 and M2 of the assembled measurement, each patch from the SAME
+        reading as its M0 row (``measurement._assemble_condition``), named by the main file's
+        readings as the i1Pro 3 Beta's files are (``conditions/<hash>-M1.ti3``,
+        CHROMIQ_CONDITION_OF, MEASUREMENT_CONDITION).
+
+        4.3.50 (Basti's rule of 19 Nov 2026, as by hand since 4.3.49): M1 and M2 are kept PER
+        ROW. A patch whose reading has no M1 / M2 (a row whose second pass failed or was
+        refused, a base patch that was M0 only) is M0 only; every other patch keeps its M1 / M2.
+        When every read patch has both: the complete pair (as before). When some have: the
+        PARTIAL pair (``<hash>-M1.partial.ti3`` / ``-M2.partial.ti3``, the hand path's own
+        names and rule: only the patches that have all three, in the main file's order), which
+        Build Profile never offers and Continue Measurement completes. When none has: no pair
+        (a dual measurement whose read patches are all M0 only)."""
         from core.file_manager import Run
         import workflow.i1pro3_conditions as ic
         from workflow.measurement_condition import record_condition
         main = Path(a.path)
         self.dual_conditions_refused = None
         self._dual_files = {}
+        self._dual_m0_only = []
+        self._dual_pair = "none"
         made = {}
+        m0_only: "set[str]" = set()
         for cond in dl.CONDITIONS:
             tmp = main.with_name(f"{main.stem}.{cond}.assembled.ti3")
             c = ms.assemble(self._session_dirs(), self._chart_ti2, tmp, base_ti3=self._base(),
                             cond=cond)
-            if c.state != a.state or c.read != a.read or set(c.unread) != set(a.unread):
-                self.dual_conditions_refused = c.reason or "dual_rows_without_m1_m2"
+            if c.state == "refused":
+                self.dual_conditions_refused = c.reason or "dual_conditions_refused"
                 self.diag.log("DATA", f"M1 and M2 are not written for this measurement: "
                                       f"{cond} {c.state} {c.reason} " + json.dumps(c.detail))
-                return {"conditions": None, "why": self.dual_conditions_refused}
-            made[cond] = tmp
+                return {"conditions": None, "why": self.dual_conditions_refused,
+                        "m0_only": None, "pair": "none"}
+            m0_only |= set(c.detail.get("m0_only") or ())
+            made[cond] = tmp if c.state in ("complete", "partial") else None
+        main_locs = ic._locs_of(main)
+        have = [loc for loc in main_locs if loc not in m0_only]
+        self._dual_m0_only = sorted(set(main_locs) & m0_only)
         record_condition(main, "M0")
         key = ic.data_block_hash(main)
-        for cond, tmp in made.items():
-            dest = Run.for_dir(main.parent).condition_ti3(cond, measurement=main)
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            os.replace(tmp, dest)
-            record_condition(dest, cond)
-            ic._set_condition_of(dest, key)
-            self._dual_files[cond] = dest
-        self.diag.log("DATA", "M1 and M2 written beside the measurement (dual scan, a first "
-                              f"try): {', '.join(p.name for p in self._dual_files.values())}")
-        return {"conditions": {k: v.name for k, v in self._dual_files.items()}, "why": ""}
+        if have:
+            partial = bool(self._dual_m0_only)
+            for cond, tmp in made.items():
+                full = Run.for_dir(main.parent).condition_ti3(cond, measurement=main)
+                dest = (full.with_name(full.name[:-len(".ti3")] + ic.PARTIAL_SUFFIX)
+                        if partial else full)
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                if partial:
+                    # only the patches that have BOTH (a patch with one of them only is M0
+                    # only: it has no reading with all three)
+                    ms.keep_only(tmp, have, dest)
+                    tmp.unlink()
+                else:
+                    os.replace(tmp, dest)
+                record_condition(dest, cond)
+                ic._set_condition_of(dest, key)
+                self._dual_files[cond] = dest
+            self._dual_pair = "partial" if partial else "complete"
+        else:
+            for tmp in made.values():
+                if tmp is not None and tmp.is_file():
+                    tmp.unlink()
+        self.diag.log("DATA", f"M1 and M2 beside the measurement (dual scan, a first try): "
+                              f"{self._dual_pair} pair"
+                              + (f", {', '.join(p.name for p in self._dual_files.values())}"
+                                 if self._dual_files else "")
+                              + (f"; M0 only: {len(self._dual_m0_only)} patches"
+                                 if self._dual_m0_only else ""))
+        return {"conditions": ({k: v.name for k, v in self._dual_files.items()}
+                               if self._dual_pair == "complete" else None),
+                "why": "" if self._dual_pair == "complete" else "rows_with_m0_only",
+                "m0_only": list(self._dual_m0_only), "pair": self._dual_pair,
+                "partial": ({k: v.name for k, v in self._dual_files.items()}
+                            if self._dual_pair == "partial" else None)}
+
+    def _dual_rows_m0_only(self) -> "list[str]":
+        """The rows (``p<page>_row<n>``) of the sheet with a patch that is M0 only in the
+        assembled measurement."""
+        m0 = set(getattr(self, "_dual_m0_only", []) or [])
+        out = []
+        for pg, page in enumerate(self.sheet["pages"]):
+            for k, st in enumerate(page["strips"]):
+                if {q["loc"] for q in st["patches"]} & m0:
+                    out.append(f"p{pg + 1}_row{k + 1}")
+        return out
 
     def _file_dual_conditions(self, dest: Path) -> dict:
         """After the person's Save: M1 / M2 into the run beside its measurement (named by the
-        same readings), and the dual scan's pass record (``Run.dual_pass_record``) with the
-        person's choice, so Build Profile starts at it exactly as after a hand dual scan."""
+        same readings: the complete pair, or 4.3.50 the partial pair, exactly as the hand path
+        leaves them), and the dual scan's pass record (``Run.dual_pass_record``) with the
+        person's choice, so Build Profile starts at it exactly as after a hand dual scan: a row
+        with both passes is "both", a row read with M0 only is "lamp only" (its second pass
+        due), a row not read is missing."""
         import shutil
         import workflow.i1pro3_conditions as ic
         from workflow.dual_scan.record import PassRecord
-        out = {"conditions": None, "why": self.dual_conditions_refused or ""}
+        out = {"conditions": None, "why": self.dual_conditions_refused or "",
+               "m0_only": list(getattr(self, "_dual_m0_only", []) or []), "partial": None}
         files = getattr(self, "_dual_files", {}) or {}
+        pair = getattr(self, "_dual_pair", "none")
         filed = {}
-        if not self.dual_conditions_refused and len(files) == len(dl.CONDITIONS):
+        if not self.dual_conditions_refused and pair != "none" \
+                and len(files) == len(dl.CONDITIONS):
             for cond, src in files.items():
                 to = self.run.condition_ti3(cond)
                 if to is None:
                     break
+                if pair == "partial":
+                    to = ic.partial_sibling_path(dest, cond)
+                    if to is None:
+                        break
                 to.parent.mkdir(parents=True, exist_ok=True)
                 tmp = to.with_name(to.name + ".table-part")
                 shutil.copyfile(str(src), str(tmp))
                 os.replace(tmp, to)
                 filed[cond] = to
-            if not all(ic.condition_file(dest, c) is not None for c in dl.CONDITIONS):
+            if pair == "complete":
+                ok = all(ic.condition_file(dest, c) is not None for c in dl.CONDITIONS)
+            else:
+                ok = len(filed) == len(dl.CONDITIONS) and all(
+                    ic.sibling_in_step(dest, f) for f in filed.values())
+            if not ok:
                 filed = {}
                 out["why"] = "conditions_not_in_step"
         strips = [f"p{pg + 1}_row{k + 1}" for pg, page in enumerate(self.sheet["pages"])
                   for k in range(len(page["strips"]))]
         rec = PassRecord(strips, chosen=self.dual.chosen)
         have = set(self._assembly.unread)
-        if filed:
-            for pg, page in enumerate(self.sheet["pages"]):
-                for k, st in enumerate(page["strips"]):
-                    locs = {q["loc"] for q in st["patches"]}
-                    if not (locs & have):
-                        rec.helper_strip(f"p{pg + 1}_row{k + 1}", True)
-        else:
-            for pg, page in enumerate(self.sheet["pages"]):
-                for k, st in enumerate(page["strips"]):
-                    locs = {q["loc"] for q in st["patches"]}
-                    if not (locs & have):
-                        rec.helper_lamp_only(f"p{pg + 1}_row{k + 1}",
-                                             "uv_pass_missing")
+        # rows whose patches have their M1 / M2 in the filed pair: both passes; every other
+        # read row (no pair filed at all: every read row) is M0 only, its second pass due
+        m0_rows = set(self._dual_rows_m0_only()) if filed else set(strips)
+        for pg, page in enumerate(self.sheet["pages"]):
+            for k, st in enumerate(page["strips"]):
+                label = f"p{pg + 1}_row{k + 1}"
+                locs = {q["loc"] for q in st["patches"]}
+                if locs & have:
+                    continue
+                if label in m0_rows:
+                    rec.helper_lamp_only(label, "uv_pass_missing")
+                else:
+                    rec.helper_strip(label, True)
         from core.file_manager import Run
         rec.save(Run.dual_pass_record(dest))
-        out["conditions"] = {k: v.name for k, v in filed.items()} if filed else None
+        if filed and pair == "complete":
+            out["conditions"] = {k: v.name for k, v in filed.items()}
+        elif filed:
+            out["partial"] = {k: v.name for k, v in filed.items()}
+            out["why"] = out["why"] or "rows_with_m0_only"
         self.diag.log("DATA", "dual scan filed: " + json.dumps(out))
         return out
 

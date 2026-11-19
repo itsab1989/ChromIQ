@@ -184,11 +184,9 @@ def assemble(session_dirs, chart_ti2, out_ti3, base_ti3=None, cond: "str | None"
     """The measurement of these sessions (and the run's earlier partial *base_ti3*), written to
     *out_ti3*. Never raises for a refusal: the result says it, and nothing is written then.
 
-    *cond* ("M1" / "M2", the i1Pro 2 dual scan on the table, 2026-11-18): the same assembly of
-    the same row records, each patch taken from the SAME row as its M0 reading, from that row's
-    file of this condition (``rec["conditions"]``), and the base's condition file. A patch whose
-    row has no such file refuses the whole condition (``dual_rows_without_m1_m2``): M1 and M2
-    are never pieced together from other readings than the main file's."""
+    *cond* ("M1" / "M2", the i1Pro 2 dual scan on the table): see :func:`_assemble_condition`."""
+    if cond is not None:
+        return _assemble_condition(session_dirs, chart_ti2, out_ti3, base_ti3, cond)
     from workflow.measurement_pairing import attach_device_values_from_chart, match_by_name
     from workflow.measurement_state import Ti3State, classify, unread_locations
     out_ti3 = Path(out_ti3)
@@ -198,14 +196,7 @@ def assemble(session_dirs, chart_ti2, out_ti3, base_ti3=None, cond: "str | None"
     rows: "dict[str, list[str]]" = {}
     rejected = []
     white = None                     # "own" / "stored": every row of a measurement alike
-    missing_cond = []
     try:
-        if cond is not None and base_ti3 is not None and Path(base_ti3).is_file():
-            import workflow.i1pro3_conditions as ic
-            bc = ic.condition_file(base_ti3, cond)
-            if bc is None or Path(bc) == Path(base_ti3):
-                raise Refused("dual_base_without_conditions", condition=cond)
-            base_ti3 = bc
         if base_ti3 is not None and Path(base_ti3).is_file():
             bf, brows, btext = _rows_by_loc(Path(base_ti3))
             white = "stored" if re.search(r'^' + WHITE_KEYWORD + r'\s', btext, re.M) else "own"
@@ -217,13 +208,6 @@ def assemble(session_dirs, chart_ti2, out_ti3, base_ti3=None, cond: "str | None"
         for f, rec in row_records(session_dirs):
             name = rec.get("reader_ti3")
             accepted = rec.get("accepted") or []
-            if cond is not None and accepted:
-                name = (rec.get("conditions") or {}).get(cond)
-                if not name:
-                    for a in accepted:
-                        rows.pop(a.get("loc", ""), None)
-                        missing_cond.append(a.get("loc", ""))
-                    continue
             if not name or not accepted:
                 for a in accepted:
                     rejected.append((a.get("loc", ""), "reader_saved_nothing"))
@@ -252,18 +236,13 @@ def assemble(session_dirs, chart_ti2, out_ti3, base_ti3=None, cond: "str | None"
                 if parts is None:
                     rejected.append((loc, "reader_saved_nothing"))
                     continue
-                if cond is None and not _xyz_agrees(rf, parts, a.get("xyz")):
+                if not _xyz_agrees(rf, parts, a.get("xyz")):
                     rejected.append((loc, "saved_value_differs_from_the_reading"))
                     continue
-                if loc in missing_cond:
-                    missing_cond.remove(loc)
                 row = [parts[i] for i in keep]
                 rows[loc] = _scaled(fields, row, scale) if scale else row
     except Refused as exc:
         return Assembly("refused", exc.reason, detail=exc.detail)
-    if missing_cond:
-        return Assembly("refused", "dual_rows_without_m1_m2",
-                        detail={"condition": cond, "patches": sorted(set(missing_cond))[:20]})
     if not rows:
         return Assembly("empty", "nothing_read", rejected=tuple(rejected))
     text = _write_device_free(head, fields, rows, white == "stored")
@@ -289,6 +268,179 @@ def assemble(session_dirs, chart_ti2, out_ti3, base_ti3=None, cond: "str | None"
                         read=len(rows), expected=facts.expected)
     return Assembly(state, "", out_ti3, len(rows), facts.expected,
                     tuple(sorted(unread or ())), tuple(rejected))
+
+
+def m0_sources(session_dirs, base_ti3=None) -> "dict[str, tuple]":
+    """4.3.50: where each patch's M0 row of :func:`assemble` comes from, by the SAME rules (the
+    base's rows the oldest, then every accepted reading in reading order whose saved value is
+    the reading's; the last one wins): ``("base",)`` or ``("row", <record file>, <record>)``.
+    The M0 assembly must have succeeded (its refusals are not repeated here)."""
+    src: "dict[str, tuple]" = {}
+    if base_ti3 is not None and Path(base_ti3).is_file():
+        _bf, brows, _bt = _rows_by_loc(Path(base_ti3))
+        for loc in brows:
+            src[loc] = ("base",)
+    for f, rec in row_records(session_dirs):
+        name = rec.get("reader_ti3")
+        accepted = rec.get("accepted") or []
+        if not name or not accepted:
+            continue
+        path = f.parent / name
+        if not path.is_file():
+            continue
+        rf, rrows, _rt = _rows_by_loc(path)
+        for a in accepted:
+            loc = a.get("loc", "")
+            parts = rrows.get(loc)
+            if parts is None or not _xyz_agrees(rf, parts, a.get("xyz")):
+                continue
+            src[loc] = ("row", f, rec)
+    return src
+
+
+def base_condition_file(base_ti3, cond: str) -> "Path | None":
+    """The file holding the *cond* readings of the run's measurement a session completes: its
+    complete pair when in step, else its PARTIAL pair when in step (``<hash>-Mx.partial.ti3``,
+    the patches that have all three; the others are M0 only), else None (no patch of the base
+    has *cond*)."""
+    import workflow.i1pro3_conditions as ic
+    bc = ic.condition_file(base_ti3, cond)
+    if bc is not None and Path(bc) != Path(base_ti3):
+        return Path(bc)
+    part = ic.partial_sibling_path(base_ti3, cond)
+    if part is not None and ic.sibling_in_step(base_ti3, part):
+        return Path(part)
+    return None
+
+
+def _assemble_condition(session_dirs, chart_ti2, out_ti3, base_ti3, cond: str) -> Assembly:
+    """4.3.50 (Basti's rule of 19 Nov 2026, as by hand): the *cond* ("M1" / "M2") file of the
+    measurement :func:`assemble` makes of the same sessions and base. EVERY patch takes its
+    *cond* row from the SAME reading its M0 row comes from (:func:`m0_sources`): that row
+    record's own file of this condition, or the base's condition file (complete or partial pair,
+    :func:`base_condition_file`). A patch whose M0 reading has no *cond* value is left out of
+    this file and named in ``detail["m0_only"]``: it is M0 only, and every other patch keeps its
+    *cond*. M1 and M2 are never taken from another reading than the main file's.
+
+    State "complete" / "partial" as for any measurement (of the chart), "empty" when no patch
+    has *cond*, "refused" when a file cannot be used (its fields, its white)."""
+    from workflow.measurement_pairing import attach_device_values_from_chart, match_by_name
+    from workflow.measurement_state import Ti3State, classify, unread_locations
+    out_ti3 = Path(out_ti3)
+    chart_ti2 = Path(chart_ti2)
+    fields = None
+    head = None
+    rows: "dict[str, list[str]]" = {}
+    m0_only: "list[str]" = []
+    white = None
+    try:
+        src = m0_sources(session_dirs, base_ti3)
+        base_rows: "dict[str, list[str]]" = {}
+        base_fields = None
+        if any(v[0] == "base" for v in src.values()):
+            bc = base_condition_file(base_ti3, cond)
+            btext_main = Path(base_ti3).read_text(encoding="utf-8", errors="replace")
+            white = ("stored" if re.search(r'^' + WHITE_KEYWORD + r'\s', btext_main, re.M)
+                     else "own")
+            if bc is not None:
+                bf, brows, btext = _rows_by_loc(bc)
+                keep = _device_free(bf)
+                base_fields = [bf[i] for i in keep]
+                fields, head = base_fields, btext
+                base_rows = {loc: [parts[i] for i in keep] for loc, parts in brows.items()}
+        files: "dict[Path, tuple]" = {}
+        for loc in src:
+            kind = src[loc]
+            if kind[0] == "base":
+                if loc in base_rows:
+                    rows[loc] = base_rows[loc]
+                else:
+                    m0_only.append(loc)
+                continue
+            f, rec = kind[1], kind[2]
+            name = (rec.get("conditions") or {}).get(cond)
+            if not name:
+                m0_only.append(loc)
+                continue
+            path = f.parent / name
+            if path not in files:
+                if not path.is_file():
+                    files[path] = None
+                else:
+                    rf, rrows, rtext = _rows_by_loc(path)
+                    keep = _device_free(rf)
+                    files[path] = ([rf[i] for i in keep], rrows, keep, rtext)
+            got = files[path]
+            if got is None or loc not in got[1]:
+                m0_only.append(loc)
+                continue
+            flds, rrows, keep, rtext = got
+            if fields is None:
+                fields, head = flds, rtext
+            elif flds != fields:
+                raise Refused("readings_with_different_fields", file=name)
+            scale = rec.get("white_scale")
+            kind_w = "stored" if scale else "own"
+            if white is None:
+                white = kind_w
+            elif white != kind_w:
+                raise Refused("readings_with_different_white_references", file=name)
+            row = [rrows[loc][i] for i in keep]
+            rows[loc] = _scaled(fields, row, scale) if scale else row
+    except Refused as exc:
+        return Assembly("refused", exc.reason, detail=exc.detail)
+    detail = {"condition": cond, "m0_only": sorted(set(m0_only))}
+    if not rows:
+        return Assembly("empty", "nothing_read", detail=detail)
+    text = _write_device_free(head, fields, rows, white == "stored")
+    out_ti3.parent.mkdir(parents=True, exist_ok=True)
+    tmp = out_ti3.with_name(out_ti3.name + ".part")
+    tmp.write_text(text, encoding="utf-8")
+    m = match_by_name(tmp, chart_ti2)
+    if not m.ok:
+        os.replace(tmp, out_ti3.with_name(out_ti3.name + ".refused"))
+        return Assembly("refused", "readings_do_not_name_this_chart",
+                        detail=dict(detail, unknown=m.unknown[:20],
+                                    duplicated=m.duplicated[:20]))
+    n = attach_device_values_from_chart(tmp, chart_ti2)
+    if n != len(rows):
+        os.replace(tmp, out_ti3.with_name(out_ti3.name + ".refused"))
+        return Assembly("refused", "device_values_not_attached",
+                        detail=dict(detail, written=n, rows=len(rows)))
+    os.replace(tmp, out_ti3)
+    facts = classify(out_ti3, chart_ti2)
+    unread = unread_locations(out_ti3, chart_ti2)
+    state = {Ti3State.COMPLETE: "complete", Ti3State.PARTIAL: "partial"}.get(facts.state)
+    if state is None:
+        return Assembly("refused", f"measurement_{facts.state.value}", path=out_ti3,
+                        read=len(rows), expected=facts.expected, detail=detail)
+    return Assembly(state, "", out_ti3, len(rows), facts.expected,
+                    tuple(sorted(unread or ())), (), detail)
+
+
+def keep_only(src_ti3, locs, out_ti3) -> int:
+    """4.3.50: *src_ti3* with only the rows of *locs* (its own order, its header as it is),
+    written to *out_ti3* (atomically); returns how many rows were kept. The partial pair of a
+    measurement holds exactly the patches that have all three conditions."""
+    from core.text_io import read_text
+    text = read_text(Path(src_ti3), lenient=True)
+    fields = text.split("BEGIN_DATA_FORMAT", 1)[1].split("END_DATA_FORMAT", 1)[0].split()
+    li = fields.index("SAMPLE_LOC")
+    head, rest = text.split("\nBEGIN_DATA\n", 1)
+    data, tail = rest.split("\nEND_DATA", 1)
+    want = set(locs)
+    kept = []
+    for ln in data.splitlines():
+        tok = ln.split()
+        if len(tok) == len(fields) and tok[li].strip('"') in want:
+            kept.append(ln)
+    head = re.sub(r"(?m)^NUMBER_OF_SETS\s+\d+\s*$", f"NUMBER_OF_SETS {len(kept)}", head)
+    out = Path(out_ti3)
+    tmp = out.with_name(out.name + ".part")
+    tmp.write_text(head + "\nBEGIN_DATA\n" + "\n".join(kept) + "\nEND_DATA" + tail,
+                   encoding="utf-8")
+    os.replace(tmp, out)
+    return len(kept)
 
 
 def _scaled(fields, row, scale) -> "list[str]":
