@@ -620,7 +620,8 @@ def test_r3_the_helper_asks_once_per_calibration_and_then_keeps_the_reading(
     exe = tmp_path / "ask"
     subprocess.run([cc, "-o", str(exe), str(prog)], check=True, timeout=120,
                    capture_output=True)
-    out = subprocess.run([str(exe)], capture_output=True, text=True, timeout=30)
+    out = subprocess.run([str(exe)], capture_output=True, text=True,
+                         encoding="utf-8", timeout=30)
     assert out.stdout.strip() == "1001", "refused once, then kept, until a new calibration"
     # ...and a 0 keeps the reading: the strip is made a misread only when asked
     j = src.index("static void cq_dd_strip(")

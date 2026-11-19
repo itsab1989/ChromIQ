@@ -2997,7 +2997,9 @@ class MeasureManager(QObject):
         strip = str(strip or "").strip()
         if not strip:
             return False
-        if self._dual_pass_holds({"cmd": "goto", "strip": strip}):
+        if (getattr(self, "_dual_pass_due", "") or getattr(
+                self, "_dual_on", False)) and self._dual_pass_holds(
+                    {"cmd": "goto", "strip": strip}):
             return False  # the guide is not handed over for a jump not made
         if (not self._guided_by_patch and self._guided_strips
                 and self._guided_state in ("navigating", "waiting")
@@ -3072,7 +3074,9 @@ class MeasureManager(QObject):
         """Jump the engine directly to patch `loc` in spot mode (engine only).
         False when nothing went out (4.3.49: held, `_dual_pass_holds`)."""
         if self._engine_active:
-            if self._dual_pass_holds({"cmd": "goto", "patch": loc}):
+            if (getattr(self, "_dual_pass_due", "") or getattr(
+                    self, "_dual_on", False)) and self._dual_pass_holds(
+                        {"cmd": "goto", "patch": loc}):
                 return False
             self.send_command({"cmd": "goto", "patch": loc})
             return True
