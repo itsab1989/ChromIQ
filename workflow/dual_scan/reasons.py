@@ -53,8 +53,8 @@ REASONS: "dict[str, str]" = {
         "it does not fit the reading."),
     "no_uv_tables": (
         "This instrument does not hold the factory data needed to work out "
-        "M1 and M2 (some i1Pro 2 versions have no UV light). M0 can be "
-        "measured as always."),
+        "M1 and M2 (some i1Pro 2 units have no UV light). The instrument "
+        "can still measure as always, without the dual scan."),
     "bad_uv_tables": (
         "The instrument's factory data for M1 and M2 is not in the form "
         "ChromIQ knows, so ChromIQ does not use it. M0 can be measured as "
@@ -150,10 +150,10 @@ REASONS: "dict[str, str]" = {
     # cq_cond_lose (mode, filter, files, instrument, resume, write, typed).
     "not_available": (
         "This i1Pro 2 does not offer what the dual scan needs, so ChromIQ "
-        "does not try the dual scan with it. According to ArgyllCMS, a few "
-        "OEM units of the i1Pro 2 (part number EO2-XR-UF) were built without "
-        "the UV light, while an OEM i1Pro 2 such as the EFI ES-2000 usually "
-        "has it. M0 is measured as always."),
+        "does not try the dual scan with it. An OEM i1Pro 2, such as an EFI "
+        "ES-2000, may or may not have the UV light (ArgyllCMS names the part "
+        "number EO2-XR-UF for the units built without it). The instrument "
+        "measures as always, without the dual scan."),
     "record": (
         "ChromIQ lost track of which reading belongs to which patch for M1 "
         "and M2, so it stops working them out for this measurement."),

@@ -870,8 +870,8 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
             "this i1Pro 2 cannot do the dual scan, so nothing was moved"),
         "dual_no_uv_tables": tr(
             "this i1Pro 2 has no UV light, or does not hold the factory values the dual scan "
-            "needs, so nothing was moved. To measure M0 with it, switch the dual scan off in "
-            "Preferences > Beta"),
+            "needs, so nothing was moved. To measure with it as always, without the dual "
+            "scan, switch the dual scan off in Preferences > Beta"),
         "dual_high_resolution": tr(
             "The dual scan reads in the standard resolution only. Please untick “High "
             "resolution spectral mode (-H)” and start again."),

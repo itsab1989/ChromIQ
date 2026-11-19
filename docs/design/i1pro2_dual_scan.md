@@ -558,3 +558,9 @@ driven on screen; never run on a real table.
 * **Every page of the table's panel that waits for an answer keeps its answers in view** (also
   a fix of 4.3.47): in a small main window the failed row's answers could be out of view while
   the arm stood over the sheet. A text longer than the room now scrolls above the answers.
+* **OEM wording** (SHOULD-B, NOTE-D): an OEM i1Pro 2, such as an EFI ES-2000, "may or may not
+  have the UV light" (ArgyllCMS names the part number EO2-XR-UF for the units built without it;
+  a tester's ES-2000 reports itself as an i1Pro 2 with a working ruler). Such a unit has a UV
+  filter in place of the light, so its plain result is not called "M0 as always": it measures
+  "as always, without the dual scan". In the model question, the Preferences text, the
+  `not_available` and `no_uv_tables` reasons and the table's `dual_no_uv_tables`, 13 languages.
