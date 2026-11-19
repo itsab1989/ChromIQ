@@ -12061,6 +12061,32 @@ M_DUAL_FILL_OFFER = _m(
     "without the tick measures the whole chart again as a new measurement.",
     approved=False)
 
+#: 4.3.49 review SHOULD-1: the same two notes for a dual measurement with NO
+#: M1 / M2 at all (`i1pro3_conditions.no_pair_kept`: lost to a save failure,
+#: ended in 4.3.48, or the readings changed), where no other strip keeps any.
+M_DUAL_CONTINUE_FILL_ALL = _m(
+    "M-DUAL-CONTINUE-FILL-ALL",
+    "Dual scan: Continue Measurement also reads {strips} again",
+    "This measurement has M0 only: no M1 and M2 belong to its readings as "
+    "they are now. They could not be kept during the measurement, or the "
+    "readings were changed afterwards (for example imported or replaced). "
+    "Continue Measurement starts with a calibration, reads the strips not "
+    "read yet with both passes, and takes you back to {strips} for a new "
+    "reading with both passes. Then the whole measurement has M1 and M2.",
+    approved=False)
+
+M_DUAL_FILL_OFFER_ALL = _m(
+    "M-DUAL-FILL-OFFER-ALL",
+    "Dual scan: this measurement has M0 only",
+    "The measurement of this chart has M0 only: no M1 and M2 belong to its "
+    "readings as they are now. They could not be kept during the "
+    "measurement, or the readings were changed afterwards (for example "
+    "imported or replaced). To add them, tick “{resume}” and press "
+    "“{start}”: ChromIQ takes you back to {strips} for a new reading with "
+    "both passes. Starting without the tick measures the whole chart again "
+    "as a new measurement.",
+    approved=False)
+
 #: 4.3.49 (Basti, 2026-11-19: the same for the i1Pro 3): before START, a
 #: measurement of the Beta "keep M0, M1 and M2" continued with strips that
 #: have the main condition only.
@@ -12071,7 +12097,9 @@ M_COND_CONTINUE_FILL = _m(
     "read with {own} only. The other strips keep {first} and {second} as "
     "well. Continue Measurement reads the strips not read yet and takes you "
     "back to {strips} for a new reading, so that the whole measurement has "
-    "all three conditions.",
+    "all three conditions. This needs the X-Rite i1Pro 3: another instrument "
+    "reads {own} only, and the other strips would then lose their {first} "
+    "and {second} as well.",
     approved=False)
 
 #: 4.3.49: ...and while "Refine / resume" is not ticked.
@@ -12082,8 +12110,42 @@ M_COND_FILL_OFFER = _m(
     "from {strips}, read with {own} only. The other strips keep {first} and "
     "{second} as well. To complete the measurement, tick “{resume}” and "
     "press “{start}”: ChromIQ takes you back to {strips} for a new reading "
-    "with all three conditions. Starting without the tick measures the whole "
-    "chart again as a new measurement.",
+    "with all three conditions (this needs the X-Rite i1Pro 3: another "
+    "instrument reads {own} only, and the other strips would then lose their "
+    "{first} and {second} as well). Starting without the tick measures the "
+    "whole chart again as a new measurement.",
+    approved=False)
+
+#: 4.3.49 review SHOULD-4: the fill note when what is known before the read
+#: (the USB connection, the remembered instrument) says this read cannot
+#: complete the measurement: the dual scan expects another instrument than an
+#: i1Pro 2 (a dual measurement is then not continued at all: mixed_scan_kind).
+M_DUAL_FILL_NOT_NOW = _m(
+    "M-DUAL-FILL-NOT-NOW",
+    "Dual scan: M1 and M2 are missing from {strips}",
+    "In the measurement of this chart, M1 and M2 are missing from {strips}. "
+    "Only an X-Rite i1Pro 2 with the dual scan can add them, and ChromIQ "
+    "takes the instrument for this read to be another one (from its USB "
+    "connection, or from what it remembers in {where}). So this read cannot "
+    "complete the measurement: with “{resume}” ticked, the measurement does "
+    "not start, because a dual measurement is not continued with single "
+    "scans, and starting without the tick measures the whole chart again as "
+    "a new measurement, without M1 and M2. To complete it, measure with the "
+    "i1Pro 2. If your instrument is an i1Pro 2, change what ChromIQ remembers "
+    "in {where}.",
+    approved=False)
+
+#: ...and for the i1Pro 3 option: the instrument seen is not an i1Pro 3.
+M_COND_FILL_NOT_NOW = _m(
+    "M-COND-FILL-NOT-NOW",
+    "{first} and {second} are missing from {strips}",
+    "In the measurement of this chart, {first} and {second} are missing from "
+    "{strips}, read with {own} only. Only an X-Rite i1Pro 3 reads all three "
+    "conditions, and the instrument ChromIQ sees for this read is another "
+    "one. A Continue Measurement with it cannot add them: it reads {own} "
+    "only, and the other strips would then lose their {first} and {second} "
+    "as well. To complete the measurement, connect the i1Pro 3, tick "
+    "“{resume}” and press “{start}”.",
     approved=False)
 
 #: 4.3.49: a jump, a move or a change of strip asked for while the engine
@@ -13331,6 +13393,8 @@ CATALOGUE = {m.id: m for m in (
     M_DUAL_CAL_AGAIN, M_DUAL_PASS_HELD, M_DUAL_HIGHRES_REFUSED,
     M_DUAL_PASS_ONE_NO_CAL_KEPT,
     M_DUAL_CONTINUE_FILL, M_DUAL_FILL_OFFER, M_COND_CONTINUE_FILL,
+    M_DUAL_CONTINUE_FILL_ALL, M_DUAL_FILL_OFFER_ALL,
+    M_DUAL_FILL_NOT_NOW, M_COND_FILL_NOT_NOW,
     M_DUAL_ENDED_KEPT,
     M_COND_FILL_OFFER,
     M_DUAL_MODEL_ASK, M_DUAL_MODEL_CORRECTED,

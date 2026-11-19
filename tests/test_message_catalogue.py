@@ -251,6 +251,12 @@ AWAITING_APPROVAL: "set[str]" = {
     # 4.3.49 (Basti, 2026-11-19): strips with M0 only are completed
     "M-DUAL-CONTINUE-FILL",
     "M-DUAL-FILL-OFFER",
+    # 4.3.49 review SHOULD-1: the same with no M1 / M2 kept at all
+    "M-DUAL-CONTINUE-FILL-ALL",
+    "M-DUAL-FILL-OFFER-ALL",
+    # 4.3.49 review SHOULD-4: the instrument known before the read
+    "M-DUAL-FILL-NOT-NOW",
+    "M-COND-FILL-NOT-NOW",
     "M-COND-CONTINUE-FILL",
     "M-COND-FILL-OFFER",
     "M-DUAL-ENDED-KEPT",

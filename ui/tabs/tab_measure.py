@@ -10216,19 +10216,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             self._manager.set_guided_patches(self._guided_patch_list)
         else:
             strips = self._guided_strips_on_chart() if guided else []
-            # 4.3.49 (Basti, 2026-11-19): Continue Measurement completes the
-            # strips that have the main condition only, with the refinement
-            # guide (strip mode, ChromIQ's engine)
-            if (resume_cb.isChecked() and getattr(params, "engine_helper", None)
-                    and not bool(getattr(params, "patch_by_patch", False))):
-                filled = self._fill_guided_strips(strips)
-                if filled != strips:
-                    # the guide goes there as for a refinement; when there
-                    # was no refinement list, it ends as an ordinary read
-                    self._fill_only_guide = not self._guided_refinement_active
-                    self._fill_guided = list(filled)
-                    strips = filled
-                    self._guided_refinement_active = True
+            strips = self._plan_fill_guide(strips, resume_cb.isChecked(),
+                                           params)
             self._manager.set_guided_strips(strips)
 
         self._manager.start(
@@ -12872,20 +12861,85 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         dual = storage.read_dual_record(main).dual
         own = _c.file_condition(main) or "M0"
         first, second = [c for c in _c.CONDITIONS if c != own]
+        resume = tr("Refine / resume existing measurement (-r)")
+        start = tr("Continue Measurement")
+        # review SHOULD-4: promised only where the instrument known before
+        # the read can keep it
+        if self._fill_instrument(main, dual) == "no":
+            if dual:
+                from workflow.dual_scan import session as D
+                return M.M_DUAL_FILL_NOT_NOW.render(
+                    strips=names, resume=resume, where=D.where_label())
+            return M.M_COND_FILL_NOT_NOW.render(
+                strips=names, own=own, first=first, second=second,
+                resume=resume, start=start)
         resuming = self._measurement_to_continue() is not None
+        # review SHOULD-1: no pair at all, so no other strip keeps M1 and M2
+        none_kept = dual and _c.no_pair_kept(main)
         if resuming:
+            if none_kept:
+                return M.M_DUAL_CONTINUE_FILL_ALL.render(strips=names)
             if dual:
                 return M.M_DUAL_CONTINUE_FILL.render(strips=names)
             return M.M_COND_CONTINUE_FILL.render(
                 strips=names, own=own, first=first, second=second)
-        resume = tr("Refine / resume existing measurement (-r)")
-        start = tr("Continue Measurement")
+        if none_kept:
+            return M.M_DUAL_FILL_OFFER_ALL.render(strips=names, resume=resume,
+                                                  start=start)
         if dual:
             return M.M_DUAL_FILL_OFFER.render(strips=names, resume=resume,
                                               start=start)
         return M.M_COND_FILL_OFFER.render(
             strips=names, own=own, first=first, second=second,
             resume=resume, start=start)
+
+    def _fill_instrument(self, main: "Path", dual: bool) -> str:
+        """4.3.49 review SHOULD-4: whether the instrument known BEFORE the
+        read can complete *main*'s strips with the main condition only:
+        "yes", "no", or "" (not known: the note says what it needs). Nothing
+        is sent to an instrument to find out. The dual scan: its plan (the
+        USB connection, then what is remembered); "no" only when that plan
+        expects another instrument than an i1Pro 2. The i1Pro 3: the USB
+        connection, then the instrument the last measurement reported."""
+        from workflow.dual_scan import instrument_model as IM
+        try:
+            if dual:
+                plan = self._dual_plan_now()
+                if plan.why_not == "other_instrument":
+                    return "no"
+                return "yes" if plan.dual else ""
+            dec = self._dual_model_decision()
+            fam = getattr(dec, "family", None)
+            if fam == IM.FAMILY_I1PRO3:
+                return "yes"
+            if fam in (IM.FAMILY_I1PRO, IM.FAMILY_OTHER):
+                return "no"
+            rem = IM.remembered(self._settings)
+            if rem.name and rem.source == "reported":
+                from core.measure_pace import model_key
+                return ("yes" if model_key(rem.name) in (
+                    "i1pro3", "i1pro3plus") else "no")
+            return "no" if rem.kind == IM.I1PRO2 else ""
+        except Exception:      # noqa: BLE001 - not known: the plain note
+            return ""
+
+    def _plan_fill_guide(self, strips: "list[str]", resuming: bool,
+                         params) -> "list[str]":
+        """At START: the strips the guide takes the reader to. 4.3.49 (Basti,
+        2026-11-19): Continue Measurement completes the strips that have the
+        main condition only, with the refinement guide (strip mode, ChromIQ's
+        engine). A guide that exists only for them (no refinement list) is
+        not a refinement and ends as an ordinary read (`_fill_only_guide`,
+        read by `_show_all_stripes_done`)."""
+        if (resuming and getattr(params, "engine_helper", None)
+                and not bool(getattr(params, "patch_by_patch", False))):
+            filled = self._fill_guided_strips(strips)
+            if filled != strips:
+                self._fill_only_guide = not self._guided_refinement_active
+                self._fill_guided = list(filled)
+                self._guided_refinement_active = True
+                return filled
+        return strips
 
     def _guided_strip_count(self) -> int:
         """The strips the guide took the reader to: the refinement list, or

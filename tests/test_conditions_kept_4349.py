@@ -585,6 +585,8 @@ def _fill_fake(base: Path, resume: bool, settings):
     f._fill_main = lambda: TabMeasure._fill_main(f)
     f._fill_strips = lambda main=None: TabMeasure._fill_strips(f, main)
     f._fill_note_text = lambda: TabMeasure._fill_note_text(f)
+    # review SHOULD-4: no plan and no USB answer here, so "not known"
+    f._fill_instrument = lambda m, d: TabMeasure._fill_instrument(f, m, d)
     return f
 
 

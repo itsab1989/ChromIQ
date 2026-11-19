@@ -247,12 +247,59 @@ def m0_only_locs(main_ti3: "str | Path | None") -> "list[str]":
             have = got if have is None else (have & got)
         if have is None:
             from workflow.dual_scan import storage as dual
-            if dual.read_dual_record(main).dual:
+            if dual.read_dual_record(main).dual and not averaged_read_count(
+                    main):
+                # 4.3.49 review SHOULD-1: an AVERAGE is never completed by
+                # Continue (it would replace the averaged readings of every
+                # strip it reads with one reading), so nothing is listed
                 return locs
             return []
         return [loc for loc in locs if loc not in have]
     except Exception:  # noqa: BLE001 - unreadable: nothing promised
         return []
+
+
+def no_pair_kept(main_ti3: "str | Path | None") -> bool:
+    """4.3.49 review SHOULD-1: *main_ti3* is a dual measurement whose read
+    patches are ALL M0 only because no pair at all belongs to its readings
+    (lost to a save failure, ended in 4.3.48, or the readings were changed:
+    imported, replaced, edited). Then "the other strips keep their M1 and M2"
+    is not true; Continue Measurement still reads every strip again with
+    both passes (the engine's ``cq_cond_keep_empty``)."""
+    if not main_ti3 or not m0_only_locs(main_ti3):
+        return False
+    main = Path(main_ti3)
+    own = file_condition(main)
+    for c in CONDITIONS:
+        if c == own:
+            continue
+        sib = partial_sibling_path(main, c)
+        if sib is None or not sibling_in_step(main, sib):
+            return True
+    return False
+
+
+def averaged_read_count(main_ti3: "str | Path | None") -> int:
+    """How many reads *main_ti3* is the average of: the run's measurement
+    while the run keeps two or more reads (``reads/readN.ti3``, the rule
+    `average_missing_reason` uses); 0 for any other measurement."""
+    if not main_ti3:
+        return 0
+    try:
+        from core.file_manager import Run
+        run = Run.for_dir(Path(main_ti3).parent)
+        if Path(main_ti3) != run.measurement_ti3:
+            return 0
+        n = len(run.reads())
+    except Exception:  # noqa: BLE001
+        return 0
+    return n if n >= 2 else 0
+
+
+def strip_order(strips: "list[str]") -> "list[str]":
+    """Strip labels in chart order without the chart (A..Z, then AA..):
+    review N-8, Build Profile named "strips D, C" in file order."""
+    return sorted(strips, key=lambda s: (len(s), s))
 
 
 def strips_of(locs: "list[str]", strip_of=None) -> "list[str]":
@@ -377,11 +424,23 @@ def no_file_reason(main: Path) -> str:
     from workflow.measurement_condition import read_header_keyword
     from workflow.dual_scan import storage as dual
     from workflow.dual_scan.session import ended_before as _ended
-    gaps = strips_of(m0_only_locs(main))
+    gaps = strip_order(strips_of(m0_only_locs(main)))
     if gaps:
         # 4.3.49 (Basti, 2026-11-19): the other conditions of the strips
         # already read are kept; these strips have the main condition only
         named = strips_phrase(gaps)
+        if dual.read_dual_record(main).dual and no_pair_kept(main):
+            # review SHOULD-1: no pair at all, so no other strip keeps any
+            return tr(
+                "This dual scan has M0 only: no M1 and M2 belong to its "
+                "readings as they are now. They could not be kept during the "
+                "measurement, or the readings were changed afterwards (for "
+                "example imported or replaced). To add them, go to the "
+                "Measure tab, tick “Refine / resume existing measurement "
+                "(-r)” and press Continue Measurement, with the dual scan "
+                "still switched on: ChromIQ takes you back to {strips} for a "
+                "new reading with both passes. Until then this measurement "
+                "can be built from M0 only.").format(strips=named)
         if dual.read_dual_record(main).dual:
             return tr(
                 "M1 and M2 are not available yet, because they are missing "
@@ -417,6 +476,18 @@ def no_file_reason(main: Path) -> str:
                 "readings are M0 only. Continue Measurement cannot add M1 "
                 "and M2 to it; for M1 and M2, measure the chart again as a "
                 "new measurement.")
+        n_reads = averaged_read_count(main)
+        if n_reads:
+            # review SHOULD-1: an average of reads that have no M1 and M2
+            return tr(
+                "This measurement is the average of {n} reads and has M0 "
+                "only: M1 and M2 are averaged only when every read has them. "
+                "Continue Measurement does not complete an average, because "
+                "it would replace the averaged readings of every strip it "
+                "reads with a single reading. For M1 and M2, measure the "
+                "chart again with the dual scan switched on, each time you "
+                "measure a read to average, so that every read has them."
+                ).format(n=n_reads)
         rec = dual.pass_record_of(main)
         unread = ([s for (s, which) in rec.missing() if which == "lamp"]
                   if rec is not None else [])
