@@ -49,7 +49,12 @@ def test_it_is_never_a_pop_up(qtbot, monkeypatch, tmp_path, settings):
     sentence is never said as its own pop-up."""
     win = _live(qtbot, monkeypatch, tmp_path, settings)
     said = []
-    win._say = said.append
-    win._popups = True
-    win._live_event({"event": "row_start", "row": 1, "page": 1, "kind": "spot"})
-    assert all(W.second_move_line() not in s for s in said)
+    monkeypatch.setattr(win, "_say", said.append)
+    monkeypatch.setattr(win, "_popups", True)
+    monkeypatch.setattr(win, "_busy", False)        # no state label refresh in between
+    try:
+        win._live_event({"event": "row_start", "row": 1, "page": 1, "kind": "spot"})
+        win._live_event({"event": "patch_next", "row": 1, "page": 1, "loc": "A2", "index": 1})
+    finally:
+        monkeypatch.setattr(win, "_popups", False)
+    assert said and all(W.second_move_line() not in s for s in said)
