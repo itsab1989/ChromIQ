@@ -246,6 +246,8 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-DUAL-CAL-AGAIN",
     "M-DUAL-PASS-HELD",
     "M-DUAL-HIGHRES-REFUSED",
+    # 4.3.49 review round: the prompt once "calibrate again" was said
+    "M-DUAL-PASS-ONE-NO-CAL-KEPT",
     "M-DUAL-MODEL-ASK",
     "M-DUAL-MODEL-CORRECTED",
     "M-DUAL-MODEL-NOTED",

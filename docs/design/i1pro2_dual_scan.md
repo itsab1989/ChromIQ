@@ -590,6 +590,11 @@ helper; never run on a real instrument. Changes what sections 7 (c), 8 and 9 des
   session (section 7 (c)). Why not "discard the first pass and jump": the first pass's ruler
   stream is closed only by the UV pass's trigger ("ruler end", the one recorded form); nothing
   else may close it.
+  After the review of 2026-11-19 the app holds such a command also while the strip's FIRST pass
+  is being read (the instrument has fired, `scan_started`, with a usable dual calibration): the
+  helper would only take it at the UV wait and hold it there, and the tab had logged "Jumping to
+  strip C" for a jump never made. M-DUAL-PASS-HELD is said when the `dual_pass` event comes; a
+  first pass that ends without one (a misread, M1 / M2 ended) drops the held command silently.
 * **A calibration that cannot give M1 / M2 asks for a new one instead of ending them** (replaces
   section 9's "the pass prompts say so ... not asking for that pass at all needs a helper
   change"). The strip after it is read as a plain lamp scan (no "ruler start", so no second
@@ -597,7 +602,11 @@ helper; never run on a real instrument. Changes what sections 7 (c), 8 and 9 des
   `dual_pass_result` `"calibrate": true` (a misread; M-DUAL-CAL-AGAIN in Strip Read Failed); a
   new calibration then gives M1 / M2 again. Read again without a new calibration, the strip is
   kept as M0 and M1 / M2 end for the session as before (the way out, so a broken UV light never
-  loops). The reasons: `no_dual_calibration`, `uv_tile_dark`, `calibration_mode_changed`
+  loops). Once that one refusal has come, the strip prompt says that the next reading without a
+  calibration is kept as M0 and ends M1 / M2 (M-DUAL-PASS-ONE-NO-CAL-KEPT), whether it is the
+  same strip (Retry) or another one (Skip Strip); M-DUAL-CAL-AGAIN tells the person to press
+  Retry first and calibrate before reading, because the Calibrate button is behind that window
+  (review of 2026-11-19, M1 and S1). The reasons: `no_dual_calibration`, `uv_tile_dark`, `calibration_mode_changed`
   (known before the strip) and `calibration_mismatch` (known after the UV pass; that strip had
   both passes). Patch by patch the same, without the UV half. M-DUAL-PASS-TWO-NO-CAL is
   withdrawn; M-DUAL-PASS-ONE-NO-CAL and M-DUAL-CAL-REFUSED say the new rule.

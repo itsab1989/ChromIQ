@@ -290,7 +290,7 @@ def test_2_the_tab_asks_for_a_new_calibration_and_records_the_strip(qapp, tmp_pa
         "calibrate": True})
     html = TabMeasure._dual_failure_html(fake)
     title, body = M.M_DUAL_CAL_AGAIN.render(
-        reason=D.reason_sentence("uv_tile_dark"))
+        reason=D.reason_sentence("uv_tile_dark"), retry="Retry")
     assert title in html and "Calibrate button" in html
     main = fake._ti1_path.with_suffix(".ti3")
     main.write_text("CTI3\n", encoding="latin-1")
@@ -338,7 +338,7 @@ def test_2_every_text_says_what_now_happens():
     one = M.M_DUAL_PASS_ONE_NO_CAL.render(strip="A")[1]
     assert "still asks for its second pass" not in one
     assert "M_DUAL_PASS_TWO_NO_CAL" not in dir(M), "no strip asks for a pass that cannot count"
-    again = " ".join(M.M_DUAL_CAL_AGAIN.render(reason="R")).lower()
+    again = " ".join(M.M_DUAL_CAL_AGAIN.render(reason="R", retry="Retry")).lower()
     assert "calibrate" in again and "m0 only" in again
     refused = M.M_DUAL_CAL_REFUSED.render(reason="R")[1]
     assert "M0 is measured as always" not in refused
@@ -505,3 +505,238 @@ def test_2_the_failure_window_keeps_the_paragraphs(qapp, tmp_path):
     fake._dual_failed = ("calibrate", "A", "uv_tile_dark")
     html_text = TabMeasure._dual_failure_html(fake)
     assert "\n" not in html_text and html_text.count("<br><br>") >= 4
+
+
+# ------------------------------------------- 4.3.49 review round (REVIEW_DUALFIX.md)
+#
+# M1: once the engine has refused a reading with "calibrate again", it does not
+# ask again for the same calibration (cq_dd_ask_calibration, once per
+# calibration): the next strip read without calibrating is kept as M0 and M1 /
+# M2 end. The strip prompt must say so, on the same strip (Retry) and on the
+# next one (Skip Strip).
+
+def _no_cal_session(tmp_path):
+    from ui.tabs.tab_measure import TabMeasure
+    from tests.test_i1pro2_dual_scan_ui_fix import _fake
+    fake, logged, *_ = _fake(tmp_path, strips=("A", "B", "C"))
+    fake._spot_session = False
+    TabMeasure._dual_reset(fake)
+    TabMeasure._on_dual_session(fake, {"active": True, "dual": True,
+                                       "scale": 1.156, "chosen": "M2"})
+    TabMeasure._on_dual_calibration(fake, {"ok": False, "why": "uv_tile_dark"})
+    return fake
+
+
+def _prompt(fake, strip):
+    from ui.tabs.tab_measure import TabMeasure
+    TabMeasure._dual_pass_one(fake, strip)
+    return fake.prompts[-1]
+
+
+def _refuse(fake, strip):
+    from ui.tabs.tab_measure import TabMeasure
+    TabMeasure._on_dual_pass_result(fake, {
+        "what": "strip", "strip": strip, "ok": False, "why": "uv_tile_dark",
+        "calibrate": True})
+    return TabMeasure._dual_failure_html(fake)
+
+
+@pytest.mark.parametrize("after", ["A", "B"], ids=["retry", "skip_strip"])
+def test_r1_after_the_one_refusal_the_prompt_says_the_next_read_is_kept(
+        qapp, tmp_path, after):
+    fake = _no_cal_session(tmp_path)
+    first = M.M_DUAL_PASS_ONE_NO_CAL.render(strip="A")
+    assert _prompt(fake, "A") == first
+    _refuse(fake, "A")
+    kept = M.M_DUAL_PASS_ONE_NO_CAL_KEPT.render(strip=after)
+    assert _prompt(fake, after) == kept, "Retry or Skip Strip: no second refusal comes"
+    assert _prompt(fake, after) == kept, "it stays true until a calibration"
+
+
+def test_r1_a_new_calibration_gives_the_refusal_back(qapp, tmp_path):
+    from ui.tabs.tab_measure import TabMeasure
+    fake = _no_cal_session(tmp_path)
+    _prompt(fake, "A")
+    _refuse(fake, "A")
+    # calibrated again, still dark: the engine refuses once more (cal_asked = 0)
+    TabMeasure._on_dual_calibration(fake, {"ok": False, "why": "uv_tile_dark"})
+    assert _prompt(fake, "A") == M.M_DUAL_PASS_ONE_NO_CAL.render(strip="A")
+    # calibrated again, usable: the two passes as always
+    TabMeasure._on_dual_calibration(fake, {"ok": True, "lamp_clocks": 41,
+                                           "uv_clocks": 41})
+    assert _prompt(fake, "A") == M.M_DUAL_PASS_ONE.render(strip="A")
+
+
+def test_r1_the_kept_prompt_says_what_happens():
+    title, body = M.M_DUAL_PASS_ONE_NO_CAL_KEPT.render(strip="B")
+    assert "asks you once more" not in body and "does not keep" not in body
+    assert "M0 only" in body and "end" in body and "strip B" in body
+    assert "K or the Calibrate button" in body
+
+
+# S1: the window says what to do with the buttons it has.
+
+def test_r2_the_calibrate_again_window_names_its_own_button():
+    from core.i18n import tr
+    _t, body = M.M_DUAL_CAL_AGAIN.render(reason="R", retry=tr("Retry"))
+    retry = body.index("“Retry”")
+    assert retry < body.index("K or the Calibrate button"), \
+        "Retry first: the Calibrate button is behind the window"
+    assert "Please calibrate again now" not in body
+    assert "M0 only" in body
+
+
+def test_r2_the_window_fills_in_the_retry_button(qapp, tmp_path):
+    from core.i18n import tr
+    fake = _no_cal_session(tmp_path)
+    html_text = _refuse(fake, "A")
+    assert f"“{tr('Retry')}”" in html_text and "{retry}" not in html_text
+
+
+# S2: the way out. A broken UV light must not refuse every strip for ever: the
+# helper asks for a calibration once per calibration (compiled and run, not
+# only read).
+
+def test_r3_the_helper_asks_once_per_calibration_and_then_keeps_the_reading(
+        tmp_path):
+    import shutil
+    import subprocess
+    cc = shutil.which("cc") or shutil.which("clang") or shutil.which("gcc")
+    if cc is None:
+        pytest.skip("no C compiler")
+    src = _code((HELPER / "chromiq_dualdev.c").read_text(encoding="utf-8"))
+    k = src.index("static int cq_dd_ask_calibration(void) {")
+    fn = src[k:src.index("\n}\n", k) + 3]
+    prog = tmp_path / "ask.c"
+    prog.write_text(
+        "#include <stdio.h>\nstatic struct { int cal_asked; } cq_dd;\n" + fn +
+        "int main(void) {\n"
+        "  int a = cq_dd_ask_calibration(), b = cq_dd_ask_calibration();\n"
+        "  int c = cq_dd_ask_calibration();\n"
+        "  cq_dd.cal_asked = 0;   /* cq_dd_after_cal: a new calibration */\n"
+        "  int d = cq_dd_ask_calibration();\n"
+        "  printf(\"%d%d%d%d\\n\", a, b, c, d);\n  return 0;\n}\n",
+        encoding="utf-8")
+    exe = tmp_path / "ask"
+    subprocess.run([cc, "-o", str(exe), str(prog)], check=True, timeout=120,
+                   capture_output=True)
+    out = subprocess.run([str(exe)], capture_output=True, text=True, timeout=30)
+    assert out.stdout.strip() == "1001", "refused once, then kept, until a new calibration"
+    # ...and a 0 keeps the reading: the strip is made a misread only when asked
+    j = src.index("static void cq_dd_strip(")
+    body = src[j:src.index("\n}\n", j)]
+    unc = body.index("if (cq_dd.uncal != NULL) {")
+    block = body[unc:body.index("\n\t}\n", unc)]
+    assert re.search(r"if \(again\)\s*\*rv = inst_misread;", block)
+    s = src.index("static void cq_dd_spot(")
+    spot = src[s:src.index("\n}\n", s)]
+    assert "cq_dd_cal_reason(why) && cq_dd_ask_calibration()" in spot
+
+
+# S3: the held jump, through the real manager and the real Measure tab.
+
+def test_r3_a_held_jump_and_a_held_patch_say_nothing_went_out(qapp):
+    m = _manager(qapp)
+    _to_the_second_pass(m, "A")
+    m._runner.sent.clear()
+    assert m.user_goto_strip("C") is False
+    assert m.goto_patch("C3") is False
+    assert _sent(m) == []
+    _line(m, '{"event":"strip_ready","strip":"B"}')
+    assert m.user_goto_strip("C") is True
+    assert m.goto_patch("C3") is True
+
+
+def _real_tab(qapp):
+    from core.argyll_runner import ArgyllRunner
+    from ui.tabs.tab_measure import TabMeasure
+    s = _S({"chartread_engine": "chromiq", **_on()})
+    tab = TabMeasure(ArgyllRunner(s), s)
+    m = tab._manager
+    m._engine_active = True
+    m._guided_state = "disabled"
+    m._runner = _Runner()
+    tab._letter_for_page_idx = lambda page, idx: "C"
+    return tab, m
+
+
+def _dual_start(m, *, cal_ok=True):
+    _line(m, '{"event":"conditions","active":true,"dual":true,"scale":1.156,'
+             '"scale_source":"standard","chosen":"M2"}')
+    _line(m, '{"event":"dual_calibration","ok":%s,"why":"%s","mode":"scan",'
+             '"lamp_clocks":41,"uv_clocks":41,"volts":[1,1],"driver":0}'
+          % (("true", "") if cal_ok else ("false", "uv_tile_dark")))
+
+
+def test_r3_the_held_signal_reaches_the_measure_tab(qapp):
+    tab, m = _real_tab(qapp)
+    _dual_start(m)
+    _to_the_second_pass(m, "A")
+    tab._on_preview_strip_clicked(0, 2)
+    title, body = M.M_DUAL_PASS_HELD.render(strip="A")
+    log_text = tab._log.toPlainText()
+    assert f"[{title}]\n{body}" in log_text
+    assert "Jumping to strip" not in log_text
+    assert not any('"goto"' in s for s in _sent(m))
+
+
+# S4: a click during the FIRST pass (the instrument has fired) is held as well,
+# and the tab says why once the UV wait begins, never "Jumping to strip C".
+
+def test_r4_a_jump_during_the_first_pass_is_held_and_said_after_it(qapp):
+    tab, m = _real_tab(qapp)
+    _dual_start(m)
+    _line(m, '{"event":"strip_ready","strip":"A"}')
+    _line(m, '{"event":"scan_started"}')
+    m._runner.sent.clear()
+    held = []
+    m.dual_pass_held.connect(held.append)
+    tab._on_preview_strip_clicked(0, 2)
+    assert m.user_goto_strip("C") is False and m.goto_patch("C3") is False
+    m.send_key("f")
+    assert _sent(m) == [], _sent(m)
+    assert held == [], "said once the second pass is due, not during the first"
+    _line(m, '{"event":"dual_pass","strip":"A","pass":"uv","of":2,"lamp_ok":true}')
+    assert held == ["A"]
+    log_text = tab._log.toPlainText()
+    title = M.M_DUAL_PASS_HELD.render(strip="A")[0]
+    two = M.M_DUAL_PASS_TWO.render(strip="A")[0]
+    assert "Jumping to strip" not in log_text
+    assert log_text.index(f"[{two}]") < log_text.index(f"[{title}]")
+
+
+def test_r4_a_first_pass_that_ends_without_a_second_says_nothing(qapp):
+    m = _manager(qapp)
+    _dual_start(m)
+    held = []
+    m.dual_pass_held.connect(held.append)
+    _line(m, '{"event":"strip_ready","strip":"A"}')
+    _line(m, '{"event":"scan_started"}')
+    assert m.user_goto_strip("C") is False
+    _line(m, '{"event":"error","kind":"misread","detail":"x"}')
+    _line(m, '{"event":"strip_ready","strip":"A"}')
+    _line(m, '{"event":"dual_pass","strip":"A","pass":"uv","of":2,"lamp_ok":true}')
+    assert held == [], "the early hold belonged to the misread pass"
+
+
+@pytest.mark.parametrize("setup", ["no_dual", "unusable_calibration", "spot"])
+def test_r4_otherwise_a_jump_during_a_swipe_goes_out_as_before(qapp, setup):
+    m = _manager(qapp)
+    if setup != "no_dual":
+        _dual_start(m, cal_ok=setup != "unusable_calibration")
+    ready = "spot_ready" if setup == "spot" else "strip_ready"
+    _line(m, '{"event":"%s","strip":"A","patch":"A1"}' % ready)
+    _line(m, '{"event":"scan_started"}')
+    m._runner.sent.clear()
+    assert m.user_goto_strip("C") is True
+    assert any('"goto"' in s for s in _sent(m))
+
+
+def test_r4_the_hold_ends_with_the_dual_scan(qapp):
+    m = _manager(qapp)
+    _dual_start(m)
+    _line(m, '{"event":"conditions","active":false,"why":"dual_dual_needs_ruler"}')
+    _line(m, '{"event":"strip_ready","strip":"A"}')
+    _line(m, '{"event":"scan_started"}')
+    m._runner.sent.clear()
+    assert m.user_goto_strip("C") is True

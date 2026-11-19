@@ -835,6 +835,15 @@ class MeasureManager(QObject):
         self._scan_in_progress: bool = False
         #: A dual strip's second pass is due (4.3.49, `_dual_pass_holds`).
         self._dual_pass_due: str = ""
+        #: The dual scan by hand is on and its last calibration can give M1 /
+        #: M2, so a strip's first pass is the first of two (4.3.49 review,
+        #: S4: a move during that pass is held too).
+        self._dual_on: bool = False
+        self._dual_cal_ok: bool = False
+        #: The strip at the last strip prompt ("" patch by patch).
+        self._dual_strip_now: str = ""
+        #: A move held during a first pass: said when the UV wait begins.
+        self._dual_held_early: str = ""
         #: K was pressed while it could not go out; sent at the next prompt.
         self._cal_request_held: bool = False
         #: A calibrate command is out and its cal_result has not come back.
@@ -1868,15 +1877,31 @@ class MeasureManager(QObject):
         answer go out as always; a calibration is held by
         `_calibration_must_wait`. Nothing at all without the dual scan: the
         engine sends ``dual_pass`` only with --dual-scale."""
+        if not isinstance(cmd, dict) or \
+                cmd.get("cmd") not in self._DUAL_PASS_HELD_COMMANDS:
+            return False
         strip = getattr(self, "_dual_pass_due", "")
-        if not strip or not isinstance(cmd, dict):
-            return False
-        if cmd.get("cmd") not in self._DUAL_PASS_HELD_COMMANDS:
-            return False
-        log.info("dual scan: %s held, the second pass of strip %s is due",
-                 cmd.get("cmd"), strip)
-        self.dual_pass_held.emit(strip)
-        return True
+        if strip:
+            log.info("dual scan: %s held, the second pass of strip %s is due",
+                     cmd.get("cmd"), strip)
+            self.dual_pass_held.emit(strip)
+            return True
+        # The FIRST pass is under way (the instrument has fired): the helper
+        # would take the command only at the UV wait and hold it there, so
+        # the tab said "Jumping to strip C" for a jump never made (review of
+        # 2026-11-19, S4). Held here too; M-DUAL-PASS-HELD is said when the
+        # second pass is asked for (`dual_pass`), when it is true. Not after
+        # a calibration that cannot give M1 / M2 (that strip is a plain
+        # scan) and not patch by patch.
+        strip = getattr(self, "_dual_strip_now", "")
+        if (strip and self._scan_in_progress
+                and getattr(self, "_dual_on", False)
+                and getattr(self, "_dual_cal_ok", False)):
+            log.info("dual scan: %s held, the first pass of strip %s is "
+                     "being read", cmd.get("cmd"), strip)
+            self._dual_held_early = strip
+            return True
+        return False
 
     def send_command(self, cmd: dict) -> None:
         """Send a raw JSON command to the engine (engine mode only)."""
@@ -2972,8 +2997,7 @@ class MeasureManager(QObject):
         strip = str(strip or "").strip()
         if not strip:
             return False
-        if getattr(self, "_dual_pass_due", "") and self._dual_pass_holds(
-                {"cmd": "goto", "strip": strip}):
+        if self._dual_pass_holds({"cmd": "goto", "strip": strip}):
             return False  # the guide is not handed over for a jump not made
         if (not self._guided_by_patch and self._guided_strips
                 and self._guided_state in ("navigating", "waiting")
@@ -3048,8 +3072,7 @@ class MeasureManager(QObject):
         """Jump the engine directly to patch `loc` in spot mode (engine only).
         False when nothing went out (4.3.49: held, `_dual_pass_holds`)."""
         if self._engine_active:
-            if getattr(self, "_dual_pass_due", "") and self._dual_pass_holds(
-                    {"cmd": "goto", "patch": loc}):
+            if self._dual_pass_holds({"cmd": "goto", "patch": loc}):
                 return False
             self.send_command({"cmd": "goto", "patch": loc})
             return True
@@ -4106,8 +4129,18 @@ class MeasureManager(QObject):
         kind = ev["event"]
         if kind in ("session_start", "strip_ready", "strip_read", "error",
                     "spot_ready", "strip_interrupted", "done"):
-            # the wait for a dual strip's second pass is over (4.3.49)
+            # the wait for a dual strip's second pass is over (4.3.49), and
+            # a move held during a first pass that asked for none is dropped
             self._dual_pass_due = ""
+            if getattr(self, "_dual_held_early", ""):
+                log.info("dual scan: the move held during the first pass of "
+                         "strip %s is dropped (%s)", self._dual_held_early,
+                         kind)
+                self._dual_held_early = ""
+            if kind == "strip_ready":
+                self._dual_strip_now = str(ev.get("strip") or "")
+            elif kind == "spot_ready":
+                self._dual_strip_now = ""
 
         if kind == "session_start":
             self.gestures_active = False
@@ -4285,10 +4318,12 @@ class MeasureManager(QObject):
             if _dual.is_dual_conditions_event(ev):
                 # the i1Pro 2 dual scan (2026-11-18): the tab says it
                 log.info("engine: dual scan on: %s", ev)
+                self._dual_on = True
                 self.dual_session.emit(dict(ev))
             elif _dual.ends_dual(ev) or self._dual_conditions_end(ev):
                 log.warning("engine: dual scan: M1 and M2 end for this "
                             "measurement (%s); M0 goes on", ev.get("why"))
+                self._dual_on = False
                 self.dual_ended.emit(str(ev.get("why") or ""))
             else:
                 self._on_conditions_event(ev, on_line)
@@ -4298,6 +4333,7 @@ class MeasureManager(QObject):
             # calibration (chromiq_dualdev.c cq_dd_after_cal); cal_done
             # follows it.
             log.info("engine: dual calibration %s", ev)
+            self._dual_cal_ok = bool(ev.get("ok"))
             self.dual_calibration.emit(dict(ev))
 
         elif kind == "dual_pass":
@@ -4306,6 +4342,12 @@ class MeasureManager(QObject):
                      "(first pass read: %s)", ev.get("strip"), ev.get("lamp_ok"))
             self._dual_pass_due = str(ev.get("strip") or "") or "?"
             self.dual_pass.emit(dict(ev))
+            early, self._dual_held_early = (
+                getattr(self, "_dual_held_early", ""), "")
+            if early:
+                # a move asked for during the first pass: said now, after
+                # the second pass's prompt (M-DUAL-PASS-HELD)
+                self.dual_pass_held.emit(self._dual_pass_due)
 
         elif kind == "dual_pass_held":
             # the engine held a command during that wait (4.3.49: one that

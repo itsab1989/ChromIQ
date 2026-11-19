@@ -118,9 +118,11 @@ If the UV reading of the tile did not succeed, the window says that M1 and M2 ca
 out from this calibration. To keep M1 and M2, calibrate again (press K or the Calibrate button)
 before the next strip. If you read a strip without calibrating again, ChromIQ reads it once,
 does not keep it, and asks you once more to calibrate (**"Calibrate again to keep M1 and M2"**
-in the Strip Read Failed window). If calibrating again does not help, read the strip again
-without calibrating: ChromIQ then keeps it and goes on with M0 only for the rest of the
-measurement.
+in the Strip Read Failed window). Press **Retry** in that window, then calibrate before you
+read the strip again. ChromIQ asks only once for each calibration: the next strip you read
+without calibrating (the same one after Retry, or another one after Skip Strip) is kept with M0
+only, and M1 and M2 end for the rest of the measurement. The line under the log says so before
+you read it (**"Strip A: calibrate now, or M1 and M2 end"**).
 
 ## 5. Each strip twice: pass 1 with the lamp, pass 2 with the UV light
 
@@ -147,7 +149,8 @@ What to look for:
 * During pass 2 the instrument's UV light should come on. Please tell us whether you saw it.
 * While pass 2 is due, ChromIQ does not move to another strip or patch: a click on the preview,
   an arrow key or "I read strip B" is held, and the line under the log says **"Strip A: read its
-  second pass first"**. Read pass 2, then choose again. A calibration you ask for then starts
+  second pass first"**. The same for a click while pass 1 is being read: it is held, and the line
+  says so as soon as pass 2 is due. Read pass 2, then choose again. A calibration you ask for then starts
   after pass 2. Stop still ends the measurement at any time.
 
 ChromIQ checks that the second pass really belongs to the same strip: it matches the two passes

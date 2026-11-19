@@ -12315,6 +12315,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._dual_cal_ev = None         # the last dual_calibration event
         self._dual_cal_id = ""           # its id, while it is usable
         self._dual_cal_n = 0
+        self._dual_cal_asked = False     # "calibrate again" said for it
         self._dual_tile_wait = False     # "keep it on the tile" is up
         self._dual_ended_text = ""       # M1 / M2 ended for the session
         self._dual_end_reason = ""
@@ -12895,6 +12896,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
     def _on_dual_calibration(self, ev: dict) -> None:
         """The tile read with the UV light (it comes before cal_done)."""
         self._dual_cal_ev = dict(ev)
+        # a new calibration: the engine may refuse one reading again
+        self._dual_cal_asked = False
         if ev.get("ok"):
             import time as _t
             self._dual_cal_n += 1
@@ -13000,8 +13003,17 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return
         from workflow import measurement_messages as M
         name = self._strip_name(strip_id) or str(strip_id)
-        msg = (M.M_DUAL_PASS_ONE_NO_CAL if _dual_cal_unusable(self)
-               else M.M_DUAL_PASS_ONE)
+        # The engine asks for a new calibration ONCE per calibration
+        # (cq_dd_ask_calibration): after that refusal, the next strip read
+        # without calibrating is kept as M0 and M1 / M2 end, whether it is
+        # the same strip (Retry) or another (Skip Strip). Review of
+        # 2026-11-19, M1: the prompt promised a second refusal.
+        if not _dual_cal_unusable(self):
+            msg = M.M_DUAL_PASS_ONE
+        elif getattr(self, "_dual_cal_asked", False):
+            msg = M.M_DUAL_PASS_ONE_NO_CAL_KEPT
+        else:
+            msg = M.M_DUAL_PASS_ONE_NO_CAL
         title, body = msg.render(strip=name)
         self._dual_prompt(title, body)
         self._log.appendPlainText(f"[{title}]\n{body}")
@@ -13073,6 +13085,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             # cannot give M1 / M2: calibrate again, then read it again
             # (M-DUAL-CAL-AGAIN in the failure window)
             self._dual_failed = ("calibrate", strip, why)
+            self._dual_cal_asked = True   # once per calibration
             if what == "strip" and strip:
                 self._dual_buffer.append(("strip", strip, False, rid,
                                           self._dual_cal_id, ()))
@@ -13100,8 +13113,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         from workflow.dual_scan import session as D
         what, strip, why = failed
         if what == "calibrate":
+            # the window's own button (review of 2026-11-19, S1: the
+            # Calibrate button is behind it)
             title, body = M.M_DUAL_CAL_AGAIN.render(
-                reason=D.reason_sentence(why))
+                reason=D.reason_sentence(why), retry=tr("Retry"))
         elif what == "spot":
             title, body = M.M_DUAL_SPOT_FAILED.render(
                 reason=D.reason_sentence(why))

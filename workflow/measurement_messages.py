@@ -11997,12 +11997,27 @@ M_DUAL_CAL_AGAIN = _m(
     "ChromIQ did not keep this reading, because the last calibration cannot "
     "give M1 and M2.\n\n"
     "{reason}\n\n"
-    "Please calibrate again now: press K or the Calibrate button, and keep "
-    "the instrument on its white tile until ChromIQ says you can lift it. "
-    "Then read it again, and M1 and M2 go on as before.\n\n"
-    "If calibrating again does not help, read it again without calibrating: "
-    "ChromIQ then keeps the reading and goes on with M0 only for the rest of "
-    "this measurement.",
+    "To keep M1 and M2, press “{retry}” first. Then, before you read again, "
+    "calibrate: press K or the Calibrate button, and keep the instrument on "
+    "its white tile until ChromIQ says you can lift it. After that, read "
+    "again, and M1 and M2 go on as before.\n\n"
+    "ChromIQ asks only once for each calibration. If you read again without "
+    "calibrating first, or skip this one and read another, ChromIQ keeps "
+    "that reading with M0 only, and M1 and M2 end for the rest of this "
+    "measurement.",
+    approved=False)
+
+#: 4.3.49 review round: the pass prompt after a dual calibration that cannot
+#: give M1 / M2, once the engine has already refused one reading for it
+#: ("calibrate again" comes once per calibration, cq_dd_ask_calibration).
+M_DUAL_PASS_ONE_NO_CAL_KEPT = _m(
+    "M-DUAL-PASS-ONE-NO-CAL-KEPT",
+    "Strip {strip}: calibrate now, or M1 and M2 end",
+    "The last calibration still cannot give M1 and M2, and ChromIQ has "
+    "already asked you once to calibrate again. To keep M1 and M2, "
+    "calibrate now (press K or the Calibrate button) before you read strip "
+    "{strip}. If you read strip {strip} without calibrating, ChromIQ keeps "
+    "it with M0 only, and M1 and M2 end for the rest of this measurement.",
     approved=False)
 
 #: 4.3.49: a jump, a move or a change of strip asked for while the engine
@@ -13248,6 +13263,7 @@ CATALOGUE = {m.id: m for m in (
     M_DUAL_PASS_NOTE, M_DUAL_START_REFUSED, M_DUAL_FILTER_OFF_PARENT,
     M_DUAL_CONTINUE_M0, M_DUAL_NOCAL_REFUSED, M_DUAL_PASS_ONE_NO_CAL,
     M_DUAL_CAL_AGAIN, M_DUAL_PASS_HELD, M_DUAL_HIGHRES_REFUSED,
+    M_DUAL_PASS_ONE_NO_CAL_KEPT,
     M_DUAL_MODEL_ASK, M_DUAL_MODEL_CORRECTED,
     M_DUAL_MODEL_NOTED,
     M_STRIP_FAILED_COMS_DETAIL,
