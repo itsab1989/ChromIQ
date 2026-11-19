@@ -47,6 +47,7 @@ C_SPEEDS_M2 = (40, 53, 54, 61, 87, 88, 110, 118, 137, 138, 168)
 C_D1_UV = ";d100d23a"
 C_SPEEDS_DUAL = (132,)
 C_TARGET_BOX = (-1384, 1716, 523, 3109)        # targets: never beyond the front zone's cap
+#                                                (until 4.3.49; see FRONT_END_Y below)
 C_SWEEP_BOX = (-1434, 1766, 473, 3114)         # the swept rectangle from where the arm is
 #                                                (the cap plus the 5-unit arrival tolerance)
 #: fix 2, the simulator's own copy of the front-zone rule: in front of the proven zone (targets
@@ -59,6 +60,13 @@ C_CREEP = 50
 #: the sight shows; the arm itself then stands this far from it (S2 383.3: (-106, -323)).
 SIGHT_OFFSET = (-106, -323)
 READING_S = 0.005004
+#: 4.3.49 ("learn this table's reach once"): the simulated table's PHYSICAL front end: the
+#: opening cannot be pushed by hand nor driven by its motors beyond this Y. INVENTED (no
+#: recording shows the real end; the frontmost opening ever read is 2855). The simulator's own
+#: rule for targets is then physical: a computed target within 5 mm of this end (or beyond it)
+#: is a violation (the program only ever learns an end the opening has reached, minus 5 mm).
+FRONT_END_Y = 3400
+FRONT_END_MARGIN = 50
 
 #: 4.3.47 fix2: the volunteer's real table, where real data exists (``real_table=True``, the
 #: default). i1Profiler's arrivals after its 48 spot moves on his table (17 Nov, REC3, next p0
@@ -94,9 +102,20 @@ def _inside(box, p):
 class CSimTable(SimTable):
     """0.4.0's simulated table with part C's mode switched on (`part_c=True`)."""
 
-    def __init__(self, *a, part_c=True, aims=None, real_table=True, **kw):
+    def __init__(self, *a, part_c=True, aims=None, real_table=True, front_end=FRONT_END_Y,
+                 right_end=None, sight_offset=SIGHT_OFFSET, serial=None, **kw):
         super().__init__(*a, **kw)
         self.part_c = part_c
+        #: 4.3.49: the physical ends of the opening's travel (right_end None: no right stop,
+        #: the simulator before 4.3.49), where the person's sight sits relative to the opening
+        #: (p1 = opening - sight_offset), and the serial in the memory block (another table)
+        self.front_end = None if front_end is None else float(front_end)
+        self.right_end = None if right_end is None else float(right_end)
+        self.sight_offset = tuple(sight_offset)
+        if serial is not None:
+            self.serial = str(serial)
+        #: every time a hand or a move reached an end: (what, x, y)
+        self.at_end_events: "list[tuple[str, float, float]]" = []
         #: 4.3.47 fix2: arrivals a few units off and the resting arm relaxing (see REAL_*);
         #: False: the ideal table the frozen tester 0.6.0 captures were made on
         self.real_table = real_table
@@ -123,7 +142,26 @@ class CSimTable(SimTable):
     # -- the person's hand at an aim
     def aim(self, n: int) -> None:
         mark = self.aims[n - 1]
-        self.hand_to(mark[0] + SIGHT_OFFSET[0], mark[1] + SIGHT_OFFSET[1])
+        self.hand_to(mark[0] + self.sight_offset[0], mark[1] + self.sight_offset[1])
+
+    def _clamp(self, x: float, y: float, what: str) -> "tuple[float, float]":
+        """The physical ends: a hand or a motor cannot take the opening beyond them."""
+        if self.front_end is not None and y > self.front_end:
+            self.at_end_events.append((what + " at the front end", x, self.front_end))
+            y = self.front_end
+        if self.right_end is not None and x < self.right_end:
+            self.at_end_events.append((what + " at the right end", self.right_end, y))
+            x = self.right_end
+        return x, y
+
+    def push_to_front(self, x: "float | None" = None) -> None:
+        """4.3.49, the guided step: the person pushes the free arm gently towards the front, as
+        far as it goes (at its X, or at *x*): it stops at the front end."""
+        self.hand_to(self.pos[0] if x is None else x, (self.front_end or self.pos[1]) + 500.0)
+
+    def pull_back(self, dy: float = 200.0, dx: float = 150.0) -> None:
+        """The person pulls the arm back a little and away from the right side, and lets go."""
+        self.hand_to(self.pos[0] + dx, self.pos[1] - dy)
 
     # -- part C's own checks, before anything happens
     def _check_sequence(self, line: str) -> None:
@@ -167,8 +205,12 @@ class CSimTable(SimTable):
                 # the recorded zero-length m0 goes to the position p0 just reported, which may
                 # differ by a unit or two from where the simulated arm "really" stands
                 self.zero_m0_at = len(self.received) - 1
-            if not _inside(C_TARGET_BOX, (x, y)):
-                raise SimViolation(f"{cid} to ({x}, {y}) outside the area")
+            # 4.3.49: the sides and the back as before; the front is PHYSICAL (FRONT_END_Y)
+            front = (C_TARGET_BOX[3] if self.front_end is None
+                     else self.front_end - FRONT_END_MARGIN)
+            if not _inside((C_TARGET_BOX[0], C_TARGET_BOX[1], C_TARGET_BOX[2], front), (x, y)):
+                raise SimViolation(f"{cid} to ({x}, {y}) outside the area (front: Y {front:.0f}, "
+                                   "5 mm inside the table's front end)")
             # 4.3.49 (Basti's ruling of 19 Nov 2026): the arm stands where the simulated table
             # has it, so the way from there is not judged against where recordings happened to
             # read it; a computed move from the back strip at the resting place stays a violation
@@ -221,6 +263,8 @@ class CSimTable(SimTable):
             raise
 
     def hand_to(self, x: float, y: float) -> None:
+        if self.part_c:
+            x, y = self._clamp(float(x), float(y), "the hand")
         try:
             super().hand_to(x, y)
         except SimViolation as exc:
@@ -302,7 +346,8 @@ class CSimTable(SimTable):
             self._relax_due = None
         if cid == "p1":
             self.p1_count += 1
-            return 0, self._xy(self.pos[0] - SIGHT_OFFSET[0], self.pos[1] - SIGHT_OFFSET[1]), 0.0
+            return 0, self._xy(self.pos[0] - self.sight_offset[0],
+                               self.pos[1] - self.sight_offset[1]), 0.0
         if cid == "c4":
             return 0, f"{int(self.c_faults.get('c4_byte', 0xBA)):02X}", 0.20
         if cid == "d1":
@@ -333,7 +378,9 @@ class CSimTable(SimTable):
                                                                      REAL_ARRIVAL_DY)
                 self.arrivals_off.append((ox, oy))
                 x, y = x + ox, y + oy
-            self.pos = [float(x + off), float(y)]
+            cx, cy = self._clamp(float(x + off), float(y), "a computed move")
+            self.pos = [cx, cy]
+            x, y = cx - off, cy
             self.free_arm = False
             self.front_seen = max(self.front_seen, float(y))
             return 0, "", t

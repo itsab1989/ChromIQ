@@ -155,12 +155,14 @@ def _first_start(p) -> bool:         # the simulator's own copy of where spot 1 
     return -1360 <= p[0] <= -1200 and 2600 <= p[1] <= 2700
 
 
-def _memory_a(tile=None) -> str:
-    """The SYNTHETIC memory block: a made-up serial; at bytes 88-231 filler, or *tile*: 36
+def _memory_a(tile=None, serial: "str | None" = None) -> str:
+    """The SYNTHETIC memory block: a made-up serial (*serial*, 4.3.49: another simulated table;
+    at most 11 characters, so it stays in bytes 20-30); at bytes 88-231 filler, or *tile*: 36
     made-up white tile values (D-4b tests; never a real table's)."""
     import struct
     head = "6801000056312E31"
-    body = head + "0102030405060708090A0B0C" + FAKE_SERIAL.encode("ascii").hex().upper()
+    serial = (serial or FAKE_SERIAL)[:11].ljust(11, "0")
+    body = head + "0102030405060708090A0B0C" + serial.encode("ascii").hex().upper()
     out = body + "AB" * ((512 - len(body)) // 2)
     if tile is not None:
         vals = struct.pack("<36f", *tile).hex().upper()
@@ -520,7 +522,8 @@ class SimTable:
         if cid == "k2":
             return 0, ("0B600000000014" if kind == "k2_other" else K2), 0.0
         if cid == "u8":
-            data = _memory_a(self.stored_tile) if a == "000060000100" else _memory_b()
+            data = (_memory_a(self.stored_tile, getattr(self, "serial", None))
+                    if a == "000060000100" else _memory_b())
             if kind == "memory_short":
                 data = data[:-2]
             if kind == "memory_bad_start":

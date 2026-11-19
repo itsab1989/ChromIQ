@@ -83,7 +83,10 @@ def test_the_per_step_numbers_are_the_testers():
     assert cp.APPROACH == (4 + tbl.STEP_MAX_LINES["b_align"], 1 + 3)
     # 4.3.47 MUST-1 (safety review): CREEP and CHECK_MOVE +1 line each, the arm read again
     # after a first-visit question before the move it was asked for
-    assert (cp.AIMS, cp.CREEP, cp.CHECK_MOVE, cp.HOME) == ((8, 0), (30, 11), (6, 1), (8, 1))
+    # 4.3.49 ("learn this table's reach once"): the creep may need up to 15 steps (a learned
+    # reach up to the absolute cap), and an alignment cycle carries the guided step's reads
+    assert (cp.AIMS, cp.CREEP, cp.CHECK_MOVE, cp.HOME) == ((8, 0), (40, 16), (6, 1), (8, 1))
+    assert cp.REACH == (9, 0) and J.REACH_CAPS == (3, 0) and J.REACH_TRIES == 3
     assert cp.spot_row(33) == (70, 33) and cp.STRIP_ROW == (19, 4)
     assert J.D1_CAPS == cp.AIMS and J.DZ_CAPS == cp.CREEP and J.D2_CAPS == cp.CHECK_MOVE
     assert (cp.ALLOWANCE_FRACTION, cp.ALLOWANCE_ROWS, cp.ALLOWANCE_ALIGNMENTS) == (0.10, 2, 1)
@@ -221,12 +224,13 @@ def test_a_densest_page_aligns_within_its_caps_on_the_simulator():
 # ---- the creep ---------------------------------------------------------------------------
 
 def test_the_creep_numbers_are_pinned():
-    assert (cp.CREEP_STEPS_MAX, cp.CREEP_PAUSE_S, geo.CREEP_STEP) == (10, 0.5, 50)
-    # enough for the whole front zone: it needs at most 8 steps
+    # 4.3.49: 15 steps (from 10), enough for a learned reach up to the absolute cap
+    assert (cp.CREEP_STEPS_MAX, cp.CREEP_PAUSE_S, geo.CREEP_STEP) == (15, 0.5, 50)
+    # enough for the whole front zone up to the absolute cap: at most 15 steps
     assert (geo.FRONT_CAP_Y - A.ymax) / geo.CREEP_STEP < cp.CREEP_STEPS_MAX
     # +1: S-7, the first arrival read again; +1: 4.3.47 MUST-1, the arm read again after the
     # creep's first-visit question
-    assert cp.CREEP == (2 * 10 + 8 + 1 + 1, 10 + 1)
+    assert cp.CREEP == (2 * 15 + 8 + 1 + 1, 15 + 1)
 
 
 def _front_run(**kw):

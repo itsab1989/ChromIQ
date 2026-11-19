@@ -788,7 +788,8 @@ def make_run(tmp_path: Path, sheet: dict, name: str = "Table-Target"):
 
 def make_reading_job(tmp_path, sheet=None, aims=None, faults=None, run=True, stamp=STAMP,
                      instrument=None, helper_check=None, ask_after_each_step=True, sim=None,
-                     app_marker_place=None, press=False, latency_guard=None, **simkw):
+                     app_marker_place=None, press=False, latency_guard=None, reach_store=None,
+                     **simkw):
     """A table job with the simulated table AND the simulated helper behind the app's reader.
     *press*: round B's button wait is offered (the simulated helper's FakePressProc).
     Returns (job, sim, helper, run)."""
@@ -822,7 +823,9 @@ def make_reading_job(tmp_path, sheet=None, aims=None, faults=None, run=True, sta
                                                                       {"i1pro_devices": 1})),
                      app_marker_place=app_marker_place,
                      press_factory=helper.press_factory() if press else None,
-                     scan_factory=helper.scan_factory(), latency_guard=latency_guard)
+                     scan_factory=helper.scan_factory(), latency_guard=latency_guard,
+                     reach_store=(reach_store if reach_store is not None
+                                  else H.store_like_4348()))
     helper.job = job
     return job, sim, helper, r
 

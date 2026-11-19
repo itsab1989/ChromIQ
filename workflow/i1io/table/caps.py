@@ -40,7 +40,10 @@ LAYOUT_MAXIMA = {"per_row": 33, "rows": 30, "per_page": 990, "pages": 667}
 
 #: How often a creep (the feel-forward step) may run per page, and its own lines / movements
 #: (part C's stage DZ: 2 x CREEP_STEPS_MAX + 8 lines, CREEP_STEPS_MAX + 1 movements).
-CREEP_STEPS_MAX = 10
+#: 4.3.49 ("learn this table's reach once"): 15, from 10, so that a table whose learned reach
+#: allows targets up to geometry's absolute cap (FRONT_CAP_Y 3450) can be felt to from the proven
+#: front (2723): 727 units in steps of at most 50. The step rule itself is unchanged.
+CREEP_STEPS_MAX = 15
 CREEP_PAUSE_S = 0.5
 #: S-7 (owner-results round): +1 line, the arrival of the move to the front edge read once more
 #: 4.3.47 MUST-1 (safety review): +1 line, the arm read again after the creep's first-visit
@@ -56,8 +59,14 @@ AIMS = (8, 0)              # three p1, s0, f4 x 4 (stage D1)
 CHECK_MOVE = (6, 1)        # stage D2: p0 (twice if free), m0, p0 (+1: S-7, the arrival read again)
 #                            (+1: 4.3.47 MUST-1, read again after a first-visit question)
 HOME = (8, 1)              # stage F: s0 p0 i1 s0 f0 f4 f4 p0
-#: One alignment cycle: the way out, the aims, the creep, the check move and the homing.
-ALIGN_CYCLE = tuple(sum(v) for v in zip(APPROACH, AIMS, CREEP, CHECK_MOVE, HOME))
+#: 4.3.49: the guided step of "learn this table's reach once": per press two p0 and one p1, all
+#: read-only (no movement), at most REACH_PRESSES presses per alignment
+REACH_PRESS = (3, 0)
+REACH_PRESSES = 3
+REACH = (REACH_PRESS[0] * REACH_PRESSES, 0)
+#: One alignment cycle: the way out, the aims, the guided step, the creep, the check move and
+#: the homing.
+ALIGN_CYCLE = tuple(sum(v) for v in zip(APPROACH, AIMS, REACH, CREEP, CHECK_MOVE, HOME))
 #: A strip row (stage E2's row step 12 / 2, and its front-row ends 7 / 2).
 STRIP_ROW = (12 + 7, 2 + 2)
 #: THE DUAL ROW (2026-11-18): a strip row plus its UV pass straight back (the recorded zero-length

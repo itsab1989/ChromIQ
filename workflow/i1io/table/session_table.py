@@ -306,6 +306,10 @@ class Reply:
     #: only for the memory block u8 0x6000: the 36 numbers at its bytes 88-231 (D-4b, the
     #: table's stored white tile values), or None. Nothing else of the block is kept.
     tile: "tuple | None" = None
+    #: 4.3.49: only for the memory block u8 0x6000: the SHA-256 of its bytes 0-87 (its head and
+    #: serial field), which the job salts into the key of this table's remembered reach
+    #: (reach.table_key). Kept in memory only, never logged; the bytes themselves are not kept.
+    ident: "str | None" = None
 
     def xy(self) -> "tuple[int, int]":
         x, y = int(self.data[:4], 16), int(self.data[4:8], 16)
@@ -364,15 +368,21 @@ def parse_done(line: str, key: str) -> Reply:
         raise ProtocolError(f"the table answered a0 with {data}; the recordings only show "
                             f"{A0_COLD} (just switched on) and {A0_WARM} (started)")
     tile = stored_tile_values(data) if key == "memory_a" else None
+    ident = None
+    if key == "memory_a":
+        from .reach import ident_of_memory_block
+        ident = ident_of_memory_block(data)
     if key in SECRET_KEYS:
         data = ""
-    return Reply(cid, status, data, tile)
+    return Reply(cid, status, data, tile, ident)
 
 
 #: D-4b: where the table's memory block u8 0x6000 keeps its white tile's values, as the analysis
 #: of the volunteer's recording of 17 Nov 2026 found them (i1Profiler's values are reproduced with
 #: them): 36 little-endian 32-bit floats at bytes 88-231 of the block's 256 bytes, after the
-#: serial field. ONLY these bytes are read; no earlier byte is read, logged or stored.
+#: serial field. ONLY these bytes are read; no earlier byte is read, logged or stored (4.3.49: the
+#: bytes 0-87 are hashed once, in memory, for the key of the table's remembered reach; the hash
+#: is salted before it is stored, see reach.py).
 STORED_TILE_FIRST_BYTE = 88
 STORED_TILE_BANDS = 36
 
@@ -1024,6 +1034,8 @@ class Table:
         self._buf = b""
         #: D-4b: the table's stored white tile values (Reply.tile of the memory block), or None
         self.stored_tile: "tuple | None" = None
+        #: 4.3.49: the hash of the memory block's bytes 0-87 (Reply.ident), memory only
+        self.memory_ident: "str | None" = None
         self.closed_reason: "str | None" = None
         self.lines_sent = 0
         self.motions_sent = 0
@@ -1324,6 +1336,7 @@ class Table:
             took = self.t.now() - start
             if key == "memory_a":
                 self.stored_tile = reply.tile
+                self.memory_ident = reply.ident
         except TimeoutError:
             raise self._doubt(f"no answer to {cid} within the expected time") from None
         except TableRefused as exc:

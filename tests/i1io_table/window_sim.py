@@ -40,6 +40,9 @@ class WindowSim:
         self.aims = list(aims) if aims else None
         #: 4.3.49: faults put into the simulated table as soon as it exists ((kind, cid), ...)
         self.table_faults = list(simkw.pop("table_faults", ()) or ())
+        #: 4.3.49: where the tables' reaches are kept (default: 4.3.48's target area for every
+        #: table, job_harness.store_like_4348; the reach's own tests and drivers pass theirs)
+        self.reach_store = simkw.pop("reach_store", None)
         self.delay_s = delay_s
         self.cold = cold
         self.app_marker_place = app_marker_place
@@ -70,7 +73,9 @@ class WindowSim:
                          instrument_check=lambda: us.Check("ok", {"i1pro_devices": 1}),
                          app_marker_place=self.app_marker_place,
                          press_factory=self.helper.press_factory() if self.press else None,
-                         scan_factory=self.helper.scan_factory())
+                         scan_factory=self.helper.scan_factory(),
+                         reach_store=(self.reach_store if self.reach_store is not None
+                                      else H.store_like_4348()))
         self.helper.job = job
         self.jobs.append(job)
         return job

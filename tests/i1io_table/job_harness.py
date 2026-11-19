@@ -15,6 +15,7 @@ from tests.i1io_table import part_c_sim as csim
 from tests.i1io_table import session_sim as ss
 from workflow.i1io.table import geometry as geo
 from workflow.i1io.table import job as J
+from workflow.i1io.table import reach as rc
 from workflow.i1io.table import scan as sc
 from workflow.i1io.table import usb_system as us
 
@@ -69,6 +70,38 @@ def recorded_sheet(name: str, rows: int, cols: int = 28) -> "tuple[dict, tuple]"
     return sheet, pts
 
 
+class FixedReachStore(rc.ReachStore):
+    """4.3.49: a store that gives every table the same reach (the one a test assumes) and keeps
+    what the job stores in ``put_calls`` without changing what it gives."""
+
+    def __init__(self, reach: dict):
+        self.reach = dict(reach)
+        self.put_calls: "list[dict]" = []
+        super().__init__(lambda: "", lambda _t: None)
+
+    def salt(self) -> str:
+        return "0" * 32
+
+    def get(self, key):
+        return rc.Reach.from_dict(key, dict(self.reach))
+
+    def put(self, reach) -> bool:
+        self.put_calls.append(reach.as_dict())
+        reach.dirty = False
+        return True
+
+
+#: 4.3.49: the reach that gives exactly 4.3.48's target area (front at the frontmost recorded aim,
+#: Y 3109 = 3159 - the margin), learned from a free-arm reading, guided step not done. The tests
+#: written before "learn this table's reach once" run on it, so they keep testing what they
+#: tested (the creep, the check move, the rows); the reach's own tests pass their own store.
+REACH_LIKE_4348 = {"front_y": geo.FRONTMOST_AIM_Y + rc.MARGIN, "front_how": "free"}
+
+
+def store_like_4348() -> FixedReachStore:
+    return FixedReachStore(REACH_LIKE_4348)
+
+
 OK_PREFLIGHT = us.Preflight("macos", {"platform": "darwin"}, us.Check("ok", {"i1pro_devices": 1}),
                             us.Check("nobody_listed"), False)
 
@@ -77,6 +110,8 @@ DEFAULT = {J.Confirm.START_UP: "yes", J.Confirm.GO: "yes", J.Confirm.SHEET_LAID:
            J.Confirm.ARM_FELT: "free", J.Confirm.AIMED: "aimed", J.Confirm.FRONT_CHOICE: "back",
            J.Confirm.FRONT_YES: "yes", J.Confirm.FIRST_VISIT: "yes",
            J.Confirm.MARKER: "switched off and on", J.Confirm.READY_TO_OPEN: "yes",
+           # 4.3.49: the guided step of "learn this table's reach once"
+           J.Confirm.REACH_PUSH: "pushed", J.Confirm.REACH_DONE: "go on",
            #: the person's report after a step that moved (tester: "did it do what was
            #: described?"; its AutoConsole answered "yes")
            "report": "as described",
@@ -113,6 +148,14 @@ class Person:
             assert ans is not None, f"no scripted answer for {res.confirm}"
             if res.confirm == J.Confirm.AIMED and ans == "aimed":
                 self.sim.aim(res.detail["mark"])
+            if res.confirm == J.Confirm.REACH_PUSH and ans == "pushed" and \
+                    self.script.get("push", True):
+                # 4.3.49: the person pushes the free arm gently to the front, as far as it goes
+                self.sim.push_to_front()
+            if res.confirm == J.Confirm.REACH_DONE and ans == "go on" and \
+                    self.script.get("pull_back", True):
+                # ...and pulls it back a little, away from the end, before letting go
+                self.sim.pull_back()
             asked = res.confirm
             res = self.job.answer(asked, ans)
             if (asked in (J.Confirm.ROW_FAILED, J.Confirm.ROW_FAILED_STRIP)
@@ -128,7 +171,7 @@ class Person:
 
 
 def make_job(sim=None, sheet=None, aims=None, folder=None, preflight=None, run=None, stamp=None,
-             other_program=None, ask_after_each_step=True, **simkw):
+             other_program=None, ask_after_each_step=True, reach_store=None, **simkw):
     sheet = sheet or demo_sheet()
     if sim is None:
         sim = csim.CSimTable(part_c=True, aims=aims or demo_aims(sheet), **simkw)
@@ -141,7 +184,8 @@ def make_job(sim=None, sheet=None, aims=None, folder=None, preflight=None, run=N
                      open_transport=lambda: transport,
                      preflight=lambda: preflight or OK_PREFLIGHT,
                      other_program=other_program or (lambda: False),
-                     ask_after_each_step=ask_after_each_step)
+                     ask_after_each_step=ask_after_each_step,
+                     reach_store=reach_store if reach_store is not None else store_like_4348())
     return job, sim, transport
 
 

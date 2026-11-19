@@ -150,7 +150,18 @@ ARRIVAL_SLACK = 5
 #: sends the opening to an aim with no offset, and no recorded alignment or i1Profiler target
 #: goes beyond it). Never a target beyond it.
 FRONTMOST_AIM_Y = 3109
-FRONT_CAP_Y = FRONTMOST_AIM_Y
+#: 4.3.49 ("learn this table's reach once", FOR THE SAFETY REVIEW): the front of the target
+#: area is no longer the frontmost RECORDED aim (FRONTMOST_AIM_Y, a SIGHT position, about 31 mm
+#: in front of anywhere the opening had been). It is THIS TABLE's learned front minus MARGIN
+#: (reach.Reach.front_bound, passed to every check below as *cap_y*). For a table that has not
+#: shown ChromIQ more, the learned front is the frontmost p0 of the recordings (2773), so the
+#: target area ends at the proven MEASURING_AREA's front (DEFAULT_TARGET_FRONT_Y).
+#: FRONT_CAP_Y is now only the ABSOLUTE ceiling no learned reach can raise a target beyond
+#: (345 mm from home: the i1iO's published measuring depth is 230 mm, and no recording shows the
+#: opening beyond 285.5 mm); the line builders and the USB gate check it on every computed line.
+REACH_CEILING_Y = 3500
+FRONT_CAP_Y = REACH_CEILING_Y - MARGIN
+DEFAULT_TARGET_FRONT_Y = MEASURING_AREA.ymax
 #: A swept rectangle may START where the arm reads after a clean arrival at the cap, within the
 #: arrival tolerance; never beyond this.
 FRONT_SWEEP_CAP_Y = FRONT_CAP_Y + ARRIVAL_SLACK
@@ -160,17 +171,33 @@ CAP_RAW = Area(AREA_RAW.xmin, AREA_RAW.xmax, AREA_RAW.ymin, FRONT_SWEEP_CAP_Y)
 CREEP_STEP = 50
 
 
-def areas(front_y=None) -> "tuple[Area, Area]":
+def table_cap(cap_y=None) -> int:
+    """The front of the target area for a table whose learned bound is *cap_y* (None: nothing
+    learned): never beyond FRONT_CAP_Y, never behind the proven measuring area."""
+    if cap_y is None or not isinstance(cap_y, (int, float)) or cap_y != cap_y:
+        return DEFAULT_TARGET_FRONT_Y
+    return int(max(DEFAULT_TARGET_FRONT_Y, min(cap_y, FRONT_CAP_Y)))
+
+
+def table_area(cap_y=None) -> Area:
+    """The whole target area of a table (its sides as MEASURING_AREA, its front at
+    :func:`table_cap`), whatever this sitting has confirmed with the creep."""
+    return Area(MEASURING_AREA.xmin, MEASURING_AREA.xmax, MEASURING_AREA.ymin, table_cap(cap_y))
+
+
+def areas(front_y=None, cap_y=None) -> "tuple[Area, Area]":
     """(targets, swept rectangles) for a sitting that has confirmed the front zone up to
-    *front_y* (None: nothing confirmed, the proven zone only). Targets never beyond FRONT_CAP_Y,
-    swept rectangles never beyond FRONT_SWEEP_CAP_Y."""
+    *front_y* (None: nothing confirmed, the proven zone only), on a table whose target area
+    ends at *cap_y* (:func:`table_cap`). Targets never beyond that, swept rectangles never
+    beyond it plus the arrival tolerance."""
     if front_y is None or not isinstance(front_y, (int, float)) or front_y != front_y \
             or front_y <= MEASURING_AREA.ymax:
         return MEASURING_AREA, AREA_RAW
-    fy = int(min(front_y, FRONT_CAP_Y))
+    cap = table_cap(cap_y)
+    fy = int(min(front_y, cap))
     # a swept rectangle may start where the arm READS after a clean arrival at fy (within the
     # 5-unit arrival tolerance), never beyond the cap plus that tolerance
-    sy = min(fy + ARRIVAL_SLACK, FRONT_SWEEP_CAP_Y)
+    sy = min(fy + ARRIVAL_SLACK, cap + ARRIVAL_SLACK)
     return (Area(MEASURING_AREA.xmin, MEASURING_AREA.xmax, MEASURING_AREA.ymin, fy),
             Area(AREA_RAW.xmin, AREA_RAW.xmax, AREA_RAW.ymin, max(AREA_RAW.ymax, sy)))
 
@@ -210,29 +237,50 @@ RUN_OUT_MM = 10.0
 ACROSS_MM = 2.0
 
 
-def check_target(p, what: str, front_y=None) -> None:
-    tgt, _sweep = areas(front_y)
+def check_target(p, what: str, front_y=None, cap_y=None) -> None:
+    tgt, _sweep = areas(front_y, cap_y)
     if not tgt.contains(p):
-        if CAP_AREA.contains(p) and in_front_zone(p):
+        whole = table_area(cap_y)
+        if whole.contains(p) and in_front_zone(p):
             raise AreaRefused(f"{what}: table position X {p[0]}, Y {p[1]} lies in the front part "
                               f"of the table further than this sitting has confirmed (Y "
                               f"{tgt.ymax}); stage DZ feels its way there first")
+        if CAP_AREA.contains(p) and p[1] > whole.ymax:
+            raise AreaRefused(f"{what}: table position X {p[0]}, Y {p[1]} lies beyond this "
+                              f"table's known reach (targets up to Y {whole.ymax})")
         raise AreaRefused(f"{what}: table position X {p[0]}, Y {p[1]} lies outside the measuring "
                           f"area this program uses ({tgt.text()})")
 
 
-def check_path(a, b, what: str, front_y=None) -> None:
+def check_path(a, b, what: str, front_y=None, cap_y=None) -> None:
     """A move from the READ position *a* to the target *b*: the target inside MEASURING_AREA
     (with its margin), the whole swept rectangle inside AREA_RAW (the start is where the arm
     physically is, so it may lie in the margin, e.g. a free arm left beside a corner)."""
-    check_target(b, what + " (its end)", front_y)
-    sweep = areas(front_y)[1]
+    check_target(b, what + " (its end)", front_y, cap_y)
+    sweep = areas(front_y, cap_y)[1]
     if not sweep.contains_path(a, b):
         raise AreaRefused(f"{what}: the rectangle the arm may sweep from {tuple(a)} to {tuple(b)} "
                           f"leaves the measuring area ({sweep.text()})")
 
 
-def check_move_from_reading(a, b, what: str, front_y=None) -> None:
+#: the words of the refusal of a start at a learned end (job.area_id maps it)
+AT_AN_END = "within the margin of the table's"
+
+
+def check_start_not_at_an_end(a, what: str, ends=None) -> None:
+    """4.3.49 (FOR THE SAFETY REVIEW, the analysis section i: the only non-zero status in 825
+    recorded answers came from a homing started at the right stop): no computed move and no
+    homing starts within the margin of a known end of THIS table (*ends*: a reach.Reach, or
+    None: nothing known, nothing refused here)."""
+    if ends is None:
+        return
+    side = ends.near_end(a)
+    if side:
+        raise AreaRefused(f"{what}: from {tuple(a)}, {AT_AN_END} {side} end (move the arm "
+                          f"{ends.away_from_end_mm(a, side)} mm away from it first)")
+
+
+def check_move_from_reading(a, b, what: str, front_y=None, cap_y=None, ends=None) -> None:
     """4.3.49 (Basti's ruling of 19 Nov 2026, FOR THE SAFETY REVIEW): a move from *a*, a FRESH
     POSITION READING of where the arm physically stands (held or free, put there by the motors
     or by the person's hand), to the target *b*. Only the target is judged (inside the target
@@ -253,7 +301,8 @@ def check_move_from_reading(a, b, what: str, front_y=None) -> None:
         raise AreaRefused(f"{what}: a computed move from {tuple(a)}, in the back strip at the "
                           f"resting place (Y below {AREA_RAW.ymin}): only the recorded ways out "
                           "start there")
-    check_target(b, what + " (its end)", front_y)
+    check_target(b, what + " (its end)", front_y, cap_y)
+    check_start_not_at_an_end(a, what, ends)
 
 
 def _visited(p) -> bool:
@@ -396,11 +445,11 @@ class Alignment:
                 and min(ys) - across_mm <= u[1] <= max(ys) + across_mm)
 
     def target(self, u, what: str, run_out_mm: float = RUN_OUT_MM,
-               front_y=None) -> "tuple[int, int]":
+               front_y=None, cap_y=None) -> "tuple[int, int]":
         if not self.on_sheet(u, run_out_mm):
             raise AreaRefused(f"{what}: sheet position {u} lies outside the aimed marks")
         p = self.to_table(u)
-        check_target(p, what, front_y)
+        check_target(p, what, front_y, cap_y)
         return p
 
 
@@ -485,8 +534,8 @@ def fit_alignment(aims_mm, readings) -> Alignment:
     outside = [(n, p) for n, p in enumerate(pts, 1) if not CAP_AREA.contains(p)]
     if outside:
         n, p = outside[0]
-        front = (" (further to the front than any mark of your recorded i1Profiler alignments)"
-                 if p[1] > CAP_AREA.ymax else "")
+        front = (" (further to the front than ChromIQ ever lets the arm go, whatever a table "
+                 "has shown it)" if p[1] > CAP_AREA.ymax else "")
         raise AlignmentRefused(
             f"mark {n} was aimed at X {p[0]:.0f}, Y {p[1]:.0f}, outside the measuring area this "
             f"program uses ({CAP_AREA.text()}{front}; where it lies on your table is our "
@@ -522,6 +571,13 @@ def free_arm_push_advice(p) -> dict:
     x, y = float(p[0]), float(p[1])
     return {"back_mm": _mm_up(y - AREA_RAW.ymax), "front_mm": _mm_up(AREA_RAW.ymin - y),
             "left_mm": _mm_up(AREA_RAW.xmin - x), "right_mm": _mm_up(x - AREA_RAW.xmax)}
+
+
+def reach_advice_mm(need_y, cap_y) -> int:
+    """4.3.49: whole mm (rounded up, one to spare) by which a sheet whose frontmost target is
+    at *need_y* must lie further back to fit a table whose targets end at *cap_y*. Words for
+    the person only."""
+    return _mm_up(float(need_y) - float(cap_y))
 
 
 def lengths_fit(aims_mm, readings) -> bool:
