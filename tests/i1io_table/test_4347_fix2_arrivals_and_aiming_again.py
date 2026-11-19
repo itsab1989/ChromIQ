@@ -100,9 +100,12 @@ def test_a_patch_arrival_beside_its_target_fails_the_row_and_it_is_read_again(tm
     job, sim, p = _ready(tmp_path, {J.Confirm.ROW_FAILED: "again"})
     seen = []
     p.on_ask = lambda person, res: seen.append((res.confirm, dict(res.detail))) and None
-    _arrive_beside(sim, 2, *off)
+    # 4.3.48: the first arrival beside is moved to once more automatically; the row fails only
+    # when the arm reads beside again after that second move (four readings beside)
+    _arrive_beside(sim, 2, *off, reads=4)
     r = p.drive(job.read_row())
     assert r.ok and r.detail["status"] == "read", (r.reason, r.detail)
+    assert len(job.beside_retries) == 1
     failed = [d for c, d in seen if c == J.Confirm.ROW_FAILED]
     assert failed and failed[0]["why"] == "arrived_beside_the_target", seen
     assert job._table.closed_reason is None

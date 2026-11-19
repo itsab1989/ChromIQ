@@ -661,6 +661,10 @@ class TableJob:
         self.row_status: "dict[int, dict[int, str]]" = {}
         #: per page, how many rows were read again (NEXT_STEPS 4d)
         self.rows_again: "dict[int, int]" = {}
+        #: 4.3.48: the automatic second moves after an arrival beside the target (for the
+        #: diagnostics), and how many the running row attempt may still send
+        self.beside_retries: "list[dict]" = []
+        self._beside_retries_left = 0
         self._row_seq = 0
         self.tile_readings: "list[dict]" = []
         self._tile_spectrum: "list[float] | None" = None
@@ -1659,10 +1663,12 @@ class TableJob:
         self._soft_stop()
         return b
 
-    def _move_to(self, target, what: str):
+    def _move_to(self, target, what: str, retry_beside: bool = False):
         """One computed m0 from the position just read, checked, timed and arrival-checked (a
         generator: the first-visit confirmation may be asked). 4.3.47 MUST-1: never from a
-        reading taken before the last question or the last release of the arm."""
+        reading taken before the last question or the last release of the arm. 4.3.48
+        (*retry_beside*, patch rows only): an arrival read twice beside the target by 6..10
+        units is moved to once more, see :meth:`_move_again_beside`."""
         self._soft_stop()
         d = self._table
         a = d.position_now
@@ -1710,6 +1716,9 @@ class TableJob:
                 d.outside_at = got
                 if _near(got, target, ARRIVAL_BESIDE_UNITS) and _near(first, target,
                                                                        ARRIVAL_BESIDE_UNITS):
+                    if retry_beside and self._beside_retry_allowed(got, target):
+                        # 4.3.48: once, the same move again from this fresh reading
+                        return (yield from self._move_again_beside(a, got, target, what))
                     d.log("DATA", f"{what}: the arm stands beside the target by "
                                   f"({got[0] - target[0]:+d}, {got[1] - target[1]:+d}) units "
                                   f"(within {ARRIVAL_BESIDE_UNITS}): the step ends cleanly, "
@@ -1718,6 +1727,75 @@ class TableJob:
                 raise d._doubt(f"{what}: the arm reads {got}, not {target} (twice)")
         self.driven.append((a, target))
         return got
+
+    # ---- 4.3.48: one automatic retry of an arrival beside its target ---------------------------
+    def _beside_retry_allowed(self, got, target) -> bool:
+        """The retry is sent only while this row attempt has one left (cp.BESIDE_RETRIES_PER_ROW),
+        the arm is held, the new way lies on the part of the table just confirmed for this row,
+        and nothing (a stop, a reported problem) waits."""
+        d = self._table
+        left = self._beside_retries_left > 0
+        ok = (left and d.arm_free is False and not d.motion_unconfirmed
+              and self._seg_visited(got, target) and not self._pause_stop)
+        if not ok:
+            d.log("DATA", f"no automatic second move to {target}: "
+                          + ("this row's retries are used up" if not left else
+                             "the arm is not held, the way is not confirmed, or a stop waits"))
+        return ok
+
+    def _move_again_beside(self, a, got, target, what: str):
+        """4.3.48 (release review 4.3.47, SHOULD-1): the arm read twice beside its target by
+        6..10 units after a move that ended normally. The SAME m0 line (the same absolute
+        target) is sent once more from the fresh reading *got*, as i1Profiler does on this table
+        (23 recorded m0 lines to the previous move's own target, from a fresh p0 0..3 units off:
+        R1 285.068, R2 480.292, 18 Nov A 161.408, B 49.904 ...). Its arrival is checked exactly as
+        the first one's (read again once after 0.3 s); a second arrival beside fails the row as
+        before (``_ArrivedBeside``), beyond 1 mm it is a doubt. Lines: m0, p0 (and the p0 read
+        again), at most 3, 1 movement (cp.BESIDE_RETRY)."""
+        d = self._table
+        self._beside_retries_left -= 1
+        self.beside_retries.append({"what": what, "target": list(target), "read": list(got),
+                                    "line": d.lines_sent})
+        d.log("DATA", f"{what}: the arm stands beside the target by ({got[0] - target[0]:+d}, "
+                      f"{got[1] - target[1]:+d}) units; the same move is sent once more from "
+                      "this reading")
+        # a stop or a problem reported meanwhile is honoured before the move
+        self._between_patches()
+        # no lower bound: a move of a few units may finish at once (i1Profiler's recorded moves
+        # to the previous target, 0..3 units, took 0.016 s); its arrival is read in any case
+        win = (0.0, geo.move_window(got, target)[1])
+        try:
+            d.c_exchange(geo.m0_line(target[0], target[1]), 0, window=win,
+                         timeout=win[1] + 4.0, late_is_doubt=False)
+        except tbl.MoveOutside as exc:
+            again = d.position()
+            if _near(again, target):
+                self.driven.append((a, target))
+                raise StageFailed("movement_late_but_arrived", took=round(exc.took, 3),
+                                  window=(round(exc.lo, 2), round(exc.hi, 2))) from None
+            raise d._doubt(f"{what}: after a slow move the arm reads {again}, not {target}")
+        again = d.position()
+        if not _near(again, target):
+            first = again
+            d.c_wait(ARRIVAL_RECHECK_S)
+            again = d.position()
+            d.log("DATA", f"{what}: after the second move the arm read {first}, "
+                          f"{ARRIVAL_RECHECK_S:.1f} s later {again} (target {target})")
+            if not _near(again, target):
+                d.outside_at = again
+                if _near(again, target, ARRIVAL_BESIDE_UNITS) and _near(first, target,
+                                                                         ARRIVAL_BESIDE_UNITS):
+                    d.log("DATA", f"{what}: beside the target again, by "
+                                  f"({again[0] - target[0]:+d}, {again[1] - target[1]:+d}) "
+                                  "units: the row ends cleanly, nothing is read there")
+                    raise _ArrivedBeside("arrived_beside_the_target", target=target, read=again,
+                                         moved_again=True)
+                raise d._doubt(f"{what}: the arm reads {again}, not {target} (twice, after the "
+                               "second move)")
+        d.log("DATA", f"{what}: the second move arrived at {again}")
+        self.driven.append((a, target))
+        return again
+        yield  # pragma: no cover  (a generator)
 
     def _alignment_homed(self) -> None:
         self.alignment = None
@@ -2818,6 +2896,7 @@ class TableJob:
         d = self._table
         n = len(plan.patches)
         self._step("row", *cp.spot_row_step(n))
+        self._beside_retries_left = cp.BESIDE_RETRIES_PER_ROW
         self._row_seq += 1
         name = plan.name if attempt == 1 else f"{plan.name}_again{attempt - 1}"
         folder = self.diag.folder / self._block["folder"]
@@ -2860,7 +2939,8 @@ class TableJob:
                 # after the stop check and the pause, never while it still waits at the last one
                 self._progress(event="patch_next", row=plan.index + 1, loc=p.loc, index=i)
                 try:
-                    yield from self._move_to(p.target, f"the move to patch {p.loc}")
+                    yield from self._move_to(p.target, f"the move to patch {p.loc}",
+                                             retry_beside=True)
                 except _ArrivedBeside as exc:
                     # fix2: the row fails cleanly; the person may read it again (fresh reading)
                     raise _RowFailed(exc.reason, p.loc) from None

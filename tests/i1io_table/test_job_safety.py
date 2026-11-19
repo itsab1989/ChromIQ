@@ -93,12 +93,17 @@ def test_caps_formula_is_the_stated_one():
     shape = cp.ChartShape(((24,) * 22,))
     c = cp.caps_for(shape)
     need = [cp.ALIGN_CYCLE[i] + 22 * cp.row_cost(24)[i] for i in (0, 1)]
+    # 4.3.48: each of the page's row attempts (22 rows + the 2 rows read again) may send two
+    # automatic second moves after an arrival beside its target, 3 lines and 1 movement each
+    retries = [(22 + 2) * 2 * (3, 1)[i] for i in (0, 1)]
     allow = [cp.ALIGN_CYCLE[i] + 2 * cp.row_cost(24)[i] + math.ceil(0.1 * need[i])
-             + cp.CALIBRATION[i] + cp.TILE_READING[i] for i in (0, 1)]
+             + cp.CALIBRATION[i] + cp.TILE_READING[i] + retries[i] for i in (0, 1)]
     # step 7: one calibration (2 lines) and one tile reading (3 lines) for the session
     assert (c.lines, c.moves) == (11 + 4 + 2 + 3 + need[0] + allow[0], 1 + need[1] + allow[1])
     assert (cp.CALIBRATION, cp.TILE_READING) == ((2, 0), (3, 0))
-    assert cp.spot_row_step(33) == (136, 33)
+    # 4 n + 4, plus 2 x (3 lines, 1 movement) for the automatic second moves (4.3.48)
+    assert cp.spot_row_step(33) == (136 + 6, 33 + 2)
+    assert (cp.BESIDE_RETRY, cp.BESIDE_RETRIES_PER_ROW) == ((3, 1), 2)
 
 
 EXTREMES = {

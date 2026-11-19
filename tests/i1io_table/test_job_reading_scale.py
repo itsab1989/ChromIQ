@@ -170,8 +170,13 @@ def test_the_densest_page_on_a_less_ideal_table_is_read_whole(tmp_path, monkeypa
     assert sim.violations == [] and job._table.closed_reason is None
     assert len(sim.arrivals_off) >= 990 and min(dy for _dx, dy in sim.arrivals_off) >= -5
     again = [q for q in p.asked if q[1] == J.Confirm.ROW_FAILED]
-    assert again and all(q[2]["why"] == "arrived_beside_the_target" for q in again), again
-    print(f"\nless ideal table: {len(again)} row(s) read again, {helper.reads} readings")
+    # 4.3.48: under 4.3.47's rule this page needed rows read again (measured: 2, each
+    # "arrived_beside_the_target"); now every such arrival is moved to once more automatically
+    # and no row fails
+    assert again == [], again
+    assert job.beside_retries, "the less ideal table should land beside at least once a page"
+    print(f"\nless ideal table: {len(job.beside_retries)} automatic second move(s), "
+          f"{len(again)} row(s) read again, {helper.reads} readings")
     assert helper.reads >= 990
     d = job._table
     assert d.lines_sent <= job.caps.lines and d.motions_sent <= job.caps.moves
