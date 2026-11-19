@@ -677,6 +677,8 @@ software is needed. By hand, both passes are read on the ruler; on the X-Rite
 i1iO 2 table (beta) the dual scan works patch by patch and in rows. The
 filter row of the Measure tab chooses which condition your profile is made
 from, and Build Profile starts at it.
+Step by step, with pictures, what to look for and what to send us after a
+first try: [The dual scan, step by step](docs/i1pro2_dual_scan.md).
 
 > [!WARNING]
 > **Honest limits.** New in 4.3.48 and a first try: **no part of it has run on
