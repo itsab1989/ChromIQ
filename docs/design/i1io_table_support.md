@@ -1243,3 +1243,49 @@ form, no helper change.
   by a two-page refinement whose second page lies elsewhere, and a census of the code (only the
   aiming gives the job a sheet position; the next page and every homing clear it).
 * **The dual scan's M1 and M2 per row**: `i1pro2_dual_scan.md` section 13.
+
+### ⏳ Awaiting confirmation: after the first complete page on a real table (2026-11-20, for 4.3.50)
+
+**Confirmed by:** *nobody yet.* The removal of the mark-3 check rests on the owner's
+**provisional** yes, given on our recommendation, for both modes; it is to be confirmed or
+revised by him.
+
+On 19 Nov 2026 a volunteer's i1iO 2 read one whole page with ChromIQ 4.3.49 (528 patches, every
+arrival within 0.4 mm, no reading off its patch). What follows was changed from that run and the
+owner's comment on issue 129. Nothing new is sent to the table: no new line, form, speed or
+order; the helper is not changed. The earlier text above that calls the mark-3 check the live
+safeguard, or names its question, describes 4.3.49 and is superseded by this section.
+
+* **No mark-3 check, in the guided and the unguided mode.** After the aims the arm no longer
+  moves the opening to the third mark's reading, and "Is the opening on mark 3?" (and its
+  corner-patch variant) is not asked: nobody can see the opening under the instrument, and
+  i1Profiler's own recordings go from the third aim straight to the first row's move. The first
+  row's first move now follows the aims, from the free arm, after its own hands-off GO and a
+  stillness reading (as tester 0.6.0's D1 to D3 sitting already did). The marks no longer count in
+  the front need: the careful steps go only as far as the frontmost target of the plan (on the
+  real page they went 9.5 mm further, to the mark). The three-mark shape checks of the aims stay.
+  The way back before a homing uses the arrivals of the careful steps and the rows, as before;
+  the table's remembered reach learns from them too.
+* **The front-zone question is one plain question** (M-I1IO-DRIVE-FRONT, rewritten): first why
+  ChromIQ asks (the arm has not been this far forward on this table; it goes there slowly, 5 mm at
+  a time, once, and remembers), then two buttons, "Go forward carefully, my hands are away" and
+  "I will move the sheet", then, shorter, what happens at the end of the arm's travel and the power
+  switch. No distance on the page; it is said after "I will move the sheet". "Go forward
+  carefully, my hands are away" is the hands-off confirmation for the careful steps: the separate
+  "Feel the way forward?" question, the GO and the first-visit question before the first step are
+  gone (the page names the move and its part of the table).
+* **The arm goes home as part of the ending.** After Save and stop, Discard and stop or an ending
+  with nothing read, when the usual homing can run, ChromIQ starts it at once; its first page is
+  its hands-off GO (M-I1IO-DRIVE-HOME-AT-END: "Bring the arm home, my hands are away" / "Leave it
+  there"). Where it may start from is decided as before (back along the way the arm came first,
+  then the recorded homing; never a homing from where no recorded one starts). "Leave it there"
+  moves nothing; the last page then says how the arm comes home. A later START with the arm left
+  out reads where it is and moves nothing by itself.
+* **The time window of a computed move** follows the straight-line distance (1102 real and
+  recorded moves: 1.006 to 1.068 of it) and has no lower limit up to 10 units (every real move of
+  0 to 3 units was answered in 0.016 s); the upper limit is unchanged in form.
+* **Words:** no idioms on the table pages ("feel its way" is gone); the aiming page of a chart
+  with crosses says that a chart printed with "Aiming crosses" switched off is aimed at its corner
+  patches, as in i1Profiler; the Measure tab's window for a table chart that cannot be driven no
+  longer says its side file is missing when it is there; the dual scan's fill notes for a table
+  chart say that the table reads the rows again.
