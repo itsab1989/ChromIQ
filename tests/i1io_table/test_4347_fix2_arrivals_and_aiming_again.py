@@ -107,7 +107,7 @@ def test_a_patch_arrival_beside_its_target_fails_the_row_and_it_is_read_again(tm
     assert r.ok and r.detail["status"] == "read", (r.reason, r.detail)
     assert len(job.beside_retries) == 1
     failed = [d for c, d in seen if c == J.Confirm.ROW_FAILED]
-    assert failed and failed[0]["why"] == "arrived_beside_the_target", seen
+    assert failed and failed[0]["why"] == "arrived_beside_the_target_again", seen
     assert job._table.closed_reason is None
     assert sim.violations == []
 
@@ -159,7 +159,7 @@ def test_a_strip_row_start_beside_its_target(tmp_path, off, closed):
 def test_every_new_reason_has_its_sentence():
     import ui.i1io_table_window as W
     fallback = W.reason_text("a_brand_new_id_nobody_wrote_a_sentence_for")
-    for rid in ("arrived_beside_the_target", "free_arm_moved_while_asked",
-                "arm_moved_while_asked"):
+    for rid in ("arrived_beside_the_target", "arrived_beside_the_target_again",
+                "free_arm_moved_while_asked", "arm_moved_while_asked"):
         text = W.reason_text(rid)
         assert text != fallback and rid not in text and "—" not in text

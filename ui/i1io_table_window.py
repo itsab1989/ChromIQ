@@ -625,6 +625,13 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
             "direction, read twice), so ChromIQ took no reading there and did not move on from there. The "
             "table finished the move normally. You can simply try again: ChromIQ then reads "
             "where the arm stands and moves it from there."),
+        # 4.3.48: in a patch row, beside again after ChromIQ moved it there a second time
+        "arrived_beside_the_target_again": tr(
+            "The arm stopped a little beside the place it was sent to, and again after ChromIQ "
+            "had moved it there a second time (at most 1 mm off in each direction, read twice "
+            "each time). So ChromIQ took no reading there. The table finished both moves "
+            "normally. You can simply try again: ChromIQ then reads where the arm stands and "
+            "moves it from there."),
         "arm_did_not_give_way_at_the_alignment_start": tr(
             "The arm did not move freely when you pushed it, so ChromIQ does not aim with it."),
         "stopped_during_the_aims": tr("You chose Stop while aiming."),

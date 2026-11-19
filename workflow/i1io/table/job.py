@@ -1942,8 +1942,8 @@ class TableJob:
                     d.log("DATA", f"{what}: beside the target again, by "
                                   f"({again[0] - target[0]:+d}, {again[1] - target[1]:+d}) "
                                   "units: the row ends cleanly, nothing is read there")
-                    raise _ArrivedBeside("arrived_beside_the_target", target=target, read=again,
-                                         moved_again=True)
+                    raise _ArrivedBeside("arrived_beside_the_target_again", target=target,
+                                         read=again)
                 raise d._doubt(f"{what}: the arm reads {again}, not {target} (twice, after the "
                                "second move)")
         d.log("DATA", f"{what}: the second move arrived at {again}")

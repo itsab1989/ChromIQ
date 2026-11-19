@@ -94,7 +94,7 @@ def test_beside_again_after_the_second_move_fails_the_row_as_before(tmp_path, of
     n = len(sim.received)
     r = p.drive(job.read_row())
     failed = [d for c, d in seen if c == J.Confirm.ROW_FAILED]
-    assert failed and failed[0]["why"] == "arrived_beside_the_target", seen
+    assert failed and failed[0]["why"] == "arrived_beside_the_target_again", seen
     assert r.ok and r.detail["status"] == "skipped"
     assert job._table.closed_reason is None and sim.violations == []
     moves = [ln for ln in sim.received[n:] if _computed_m0(ln)]

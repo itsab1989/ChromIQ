@@ -278,3 +278,17 @@ def test_the_held_arm_out_of_the_area_is_never_offered_the_usual_homing(tmp_path
     r = p.drive(job.calibrate())
     assert r.reason == "arm_not_at_rest"
     assert r.way_back == J.WayBack.OPEN_I1PROFILER_ONCE
+
+
+@pytest.mark.parametrize("fault", ["no_lamp", "fire_unsent", "dies_at_fire"])
+def test_not_while_a_scan_move_may_be_pending(tmp_path, fault):
+    """The switch-off way stays: a scan move may still wait for the lamp."""
+    from tests.i1io_table.test_roundB_strip import _job, _ready as _ready_strip
+    job, sim, helper, run, p = _job(tmp_path, faults={"scan": {fault: True}, "scan_at": 2})
+    _ready_strip(job, p)
+    r = p.drive(job.read_row())
+    assert r.way_back == J.WayBack.SWITCH_OFF_PENDING
+    n = len(sim.received)
+    assert job.home_after_stop().reason == "movement_may_be_unfinished"
+    assert job._after_end() == {"next": []}
+    assert len(sim.received) == n
