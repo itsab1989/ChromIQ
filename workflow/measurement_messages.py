@@ -12671,8 +12671,10 @@ M_I1IO_DRIVE_FRONT = _m(
     "The cross hairs sit about 3 cm in front of the measuring opening, so the front of this "
     "sheet may lie beyond where the arm can take the opening. Then the arm reaches the end of "
     "its travel during one of these small steps and stops there. ChromIQ notices that the step "
-    "did not arrive, moves the arm no further forward and offers to bring it home. If you hear "
-    "the motor keep running after that, switch the table off at its power switch.\n\n"
+    "did not arrive, moves the arm no further forward and offers to bring it home. If the "
+    "table answers that step with an error, or does not answer it, ChromIQ stops at once, "
+    "sends nothing more and tells you what to do. If you hear the motor keep running, switch "
+    "the table off at its power switch.\n\n"
     "Or lay the sheet about {back_mm} mm further back and aim at it again: "
     "then the arm does not need to go there at all.",
     approved=False)
@@ -12869,6 +12871,24 @@ M_I1IO_DRIVE_FRONT_END = _m(
     "M-I1IO-DRIVE-FRONT-END",
     "The arm stopped short of the front of this sheet",
     "{why}\n\nThe true state of the table and the arm is shown on the Measure tab.",
+    approved=False)
+
+#: 4.3.50 (safety review 449, SHOULD-2): the table answered one of the creep's 5 mm steps with
+#: a status, refused it, or did not answer it. {what} the case (one sentence each, the window's
+#: front_stop_what), {before} / {target} the reading before the step and its target, {way} the
+#: numbered way on (the power switch, End measurement, ten seconds off, i1Profiler once),
+#: {back_mm} how far further back the sheet needs no step beyond the confirmed front, {log} the
+#: diagnostics file
+M_I1IO_DRIVE_FRONT_STOPPED = _m(
+    "M-I1IO-DRIVE-FRONT-STOPPED",
+    "The table stopped during a small step towards the front",
+    "{what} ChromIQ sends nothing more to the table in this measurement.\n\n"
+    "Before this step the arm stood at {before}. The step was to take it 5 mm further towards "
+    "you, to {target}. The table has not reported where the arm stands now.\n\n"
+    "{way}\n\n"
+    "To measure this sheet, lay it about {back_mm} mm further towards the back of the table "
+    "(away from you) and start the measurement again. Please send us the diagnostics file of "
+    "this measurement: {log}.",
     approved=False)
 
 M_I1IO_DRIVE_HOME_OFFERED = _m(
@@ -13363,7 +13383,8 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_CHECK_MARK, M_I1IO_DRIVE_ROW_FAILED,
     M_I1IO_DRIVE_ROW_NOT_AGAIN, M_I1IO_DRIVE_REPORT, M_I1IO_DRIVE_PROBLEM,
     M_I1IO_DRIVE_NOTE, M_I1IO_DRIVE_NEXT_PAGE, M_I1IO_DRIVE_STOPPED_BY_YOU,
-    M_I1IO_DRIVE_REFUSED, M_I1IO_DRIVE_FRONT_END, M_I1IO_DRIVE_HOME_OFFERED,
+    M_I1IO_DRIVE_REFUSED, M_I1IO_DRIVE_FRONT_END, M_I1IO_DRIVE_FRONT_STOPPED,
+    M_I1IO_DRIVE_HOME_OFFERED,
     M_I1IO_DRIVE_SWITCH_OFF,
     M_I1IO_DRIVE_STOPPED, M_I1IO_DRIVE_LINK_LOST,
     M_I1IO_DRIVE_LINK_LOST_SWITCH_OFF, M_I1IO_DRIVE_COLD,

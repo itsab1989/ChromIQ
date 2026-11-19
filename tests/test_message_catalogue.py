@@ -161,6 +161,9 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-I1IO-DRIVE-REFUSED",
     # 4.3.49 fix round (safety review 449, SHOULD-3): the page after the creep met the front end
     "M-I1IO-DRIVE-FRONT-END",
+    # 4.3.50 (safety review 449, SHOULD-2): a creep step answered with an error, refused, or
+    # not answered
+    "M-I1IO-DRIVE-FRONT-STOPPED",
     "M-I1IO-DRIVE-HOME-OFFERED",
     "M-I1IO-DRIVE-SWITCH-OFF",
     "M-I1IO-DRIVE-STOPPED",

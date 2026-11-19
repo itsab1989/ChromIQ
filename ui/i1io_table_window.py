@@ -108,6 +108,32 @@ MOVES_AT_ONCE_PAGES = ("go", "start_up", "sheet_laid", "first_visit", "check_mar
 #: REVIEW 14, M-1: the ways back that mean a move may still be waiting, or a movement (or the
 #: start-up) was never reported as finished: "Switch the table off now" is the first thing shown,
 #: and no later page hides or contradicts it
+#: 4.3.50 (safety review 449, SHOULD-2): the ends of the table part inside a creep step that
+#: get their own page (M-I1IO-DRIVE-FRONT-STOPPED)
+FRONT_STOP_IDS = ("table_answered_a_status", "table_refused_a_line", "table_did_not_answer")
+
+
+def front_stop_what(rid: str) -> str:
+    """What happened at the creep step, in plain words, one case each (true for that case)."""
+    if rid == "table_answered_a_status":
+        return tr("During one of the small 5 mm steps towards the front of the table, the table "
+                  "answered with an error code instead of reporting the step finished. Most "
+                  "likely the arm met the end of its travel there.")
+    if rid == "table_refused_a_line":
+        return tr("The table refused the command for one of the small 5 mm steps towards the "
+                  "front of the table. ChromIQ cannot tell whether the arm moved before that, "
+                  "or whether it stands at the end of its travel.")
+    return tr("The table did not answer one of the small 5 mm steps towards the front of the "
+              "table: it never reported the step finished. The arm may have met the end of its "
+              "travel there, and the motor may still be trying to move it.")
+
+
+def _xy_text(p) -> str:
+    if not p:
+        return tr("no position")
+    return tr("X {x}, Y {y} (in tenths of a millimetre)").format(x=int(p[0]), y=int(p[1]))
+
+
 SWITCH_OFF_WAYS = ("switch_off_pending", "switch_off_unfinished", "link_lost_switch_off_first",
                    "cold_way_out")
 
@@ -1114,6 +1140,20 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
                   "place it has already reached in this measurement, and brings it home from "
                   "there. Then lay the sheet about {mm} mm further towards the back of the table "
                   "(away from you) and start the measurement again.").format(mm=d.get("short_mm"))
+    if rid == "creep_step_outside_time_window" and d.get("read"):
+        # 4.3.50 (safety review 449, SHOULD-2): the step was reported finished, but not in the
+        # time such a step takes; the arm was read, the homing is offered as after a stall
+        rd_ = d.get("read") or (0, 0)
+        return tr("One of the small 5 mm steps towards the front of the table took longer or "
+                  "shorter than such a step takes, so ChromIQ moves the arm no further forward. "
+                  "The table reported the step finished, and the arm now reads X {x}, Y {y} (in "
+                  "tenths of a millimetre).\n\nPlease press Bring the arm home. ChromIQ asks "
+                  "you to take your hands away first, then takes the arm back along the way it "
+                  "came, to a place it has already reached in this measurement, and brings it "
+                  "home from there. If the arm met the end of its travel, lay the sheet about "
+                  "{mm} mm further towards the back of the table (away from you) and start the "
+                  "measurement again.").format(x=int(rd_[0]), y=int(rd_[1]),
+                                               mm=d.get("short_mm") or 1)
     if rid.startswith("creep_"):
         return tr("Feeling the way forward stopped at a step that did not arrive exactly.")
     if rid.startswith("instrument_"):
@@ -3690,6 +3730,12 @@ class TableMeasureWindow(QFrame):
             # 4.3.49 fix round (safety review 449, SHOULD-3): the arm did move, and met what is
             # most likely the end of its travel
             title, body = M.M_I1IO_DRIVE_FRONT_END.render(why=why)
+        elif res.reason == "creep_step_outside_time_window" and detail.get("read") \
+                and detail.get("target") and \
+                float(detail["read"][1]) < float(detail["target"][1]) - 5:
+            # 4.3.50: the arm moved, outside a step's time, and stopped short of the step's
+            # target: the same headline, its own reason
+            title, body = M.M_I1IO_DRIVE_FRONT_END.render(why=why)
         if after is not None:
             self._show("refused", title, body, [(tr("Close"), after)])
             return
@@ -3742,6 +3788,16 @@ class TableMeasureWindow(QFrame):
                 "home_after_stop": M.M_I1IO_DRIVE_HOME_AFTER_STOP}
         msg = msgs.get(wb)
         self._says_switch_off = wb in SWITCH_OFF_WAYS
+        front = self._front_stop_page(res)
+        if front is not None:
+            # 4.3.50 (safety review 449, SHOULD-2): the table part ended inside one of the
+            # careful 5 mm steps towards the front: its own page, never the generic one
+            title, body = front
+            self._says_switch_off = True
+            self._show("stopped", title, body, self._way_on_buttons())
+            self._after_stop_controls()
+            self._show_note()
+            return
         if msg is None and wb == "none" and res.reason in ("stopped_by_person",
                                                            "cancelled_by_person"):
             title, body = _refused(M, reason_text(res.reason))
@@ -3783,6 +3839,59 @@ class TableMeasureWindow(QFrame):
         self._show("stopped", title, body, self._way_on_buttons())
         self._after_stop_controls()
         self._show_note()
+
+    def _front_stop_page(self, res) -> "tuple[str, str] | None":
+        """4.3.50 (safety review 449, SHOULD-2; re-review S-4): the page after the table
+        answered one of the creep's 5 mm steps towards the front with a status, refused it, or
+        did not answer it. What happened, that nothing more is sent, where the arm is as far as
+        known, and the honest way on: ChromIQ's own homing only where the reviewed rules allow
+        it (never after such an answer: the table's state is not known), so the power switch,
+        then i1Profiler once. None for any other result."""
+        from workflow import measurement_messages as M
+        d = getattr(res, "detail", None) or {}
+        rid = d.get("creep_stop")
+        if getattr(res, "step", "") != "creep" or rid not in FRONT_STOP_IDS \
+                or rid != getattr(res, "reason", ""):
+            return None
+        what = front_stop_what(rid)
+        way = self._front_stop_way(rid, ending=False)
+        before, target = d.get("creep_from"), d.get("creep_to")
+        title, body = M.M_I1IO_DRIVE_FRONT_STOPPED.render(
+            what=what, before=_xy_text(before), target=_xy_text(target), way=way,
+            back_mm=d.get("back_mm") or 1, log=self._log_name)
+        return title, body
+
+    def _front_stop_way(self, rid: str, ending: bool) -> str:
+        """The numbered way on after a creep stop: the power switch first (at once when the
+        step was never reported finished, else when the motor keeps running), End measurement
+        while the measurement is open, then the table off for ten seconds, then i1Profiler once.
+        *ending*: shown after the measurement has ended (no End measurement step)."""
+        lines = []
+        if rid == "table_did_not_answer":
+            lines.append(tr("Switch the table off now with its power switch. Please do not "
+                            "unplug its USB cable instead: that does not switch the table off, "
+                            "so a move that is waiting would still be waiting."))
+        else:
+            lines.append(tr("If you hear the motor keep running, switch the table off at its "
+                            "power switch at once."))
+        if not ending:
+            lines.append(tr("Press End measurement. Your readings so far are kept, and ChromIQ "
+                            "asks whether to save them."))
+        if rid == "table_did_not_answer":
+            lines.append(tr("Leave the table off for ten seconds, then switch it on again."))
+        else:
+            lines.append(tr("Switch the table off with its power switch, leave it off for ten "
+                            "seconds and switch it on again."))
+        lines.append(tr("Then open i1Profiler 3.8.6 or older once and let it find the table: it "
+                        "brings the arm home. Please do not press START MEASUREMENT again "
+                        "before i1Profiler has found the table."))
+        out = tr("What to do now:") + "\n" + "\n".join(
+            f"{k}. {ln}" for k, ln in enumerate(lines, 1))
+        out += "\n\n" + tr(
+            "ChromIQ does not bring the arm home itself this time. It does that only after a "
+            "stop at which the table answered every command as recorded, and here the table's "
+            "state is not known.")
+        return out
 
     def _arm_left_free(self) -> bool:
         j = self.job
@@ -4137,7 +4246,14 @@ class TableMeasureWindow(QFrame):
             j.ended or "", tr("The measurement was not saved."))
         title, body = M.M_I1IO_DRIVE_DONE.render(what=what, log=self._log_name)
         wb = res.way_back
-        if j.ended is not None and wb == "open_i1profiler_once":
+        front_rid = (getattr(j, "creep_doubt", None) or {}).get("creep_stop")
+        if j.ended is not None and front_rid in FRONT_STOP_IDS and wb in (
+                "open_i1profiler_once", "switch_off_unfinished"):
+            # 4.3.50: after a creep stop the way home stays the one its own page gave (the
+            # power switch first, then i1Profiler once), also once the measurement has ended
+            body = self._front_stop_way(front_rid, ending=True) + "\n\n" + body
+            self._says_switch_off = True
+        elif j.ended is not None and wb == "open_i1profiler_once":
             # the session has ended (saved, discarded or nothing read) and the arm was left
             # out: only the way home is said, never "you can still save them" beside "saved"
             way = (M.M_I1IO_DRIVE_FREE_LEFT.render()[1] if self._arm_left_free() else

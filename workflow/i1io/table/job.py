@@ -661,6 +661,14 @@ class TableJob:
         self.runs: "dict[tuple[int, str], int]" = {}
         self.only_home = False
         self.creep_stopped = False
+        #: 4.3.50 (safety review 449, SHOULD-2): the creep step on its way (from, to), set
+        #: right before its m0 and cleared once its arrival was read; a stop of the table part
+        #: inside that step (a status, a refusal, no answer) carries it in its result, so the
+        #: page can say where the arm was and where it was sent
+        self._creep_step_now: "tuple | None" = None
+        #: ...and, once such a stop happened, the creep stop's facts (the window's own page,
+        #: and the done page's way home)
+        self.creep_doubt: "dict | None" = None
         #: B': every problem the person reported, never lost (kind, the step it came in, the
         #: lines sent by then)
         self.problems: "list[tuple[str, str | None, int]]" = []
@@ -1106,6 +1114,11 @@ class TableJob:
                                  position_before=list(d.last_read) if d is not None and
                                  d.last_read is not None else None,
                                  arm_free=d.arm_free if d is not None else None)
+            if step == "creep" and self._creep_step_now is not None:
+                # 4.3.50 (safety review 449, SHOULD-2): the table part ended inside a 5 mm step
+                # towards the front (a status, a refusal, no answer): where the arm was before
+                # it, where it was sent, and how far back the sheet must lie to need no step
+                extra = dict(extra, **self._creep_doubt_detail(rid))
             res = self._result(step, Kind.STOPPED, rid, log_reason=str(exc), **extra)
         elif isinstance(exc, (Stopped, KeyboardInterrupt)):
             if d is not None:
@@ -2426,17 +2439,20 @@ class TableJob:
                              need))
             win = geo.move_window(here, target)
             d.creep = True
+            self._creep_step_now = (tuple(here), tuple(target))
             try:
                 d.c_exchange(geo.m0_line(*target), 0, window=win, timeout=win[1] + 4.0,
                              late_is_doubt=False)
             except tbl.MoveOutside as exc:
                 d.creep = False
+                self._creep_step_now = None
                 got = d.position()
                 self._creep_failed(target, got, "step_outside_time_window",
                                    took=round(exc.took, 3))
             finally:
                 d.creep = False
             got = d.position()
+            self._creep_step_now = None
             if not _near(got, target):
                 self._creep_failed(target, got, "step_did_not_arrive")
             d.front_y = max(d.front_y or 0, target[1])
@@ -2450,6 +2466,28 @@ class TableJob:
                 self._pause_stop = False
                 raise PersonStopped("stopped_at_a_creep_pause", front_y=d.front_y)
         return {"front_y": d.front_y}
+
+    def _creep_doubt_detail(self, rid: str) -> dict:
+        """4.3.50: the facts of a creep step the table part ended in (nothing more is sent):
+        the reading before the step, its target, the confirmed front, and the whole mm by which
+        the sheet must lie further back so that no step beyond the confirmed front is needed.
+        Kept in :attr:`creep_doubt` for the pages that follow (the done page's way home)."""
+        before, target = self._creep_step_now
+        self._creep_step_now = None
+        need = self.front_need
+        reached = self.front_reached()
+        back = (geo.reach_advice_mm(min(int(need), self._cap()), reached)
+                if need is not None and reached is not None else None)
+        out = {"creep_from": list(before), "creep_to": list(target), "front_y": reached,
+               "need_y": need, "back_mm": back, "creep_stop": rid}
+        self.creep_doubt = dict(out)
+        self._block_note("creep_stopped_at", {"target": list(target), "read": None, "why": rid})
+        self._reach_note("creep_stopped", target=list(target), read=None, why=rid, need_y=need)
+        return out
+
+    def _block_note(self, key: str, value) -> None:
+        if self._block is not None:
+            self._block["data"][key] = value
 
     def _creep_failed(self, target, got, why: str, **more) -> None:
         self._table.outside_at = got
