@@ -50,7 +50,7 @@ Which instruments cannot do it:
 
 Not available with the dual scan: **"High resolution spectral mode (-H)"** (the instrument's
 factory data for M1 and M2 is given only at 10 nm steps). Switch it off before a dual-scan
-measurement.
+measurement: with it on, ChromIQ does not start the measurement and says why (since 4.3.49).
 
 ## 1. Switch it on
 
@@ -115,8 +115,14 @@ you can lift the instrument.
 ![Calibration Complete: the tile was read with the UV light too](i1pro2_dual_scan/05-calibration-complete.png)
 
 If the UV reading of the tile did not succeed, the window says that M1 and M2 cannot be worked
-out from this calibration. M0 is measured as always; to have M1 and M2 as well, calibrate again
-(press K or the Calibrate button) before the next strip.
+out from this calibration. To keep M1 and M2, calibrate again (press K or the Calibrate button)
+before the next strip. If you read a strip without calibrating again, ChromIQ reads it once,
+does not keep it, and asks you once more to calibrate (**"Calibrate again to keep M1 and M2"**
+in the Strip Read Failed window). Press **Retry** in that window, then calibrate before you
+read the strip again. ChromIQ asks only once for each calibration: the next strip you read
+without calibrating (the same one after Retry, or another one after Skip Strip) is kept with M0
+only, and M1 and M2 end for the rest of the measurement. The line under the log says so before
+you read it (**"Strip A: calibrate now, or M1 and M2 end"**).
 
 ## 5. Each strip twice: pass 1 with the lamp, pass 2 with the UV light
 
@@ -141,6 +147,11 @@ What to look for:
   "pass 2 of 2 (UV light)".
 * The green arrows in the preview mark the strip that is due. Both passes are of that strip.
 * During pass 2 the instrument's UV light should come on. Please tell us whether you saw it.
+* While pass 2 is due, ChromIQ does not move to another strip or patch: a click on the preview,
+  an arrow key or "I read strip B" is held, and the line under the log says **"Strip A: read its
+  second pass first"**. The same for a click while pass 1 is being read: it is held, and the line
+  says so as soon as pass 2 is due. Read pass 2, then choose again. A calibration you ask for then starts
+  after pass 2. Stop still ends the measurement at any time.
 
 ChromIQ checks that the second pass really belongs to the same strip: it matches the two passes
 patch by patch with the ruler's positions and compares their readings. A second pass over the
@@ -156,25 +167,42 @@ the strip for later in this session, **Save Partial & Quit** keeps what was read
 
 ![Strip Read Failed: the second pass of strip B failed](i1pro2_dual_scan/08-second-pass-refused.png)
 
-### When M1 and M2 stop for the measurement
+### When M1 and M2 stop for the rest of a sitting
 
-In a few cases M1 and M2 cannot go on for the rest of the measurement. The Measure tab then says
-**"Dual scan: M1 and M2 stop for this measurement"** with the reason, and that from here on
-ChromIQ reads M0 as always, one pass per strip: carry on measuring. The cases are:
+In a few cases M1 and M2 cannot go on for the rest of the sitting. The Measure tab then says
+**"Dual scan: M1 and M2 stop for the rest of this sitting"** with the reason, that the strips
+already read with both passes keep their M1 and M2, and that from here on ChromIQ reads M0 as
+always, one pass per strip: carry on measuring. The cases are:
 
 * the ruler cannot be used for the rest of the measurement (it gave no usable positions, or a
-  second pass was left unread);
+  second pass was left unread with Esc);
 * the instrument is not an i1Pro 2, or does not offer what the dual scan needs;
-* a strip was read after a calibration that could not give M1 and M2, without calibrating again
-  first (ChromIQ asks you to calibrate again before that strip, and says what happens if you do
-  not);
+* a strip was read twice after a calibration that could not give M1 and M2, without calibrating
+  again in between (the first time, ChromIQ does not keep the strip and asks you to calibrate);
 * a value was typed in by hand;
 * the files for M1 and M2 could not be saved, or something unexpected happened (the app's log
   file has the details).
 
-A strip read after that has M0 only, and **Continue Measurement cannot add M1 and M2 to it
-later**: for M1 and M2, measure the chart again as a new measurement. Before you continue such a
-measurement, the Measure tab says that it will continue as M0 only.
+A strip read after that has M0 only. **Nothing already read is lost**: the strips that have both
+passes keep their M1 and M2 (since 4.3.49; before, they were thrown away at the end of the
+sitting). The same holds when you read a strip again later without its second pass, for
+example from Check & Refine's list: that strip has M0 only from then on (its old M1 and M2 go
+with its old reading), and every other strip keeps its own.
+
+Only when the files cannot be saved, or the computer runs out of memory, do M1 and M2 end for
+good; the Measure tab then still says **"Dual scan: M1 and M2 stop for this measurement"**.
+
+### Completing the strips that have M0 only
+
+To give those strips their M1 and M2, stop as usual (**Save Partial & Quit** if strips are
+still missing), then tick **"Refine / resume existing measurement (-r)"** and press **Continue
+Measurement**, with the dual scan still switched on. Before you press it, the line under the log
+names the strips (**"Dual scan: Continue Measurement also completes strips B, C"**; without the
+tick it says how to do it: **"Dual scan: strips B, C have M0 only"**). ChromIQ asks for a
+calibration first, as at every start, reads the strips not read yet with both passes, and takes
+you to each strip that has M0 only, as the refinement guide does, to read it again with both
+passes. When every strip has both passes, Build Profile offers M1 and M2 again. Until then,
+Build Profile offers M0 only and says which strips are missing their M1 and M2.
 
 ## 7. The end of the measurement and Build Profile
 
@@ -199,6 +227,9 @@ All of it stays in the run's folder (`~/ChromIQ/<your project>/runs/runN/`):
 * `<project>.ti3`: the measurement, in M0, as always.
 * `conditions/<number>-M1.ti3` and `conditions/<number>-M2.ti3`: the same patches in M1 and M2.
   The number is made from the measurement's readings, so the files stay paired with them.
+* `conditions/<number>-M1.partial.ti3` and `-M2.partial.ti3`, instead, while some strips have
+  M0 only: the M1 and M2 of the strips that have them. Build Profile does not use these files;
+  Continue Measurement takes them up again. ChromIQ 4.3.48 and earlier ignore them.
 * `dual_scan/<project>.passes.json`: ChromIQ's record of both passes of every strip and of the
   calibration's UV reading. It holds no serial number.
 
@@ -218,7 +249,11 @@ All of it stays in the run's folder (`~/ChromIQ/<your project>/runs/runN/`):
   the two instruments, and by less for the other; M1 by less. Papers without optical brightener
   should not be affected, but that has not been measured yet.
 * By hand, the dual scan needs the ruler; if one pass of a strip fails, both passes are read
-  again; M1 and M2 cannot be taken up again with Continue Measurement once they have ended.
+  again; strips read with M0 only are completed by Continue Measurement, after a new
+  calibration, by reading them again with both passes (a strip's second pass cannot be read on
+  its own).
+* A measurement that ChromIQ 4.3.48 or earlier continued after M1 and M2 had ended was saved
+  without its dual-scan record; it continues as M0 only.
 * The new texts are shown as proposed texts and may still be reworded.
 
 ## What would help us

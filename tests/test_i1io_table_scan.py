@@ -223,11 +223,12 @@ def test_only_the_switch_reaches_the_new_code():
     base = [ln for ln in _git_show("native/chartread_helper/chromiq_chartread.c")
             .decode("utf-8", "replace").splitlines() if '{\\"caps\\":[' in ln]
     # 2026-11-18a: one word more, the i1Pro 2 dual-scan conditions (step 1);
-    # 2026-11-18c: and its device side (step 2)
+    # 2026-11-18c: and its device side (step 2); 2026-11-19d: conditions_kept
+    # (4.3.49, the record outlives an end; nothing for the table)
     assert caps and base and caps == [base[0].replace(
         '\\"margin_tolerance\\"]',
         '\\"margin_tolerance\\",\\"i1pro2_dual_conditions\\",\\"i1pro2_dual_scan\\",'
-        '\\"i1io_table_dual\\"]')]
+        '\\"i1io_table_dual\\",\\"conditions_kept\\"]')]
 
 
 def test_the_build_string():
@@ -242,11 +243,16 @@ def test_the_build_string():
     # 2026-11-19a = 18e + the table dual row's fix round (the lamp pass's dark 170 ms after the
     # lamp, a fire only of the pass the last ready check allowed);
     # 2026-11-19b = 19a + a calibration clears the armed pass and the ready flag (4.3.48
-    # re-review NOTE-B), last
-    assert "chromiq-chartread 2026-11-19b " in h
+    # re-review NOTE-B);
+    # 2026-11-19c = 19b + the hand dual scan's gaps (4.3.49: a move held while the UV pass is
+    # due, a strip after an unusable calibration refused once, the dual header kept on a
+    # refused resume; nothing for the table);
+    # 2026-11-19d = 19c + the record of the other conditions kept after an end, partial
+    # files, Continue completes them (4.3.49; nothing for the table), last
+    assert "chromiq-chartread 2026-11-19d " in h
     assert ("+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule"
             "+i1pro2-dual-device+i1pro2-dual-safety+i1io-table-dual+i1io-table-dual-fix2"
-            "+i1io-table-dual-calreset\"") in h
+            "+i1io-table-dual-calreset+i1pro2-dual-gaps+conditions-kept\"") in h
 
 
 def _base_tree(tmp: Path) -> Path:

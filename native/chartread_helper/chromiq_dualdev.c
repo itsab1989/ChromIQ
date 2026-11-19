@@ -46,6 +46,12 @@ static struct {
 	cq_cx3 *vx;
 	int vx_cap;
 	const char *why;		/* why the last reading has none */
+	/* 4.3.49: a strip the last calibration cannot give M1 / M2 for is read
+	 * as a plain lamp scan (uncal: why, set by the strip loop) and refused
+	 * ONCE per calibration with "calibrate again"; read again without a new
+	 * calibration it is kept as M0 and M1 / M2 end (the way out) */
+	const char *uncal;
+	int cal_asked;
 } cq_dd;
 
 /* in cq_cond_for_session: NULL when this real i1Pro 2 can do it, else why */
@@ -55,6 +61,8 @@ static const char *cq_dd_start(inst *it) {
 	cq_dd.on = 0;
 	cq_dd.cal_ok = 0;
 	cq_dd.cal_why = "no_dual_calibration";
+	cq_dd.uncal = NULL;
+	cq_dd.cal_asked = 0;
 	na = i1pro2_cq_dual_options(it, 1, cq_dd.cal.kA, cq_dd.cal.kD);
 	switch (na) {
 	case CQ_DUAL_NA_OK: break;
@@ -111,6 +119,7 @@ static void cq_dd_after_cal(inst *p) {
 		return;
 	cq_dd.cal_ok = 0;
 	cq_dd.cal.have_uv_tile = 0;
+	cq_dd.cal_asked = 0;		/* a new calibration: asked again if it cannot count either */
 	ev = i1pro2_cq_dual_tile(p, &t);
 	if (ev != 0 || !t.ok)
 		why = "no_dual_calibration";
@@ -205,7 +214,8 @@ static const char *cq_dd_fits(int scan, int clocks) {
 
 /* pairing: "checked", "pairing_not_checked" (too dark to judge: the note) or "" */
 static void cq_dd_result(const char *what, const char *strip, const char *why, int nuv,
-                         const int *counts, int npatch, const cq_dual_uv *u, const char *pairing) {
+                         const int *counts, int npatch, const cq_dual_uv *u, const char *pairing,
+                         int calibrate) {
 	char sb[64];
 	int i, mn = -1;
 	cq_json_escape(sb, sizeof(sb), strip != NULL ? strip : "");
@@ -214,11 +224,28 @@ static void cq_dd_result(const char *what, const char *strip, const char *why, i
 			mn = counts[i];
 	cq_emit_raw("{\"event\":\"dual_pass_result\",\"what\":\"%s\",\"strip\":\"%s\",\"ok\":%s,"
 	            "\"why\":\"%s\",\"uv_readings\":%d,\"fewest_per_patch\":%d,\"uv_triggers\":%d,"
-	            "\"volts\":[%d,%d],\"pairing\":\"%s\"}",
+	            "\"volts\":[%d,%d],\"pairing\":\"%s\",\"calibrate\":%s}",
 	            what, sb, why == NULL ? "true" : "false", why != NULL ? why : "", nuv, mn,
 	            u != NULL ? u->uv_triggers : 0,
 	            u != NULL ? u->volts_before : -1, u != NULL ? u->volts_after : -1,
-	            pairing != NULL ? pairing : "");
+	            pairing != NULL ? pairing : "", calibrate ? "true" : "false");
+}
+
+/* 4.3.49: the first reading after a calibration that cannot give M1 / M2 is
+ * refused (a misread: calibrate again, then read it again); 1 = refused. The
+ * next one, read without a new calibration, is kept as M0 and M1 / M2 end. */
+static int cq_dd_ask_calibration(void) {
+	if (cq_dd.cal_asked)
+		return 0;
+	cq_dd.cal_asked = 1;
+	return 1;
+}
+
+/* the reasons a new calibration can mend */
+static int cq_dd_cal_reason(const char *why) {
+	return why != NULL && (strcmp(why, "no_dual_calibration") == 0
+	    || strcmp(why, "uv_tile_dark") == 0 || strcmp(why, "calibration_mismatch") == 0
+	    || strcmp(why, "calibration_mode_changed") == 0);
 }
 
 /* (b) a spot reading: after read_sample. A failing UV half makes the patch
@@ -246,14 +273,17 @@ static void cq_dd_spot(inst_code *rv) {
 			why = cq_dd_compute(l.L, u.U, 1, l.clamp);
 	}
 	i1pro2_cq_dual_arm(cq_dd.it, CQ_DUAL_PHASE_OFF);
-	cq_dd_result("spot", "", why, u.n, NULL, 0, &u, "");
-	free(l.L);
-	free(u.U);
-	cq_dd.why = why;
-	if (why != NULL) {
-		cq_dd.n = 0;
-		if (cq_dd_pass_level(why))
-			*rv = inst_misread;	/* one unit: the patch again */
+	{
+		int again = cq_dd_cal_reason(why) && cq_dd_ask_calibration();
+		cq_dd_result("spot", "", why, u.n, NULL, 0, &u, "", again);
+		free(l.L);
+		free(u.U);
+		cq_dd.why = why;
+		if (why != NULL) {
+			cq_dd.n = 0;
+			if (again || cq_dd_pass_level(why))
+				*rv = inst_misread;	/* one unit: the patch again (after a calibration) */
+		}
 	}
 }
 
@@ -277,7 +307,7 @@ static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, 
 	double *lp = NULL, *up = NULL, *cutv = NULL;
 	int *counts = NULL;
 	inst_code rv2;
-	int lamp_ok, got_r = 0;
+	int lamp_ok, got_r = 0, calibrate = 0;
 	const char *why = NULL, *pairing = "";
 	char sb[64];
 
@@ -293,11 +323,33 @@ static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, 
 	/* an aborted or commanded lamp pass ends here (nothing to close: a
 	 * lamp pass that never triggered started no ruler stream) */
 	if ((*rv & inst_mask) == inst_user_abort) {
+		cq_dd.uncal = NULL;
 		i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_OFF);
 		free(l.L);
 		return;
 	}
 	cq_json_escape(sb, sizeof(sb), strip);
+	/* 4.3.49: the last calibration cannot give M1 / M2, so the strip loop
+	 * read this strip as a plain lamp scan (no ruler stream: no second pass
+	 * is due). The first such strip after that calibration is refused with
+	 * "calibrate again" (a misread: read again); read again without a new
+	 * calibration, it is kept as M0 and M1 / M2 end, as before. */
+	if (cq_dd.uncal != NULL) {
+		const char *cw = cq_dd.uncal;
+		int again;
+		cq_dd.uncal = NULL;
+		i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_OFF);
+		free(l.L);
+		if (*rv != inst_ok)
+			return;			/* ArgyllCMS's own misread: read again, as always */
+		again = cq_dd_ask_calibration();
+		cq_dd_result("strip", strip, cw, 0, NULL, 0, NULL, "", again);
+		cq_dd.why = cw;
+		cq_dd.n = 0;
+		if (again)
+			*rv = inst_misread;	/* calibrate again, then the strip again */
+		return;
+	}
 	/* pass 2 of 2 only as a RECORDED form (safety review 2026-11-18, M2): the
 	 * lamp pass counted readings in a ruler stream that still runs, so the UV
 	 * trigger carries "ruler end" (0x0209) and closes it. Otherwise (the lamp
@@ -309,7 +361,7 @@ static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, 
 	if (!i1pro2_cq_dual_uv_pass_ready(it)) {
 		i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_OFF);
 		free(l.L);
-		cq_dd_result("strip", strip, "dual_needs_ruler", 0, NULL, 0, NULL, "");
+		cq_dd_result("strip", strip, "dual_needs_ruler", 0, NULL, 0, NULL, "", 0);
 		cq_dd.why = "dual_needs_ruler";
 		cq_dd.on = 0;
 		cq_cond_lose("dual_dual_needs_ruler");
@@ -320,11 +372,24 @@ static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, 
 	 * passes are read again) */
 	cq_emit_raw("{\"event\":\"dual_pass\",\"strip\":\"%s\",\"pass\":\"uv\",\"of\":2,"
 	            "\"lamp_ok\":%s}", sb, lamp_ok ? "true" : "false");
-	i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_UV);
+	/* 4.3.49: a calibration asked for during this wait runs at the next
+	 * strip prompt (never over the open ruler stream), and a command that
+	 * would leave the wait (a jump, a move) is held: the wait goes on */
+	cq_cal_gate_set(0);
 	if ((v2 = (ipatch *)calloc((size_t)npatch, sizeof(ipatch))) == NULL)
 		rv2 = inst_internal_error;
-	else
+	else for (;;) {
+		int held;
+		i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_UV);
 		rv2 = it->read_strip(it, "STRIP", npatch, (char *)strip, sguide, pwid, gwid, twid, v2);
+		if ((rv2 & inst_mask) != inst_user_abort || (held = cq_dd_held_command()) == 0)
+			break;
+		i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_OFF);
+		cq_emit_raw("{\"event\":\"dual_pass_held\",\"strip\":\"%s\",\"cmd\":\"%s\"}", sb,
+		            held == 'g' || held == 'G' ? "goto" : held == 'm' ? "file_as"
+		            : held == 'u' ? "turn" : held == 'n' || held == 'N' ? "next_unread"
+		            : held == 'b' || held == 'B' ? "back" : "forward");
+	}
 	i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_OFF);	/* the UV switch off on every way out */
 	free(v2);
 	(void)i1pro2_cq_dual_take_uv(it, &u);
@@ -340,7 +405,7 @@ static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, 
 	else if (rv2 != inst_ok || u.n <= 0)
 		why = "uv_pass_missing";
 	else if ((why = cq_dd_fits(1, u.clocks)) != NULL)
-		;
+		calibrate = cq_dd_cal_reason(why) && cq_dd_ask_calibration();
 	else if (l.n != npatch || l.L == NULL)
 		why = "record";
 	else if (!got_r || !r.valid || r.ended != CQ_RULER_END_SHORT || r.ncut != npatch
@@ -384,7 +449,7 @@ static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, 
 			why = cq_dd_compute(l.L, cutv, npatch, l.clamp);
 	}
 	cq_dd_result("strip", strip, why, u.n, why == NULL || counts != NULL ? counts : NULL,
-	             counts != NULL ? npatch : 0, &u, pairing);
+	             counts != NULL ? npatch : 0, &u, pairing, calibrate);
 	free(l.L);
 	free(u.U);
 	free(lp);
@@ -395,7 +460,7 @@ static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, 
 	cq_dd.why = why;
 	if (why != NULL) {
 		cq_dd.n = 0;
-		if (*rv == inst_ok && cq_dd_pass_level(why))
-			*rv = inst_misread;	/* both passes again */
+		if (*rv == inst_ok && (calibrate || cq_dd_pass_level(why)))
+			*rv = inst_misread;	/* both passes again (after a new calibration) */
 	}
 }

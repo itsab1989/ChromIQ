@@ -737,11 +737,33 @@ static const char *cq_cond_name[3] = { "M0", "M1", "M2" };
  * CHROMIQ_DUAL_WHITE (workflow/dual_scan/storage.py). */
 static int cq_dual_req = 0;			/* --dual-scale given */
 static double cq_dual_scale = 0.0; static int cq_dd_this_strip = 0;	/* the factor; the strip being read is a dual strip */
+static int cq_dd_held_command(void);	/* 4.3.49: a command held while the UV pass is due (below cq_uicallback) */
 static const char *cq_dual_source = "standard";	/* --dual-scale-source */
 static const char *cq_dual_white = "instrument";	/* --dual-white */
 static const char *cq_dual_chosen = "M0";	/* --dual-chosen: the Measure tab's choice */
 static int cq_cond_dual = 0;			/* the record comes from dual readings */
 static int cq_resuming = 0;			/* -r: this session continues the main file */
+/* 4.3.49 (Basti, 2026-11-19: "if the tab tells and guides users to remeasure
+ * certain strips then it would be an annoyance if this then makes them loose
+ * the other condition files"). THE RECORD IS KEPT. When the other conditions
+ * end for the rest of a sitting (a reading that brings none: a dual strip
+ * without its UV pass, an i1Pro 3 reading without its conditions, a typed
+ * patch, ...), the patches already read keep theirs and every patch filed
+ * from then on is M0 only: its M1 / M2 are CLEARED, never left from an
+ * earlier reading. While every read patch has them the files are the
+ * complete pair as before (conditions/<hash>-Mx.ti3, byte for byte); while
+ * some have M0 only they are written under another name,
+ * conditions/<hash>-Mx.partial.ti3, holding only the patches that have them,
+ * which no reader before 4.3.49 looks for or deletes (Build Profile never
+ * offers it). A Continue takes either back (cq_cond_resume) and reads with
+ * the conditions again. Nothing here changes what is sent to an
+ * instrument: every decision that arms one asks cq_cond_live(), which is
+ * false exactly where cq_cond_active was false before (after an end). Only
+ * "memory" and "write" still end the record itself. */
+static int cq_cond_keep = 0;		/* the record outlives an end of the conditions */
+static int cq_cond_keep_empty = 0;	/* a dual measurement: a Continue without any pair takes its read patches as M0 only */
+static int cq_cond_m0only = 0;		/* from now on a reading brings no other conditions */
+static int cq_cond_live(void) { return cq_cond_active && !cq_cond_m0only; }
 
 static int cq_dual_word_ok(const char *w) {
 	int i;
@@ -764,7 +786,19 @@ static cq_cx3 *cq_cx_of(chcol *c) {
 static void cq_cond_lose(const char *why) {
 	if (!cq_cond_active)
 		return;
+	if (cq_cond_keep && strcmp(why, "memory") != 0 && strcmp(why, "write") != 0) {
+		/* 4.3.49: the record is kept; the device side exactly as at an end */
+		if (cq_cond_m0only)
+			return;
+		cq_cond_m0only = 1;
+		if (cq_cond_it != NULL && !cq_cond_replay && cq_cond_it->dtype == instI1Pro3)
+			i1pro3_cq_cond_arm(cq_cond_it, 0);
+		cq_emit_raw("{\"event\":\"conditions\",\"active\":false,\"why\":\"%s\",\"kept\":true}", why);
+		return;
+	}
 	cq_cond_active = 0;
+	cq_cond_keep = 0;
+	cq_cond_m0only = 0;
 	if (cq_cond_it != NULL && !cq_cond_replay && cq_cond_it->dtype == instI1Pro3)
 		i1pro3_cq_cond_arm(cq_cond_it, 0);
 	cq_emit_raw("{\"event\":\"conditions\",\"active\":false,\"why\":\"%s\"}", why);
@@ -833,6 +867,8 @@ static void cq_cond_after_read(int rv, int n) {
 		return;
 	cq_vx_valid = 0;
 	cq_vx_n = 0;
+	if (cq_cond_m0only)
+		return;			/* 4.3.49: after an end, nothing is taken from a reading */
 	if ((rv != inst_ok && (rv & inst_mask) != inst_user_trig) || n <= 0)
 		return;
 	if (n > cq_vx_cap) {
@@ -924,8 +960,16 @@ static void cq_cond_file(chcol *d, int ix) {
 	int c;
 	if (!cq_cond_active)
 		return;
-	if (!cq_vx_valid || ix < 0 || ix >= cq_vx_n || (a = cq_cx_of(d)) == NULL) {
-		cq_cond_lose("record");
+	a = cq_cx_of(d);
+	if (cq_cond_m0only || !cq_vx_valid || ix < 0 || ix >= cq_vx_n || a == NULL) {
+		if (!cq_cond_m0only)
+			cq_cond_lose("record");
+		/* 4.3.49: a patch filed without its conditions is M0 only: the
+		 * ones of its earlier reading never stay beside the new M0 */
+		if (cq_cond_active && a != NULL)
+			for (c = 0; c < 3; c++)
+				if (c != cq_cond_main)
+					memset(&(*a)[c], 0, sizeof(cq_cx_val));
 		return;
 	}
 	for (c = 0; c < 3; c++)
@@ -935,7 +979,7 @@ static void cq_cond_file(chcol *d, int ix) {
 
 /* Around one read_strip / read_sample. */
 static void cq_cond_arm(int on) {
-	if (!cq_cond_active || cq_cond_replay || cq_cond_dual || cq_cond_it == NULL)
+	if (!cq_cond_live() || cq_cond_replay || cq_cond_dual || cq_cond_it == NULL)
 		return;
 	i1pro3_cq_cond_arm(cq_cond_it, on);
 }
@@ -1046,6 +1090,18 @@ static int cq_rename_over(const char *tmp, const char *real) {
 static void cq_cond_path(char *out, size_t n, const char *hash, int c) {
 	snprintf(out, n, "%s/%s-%s.ti3", cq_cond_dir, hash, cq_cond_name[c]);
 }
+/* 4.3.49: the same, for a record in which some patches have M0 only */
+static void cq_cond_path_partial(char *out, size_t n, const char *hash, int c) {
+	snprintf(out, n, "%s/%s-%s.partial.ti3", cq_cond_dir, hash, cq_cond_name[c]);
+}
+/* Patch i has every condition besides the main one. */
+static int cq_cx_has_all(int i) {
+	int c;
+	for (c = 0; c < 3; c++)
+		if (c != cq_cond_main && !cq_cx[i][c].v)
+			return 0;
+	return 1;
+}
 
 /* Split one CGATS data line into tokens (a quoted token stays whole).
  * Returns the count; tok[] point into buf, which is modified. */
@@ -1077,7 +1133,11 @@ static int cq_tokens(char *buf, char **tok, int max) {
  * SAMPLE_LOC, and anything after the first table copied as it is. Never
  * calls error(); returns 0 on success. */
 static int cq_cond_write_one(const char *text, long len, int c, const char *hash,
-                             const char *path) {
+                             const char *path, int partial) {
+	/* partial < 0: every row (the complete pair, as before 4.3.49); else
+	 * only the rows whose patch has all its conditions, which must be
+	 * exactly *partial* rows (NUMBER_OF_SETS says so) */
+	int written = 0;
 	FILE *fp;
 	long p = 0, ls, le;
 	int first = 1, state = 0;	/* 0 header, 1 format, 2 data, 3 rest */
@@ -1166,6 +1226,10 @@ static int cq_cond_write_one(const char *text, long len, int c, const char *hash
 				state = 3;
 				continue;
 			}
+			if (partial >= 0 && strncmp(lbuf, "NUMBER_OF_SETS", 14) == 0) {
+				fprintf(fp, "NUMBER_OF_SETS %d\n", partial);
+				continue;
+			}
 			if (n == 0 || strncmp(lbuf, "NUMBER_OF_SETS", 14) == 0) {
 				fprintf(fp, "%s\n", lbuf);
 				continue;
@@ -1181,8 +1245,13 @@ static int cq_cond_write_one(const char *text, long len, int c, const char *hash
 			if (pi < 0)
 				for (i = 0; i < cq_cx_npat; i++)
 					if (strcmp(cq_cx_base[i].loc, loc) == 0) { pi = i; break; }
+			if (pi >= 0 && partial >= 0 && !cq_cx_has_all(pi)) {
+				row = pi + 1;
+				continue;		/* M0 only: not in a partial file */
+			}
 			if (pi < 0 || !(x = &cq_cx[pi][c])->v) { ok = 0; break; }
 			row = pi + 1;
+			written++;
 			{
 				char nums[CQ_MAXF][32];
 				double labv[3], xyz1[3];
@@ -1215,6 +1284,8 @@ static int cq_cond_write_one(const char *text, long len, int c, const char *hash
 	if (fclose(fp) != 0)
 		ok = 0;
 	if (state < 3)
+		ok = 0;
+	if (partial >= 0 && written != partial)
 		ok = 0;
 	return ok ? 0 : 1;
 }
@@ -1259,24 +1330,34 @@ static void cq_cond_write(const char *mainfile) {
 	char hash[64], path[MAXNAMEL + 200], tmp[MAXNAMEL + 220], *text;
 	long len;
 	int c;
+	int partial = -1, i;
 	cq_cond_pending[0] = '\0';
 	if (!cq_cond_active)
 		return;
 	if (!cq_cond_complete(cq_cx_base, cq_cx_npat)) {
-		cq_cond_lose("record");
-		return;
+		if (!cq_cond_keep) {
+			cq_cond_lose("record");
+			return;
+		}
+		/* 4.3.49: some read patches have M0 only: the partial pair */
+		for (partial = 0, i = 0; i < cq_cx_npat; i++)
+			if (cq_cx_base[i].rr && cq_cx_has_all(i))
+				partial++;
 	}
 	if (cq_cond_hash(mainfile, hash, sizeof(hash)) != 0
 	 || (text = cq_read_all(mainfile, &len)) == NULL) {
 		cq_cond_lose("write");
 		return;
 	}
-	for (c = 0; c < 3; c++) {
+	for (c = 0; c < 3 && partial != 0; c++) {	/* no patch with them: no file */
 		if (c == cq_cond_main)
 			continue;
-		cq_cond_path(path, sizeof(path), hash, c);
+		if (partial < 0)
+			cq_cond_path(path, sizeof(path), hash, c);
+		else
+			cq_cond_path_partial(path, sizeof(path), hash, c);
 		snprintf(tmp, sizeof(tmp), "%s.cqtmp", path);
-		if (cq_cond_write_one(text, len, c, hash, tmp) != 0
+		if (cq_cond_write_one(text, len, c, hash, tmp, partial) != 0
 		 || cq_rename_over(tmp, path) != 0) {
 			remove(tmp);
 			free(text);
@@ -1301,6 +1382,8 @@ static void cq_cond_commit(void) {
 				continue;
 			cq_cond_path(path, sizeof(path), cq_cond_last, c);
 			remove(path);
+			cq_cond_path_partial(path, sizeof(path), cq_cond_last, c);
+			remove(path);		/* 4.3.49: whichever of the two it was */
 		}
 	}
 	snprintf(cq_cond_last, sizeof(cq_cond_last), "%s", cq_cond_pending);
@@ -1464,9 +1547,11 @@ static const char *cq_dual_resume_refusal(void) {
 	return why;
 }
 
+static int cq_cond_resume_partial = 0;	/* 4.3.49: the record taken back has patches with M0 only */
 static int cq_cond_resume(const char *mainfile, chcol *cols, int npat) {
-	char hash[64];
-	int c, any = 0, i;
+	char hash[64], path[MAXNAMEL + 200];
+	int c, any = 0, i, ok = 1;
+	cq_cond_resume_partial = 0;
 	for (i = 0; i < npat; i++)
 		if (cols[i].rr)
 			any = 1;
@@ -1474,25 +1559,51 @@ static int cq_cond_resume(const char *mainfile, chcol *cols, int npat) {
 		return 0;				/* nothing read yet: a clean start */
 	if (cq_cond_hash(mainfile, hash, sizeof(hash)) != 0)
 		return 1;
-	for (c = 0; c < 3; c++) {
-		char path[MAXNAMEL + 200];
+	for (c = 0; c < 3 && ok; c++) {
 		if (c == cq_cond_main)
 			continue;
 		cq_cond_path(path, sizeof(path), hash, c);
 		if (cq_cond_load_one(path, c, hash, cols, npat) != 0)
+			ok = 0;
+	}
+	if (ok && cq_cond_complete(cols, npat))
+		return 0;			/* the complete pair, as always */
+	if (!cq_cond_keep)
+		return 1;
+	/* 4.3.49: the partial pair of these readings; failing that, for a dual
+	 * measurement, nothing: every read patch is then M0 only */
+	memset(cq_cx, 0, sizeof(cq_cx3) * (size_t)cq_cx_npat);
+	for (ok = 1, c = 0; c < 3 && ok; c++) {
+		if (c == cq_cond_main)
+			continue;
+		cq_cond_path_partial(path, sizeof(path), hash, c);
+		if (cq_cond_load_one(path, c, hash, cols, npat) != 0)
+			ok = 0;
+	}
+	if (!ok) {
+		memset(cq_cx, 0, sizeof(cq_cx3) * (size_t)cq_cx_npat);
+		if (!cq_cond_keep_empty)
 			return 1;
 	}
-	return cq_cond_complete(cols, npat) ? 0 : 1;
+	for (i = 0; i < npat; i++)		/* a patch has all of them, or none */
+		if (!cq_cx_has_all(i))
+			for (c = 0; c < 3; c++)
+				memset(&cq_cx[i][c], 0, sizeof(cq_cx_val));
+	cq_cond_resume_partial = !cq_cond_complete(cols, npat);
+	return 0;
 }
 
 /* Once per session, after the instrument is known. */
 static void cq_cond_for_session(inst *it, int rmode, int emis, int trans,
                                 int displ, inst_opt_filter fe) {
-	const char *why = NULL;
+	const char *why = NULL, *kept_why = NULL;
 	int c, n = 0;
 	if (!cq_cond_req || !cq_json)
 		return;
 	cq_cond_active = 0;
+	cq_cond_keep = 0;
+	cq_cond_keep_empty = 0;
+	cq_cond_m0only = 0;
 	cq_cond_it = NULL;
 	cq_cond_replay = 0;
 	cq_cond_main = fe == inst_opt_filter_D50 ? 1
@@ -1518,7 +1629,21 @@ static void cq_cond_for_session(inst *it, int rmode, int emis, int trans,
 				why = "dual_not_available";
 		} else
 			why = cq_dd_start(it);	/* step 2: a real i1Pro 2 */
-		if (why == NULL) {
+		if (why != NULL && strcmp(why, "mode") != 0 && strcmp(why, "filter") != 0
+		 && strcmp(why, "files") != 0 && strcmp(why, "mixed") != 0
+		 && cq_dual_main_kind(cq_sctx.outname) == 2) {
+			/* 4.3.49: a dual measurement continued where this sitting cannot
+			 * read the UV pass (no UV light, high resolution, ...): its
+			 * record is kept and every strip read now is M0 only. Nothing
+			 * is armed: the device side is off, as for any such refusal. */
+			kept_why = why;
+			why = NULL;
+			if (cq_dd.on) {
+				i1pro2_cq_dual_arm(cq_dd.it, CQ_DUAL_PHASE_OFF);
+				(void)i1pro2_cq_dual_options(cq_dd.it, 0, NULL, NULL);
+				cq_dd.on = 0;
+			}
+		} else if (why == NULL) {
 			cq_cond_replay = cq_replay_active();
 			cq_cond_dual = 1;
 			if (!cq_cond_replay)
@@ -1547,17 +1672,39 @@ static void cq_cond_for_session(inst *it, int rmode, int emis, int trans,
 	if (why == NULL) {
 		cq_cond_it = it;
 		cq_cond_active = 1;
+		cq_cond_keep = 1;		/* 4.3.49: the record outlives an end */
+		cq_cond_keep_empty = kept_why != NULL || cq_cond_dual;
+		cq_cond_m0only = kept_why != NULL;
 		if (cq_cond_resume(cq_sctx.outname, cq_cx_base, cq_cx_npat) != 0) {
 			cq_cond_active = 0;
 			why = "resume";
 		}
 	}
 	if (why != NULL) {
+		/* 4.3.49 (gap 3b): a dual measurement whose resume is refused (its
+		 * M1 / M2 ended in an earlier session) stays a dual measurement in
+		 * its own header, with why M1 / M2 ended: without it the file was
+		 * written as if read by single scans, and only the pass record beside
+		 * it told otherwise. Nothing else: the conditions stay off. */
+		int was_dual = cq_cond_dual;
+		cq_cond_keep = 0;
+		cq_cond_keep_empty = 0;
+		cq_cond_m0only = 0;
 		if (it != NULL && !cq_replay_active() && it->dtype == instI1Pro3)
 			i1pro3_cq_cond_options(it, 0);
 		free(cq_cx);
 		cq_cx = NULL;
 		cq_cond_dual = 0;
+		if (was_dual && strcmp(why, "resume") == 0 && cq_sctx.ocg != NULL) {
+			char sb[32];
+			snprintf(sb, sizeof(sb), "%.4f", cq_dual_scale);
+			cq_sctx.ocg->add_kword(cq_sctx.ocg, 0, "CHROMIQ_DUAL_SCAN", "i1pro2", NULL);
+			cq_sctx.ocg->add_kword(cq_sctx.ocg, 0, "CHROMIQ_DUAL_SCALE", sb, NULL);
+			cq_sctx.ocg->add_kword(cq_sctx.ocg, 0, "CHROMIQ_DUAL_SCALE_SOURCE", cq_dual_source, NULL);
+			cq_sctx.ocg->add_kword(cq_sctx.ocg, 0, "CHROMIQ_DUAL_WHITE", cq_dual_white, NULL);
+			cq_sctx.ocg->add_kword(cq_sctx.ocg, 0, "CHROMIQ_DUAL_CHOSEN", cq_dual_chosen, NULL);
+			cq_sctx.ocg->add_kword(cq_sctx.ocg, 0, "CHROMIQ_DUAL_ENDED", "resume", NULL);
+		}
 		if (cq_dd.on) {			/* the device side off again */
 			i1pro2_cq_dual_arm(cq_dd.it, CQ_DUAL_PHASE_OFF);
 			(void)i1pro2_cq_dual_options(cq_dd.it, 0, NULL, NULL);
@@ -1567,7 +1714,7 @@ static void cq_cond_for_session(inst *it, int rmode, int emis, int trans,
 		cq_emit_raw("{\"event\":\"conditions\",\"active\":false,\"why\":\"%s\"}", why);
 		return;
 	}
-	if (cq_cond_dual) {
+	if (cq_cond_dual || kept_why != NULL) {
 		char sb[32];
 		snprintf(sb, sizeof(sb), "%.4f", cq_dual_scale);
 		cq_sctx.ocg->add_kword(cq_sctx.ocg, 0, "CHROMIQ_DUAL_SCAN", "i1pro2", NULL);
@@ -1576,17 +1723,24 @@ static void cq_cond_for_session(inst *it, int rmode, int emis, int trans,
 		cq_sctx.ocg->add_kword(cq_sctx.ocg, 0, "CHROMIQ_DUAL_WHITE", cq_dual_white, NULL);
 		/* the person's choice: recorded, the main file stays M0 */
 		cq_sctx.ocg->add_kword(cq_sctx.ocg, 0, "CHROMIQ_DUAL_CHOSEN", cq_dual_chosen, NULL);
+		if (kept_why != NULL) {
+			cq_emit_raw("{\"event\":\"conditions\",\"active\":false,\"why\":\"%s\","
+			            "\"kept\":true}", kept_why);
+			return;
+		}
 		cq_emit_raw("{\"event\":\"conditions\",\"active\":true,\"instrument\":\"i1pro2\","
 		            "\"dual\":true,\"scale\":%s,\"scale_source\":\"%s\",\"white\":\"%s\","
-		            "\"main\":\"M0\",\"extra\":[\"M1\",\"M2\"],\"chosen\":\"%s\"}",
-		            sb, cq_dual_source, cq_dual_white, cq_dual_chosen);
+		            "\"main\":\"M0\",\"extra\":[\"M1\",\"M2\"],\"chosen\":\"%s\"%s}",
+		            sb, cq_dual_source, cq_dual_white, cq_dual_chosen,
+		            cq_cond_resume_partial ? ",\"partial\":true" : "");
 		return;
 	}
 	cq_emit_raw("{\"event\":\"conditions\",\"active\":true,\"instrument\":\"i1pro3\","
-	            "\"main\":\"%s\",\"extra\":[\"%s\",\"%s\"]}",
+	            "\"main\":\"%s\",\"extra\":[\"%s\",\"%s\"]%s}",
 	            cq_cond_name[cq_cond_main],
 	            cq_cond_name[cq_cond_main == 0 ? 1 : 0],
-	            cq_cond_name[cq_cond_main == 2 ? 1 : 2]);
+	            cq_cond_name[cq_cond_main == 2 ? 1 : 2],
+	            cq_cond_resume_partial ? ",\"partial\":true" : "");
 }
 
 /* Has any patch of row *r* a reading? */
@@ -1687,8 +1841,10 @@ static int cq_restore_row(chcol **scols, int stipa, int npat, int r) {
 		if (cq_cond_active) {		/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
 			if (cq_prev_cx != NULL)
 				cq_cx_load(d, &cq_prev_cx[r * stipa + i]);
-			else
+			else {
 				cq_cond_lose("record");
+				cq_cx_clear(d);		/* 4.3.49: kept record: this row M0 only */
+			}
 		}
 		for (j = 0; j < 3; j++)
 			d->XYZ[j] = s->XYZ[j];
@@ -2194,6 +2350,41 @@ inst_code cq_uicallback(void *cntx, inst_ui_purp purp) {
 		}
 	}
 	return inst_ok;
+}
+
+/* CHROMIQ_EXT (4.3.49): the i1Pro 2 dual scan by hand. While the second pass
+ * (UV light) of a strip is due, a command that would move the reader or
+ * change a strip (goto, forward, back, next unread, "I read strip B", turn
+ * round) is HELD: the strip's first pass opened a ruler stream that only the
+ * UV pass's trigger ("ruler end", 0x0209, the only recorded form) closes, so
+ * leaving the wait would end M1 / M2 for the session (the next lamp pass
+ * could not start a stream). The key is forgotten (the GUI is told, event
+ * dual_pass_held, and the person chooses again after the pass) and the wait
+ * goes on. Returns the key, or 0 when the waiting key is anything else: Esc,
+ * quit, done and hold leave the wait exactly as before. Nothing is sent to
+ * the instrument: the wait was left before any trigger (i1pro_imp_measure
+ * returns before its dark reading on an abort). */
+static int cq_dd_held_command(void) {
+	cq_uicontext_mirror *u = (cq_uicontext_mirror *)inst_get_uicontext();
+	int ch;
+	if (u == NULL)
+		return 0;
+	ch = u->cut & 0xff;
+	if (!(u->uih[ch] & DUIH_CMND))
+		return 0;
+	switch (ch) {
+	case 'f': case 'F': case 'b': case 'B': case 'n': case 'N':
+	case 'g': case 'G': case 'm': case 'u':
+		break;
+	default:
+		return 0;
+	}
+	u->cut = 0;
+	cq_goto_target[0] = '\0';
+	cq_turn_strip[0] = '\0';
+	cq_file_from[0] = cq_file_to[0] = '\0';
+	cq_file_keep = 0;
+	return ch;
 }
 /* ========================================================= */
 
@@ -4436,9 +4627,15 @@ a1log *log			/* verb, debug & error log */
 					cq_cal_gate_set(1);
 				cq_press_listen(0);		/* CHROMIQ_EXT: a fresh group */
 				cq_lights_prompt();		/* CHROMIQ_EXT: lights (Beta) */
-				if ((cq_dd_this_strip = cq_dd.on && cq_cond_active))	/* CHROMIQ_EXT: i1Pro 2 dual scan, pass 1 of 2 */
-					i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_LAMP);
-				else
+				if ((cq_dd_this_strip = cq_dd.on && cq_cond_live())) {	/* CHROMIQ_EXT: i1Pro 2 dual scan, pass 1 of 2 */
+					/* 4.3.49: after a calibration that cannot give M1 / M2 the
+					 * strip is a plain lamp scan: no ruler stream, so no second
+					 * pass is due (cq_dd_strip asks for a new calibration) */
+					if ((cq_dd.uncal = cq_dd_fits(1, 0)) == NULL)
+						i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_LAMP);
+					else
+						i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_OFF);
+				} else
 					cq_ruler_arm(1);		/* CHROMIQ_EXT: ruler check (Beta) */
 				cq_cond_arm(1);			/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
 				cq_usbwatch_begin();	/* CHROMIQ_EXT 4.3.36: a reading begins */
@@ -5581,11 +5778,11 @@ a1log *log			/* verb, debug & error log */
 				cq_press_listen(0);		/* CHROMIQ_EXT: a fresh group */
 				cq_lights_prompt();		/* CHROMIQ_EXT: lights (Beta) */
 				cq_cond_arm(1);			/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
-				if (cq_dd.on && cq_cond_active)	/* CHROMIQ_EXT: i1Pro 2 dual spot, the lamp half */
+				if (cq_dd.on && cq_cond_live())	/* CHROMIQ_EXT: i1Pro 2 dual spot, the lamp half */
 					i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_SPOT);
 				cq_usbwatch_begin();	/* CHROMIQ_EXT 4.3.36: a reading begins */
 				rv = it->read_sample(it, "SPOT", &val, 1);
-				if (cq_dd.on && cq_cond_active)	/* CHROMIQ_EXT: i1Pro 2 dual spot, the UV half */
+				if (cq_dd.on && cq_cond_live())	/* CHROMIQ_EXT: i1Pro 2 dual spot, the UV half */
 					cq_dd_spot(&rv);
 				cq_cond_after_read(rv, 1);	/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
 				cq_cond_arm(0);
@@ -6530,7 +6727,7 @@ int main(int argc, char *argv[]) {
 				 * before it relies on it. One JSON line, then exit 0.
 				 * "legacy_labels": reads sheets ChromIQ's layout engine
 				 * printed with its pre-4.3.3-beta.7 labels as printed. */
-				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"turn\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\",\"lights_signals\",\"lights_during_reading\",\"ruler_check\",\"i1pro3_conditions\",\"margin_tolerance\",\"i1pro2_dual_conditions\",\"i1pro2_dual_scan\",\"i1io_table_dual\"],\"build\":\"%s\"}\n",
+				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"turn\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\",\"lights_signals\",\"lights_during_reading\",\"ruler_check\",\"i1pro3_conditions\",\"margin_tolerance\",\"i1pro2_dual_conditions\",\"i1pro2_dual_scan\",\"i1io_table_dual\",\"conditions_kept\"],\"build\":\"%s\"}\n",
 				       cq_helper_build_string());
 				fflush(stdout);
 				return 0;

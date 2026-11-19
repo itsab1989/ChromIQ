@@ -222,7 +222,12 @@ def test_eight_files_skip_wholesale_without_it():
     # i1Pro 3 writing the measurement's M1/M2 pair. 30 with the margin
     # tolerance (Beta, 2026-11-16): the replay instrument as an i1Pro 2 whose
     # refused swipe hands over its segments.
-    assert len(whole) == 10 and len(partial) == 35, (
+    # 36 in part with the hand dual scan's gaps (4.3.49): the simulated helper
+    # around the real one (tests/test_i1pro2_dual_gaps_4349.py).
+    # 37 in part with the kept conditions (4.3.49): the real helper keeping the record of
+    # M1 / M2 after an end, its partial files and Continue (test_conditions_kept_4349.py)
+    # 38 with the final fix round's test (4.3.49 review: a hand-edited partial pair on the real helper)
+    assert len(whole) == 10 and len(partial) == 38, (
         "the number of files gated on the chart-reading helper has changed "
         f"({len(whole)} wholesale, {len(partial)} in part) -> update the "
         f"header in tests/conftest.py. wholesale={whole} partial={partial}")

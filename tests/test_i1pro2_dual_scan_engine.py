@@ -278,7 +278,7 @@ def test_no_uv_tile_in_the_calibration_ends_them_with_the_reason(tmp_path, monke
     ev = [e for e in s.events if e.get("event") == "conditions"]
     assert ev[0]["active"] is True
     assert ev[1] == {"event": "conditions", "active": False,
-                     "why": "dual_no_dual_calibration"}
+                     "why": "dual_no_dual_calibration", "kept": True}   # 4.3.49
     assert list(cdir.iterdir()) == []
     assert _spectra(base.with_suffix(".ti3"))           # M0 measured as always
 

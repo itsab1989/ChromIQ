@@ -568,3 +568,119 @@ driven on screen; never run on a real table.
   and the pass's own reading exclude each other (the lamp pass's last motion is confirmed when
   the UV pass starts, and every motion clears the kept reading). A dual row: 28 lines, 6
   movements. A tenth line is refused by the step's cap.
+
+### 11. The hand dual scan's gaps (2026-11-19, for 4.3.49)
+
+**Confirmed by:** *nobody yet.* Built from the desk analysis `DUAL_GAPS.md` (work folder
+2026-11-19_dual_gaps), tested against the simulated helper, the real helper's replay instrument
+and the fake-USB trace of the real driver (`tests/test_i1pro2_dual_gaps_4349.py`, scenarios
+`uv-held` and `uncal` of `i1pro2_dual_test.c`), and driven on screen against the simulated
+helper; never run on a real instrument. Changes what sections 7 (c), 8 and 9 describe, as listed.
+
+* **While the second pass (UV light) of a hand strip is due, nothing moves the reader.** A jump
+  (a click on the chart preview), a navigation key, "I read strip B" and "turn round" are held:
+  the app does not send them (`MeasureManager._dual_pass_holds`) and says so in the status line
+  and once in the log (M-DUAL-PASS-HELD); the helper holds such a command too if one reaches it
+  (`cq_dd_held_command`) and goes on waiting for the UV pass (event `dual_pass_held`). The wait
+  is left before any trigger (ArgyllCMS returns before its dark reading on an abort), so holding
+  sends nothing; the UV pass that follows is the recorded 0x0209 and closes the stream. The
+  helper closes its calibration gate during the wait, so a calibration asked for then runs at
+  the next strip prompt, never over the open ruler stream (the app held it already). Esc, quit,
+  done and the finishing window's hold leave the wait as before; Esc still ends M1 / M2 for the
+  session (section 7 (c)). Why not "discard the first pass and jump": the first pass's ruler
+  stream is closed only by the UV pass's trigger ("ruler end", the one recorded form); nothing
+  else may close it.
+  After the review of 2026-11-19 the app holds such a command also while the strip's FIRST pass
+  is being read (the instrument has fired, `scan_started`, with a usable dual calibration): the
+  helper would only take it at the UV wait and hold it there, and the tab had logged "Jumping to
+  strip C" for a jump never made. M-DUAL-PASS-HELD is said when the `dual_pass` event comes; a
+  first pass that ends without one (a misread, M1 / M2 ended) drops the held command silently.
+* **A calibration that cannot give M1 / M2 asks for a new one instead of ending them** (replaces
+  section 9's "the pass prompts say so ... not asking for that pass at all needs a helper
+  change"). The strip after it is read as a plain lamp scan (no "ruler start", so no second
+  pass is due: the single scan's requests, byte for byte) and refused once per calibration with
+  `dual_pass_result` `"calibrate": true` (a misread; M-DUAL-CAL-AGAIN in Strip Read Failed); a
+  new calibration then gives M1 / M2 again. Read again without a new calibration, the strip is
+  kept as M0 and M1 / M2 end for the session as before (the way out, so a broken UV light never
+  loops). Once that one refusal has come, the strip prompt says that the next reading without a
+  calibration is kept as M0 and ends M1 / M2 (M-DUAL-PASS-ONE-NO-CAL-KEPT), whether it is the
+  same strip (Retry) or another one (Skip Strip); M-DUAL-CAL-AGAIN tells the person to press
+  Retry first and calibrate before reading, because the Calibrate button is behind that window
+  (review of 2026-11-19, M1 and S1). The reasons: `no_dual_calibration`, `uv_tile_dark`, `calibration_mode_changed`
+  (known before the strip) and `calibration_mismatch` (known after the UV pass; that strip had
+  both passes). Patch by patch the same, without the UV half. M-DUAL-PASS-TWO-NO-CAL is
+  withdrawn; M-DUAL-PASS-ONE-NO-CAL and M-DUAL-CAL-REFUSED say the new rule.
+* **A refused Continue keeps the measurement's identity.** When the engine refuses to take M1 /
+  M2 up again on a Continue Measurement (`why: "resume"`), the main file keeps
+  `CHROMIQ_DUAL_SCAN` and the factor keywords, plus `CHROMIQ_DUAL_ENDED "resume"` (section 9 said
+  it was written without them). A later Continue is then the engine's "resume" again, not
+  "mixed".
+* **"High resolution spectral mode (-H)" with the dual scan by hand is refused before START**
+  (M-DUAL-HIGHRES-REFUSED), as the table already refused it; before, the note promised a dual
+  scan and the engine ended it at once.
+* Not changed in this section: Continue Measurement still could not bring M1 / M2 back after
+  they ended (gap 3 of the analysis; done since, section 12), high resolution itself, the i1iO table, the FD-9.
+
+
+### 12. The other conditions of strips already read are kept (2026-11-19, for 4.3.49)
+
+**Confirmed by:** *nobody yet.* Built on Sebastian's ruling of 2026-11-19 ("i think we should do
+this because it also touches the way we use check and refine. if the tab tells and guides users
+to remeasure certain strips then it would be an annoyance if this then makes them loose the
+other condition files"; and, the same day, "the dual scan agent shall fix any faults it finds
+for the i1pro 3 as well"). Tested on the real helper's replay instrument (dual scan and i1Pro 3),
+against the simulated helper, and across helper versions (4.3.48 and this one, both ways);
+never on a real instrument. Changes what sections 2, 2a, 7 (c), 8, 9 and 11 say about M1 / M2
+ending, as listed. Tests: `tests/test_conditions_kept_4349.py`; the paths: work folder
+2026-11-19_dual_continue, `paths.txt`.
+
+* **The fault.** One strip read without its other conditions (a dual strip without its UV pass:
+  the ruler lost, a UV pass left with Esc, a strip kept as M0 after an unusable calibration, an
+  instrument without the UV light; or an i1Pro 3 reading the driver gave without them) ended the
+  conditions for the sitting; no file matched the readings any more, and the session-end
+  housekeeping deleted the last pair: every strip lost its M1 and M2, and Continue Measurement
+  could not bring them back. The same happened when Check & Refine's list, a click on the chart
+  preview or a misread's way out read a strip again without its UV pass. Reproduced on 4.3.48.
+* **The rule (one for every path, and the same for the i1Pro 3).** The engine keeps the record
+  (`chromiq_chartread.c` cq_cond_keep). A strip read without its other conditions has the main
+  condition only from then on: its old M1 / M2 go with its old reading, never left beside a new
+  M0. Every other strip keeps its own. A strip read again with all three replaces all three
+  together. Why this rule: it is the only one that never mixes two readings of one strip and
+  never throws away a good one; the alternative (keep the old M1 / M2 beside a new M0) would pair
+  values of two different readings.
+* **The files.** While every read patch has all three: the complete pair
+  `conditions/<hash>-Mx.ti3`, exactly as before (byte for byte; Build Profile offers it). While
+  some have the main condition only: `conditions/<hash>-Mx.partial.ti3`, holding only the patches
+  that have all three (Build Profile never offers it; the housekeeping keeps it while a
+  measurement holds its readings, and deletes it otherwise, as a pair). ChromIQ 4.3.48 and
+  earlier neither read nor delete a partial file: they continue such a measurement as M0 only,
+  as they always did after an end (fails safe).
+* **Continue Measurement** takes the complete pair back, else the partial one. A dual
+  measurement without either (its M1 / M2 already lost, for example by 4.3.48) is continued with
+  every strip read before as M0 only. The strips not read yet are read with all three (a dual
+  scan: both passes, after the fresh dual calibration that every start asks for), and the strips
+  with the main condition only are read again when the person reads them. A dual measurement
+  continued where the UV pass cannot be read (an instrument without the UV light) is continued
+  as M0 only with its record kept: nothing is armed, the strips read then are M0 only, the
+  header stays a dual one (M-DUAL-ENDED-KEPT with the reason). The only ends that keep nothing
+  are a file that cannot be written and memory (M-DUAL-ENDED, unchanged).
+* **The Measure tab offers to fill the gaps** (no new window). Before START, the status line
+  names the strips with the main condition only: with "Refine / resume" ticked,
+  M-DUAL-CONTINUE-FILL (i1Pro 3: M-COND-CONTINUE-FILL); without it, how to complete them instead
+  of measuring everything again (M-DUAL-FILL-OFFER / M-COND-FILL-OFFER). At Continue Measurement
+  in strip mode with ChromIQ's engine, the refinement guide takes the reader to those strips and
+  to every strip not read yet, in chart order (together with a ticked refinement list), so the
+  guide ends when the chart is complete. Patch by patch the guide is not used for this (its
+  sentences speak of patches "above the limit"); the note and Build Profile's line still name the
+  strips.
+* **Build Profile** offers only conditions every strip has; until then it says which strips have
+  the main condition only and how to complete them.
+* **Section 11's "a refused Continue keeps the measurement's identity"** remains in the engine,
+  but a dual measurement is no longer refused on a Continue; only a measurement whose header
+  4.3.48 rewrote without the dual record (after such a refusal) continues as M0 only
+  (M-DUAL-CONTINUE-M0, `session.ended_before`).
+* **Not changed:** what is sent to an instrument (`safety_brief.txt` of the work folder); the
+  complete files; the i1iO table's own condition files; averaging (a condition is averaged only
+  when every read has its complete pair, so a read with partial files gives the average none, as
+  before); a measurement made with the Beta off and continued with it on (still the main
+  condition only, `why: "resume"`).

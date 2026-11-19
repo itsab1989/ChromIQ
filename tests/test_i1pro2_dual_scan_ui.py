@@ -281,7 +281,7 @@ def test_a_lost_ruler_ends_m1_and_m2_as_the_real_helper_says_it(
     ends = [e for e in s.events if e.get("event") == "conditions"
             and not e.get("active")]
     assert ends == [{"event": "conditions", "active": False,
-                     "why": "dual_dual_needs_ruler"}]
+                     "why": "dual_dual_needs_ruler", "kept": True}]   # 4.3.49
     assert "dual_pass" not in [e.get("event") for e in s.events]
     # the reason the C code gives for it is the one the tab maps
     text = (ROOT / "native/chartread_helper/chromiq_dualdev.c").read_text(
@@ -533,11 +533,13 @@ def test_until_every_strip_has_both_passes_it_says_why(qapp, tmp_path):
                            _dual_preset_commit_pending=lambda: None)
     TabProfile._dual_preset_once(fake, True)
     assert fake._build_from == ""
-    # B was read as M0 after M1 / M2 ended, so the condition files are out
-    # of step for good: no promise of Continue Measurement (review M-1)
+    # 4.3.49 (Basti, 2026-11-19): the engine keeps the record, so a strip
+    # with M0 only is completed by Continue Measurement, and the line says so
     assert shown["v"] is True and "M2" in shown["t"]
-    assert "ended during the measurement" in shown["t"]
-    assert "measure the chart again" in shown["t"]
+    # (no condition files at all here: the review's SHOULD-1 sentence)
+    assert "back to strip A" in shown["t"] and "keep their" not in shown["t"]
+    assert "Continue Measurement" in shown["t"]
+    assert "measure the chart again" not in shown["t"]
 
 
 def test_the_filter_refused_variant_points_to_the_dual_scan(qapp):

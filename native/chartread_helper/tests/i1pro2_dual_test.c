@@ -502,6 +502,69 @@ int main(int argc, char *argv[]) {
 	}
 	close_it(p);
 
+	/* (h) 4.3.49: a command held while the UV pass is due. The helper armed
+	 * the UV pass and its wait was left by a command BEFORE any trigger
+	 * (i1pro_imp_measure returns before its dark reading on an abort): the
+	 * helper disarms, holds the command and arms the UV pass again. Nothing
+	 * goes on the wire for the held wait; the UV pass that follows is the
+	 * recorded 0x0209 and closes the stream; the next strip's lamp pass gets
+	 * its own "ruler start" and its UV pass may come (M1 / M2 go on). */
+	scn = "uv-held";
+	stream_over = 0; end_pending = 0; rsamples = 0; rdir = 1; rpos = 0; cancelled = 0;
+	scan_ms = 100;
+	p = make(instI1Pro2, I1PRO_CAP2_UV_LED | I1PRO_CAP2_ZEB_RUL, 1);
+	opts(p);
+	step("lamp-pass");
+	i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_LAMP);
+	reading(p, 5, i1p_dark_cal, 5);
+	reading(p, 10, i1p_norm, 40);
+	i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_OFF);
+	step("uv-wait-left-by-a-command");
+	i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_UV);	/* the wait: no trigger */
+	i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_OFF);	/* held: the helper disarms */
+	printf("%s READY-HELD %d uv_en %d lit %d\n", scn, i1pro2_cq_dual_uv_pass_ready(p),
+	       ((i1proimp *)p->m)->uv_en, i1pro2_cq_dual_uv_lit(p));
+	step("uv-pass");
+	i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_UV);	/* armed again: the same wait */
+	reading(p, 5, i1p_dark_cal, 5);
+	reading(p, 10, ((i1proimp *)p->m)->uv_en ? i1p2_UV : i1p_norm, 38);
+	i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_OFF);
+	{
+		cq_ruler_rec r;
+		int got;
+		memset(&r, 0, sizeof(r));
+		got = i1pro2_cq_ruler_take(p, &r);
+		printf("%s RULER got %d ended %d reader %s\n", scn, got, r.ended,
+		       ((i1proimp *)p->m)->cq_ruler_th != NULL ? "running" : "stopped");
+		cq_ruler_rec_clear(&r);
+	}
+	step("next-strip");
+	stream_over = 0; end_pending = 0; rdir = 1;
+	i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_LAMP);
+	reading(p, 5, i1p_dark_cal, 5);
+	reading(p, 10, i1p_norm, 40);
+	printf("%s READY-NEXT %d\n", scn, i1pro2_cq_dual_uv_pass_ready(p));
+	i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_OFF);
+	end_pending = 1; end_at = msec_time();	/* the close ends the stream left for the test */
+	scan_ms = 0;
+	close_it(p);
+
+	/* (i) 4.3.49: a strip after a calibration that cannot give M1 / M2. The
+	 * helper arms nothing (phase OFF): a plain lamp scan, byte for byte the
+	 * single scan's requests, no ruler stream, so no UV pass is due. */
+	scn = "uncal";
+	stream_over = 0; end_pending = 0; rsamples = 0; rdir = 1; rpos = 0; cancelled = 0;
+	p = make(instI1Pro2, I1PRO_CAP2_UV_LED | I1PRO_CAP2_ZEB_RUL, 1);
+	opts(p);
+	step("lamp-strip");
+	i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_OFF);
+	reading(p, 10, i1p_dark_cal, 5);
+	reading(p, 10, i1p_norm, 500);
+	printf("%s AFTER reader %s ready %d uv_en %d\n", scn,
+	       ((i1proimp *)p->m)->cq_ruler_th != NULL ? "running" : "stopped",
+	       i1pro2_cq_dual_uv_pass_ready(p), ((i1proimp *)p->m)->uv_en);
+	close_it(p);
+
 	/* (g) where it is not offered */
 	scn = "refused";
 	p = make(instI1Pro2, I1PRO_CAP2_ZEB_RUL, 1);	/* no UV LED */

@@ -1790,9 +1790,9 @@ def _chart_reads_by_position(name) -> bool:
 
 def _dual_cal_unusable(tab) -> bool:
     """The i1Pro 2 dual scan: the last dual calibration of this session
-    cannot give M1 / M2 (dual_calibration ok false). The engine still asks
-    for a second pass, which then cannot count (review of 2026-11-18, NOTE;
-    asking only when it can count needs a helper change)."""
+    cannot give M1 / M2 (dual_calibration ok false). Since 4.3.49 the engine
+    then reads the next strip once, asks for no second pass and refuses it
+    once with "calibrate again" (M-DUAL-CAL-AGAIN)."""
     ev = getattr(tab, "_dual_cal_ev", None)
     return ev is not None and not ev.get("ok")
 
@@ -2096,6 +2096,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                             ("dual_calibration", self._on_dual_calibration),
                             ("dual_pass", self._on_dual_pass),
                             ("dual_pass_result", self._on_dual_pass_result),
+                            ("dual_pass_held", self._on_dual_pass_held),
                             ("dual_start_refused", self._on_dual_start_refused)):
             if hasattr(self._manager, _sig):
                 getattr(self._manager, _sig).connect(_slot)
@@ -3938,6 +3939,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._resume_cb.stateChanged.connect(
             lambda _state: self._sync_refine_rows())
         self._resume_cb.toggled.connect(lambda _checked: self._refresh_start_button_label())
+        self._resume_cb.toggled.connect(self._refresh_dual_note)   # 4.3.49: the fill note
 
         ll.addWidget(core_grp)
 
@@ -4584,6 +4586,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._m_resume_cb.stateChanged.connect(
             lambda _state: self._sync_refine_rows())
         self._m_resume_cb.toggled.connect(lambda _checked: self._refresh_start_button_label())
+        self._m_resume_cb.toggled.connect(self._refresh_dual_note)   # 4.3.49: the fill note
 
         ll.addWidget(m_core_grp)
 
@@ -9324,7 +9327,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         lay.setSpacing(16)
         lay.setContentsMargins(24, 20, 24, 20)
         pl = getattr(self, "_guided_patch_list", None) or []
-        opening = remeasured_opening(len(self._strip_list), len(pl))
+        opening = remeasured_opening(self._guided_strip_count(), len(pl))
         finish_label = tr("Finish")
         cont_label = tr("Continue Measuring Manually")
         check = re.sub(r"^\s*\d+\s*[.)]\s*", "",
@@ -10197,6 +10200,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             and bool(self._strip_list)
         )
         self._guided_refinement_active = guided
+        self._fill_only_guide = False
+        self._fill_guided = []
         self._resume_active = resume_cb.isChecked()
 
         # #211: PATCH BY PATCH, THE GUIDE GOES PATCH BY PATCH (Basti,
@@ -10210,8 +10215,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if self._guided_patch_list:
             self._manager.set_guided_patches(self._guided_patch_list)
         else:
-            self._manager.set_guided_strips(
-                self._guided_strips_on_chart() if guided else [])
+            strips = self._guided_strips_on_chart() if guided else []
+            strips = self._plan_fill_guide(strips, resume_cb.isChecked(),
+                                           params)
+            self._manager.set_guided_strips(strips)
 
         self._manager.start(
             params,
@@ -12314,6 +12321,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._dual_cal_ev = None         # the last dual_calibration event
         self._dual_cal_id = ""           # its id, while it is usable
         self._dual_cal_n = 0
+        self._dual_cal_asked = False     # "calibrate again" said for it
         self._dual_tile_wait = False     # "keep it on the tile" is up
         self._dual_ended_text = ""       # M1 / M2 ended for the session
         self._dual_end_reason = ""
@@ -12676,6 +12684,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             # it is refused with the reason rather than overridden.
             if plan.dual and not refusal and self._dual_nocal_now():
                 refusal = "nocal"
+            # 4.3.49: "High resolution spectral mode (-H)": the factory data
+            # for M1 / M2 exists only at 10 nm, so the engine would end the
+            # dual scan at once (the i1iO table refused it already)
+            if plan.dual and not refusal and self._dual_highres_now():
+                refusal = "highres"
             if not plan.dual and not refusal and self._engine_selected():
                 refusal = D.single_scan_refusal(
                     self._settings, self._dual_caps(),
@@ -12690,6 +12703,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             title, body = M.M_DUAL_FILTER_NOT_DUAL.render(
                 setting=self._filter_label(self._measure_filter_code()),
                 start=self._start_button_name())
+        elif refusal == "highres":
+            title, body = M.M_DUAL_HIGHRES_REFUSED.render(
+                highres=tr("High resolution spectral mode (-H)"),
+                start=self._start_button_name(), option=D.switch_label(),
+                where=D.where_label())
         elif refusal == "nocal":
             title, body = M.M_DUAL_NOCAL_REFUSED.render(
                 nocal=tr("Skip initial calibration (-N)"),
@@ -12708,6 +12726,16 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 pass
         self._say_on_screen(title, body)
         return True
+
+    def _dual_highres_now(self) -> bool:
+        """The reader's arguments for this read ask for -H."""
+        try:
+            from workflow.resume_resolution import asks_for_highres
+            raw = (self._collect_guided() if self._current_mode() == "guided"
+                   else self._collect_manual())
+            return bool(asks_for_highres(getattr(raw, "extra_args", "") or ""))
+        except Exception:      # noqa: BLE001 - never block a read on this
+            return False
 
     def _dual_nocal_now(self) -> bool:
         """Manual's "Skip initial calibration (-N)" is on for this read."""
@@ -12772,12 +12800,183 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             plan = self._dual_plan_now()
         except Exception:      # noqa: BLE001
             return "", ""
+        fill = self._fill_note_text()
         if not plan.dual:
-            return "", ""
+            return fill
         if plan.ended_before:
             return M.M_DUAL_CONTINUE_M0.render()
+        if fill[0]:
+            return fill
         return M.M_DUAL_BEFORE_START.render(
             chosen=condition_name(plan.chosen))
+
+    # ---- 4.3.49: strips with the main condition only (Basti, 2026-11-19) ----
+    def _fill_main(self) -> "Path | None":
+        """The measurement of the chart on screen, when it has readings and
+        the Beta "keep M0, M1 and M2" is on; else None."""
+        from workflow import i1pro3_conditions as _c
+        if not _c.stored_value(self._settings) or not self._engine_selected():
+            return None
+        try:
+            ti3 = self._selected_measurement_ti3()
+        except Exception:      # noqa: BLE001
+            return None
+        if ti3 is None or not Path(ti3).is_file() or _cgats_has_no_readings(
+                Path(ti3)):
+            return None
+        return Path(ti3)
+
+    def _fill_strips(self, main: "Path | None" = None) -> "list[str]":
+        """The strips of the measurement that have the main condition only
+        while the others keep all three (`i1pro3_conditions.m0_only_locs`),
+        in chart order. [] when there are none, or the measurement is a dual
+        scan and the dual scan is off (Continue is refused then)."""
+        from workflow import i1pro3_conditions as _c
+        from workflow.dual_scan import session as D, storage
+        main = main if main is not None else self._fill_main()
+        if main is None:
+            return []
+        try:
+            if storage.read_dual_record(main).dual and not D.switched_on(
+                    self._settings):
+                return []
+            strips = _c.strips_of(_c.m0_only_locs(main), self._strip_of)
+            return sorted(strips, key=lambda s: (self._strip_index(s), s))
+        except Exception:      # noqa: BLE001 - a note never blocks the tab
+            log.debug("conditions: no fill list", exc_info=True)
+            return []
+
+    def _fill_note_text(self) -> "tuple[str, str]":
+        """M-DUAL- / M-COND-CONTINUE-FILL while "Refine / resume" is ticked,
+        M-DUAL- / M-COND-FILL-OFFER while it is not; ("", "") when no strip
+        has the main condition only."""
+        from workflow import i1pro3_conditions as _c
+        from workflow import measurement_messages as M
+        from workflow.dual_scan import storage
+        main = self._fill_main()
+        strips = self._fill_strips(main)
+        if not strips:
+            return "", ""
+        names = _c.strips_phrase(strips)
+        dual = storage.read_dual_record(main).dual
+        own = _c.file_condition(main) or "M0"
+        first, second = [c for c in _c.CONDITIONS if c != own]
+        resume = tr("Refine / resume existing measurement (-r)")
+        start = tr("Continue Measurement")
+        # review SHOULD-4: promised only where the instrument known before
+        # the read can keep it
+        if self._fill_instrument(main, dual) == "no":
+            if dual:
+                from workflow.dual_scan import session as D
+                return M.M_DUAL_FILL_NOT_NOW.render(
+                    strips=names, resume=resume, where=D.where_label())
+            return M.M_COND_FILL_NOT_NOW.render(
+                strips=names, own=own, first=first, second=second,
+                resume=resume, start=start)
+        resuming = self._measurement_to_continue() is not None
+        # review SHOULD-1: no pair at all, so no other strip keeps M1 and M2
+        none_kept = dual and _c.no_pair_kept(main)
+        if resuming:
+            if none_kept:
+                return M.M_DUAL_CONTINUE_FILL_ALL.render(strips=names)
+            if dual:
+                return M.M_DUAL_CONTINUE_FILL.render(strips=names)
+            return M.M_COND_CONTINUE_FILL.render(
+                strips=names, own=own, first=first, second=second)
+        if none_kept:
+            return M.M_DUAL_FILL_OFFER_ALL.render(strips=names, resume=resume,
+                                                  start=start)
+        if dual:
+            return M.M_DUAL_FILL_OFFER.render(strips=names, resume=resume,
+                                              start=start)
+        return M.M_COND_FILL_OFFER.render(
+            strips=names, own=own, first=first, second=second,
+            resume=resume, start=start)
+
+    def _fill_instrument(self, main: "Path", dual: bool) -> str:
+        """4.3.49 review SHOULD-4: whether the instrument known BEFORE the
+        read can complete *main*'s strips with the main condition only:
+        "yes", "no", or "" (not known: the note says what it needs). Nothing
+        is sent to an instrument to find out. The dual scan: its plan (the
+        USB connection, then what is remembered); "no" only when that plan
+        expects another instrument than an i1Pro 2. The i1Pro 3: the USB
+        connection, then the instrument the last measurement reported."""
+        from workflow.dual_scan import instrument_model as IM
+        try:
+            if dual:
+                plan = self._dual_plan_now()
+                if plan.why_not == "other_instrument":
+                    return "no"
+                return "yes" if plan.dual else ""
+            dec = self._dual_model_decision()
+            fam = getattr(dec, "family", None)
+            if fam == IM.FAMILY_I1PRO3:
+                return "yes"
+            if fam in (IM.FAMILY_I1PRO, IM.FAMILY_OTHER):
+                return "no"
+            rem = IM.remembered(self._settings)
+            if rem.name and rem.source == "reported":
+                from core.measure_pace import model_key
+                return ("yes" if model_key(rem.name) in (
+                    "i1pro3", "i1pro3plus") else "no")
+            return "no" if rem.kind == IM.I1PRO2 else ""
+        except Exception:      # noqa: BLE001 - not known: the plain note
+            return ""
+
+    def _plan_fill_guide(self, strips: "list[str]", resuming: bool,
+                         params) -> "list[str]":
+        """At START: the strips the guide takes the reader to. 4.3.49 (Basti,
+        2026-11-19): Continue Measurement completes the strips that have the
+        main condition only, with the refinement guide (strip mode, ChromIQ's
+        engine). A guide that exists only for them (no refinement list) is
+        not a refinement and ends as an ordinary read (`_fill_only_guide`,
+        read by `_show_all_stripes_done`)."""
+        if (resuming and getattr(params, "engine_helper", None)
+                and not bool(getattr(params, "patch_by_patch", False))):
+            filled = self._fill_guided_strips(strips)
+            if filled != strips:
+                self._fill_only_guide = not self._guided_refinement_active
+                self._fill_guided = list(filled)
+                self._guided_refinement_active = True
+                return filled
+        return strips
+
+    def _guided_strip_count(self) -> int:
+        """The strips the guide took the reader to: the refinement list, or
+        (4.3.49) that list with the strips completed beside it."""
+        return len(getattr(self, "_fill_guided", None) or self._strip_list)
+
+    def _fill_guided_strips(self, listed: "list[str]") -> "list[str]":
+        """At a Continue Measurement in strip mode: the strips to take the
+        reader to, *listed* (a refinement list, or none) together with the
+        strips that have the main condition only and, when there are such
+        strips, every strip not read yet (so the guide ends only when the
+        chart is complete), in chart order; *listed* as it is when no strip
+        has the main condition only."""
+        fill = self._fill_strips()
+        if not fill:
+            return listed
+        try:
+            from workflow.measurement_pairing import chart_locations
+            main = self._fill_main()
+            on_chart = []
+            for loc in chart_locations(self._chart_file_for(self._ti1_path)):
+                s = self._strip_of(loc)
+                if s and s not in on_chart:
+                    on_chart.append(s)
+            from workflow import i1pro3_conditions as _c
+            read = set(_c.strips_of(_c._locs_of(main), self._strip_of))
+            unread = [s for s in on_chart if s not in read]
+        except Exception:      # noqa: BLE001 - the fill strips alone then
+            unread = []
+        out = []
+        for s in list(listed) + fill + unread:
+            if s not in out:
+                out.append(s)
+        out.sort(key=lambda s: (self._strip_index(s), s))
+        log.info("conditions: Continue Measurement takes the reader to %s "
+                 "(main condition only: %s)", ", ".join(out), ", ".join(fill))
+        return out
 
     def _refresh_dual_note(self, *_a) -> None:
         """The note above the chart before START (the ruler, the two passes),
@@ -12849,7 +13048,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             # "mixed" when it had rewritten the header on an earlier one
             why = "resume"
         self._dual_end_reason = D.reason_id(why)
-        title, body = M.M_DUAL_ENDED.render(reason=D.reason_sentence(why))
+        msg = (M.M_DUAL_ENDED_KEPT
+               if getattr(self._manager, "_dual_end_kept", False)
+               else M.M_DUAL_ENDED)
+        title, body = msg.render(reason=D.reason_sentence(why))
         self._dual_ended_text = f"{title}. {body}"
         self._log.appendPlainText(f"[{title}]\n{body}")
         self._log.ensureCursorVisible()
@@ -12874,6 +13076,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
     def _on_dual_calibration(self, ev: dict) -> None:
         """The tile read with the UV light (it comes before cal_done)."""
         self._dual_cal_ev = dict(ev)
+        # a new calibration: the engine may refuse one reading again
+        self._dual_cal_asked = False
         if ev.get("ok"):
             import time as _t
             self._dual_cal_n += 1
@@ -12979,8 +13183,17 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return
         from workflow import measurement_messages as M
         name = self._strip_name(strip_id) or str(strip_id)
-        msg = (M.M_DUAL_PASS_ONE_NO_CAL if _dual_cal_unusable(self)
-               else M.M_DUAL_PASS_ONE)
+        # The engine asks for a new calibration ONCE per calibration
+        # (cq_dd_ask_calibration): after that refusal, the next strip read
+        # without calibrating is kept as M0 and M1 / M2 end, whether it is
+        # the same strip (Retry) or another (Skip Strip). Review of
+        # 2026-11-19, M1: the prompt promised a second refusal.
+        if not _dual_cal_unusable(self):
+            msg = M.M_DUAL_PASS_ONE
+        elif getattr(self, "_dual_cal_asked", False):
+            msg = M.M_DUAL_PASS_ONE_NO_CAL_KEPT
+        else:
+            msg = M.M_DUAL_PASS_ONE_NO_CAL
         title, body = msg.render(strip=name)
         self._dual_prompt(title, body)
         self._log.appendPlainText(f"[{title}]\n{body}")
@@ -12991,14 +13204,29 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         name = self._strip_name(str(ev.get("strip") or "")) or str(
             ev.get("strip") or "")
         self._dual_failed = None      # a new pair of passes is under way
+        self._dual_held_said = False  # M-DUAL-PASS-HELD once per wait
+        # (4.3.49: after a calibration that cannot give M1 / M2 the engine
+        # reads the strip once and asks for none, so this is never that case)
         msg = (M.M_DUAL_PASS_TWO if ev.get("lamp_ok", True)
                else M.M_DUAL_PASS_TWO_UNREAD)
-        if ev.get("lamp_ok", True) and _dual_cal_unusable(self):
-            msg = M.M_DUAL_PASS_TWO_NO_CAL
         title, body = msg.render(strip=name)
         self._dual_prompt(title, body)
         self._log.appendPlainText(f"[{title}]\n{body}")
         self._log.ensureCursorVisible()
+
+    def _on_dual_pass_held(self, strip: str) -> None:
+        """A jump or a move asked for while the second pass of *strip* is
+        due was held, not made (4.3.49, M-DUAL-PASS-HELD): flashed in the
+        status line, which then gives the pass prompt back, and said once in
+        the log per wait."""
+        from workflow import measurement_messages as M
+        name = self._strip_name(str(strip or "")) or str(strip or "")
+        title, body = M.M_DUAL_PASS_HELD.render(strip=name)
+        self._flash_status(title, 8000)
+        if not getattr(self, "_dual_held_said", False):
+            self._dual_held_said = True
+            self._log.appendPlainText(f"[{title}]\n{body}")
+            self._log.ensureCursorVisible()
 
     def _on_dual_pass_result(self, ev: dict) -> None:
         """A pass's verdict. A refused second pass makes the strip a misread
@@ -13032,7 +13260,16 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         rid = D.reason_id(why)
         pass_level = rid.startswith("uv_pass_") or rid in (
             "uv_spot_failed", "no_ruler")
-        if pass_level:
+        if ev.get("calibrate"):
+            # 4.3.49: the reading was refused because the last calibration
+            # cannot give M1 / M2: calibrate again, then read it again
+            # (M-DUAL-CAL-AGAIN in the failure window)
+            self._dual_failed = ("calibrate", strip, why)
+            self._dual_cal_asked = True   # once per calibration
+            if what == "strip" and strip:
+                self._dual_buffer.append(("strip", strip, False, rid,
+                                          self._dual_cal_id, ()))
+        elif pass_level:
             self._dual_failed = (what, strip, why)
             if what == "strip" and strip:
                 self._dual_buffer.append(("strip", strip, False, rid,
@@ -13055,7 +13292,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         from workflow import measurement_messages as M
         from workflow.dual_scan import session as D
         what, strip, why = failed
-        if what == "spot":
+        if what == "calibrate":
+            # the window's own button (review of 2026-11-19, S1: the
+            # Calibrate button is behind it)
+            title, body = M.M_DUAL_CAL_AGAIN.render(
+                reason=D.reason_sentence(why), retry=tr("Retry"))
+        elif what == "spot":
             title, body = M.M_DUAL_SPOT_FAILED.render(
                 reason=D.reason_sentence(why))
         else:
@@ -13063,8 +13305,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 strip=self._strip_name(strip) or strip,
                 reason=D.reason_sentence(why))
         self._log.appendPlainText(f"[{title}]\n{body}")
-        return (f"<b>{html.escape(title)}</b><br><br>{html.escape(body)}"
-                "<br><br>")
+        # paragraphs stay paragraphs (M-DUAL-CAL-AGAIN has three; found on
+        # screen 2026-11-19, en-uncal: rich text ran them into one block)
+        return (f"<b>{html.escape(title)}</b><br><br>"
+                + html.escape(body).replace("\n", "<br>") + "<br><br>")
 
     def _on_dual_start_refused(self, kind: str) -> None:
         """The engine refused to continue this measurement (the START check
@@ -16304,7 +16548,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # THE TABLE'S REFINEMENT ENDS IN THE SAME WINDOW as the guided
         # re-measurement (review 11, opinion ii): "Re-measurement Complete"
         # with M-REFINE-REBUILD, after the table has let go.
-        refining = bool(self._guided_refinement_active
+        # 4.3.49: a guide that only completed strips with the main condition
+        # only (no refinement list) is not a refinement: the ordinary ending
+        refining = bool((self._guided_refinement_active
+                         and not getattr(self, "_fill_only_guide", False))
                         or (table and getattr(self, "_table_refining", False)))
 
         # Suspend the event filter while the dialog is open so that keyboard
@@ -16314,7 +16561,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
 
         # Verification read of a colour-managed print: a dedicated dialog that
         # never offers "Build Profile" and warns this file is verification-only.
-        if self._verify_run and not is_cal and not self._guided_refinement_active \
+        if self._verify_run and not is_cal and not (
+                self._guided_refinement_active
+                and not getattr(self, "_fill_only_guide", False)) \
                 and not table:
             from PyQt6.QtWidgets import QHBoxLayout, QPushButton
             dlg = QDialog(self)
@@ -16383,7 +16632,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # Verification, Basti 2026-10-22): the strips went back into the dated
         # verification, which builds no profile, so this window says so and
         # offers Finish, never "Go to Build Profile" (M-REFINE-VERIFY-DONE).
-        if self._verify_run and not is_cal and self._guided_refinement_active:
+        if self._verify_run and not is_cal and self._guided_refinement_active \
+                and not getattr(self, "_fill_only_guide", False):
             self._show_verification_reread_done()
             return
 
@@ -16431,7 +16681,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             # #211: patch by patch, it counts the patches the guide visited.
             _pl = (getattr(self, "_table_refine_locs", None) or [] if table
                    else getattr(self, "_guided_patch_list", None) or [])
-            _opening = remeasured_opening(len(self._strip_list), len(_pl))
+            _opening = remeasured_opening(self._guided_strip_count(), len(_pl))
             import html as _html
             _rt, _rb = self._refine_rebuild_texts()
             _rebuild = ("<br><br><b>" + _html.escape(_rt) + "</b><br>"
@@ -20873,7 +21123,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if letter:
             # The PERSON's choice: a guide that was heading elsewhere hands
             # the reader over (jctay, forum 149834; `user_goto_strip`).
-            self._manager.user_goto_strip(letter)
+            # False: held (4.3.49, a dual strip's second pass is due), and
+            # M-DUAL-PASS-HELD says so instead.
+            if self._manager.user_goto_strip(letter) is False:
+                return
             self._log.appendPlainText(
                 tr("[Engine] Jumping to strip {strip}…").format(strip=letter))
 
@@ -24839,7 +25092,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         bridge = getattr(self, "_cr30_bridge", None)
         if bridge is not None:
             bridge.note_goto(loc)
-        self._manager.goto_patch(loc)
+        if self._manager.goto_patch(loc) is False:
+            return       # held (4.3.49, M-DUAL-PASS-HELD says so)
         self._log.appendPlainText(
             tr("[Engine] Jumping to patch {loc}…").format(loc=loc))
 

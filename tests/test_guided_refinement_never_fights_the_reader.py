@@ -149,7 +149,10 @@ def test_the_preview_click_is_the_persons_choice_and_the_list_is_filtered():
     src = inspect.getsource(tab_measure.TabMeasure._on_preview_strip_clicked)
     assert "user_goto_strip(" in src
     src = inspect.getsource(tab_measure)
-    assert "set_guided_strips(\n                self._guided_strips_on_chart()" in src
+    # 4.3.49: the list is filtered first, then (Continue Measurement) the
+    # strips with the main condition only are added (_fill_guided_strips)
+    assert "strips = self._guided_strips_on_chart() if guided else []" in src
+    assert "self._manager.set_guided_strips(strips)" in src
 
 
 def test_a_new_list_starts_with_no_jumps_counted():

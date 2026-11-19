@@ -246,30 +246,33 @@ def test_the_filter_refused_window_names_the_option_the_dual_switch_is_under(
 
 # --------------------------------------------------------------------- M-1
 
-def test_m1_and_m2_that_ended_are_never_promised_back(qapp, tmp_path):
-    """The real helper's resume refuses condition files that are out of
-    step (chromiq_chartread.c cq_cond_resume): Continue reads the rest as
-    M0, and every sentence says so."""
+def test_m1_and_m2_that_ended_are_completed_by_continue(qapp, tmp_path):
+    """4.3.49 (Basti, 2026-11-19; was "never promised back"): the engine
+    keeps the record of a dual measurement, so a strip with M0 only is read
+    again with both passes by Continue Measurement, and every sentence says
+    so. A dual main without any pair: every read strip has M0 only."""
     from core.file_manager import Run
     from workflow import i1pro3_conditions as ic
     from workflow.dual_scan.record import PassRecord
-    main = _dual_main(tmp_path)               # no condition files in step
+    main = _dual_main(tmp_path)               # no condition files at all
     plan = D.plan_for(_on(), CAPS, None, "u", main)
-    assert plan.dual and plan.ended_before
-    assert "--dual-scale" in plan.args(), "still dual: the engine needs it"
+    assert plan.dual and not plan.ended_before and plan.m0_only == ("A",)
+    assert "--dual-scale" in plan.args()
     rec = PassRecord(["A", "B"], chosen="M2")
-    rec.helper_strip("A", True, "", "c1")
-    rec.helper_lamp_only("B", "dual_needs_ruler")
+    rec.helper_lamp_only("A", "dual_needs_ruler")
     rec.save(Run.dual_pass_record(main))
     why = ic.no_file_reason(main)
-    assert "Continue Measurement reads" not in why
-    assert "measure the chart again" in why
+    # 4.3.49 review SHOULD-1: no pair at all, so it says M0 only, never
+    # that the other strips keep theirs
+    assert "Continue Measurement" in why and "back to strip A" in why
+    assert "has M0 only" in why and "keep their" not in why
+    assert "measure the chart again" not in why
     # the note before START
     from ui.tabs.tab_measure import TabMeasure
-    fake = SimpleNamespace(_dual_plan_now=lambda: plan)
-    title, body = TabMeasure._dual_before_start_text(fake)
-    assert (title, body) == M.M_DUAL_CONTINUE_M0.render()
-    assert "each strip is read twice" not in title
+    fill = M.M_DUAL_CONTINUE_FILL.render(strips="strip A")
+    fake = SimpleNamespace(_dual_plan_now=lambda: plan,
+                           _fill_note_text=lambda: fill)
+    assert TabMeasure._dual_before_start_text(fake) == fill
 
 
 def test_after_a_continue_the_engine_rewrote_the_header_it_stays_ended(
@@ -405,8 +408,11 @@ def test_after_a_refused_calibration_the_pass_prompts_say_what_counts(
                                            "why": "uv_tile_dark"})
     TabMeasure._dual_pass_one(fake, "A")
     assert fake.prompts[-1] == M.M_DUAL_PASS_ONE_NO_CAL.render(strip="A")
+    # 4.3.49: after such a calibration the engine asks for no second pass
+    # (it reads the strip once and asks for a new calibration); a dual_pass
+    # event can only be an ordinary one, M-DUAL-PASS-TWO-NO-CAL is withdrawn
     TabMeasure._on_dual_pass(fake, {"strip": "A", "lamp_ok": True})
-    assert fake.prompts[-1] == M.M_DUAL_PASS_TWO_NO_CAL.render(strip="A")
+    assert fake.prompts[-1] == M.M_DUAL_PASS_TWO.render(strip="A")
     # a good calibration again: the ordinary prompts
     TabMeasure._on_dual_calibration(fake, {"ok": True, "lamp_clocks": 139,
                                            "uv_clocks": 139})
@@ -830,7 +836,7 @@ needs_helper = pytest.mark.skipif(
 
 
 @needs_helper
-def test_after_m1_m2_ended_the_simulation_writes_no_more_and_resume_refuses(
+def test_after_m1_m2_ended_the_simulation_keeps_them_and_continue_completes(
         tmp_path, monkeypatch):
     import tests.helpers.replay_tools as rt
     from tests.test_i1pro2_dual_scan_engine import _chart, _dual_args, _vec
@@ -875,13 +881,26 @@ def test_after_m1_m2_ended_the_simulation_writes_no_more_and_resume_refuses(
     ends = [e for e in s.events if e.get("event") == "conditions"
             and not e.get("active")]
     assert ends == [{"event": "conditions", "active": False,
-                     "why": "dual_dual_needs_ruler"}], "one end, as in C"
+                     "why": "dual_dual_needs_ruler", "kept": True}], \
+        "one end, as in C"
     main = base.with_suffix(".ti3")
     assert storage.read_dual_record(main).dual
-    assert D.ended_before(main), "the files are out of step, as in C"
+    # 4.3.49 (Basti, 2026-11-19): A keeps its M1 / M2, B has M0 only
+    from workflow import i1pro3_conditions as ic
+    assert not D.ended_before(main)
+    assert D.m0_only_strips(main) == ["B"]
+    assert ic.strips_of(ic._locs_of(ic.partial_sibling_path(main, "M1"))) == ["A"]
 
-    def again(s):
+    def again(s):                      # Continue: B again, both passes
         s.wait_event("strip_ready", timeout=10)
+        i = s.event_index()
+        s.send(cmd="goto", strip="B")
+        s.wait_event("strip_ready", after=i, strip="B")
+        i = s.event_index()
+        s.send(cmd="swipe")
+        s.wait_event("dual_pass", after=i)
+        s.send(cmd="swipe")
+        s.wait_event("strip_read", after=i)
         i = s.event_index()
         s.send(cmd="done")
         s.wait_event("done", timeout=10, after=i)
@@ -890,5 +909,6 @@ def test_after_m1_m2_ended_the_simulation_writes_no_more_and_resume_refuses(
     with rt.ReplaySession(base, rp, extra_args=["-r"] + args) as s2:
         again(s2)
     cond = [e for e in s2.events if e.get("event") == "conditions"]
-    assert cond and cond[0].get("active") is False
-    assert cond[0].get("why") == "resume"
+    assert cond and cond[0].get("active") is True and cond[0].get("partial")
+    assert D.m0_only_strips(main) == []
+    assert ic.condition_file(main, "M2") is not None

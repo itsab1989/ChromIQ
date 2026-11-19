@@ -243,7 +243,25 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-DUAL-CONTINUE-M0",
     "M-DUAL-NOCAL-REFUSED",
     "M-DUAL-PASS-ONE-NO-CAL",
-    "M-DUAL-PASS-TWO-NO-CAL",
+    # 4.3.49 (2026-11-19): the hand dual scan's gaps; M-DUAL-PASS-TWO-NO-CAL
+    # was withdrawn (no second pass is asked for after such a calibration)
+    "M-DUAL-CAL-AGAIN",
+    "M-DUAL-PASS-HELD",
+    "M-DUAL-HIGHRES-REFUSED",
+    # 4.3.49 review round: the prompt once "calibrate again" was said
+    "M-DUAL-PASS-ONE-NO-CAL-KEPT",
+    # 4.3.49 (Basti, 2026-11-19): strips with M0 only are completed
+    "M-DUAL-CONTINUE-FILL",
+    "M-DUAL-FILL-OFFER",
+    # 4.3.49 review SHOULD-1: the same with no M1 / M2 kept at all
+    "M-DUAL-CONTINUE-FILL-ALL",
+    "M-DUAL-FILL-OFFER-ALL",
+    # 4.3.49 review SHOULD-4: the instrument known before the read
+    "M-DUAL-FILL-NOT-NOW",
+    "M-COND-FILL-NOT-NOW",
+    "M-COND-CONTINUE-FILL",
+    "M-COND-FILL-OFFER",
+    "M-DUAL-ENDED-KEPT",
     "M-DUAL-MODEL-ASK",
     "M-DUAL-MODEL-CORRECTED",
     "M-DUAL-MODEL-NOTED",

@@ -47,6 +47,12 @@ def test_the_measure_tab_reaches_the_feature_at_four_named_points():
         "tab_measure._prune_condition_pairs",
         "tab_measure._condition_dir_for",
         "measure_manager.start",
+        # 4.3.49: strips with the main condition only (each asks the switch
+        # first, through _fill_main; test_off_none_of_the_points_runs_...)
+        "tab_measure._fill_main",
+        "tab_measure._fill_strips",
+        "tab_measure._fill_note_text",
+        "tab_measure._fill_guided_strips",
     }, users
     # the manager uses it only where the folder was given (`engine_condition_dir`)
     for m in re.finditer(r"i1pro3_conditions", mm):
@@ -79,6 +85,14 @@ def test_off_none_of_the_points_runs_the_feature(tmp_path, traps, qapp):
     assert TabMeasure._condition_dir_for(fake, p) is None
     TabMeasure._prune_condition_pairs(fake)
     TabMeasure._average_the_conditions(fake, run_dir / "P.ti3", [], "mean")
+    # 4.3.49: the fill note and the guide's list
+    fake._engine_selected = lambda: True
+    fake._fill_main = lambda: TabMeasure._fill_main(fake)
+    fake._fill_strips = lambda main=None: TabMeasure._fill_strips(fake, main)
+    assert TabMeasure._fill_main(fake) is None
+    assert TabMeasure._fill_strips(fake) == []
+    assert TabMeasure._fill_note_text(fake) == ("", "")
+    assert TabMeasure._fill_guided_strips(fake, ["B"]) == ["B"]
     assert traps == []
     assert sorted(p.name for p in tmp_path.rglob("*")) == ["P", "run1", "runs"]
 

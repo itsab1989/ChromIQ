@@ -276,7 +276,8 @@ def test_s2_the_engine_refuses_m1_m2_from_a_dark_uv_tile(tmp_path, monkeypatch):
         T._swipe(ses)
         T._done(ses, unread=True)
     ev = [e for e in ses.events if e.get("event") == "conditions"]
-    assert ev[-1] == {"event": "conditions", "active": False, "why": "dual_uv_tile_dark"}
+    assert ev[-1] == {"event": "conditions", "active": False, "why": "dual_uv_tile_dark",
+                      "kept": True}       # 4.3.49: the record is kept
     assert list(cdir.iterdir()) == []
 
 
@@ -456,13 +457,14 @@ def test_f8b_the_i1pro3_arming_step_never_depends_on_the_dual_scale():
     assert "i1pro3_cq_cond_arm(cq_cond_it, on);" in body
     assert "cq_dual_req" not in body
     guard = re.search(r"if \((.*)\)\n\t\treturn;", body).group(1)
-    assert guard == "!cq_cond_active || cq_cond_replay || cq_cond_dual || cq_cond_it == NULL"
+    # 4.3.49: cq_cond_live() is cq_cond_active without an end (cq_cond_keep)
+    assert guard == "!cq_cond_live() || cq_cond_replay || cq_cond_dual || cq_cond_it == NULL"
     # cq_cond_dual is set only inside the i1Pro 2 branch
     fs = src[src.index("static void cq_cond_for_session("):]
     fs = fs[:fs.index("\n}\n")]
     branch = fs[fs.index("else if (cq_dual_req && it->dtype == instI1Pro2) {"):]
     sets = [m.start() for m in re.finditer(r"cq_cond_dual = 1;", fs)]
-    assert len(sets) == 1 and fs.index(branch) < sets[0] < fs.index(branch) + 1200
+    assert len(sets) == 1 and fs.index(branch) < sets[0] < fs.index(branch) + 2000   # 4.3.49: + the keeper-only branch
 
 
 # ===================================================================== the choice
