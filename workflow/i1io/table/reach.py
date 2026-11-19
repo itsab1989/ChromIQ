@@ -31,6 +31,18 @@ serial nor the unsalted hash is ever written to settings, logs or diagnostics; t
 the salted key only, and the salt never leaves the settings file. A stored value is validated on
 load; anything implausible is ignored, never trusted.
 
+4.3.49 fix round (safety review 449, SHOULD-4): a remembered motor front spares the front-zone
+question and the creep, so a hand-edited, corrupted or foreign record could otherwise send one
+ordinary move at full speed into the front of the table. So:
+
+* every entry carries a VERSION and a TAG, HMAC-SHA256(salt, key and the entry's values): an
+  entry that was edited by hand, written by another build, stored under another key or is not
+  shaped as this build writes it is IGNORED WHOLE (the model's defaults; the job says so in the
+  diagnostics, ``Reach.ignored``), never repaired;
+* ``motor_front_y`` is kept only together with ``motor_aimed_y``, the front of the area the
+  person AIMED AT in the sitting that learned it, and never beyond it; the job spares the creep
+  at most up to the smaller of the two and of THIS sitting's aimed area (job._seed_front).
+
 NOTHING HERE SENDS ANYTHING.
 """
 from __future__ import annotations
@@ -54,6 +66,10 @@ CEILING_Y = geo.REACH_CEILING_Y
 #: check before every move of a free arm)
 STILL_UNITS = 2
 HOW = ("recordings", "free", "motor")
+#: the shape of an entry this build writes (anything else is ignored whole)
+VERSION = 2
+FIELDS = ("front_y", "front_how", "front_at", "front_when", "right_end_x", "right_how",
+          "left_x", "motor_front_y", "motor_front_when", "motor_aimed_y", "v", "tag")
 SETTINGS_KEY = "i1io_table_reach"
 #: how much memory-block identity the key is made from (bytes 0..87: the block's head and its
 #: serial field; the white tile values begin at byte 88)
@@ -111,6 +127,10 @@ class Reach:
     #: the frontmost Y a computed move of THIS table arrived at (within the tolerance)
     motor_front_y: "int | None" = None
     motor_front_when: "str | None" = None
+    #: the front of the area aimed at in the sitting that learned motor_front_y
+    motor_aimed_y: "int | None" = None
+    #: why a stored entry was ignored (None: nothing stored, or used as stored)
+    ignored: "str | None" = field(default=None, compare=False)
     #: changed since loaded (the job stores it then)
     dirty: bool = field(default=False, compare=False)
 
@@ -137,13 +157,17 @@ class Reach:
             self.dirty = True
         return grew
 
-    def learn_motor_target(self, target) -> "list[str]":
+    def learn_motor_target(self, target, aimed_y=None) -> "list[str]":
         """A computed move to *target* arrived within the tolerance: its target counts as a place
-        THIS table's motors reach (the creep is spared up to it in a later sitting)."""
+        THIS table's motors reach (the creep is spared up to it in a later sitting). *aimed_y*:
+        the front of the area aimed at in this sitting (the target lies inside it; without it,
+        the target's own Y)."""
         q = _point(target)
         if q is None or (self.motor_front_y is not None and q[1] <= self.motor_front_y):
             return []
+        a = _int_or_none(aimed_y)
         self.motor_front_y = q[1]
+        self.motor_aimed_y = max(q[1], a) if a is not None else q[1]
         self.motor_front_when = time.strftime("%Y-%m-%d %H:%M")
         self.dirty = True
         return ["motor_front"]
@@ -153,7 +177,8 @@ class Reach:
         out = {"front_y": self.front_y, "front_how": self.front_how, "front_at": self.front_at,
                "front_when": self.front_when, "right_end_x": self.right_end_x,
                "right_how": self.right_how, "left_x": self.left_x,
-               "motor_front_y": self.motor_front_y, "motor_front_when": self.motor_front_when}
+               "motor_front_y": self.motor_front_y, "motor_front_when": self.motor_front_when,
+               "motor_aimed_y": self.motor_aimed_y}
         return out
 
     @classmethod
@@ -177,10 +202,41 @@ class Reach:
         if lx is not None and -2000 <= lx <= 4000:
             r.left_x = lx
         mf = _int_or_none(d.get("motor_front_y"))
-        if mf is not None and 0 <= mf <= CEILING_Y:
-            r.motor_front_y = mf
+        ma = _int_or_none(d.get("motor_aimed_y"))
+        # 4.3.49 fix round: only a motor front inside the target area's limits, with the aimed
+        # front of the sitting that learned it, and never beyond that
+        if mf is not None and geo.DEFAULT_TARGET_FRONT_Y < mf <= geo.FRONT_CAP_Y \
+                and ma is not None and mf <= ma <= geo.FRONT_CAP_Y:
+            r.motor_front_y, r.motor_aimed_y = mf, ma
             r.motor_front_when = str(d.get("motor_front_when") or "")[:20] or None
         return r
+
+
+def entry_tag(salt: str, key: str, entry: dict) -> str:
+    """The TAG of a stored entry: HMAC-SHA256(salt, key + the entry's values without the tag)."""
+    body = {k: v for k, v in entry.items() if k != "tag"}
+    msg = key + "\n" + json.dumps(body, sort_keys=True, separators=(",", ":"))
+    return hmac.new(salt.encode("ascii"), msg.encode("utf-8"), hashlib.sha256).hexdigest()[:32]
+
+
+def entry_problem(salt: str, key: str, entry) -> "str | None":
+    """None when *entry* is exactly as this build stores it under *key*; else why not."""
+    if not isinstance(entry, dict):
+        return "not an entry"
+    if not (isinstance(key, str) and len(key) == 16 and all(c in "0123456789abcdef"
+                                                              for c in key)):
+        return "not a table key"
+    if entry.get("v") != VERSION:
+        return f"version {entry.get('v')!r}, not {VERSION}"
+    if set(entry) - set(FIELDS):
+        return "fields this build does not write"
+    tag = entry.get("tag")
+    if not isinstance(tag, str) or not hmac.compare_digest(tag, entry_tag(salt, key, entry)):
+        return "its tag does not match (edited, or stored under another key or salt)"
+    back = Reach.from_dict(key, entry).as_dict()
+    if any(entry.get(k) != v for k, v in back.items()):
+        return "a value outside what this build stores"
+    return None
 
 
 class ReachStore:
@@ -217,16 +273,29 @@ class ReachStore:
         return data["salt"]
 
     def get(self, key: "str | None") -> Reach:
+        """The stored reach of the table *key*; an entry that is not exactly as this build
+        stores it is ignored whole (``Reach.ignored`` says why)."""
         if not key:
             return Reach(key=None)
-        return Reach.from_dict(key, self._all()["tables"].get(key))
+        data = self._all()
+        entry = data["tables"].get(key)
+        if entry is None:
+            return Reach(key=key)
+        why = entry_problem(data["salt"], key, entry)
+        if why is not None:
+            r = Reach(key=key)
+            r.ignored = why
+            return r
+        return Reach.from_dict(key, entry)
 
     def put(self, reach: Reach) -> bool:
         """Store *reach* under its key (nothing without a key). True when written."""
         if not reach.key:
             return False
         data = self._all()
-        data["tables"][reach.key] = reach.as_dict()
+        entry = dict(reach.as_dict(), v=VERSION)
+        entry["tag"] = entry_tag(data["salt"], reach.key, entry)
+        data["tables"][reach.key] = entry
         ok = self._store_text(data)
         if ok:
             reach.dirty = False

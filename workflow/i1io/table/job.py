@@ -1965,10 +1965,16 @@ class TableJob:
             self.reach = rc.Reach()
         self._apply_reach()
         r = self.reach
+        if r.ignored:
+            # 4.3.49 fix round (SHOULD-4): a stored entry not exactly as this build stores it
+            self.diag.log("INFO", f"this table's remembered reach was IGNORED ({r.ignored}): "
+                                  "the model's defaults are used, and ChromIQ feels its way "
+                                  "forward as on a table it has not driven")
+            self._reach_note("record_ignored", why=r.ignored)
         self.reach_diag.update({
             "key": key, "remembered": bool(key),
             "model": {"a1": tbl.EXACT_DATA["identity"], "k2": tbl.EXACT_DATA["k2"]},
-            "at_open": r.as_dict(),
+            "at_open": r.as_dict(), "ignored": r.ignored,
             "defaults": {"front_y": rc.DEFAULT_FRONT_Y, "right_end_x": rc.DEFAULT_RIGHT_END_X,
                          "backstop_y": geo.FRONT_CAP_Y}})
         self.diag.log("INFO", f"this table's reach: {'key ' + key if key else 'no key, kept for this sitting only'}; "
@@ -1994,7 +2000,12 @@ class TableJob:
         d, r = self._table, self.reach
         if d is None or r is None or r.motor_front_y is None:
             return
-        y = int(r.motor_front_y)
+        # 4.3.49 fix round (SHOULD-4): never beyond the front of the area aimed at in the
+        # sitting that learned it (reach.from_dict keeps it only with that); never beyond THIS
+        # sitting's aimed area either (geo.areas caps every use of front_y by the job's cap)
+        if r.motor_aimed_y is None:
+            return
+        y = int(min(r.motor_front_y, r.motor_aimed_y))
         if y > geo.MEASURING_AREA.ymax and (d.front_y is None or y > d.front_y):
             d.front_y = y
             d.log("DATA", f"this table's motors have already arrived at Y {r.motor_front_y}: the "
@@ -2016,7 +2027,9 @@ class TableJob:
         try:
             grew = r.learn(p, how)
             if target is not None:
-                grew += [g for g in r.learn_motor_target(target) if g not in grew]
+                grew += [g for g in r.learn_motor_target(
+                    target, self._cap() if self.alignment is not None else None)
+                    if g not in grew]
         except ValueError:
             return
         if grew:
