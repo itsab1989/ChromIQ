@@ -149,6 +149,10 @@ M1_FROM_1000_S = 1.759
 #: more than 5 units" check passed every test and stopped the first real run. Tests set
 #: `release_settle` to (0, 0) for the old belief, or to a larger shift for a person's touch.
 RELEASE_SETTLE_REAL = (-5.0, 12.0)
+#: 4.3.50: every settle MEASURED on a real table: 18 Nov 2026 (above), and 19 Nov 2026, the first
+#: complete page (ChromIQ 4.3.49: (2506, 1429) held, then free (2505, 1433)). The default stays
+#: the larger one; tests drive the other too.
+RELEASE_SETTLES_MEASURED = (RELEASE_SETTLE_REAL, (-1.0, 4.0))
 
 
 def _first_start(p) -> bool:         # the simulator's own copy of where spot 1 may start
