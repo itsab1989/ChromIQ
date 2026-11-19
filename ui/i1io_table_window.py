@@ -1965,6 +1965,8 @@ class TableMeasureWindow(QFrame):
         "stored_white_refused", "white_later_refused", "report_after_step", "check_mark",
         "next_page", "open_refused", "driver_offer", "refused", "stopped_by_you", "stopped",
         "problem", "after_problem", "end_of_session", "ending_closed", "home_offered", "done",
+        # 4.3.48: the arm brought home after a stop
+        "home_after_stop_done",
         # the job's questions
         "pending_marker", "ready_to_open", "start_up", "go", "sheet_laid", "arm_felt", "aimed",
         "front_choice", "front_yes", "first_visit", "reader_consent", "calibration_place",
