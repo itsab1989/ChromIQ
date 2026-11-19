@@ -110,6 +110,7 @@ int i1pro2_cq_dual_tile_save(void *pp, const cq_dual_tile *t);	/* 1 = kept */
 int i1pro2_cq_dual_tile_restore(void *pp, cq_dual_tile *out);	/* 1 = of this white */
 int i1pro2_cq_tdual_ready(void *pp, int pass, int nread, int have_tile, int *wait_ms,
                           char *why, int whylen);
+void i1pro2_cq_tdual_disarm(void);	/* a calibration: no armed pass, no lamp pass done */
 #ifdef CQ_TSCAN_H
 int i1pro2_cq_tdual_fire(void *pp, int pass, int nread, int npatch, cq_tscan_rec *r,
                          int *volts_before, int *volts_after);

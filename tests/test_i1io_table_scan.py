@@ -240,10 +240,13 @@ def test_the_build_string():
     # recorded UV forms, 41 lamp clocks);
     # 2026-11-18e = 18d + the dual scan on the i1iO 2 table (--i1io-table-dual, --dual-table);
     # 2026-11-19a = 18e + the table dual row's fix round (the lamp pass's dark 170 ms after the
-    # lamp, a fire only of the pass the last ready check allowed), last
-    assert "chromiq-chartread 2026-11-19a " in h
+    # lamp, a fire only of the pass the last ready check allowed);
+    # 2026-11-19b = 19a + a calibration clears the armed pass and the ready flag (4.3.48
+    # re-review NOTE-B), last
+    assert "chromiq-chartread 2026-11-19b " in h
     assert ("+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule"
-            "+i1pro2-dual-device+i1pro2-dual-safety+i1io-table-dual+i1io-table-dual-fix2\"") in h
+            "+i1pro2-dual-device+i1pro2-dual-safety+i1io-table-dual+i1io-table-dual-fix2"
+            "+i1io-table-dual-calreset\"") in h
 
 
 def _base_tree(tmp: Path) -> Path:

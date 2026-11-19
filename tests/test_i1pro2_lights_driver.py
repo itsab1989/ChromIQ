@@ -155,14 +155,35 @@ def _added_lines(dest: str) -> "list[str]":
     ruler = [pt for k in ("I1PRO_IMP_H_RULER", "I1PRO_IMP_C_RULER",
                           "I1PRO3_IMP_H_RULER", "I1PRO3_IMP_C_RULER")
              for pt in v.get(k, [])]
-    ruler_olds = {o for o, _n in ruler}
+    ruler_new = {o: n for o, n in ruler}
     added = []
     for old, new in v["PATCHES"].get(dest, []):
-        if (old, new) in ruler or old in ruler_olds:
-            continue          # a ruler patch (the dual scan folds hooks into some, 2026-11-18)
+        if (old, new) in ruler:
+            continue          # a ruler patch as it is (pinned in tests/test_ruler_driver.py)
         o = set(old.splitlines())
+        if old in ruler_new:
+            # a ruler patch the dual scan folded its hooks into (2026-11-18): the lines it adds
+            # beyond the ruler patch's own text are checked here too (4.3.48 re-review NOTE-C;
+            # skipping the whole patch had left them unread)
+            o |= set(ruler_new[old].splitlines())
         added += [ln for ln in new.splitlines() if ln not in o]
     return added
+
+
+def test_the_dual_hooks_folded_into_ruler_patches_are_read():
+    """NOTE-C (4.3.48 re-review): a ruler patch that carries the dual scan's hooks is no longer
+    skipped whole; the lines beyond the ruler patch's own text are among those checked."""
+    v = _vendor()
+    ruler = [pt for k in ("I1PRO_IMP_H_RULER", "I1PRO_IMP_C_RULER") for pt in v.get(k, [])]
+    ruler_new = {o: n for o, n in ruler}
+    folded = [(o, n) for dest in ("i1pro_imp.c", "i1pro_imp.h")
+              for o, n in v["PATCHES"].get(dest, []) if o in ruler_new and n != ruler_new[o]]
+    assert folded, "no ruler patch carries dual hooks any more: this test can go"
+    added = set(_added_lines("i1pro_imp.c") + _added_lines("i1pro_imp.h"))
+    for o, n in folded:
+        extra = [ln for ln in n.splitlines()
+                 if ln not in set(o.splitlines()) | set(ruler_new[o].splitlines())]
+        assert extra and set(extra) <= added
 
 
 def test_the_patch_adds_no_other_request():

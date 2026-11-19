@@ -593,6 +593,14 @@ static int cq_tdual_lamp_done = 0;	/* the last pass was a dual lamp pass that de
  * said yes to; a fire of any other pass (or of none) sends nothing. The
  * helper's own arm step refuses an unarmed fire too: this is the second line. */
 static int cq_tdual_ready_pass = 0;
+/* 2026-11-19 (re-review, NOTE-B): a calibration voids both: a ready "yes"
+ * given before it and a lamp pass delivered before it. The next pass is armed
+ * afresh, and a UV pass needs a lamp pass of its own after the calibration.
+ * State only: nothing is sent. */
+void i1pro2_cq_tdual_disarm(void) {
+	cq_tdual_ready_pass = 0;
+	cq_tdual_lamp_done = 0;
+}
 /* 2026-11-19 (table safety review, SHOULD-1): the 5 dark readings after a lamp
  * pass wait until at least this long after the lamp went out. i1Profiler waited
  * 131-180 ms after the lamp pass's last data on the volunteer's table (B: five

@@ -392,6 +392,23 @@ int main(int argc, char **argv) {
 	fire(p, CQ_TDUAL_PASS_LAMP, 550);		/* the earlier yes does not count: nothing */
 	end(p);
 
+	/* re-review NOTE-B (4.3.48): a calibration voids a yes given before it and
+	 * a lamp pass delivered before it */
+	scn = "calreset";
+	p = make(instI1Pro2, I1PRO_CAP2_UV_LED | I1PRO_CAP2_ZEB_RUL);
+	on(p);
+	lights(p); msec_sleep(10);
+	ready(p, CQ_TDUAL_PASS_LAMP, 550, 1);		/* a yes ... */
+	i1pro2_cq_tdual_disarm();			/* ... then a calibration */
+	fire(p, CQ_TDUAL_PASS_LAMP, 550);		/* nothing */
+	ready(p, CQ_TDUAL_PASS_LAMP, 550, 1);
+	fire(p, CQ_TDUAL_PASS_LAMP, 550);		/* the lamp pass delivers ... */
+	msec_sleep(10);
+	i1pro2_cq_tdual_disarm();			/* ... then a calibration */
+	ready(p, CQ_TDUAL_PASS_UV, 550, 1);		/* no: no lamp pass since it */
+	fire(p, CQ_TDUAL_PASS_UV, 550);			/* nothing */
+	end(p);
+
 	/* not a dual session (an original i1Pro, or no UV LED): nothing at all */
 	scn = "revad";
 	p = make(instI1Pro, I1PRO_CAP2_UV_LED);

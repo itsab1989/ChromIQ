@@ -37,13 +37,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 HELPER_NAME = "chromiq-chartread"
-HELPER_BUILD = "2026-11-19a"      # ChromIQ's helper: the table scan (2026-11-17a) + the button wait (17b)
+HELPER_BUILD = "2026-11-19b"      # ChromIQ's helper: the table scan (2026-11-17a) + the button wait (17b)
 #                                    + the i1Pro 2 dual-scan conditions (18a, nothing for the table)
 #                                    + the dual scan's resume rule (18b, nothing for the table)
 #                                    + the dual scan's device side (18c, nothing for the table yet)
 #                                    + the dual scan's safety fixes (18d, nothing for the table)
 #                                    + the dual scan on the table (18e: --i1io-table-dual,
 #                                      --dual-table; nothing without them)
+#                                    + its fix rounds (19a: the lamp's dark, one fire per yes;
+#                                      19b: a calibration clears the armed pass)
 #: the build token of the helper's button wait (--i1io-press-wait, round B). A helper without it
 #: (2026-11-17a and older) is simply not asked: the panel's Aimed button always works.
 PRESS_WAIT_TOKEN = "+i1io-press-wait"

@@ -246,6 +246,9 @@ TABLE_HELPER_MAY_CALL = _LIBC | {
     "cq_dual_check", "cq_dual_pairing", "cq_dual_patch",
     "cq_emit_raw", "msec_time", "snprintf", "ts_get", "atof", "fopen", "fclose", "fscanf",
     "fprintf", "ts_emit_fired", "ts_dual_take_tile",
+    # 4.3.48 re-review NOTE-B: a calibration clears the driver's ready "yes" and delivered lamp
+    # pass (cq_i1pro2_dual.h: two assignments, nothing sent)
+    "i1pro2_cq_tdual_disarm",
 }
 
 

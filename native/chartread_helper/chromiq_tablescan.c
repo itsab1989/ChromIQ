@@ -328,6 +328,14 @@ static void ts_dual_after_cal(inst *it) {
 	            t.uv_clocks, t.volts_before, t.volts_after, kept ? "true" : "false");
 }
 
+/* 2026-11-19 (re-review, NOTE-B): a calibration clears the armed pass here and
+ * the driver's ready "yes" and delivered lamp pass: nothing armed before it can
+ * fire after it. State only. */
+static void ts_dual_disarm(void) {
+	ts_dd.pass = 0;
+	i1pro2_cq_tdual_disarm();
+}
+
 /* the armed pass, fired; -2 = refused before anything was sent (said) */
 static int ts_dual_fire(inst *it, int n, int np, const char *name, cq_tscan_rec *r) {
 	char extra[96];
@@ -563,6 +571,7 @@ int cq_run_table_scan(int comport, flow_control fc, const char *outdir,
 			if (cq_tscan_dual) {	/* a new white needs a new dual tile */
 				ts_dd.have_tile = 0;
 				ts_dd.cal.have_uv_tile = 0;
+				ts_dual_disarm();	/* NOTE-B: nothing armed before fires after */
 			}
 			rv = cq_handle_calibrate(it, inst_calt_needed, inst_calc_none, 0);
 			calibrated = (rv & inst_mask) == inst_ok;

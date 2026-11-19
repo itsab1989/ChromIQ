@@ -175,6 +175,37 @@ def test_one_fire_per_yes_and_a_later_no_clears_the_yes(trace):
         ("CTL", "d4", REC_LAMP)]
 
 
+def test_a_calibration_voids_an_earlier_yes_and_an_earlier_lamp_pass(trace):
+    """4.3.48 re-review NOTE-B: after a calibration (i1pro2_cq_tdual_disarm, called by the
+    helper's tscan_calibrate), a ready "yes" given before it fires nothing, and a UV pass needs
+    a lamp pass of its own after it."""
+    lines = _scn(trace, "calreset")
+    fires = [ln for ln in lines if ln.startswith("FIRE")]
+    assert len(fires) == 3, lines
+    assert fires[0].startswith("FIRE rc=-1") and "lit_sent=0 dark_sent=0" in fires[0]
+    assert fires[1].startswith("FIRE rc=0")
+    assert fires[2].startswith("FIRE rc=-1") and "lit_sent=0 dark_sent=0" in fires[2]
+    readies = [ln for ln in lines if ln.startswith("READY")]
+    assert readies[2].startswith("READY uv -1") and "did not deliver" in readies[2], readies
+    d4 = [x[2] for x in _wire(lines) if x[1] == "d4"]
+    assert d4.count(REC_LAMP) == 1 and REC_UV not in d4, d4      # the one allowed lamp pass
+    assert set(d4) <= {REC_LAMP, REC_DARK5}, d4
+
+
+def test_the_helper_clears_the_armed_pass_at_a_calibration():
+    """NOTE-B, the helper's side: the tscan_calibrate branch disarms (ts_dd.pass and the
+    driver's state) before it calibrates."""
+    from pathlib import Path
+    src = (Path(__file__).resolve().parents[2] / "native/chartread_helper/chromiq_tablescan.c"
+           ).read_text(encoding="utf-8")
+    a = src.index("static void ts_dual_disarm(")
+    body = src[a:src.index("\n}\n", a)]
+    assert "ts_dd.pass = 0;" in body and "i1pro2_cq_tdual_disarm();" in body
+    c = src.index('strstr(line, "\\"tscan_calibrate\\"")')
+    branch = src[c:src.index("cq_handle_calibrate(", c)]
+    assert "ts_dual_disarm();" in branch
+
+
 def test_the_helper_fires_only_an_armed_pass_and_keeps_only_a_checked_tile():
     """SHOULD-3 R10 / R14, pinned in chromiq_tablescan.c itself (its static functions run only
     inside the helper's table-scan mode, which opens a real instrument): the pass fired is the
