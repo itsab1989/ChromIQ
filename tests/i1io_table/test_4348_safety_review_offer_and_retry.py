@@ -3,8 +3,9 @@ to a patch beside its target): the planted faults that only ONE test caught get 
 
 Each test below pins one refusal on its own, so a single widened condition in
 ``TableJob._home_after_stop_why`` or ``_move_to`` is caught where it is, not only by a test that
-happens to reach it first. The two ``xfail(strict=True)`` tests document what the review asks for
-and the branch does not do yet; they turn red (XPASS) once it is done, and are then made plain.
+happens to reach it first. The review's two strict xfail tests (MUST-1: no offer after a homing of
+this sitting; SHOULD-1: the job refuses the start-up after "The arm is out") are plain since the
+fix round that made them pass.
 """
 from __future__ import annotations
 
@@ -94,9 +95,6 @@ def test_a_stop_pressed_before_bring_home_still_asks_the_go(tmp_path):
     assert res.reason == "person_chose_back" and sim.received[n:] == []
 
 
-@pytest.mark.xfail(strict=True, reason="safety review 448 MUST-1: a place check that reads the "
-                                       "arm out AFTER a homing of this sitting (the park, the "
-                                       "start-up) is a homing that did not reach rest: no offer")
 @pytest.mark.parametrize("before", ["park", "start_up"])
 def test_no_offer_when_the_arm_reads_out_after_a_homing_of_this_sitting(tmp_path, before):
     job, sim, helper, run, p = job_for(tmp_path, real_table=False)
@@ -110,7 +108,11 @@ def test_no_offer_when_the_arm_reads_out_after_a_homing_of_this_sitting(tmp_path
     r = p.drive(job.align())
     assert job._table.closed_reason.startswith("right before the homing")
     assert r.way_back != J.WayBack.HOME_AFTER_STOP
-    assert job._home_after_stop_why() is not None
+    assert job._home_after_stop_why() == "moved_in_this_sitting"
+    n = len(sim.received)
+    res = job.home_after_stop()
+    assert (res.kind, res.reason) == (J.Kind.REFUSED, "moved_in_this_sitting")
+    assert sim.received[n:] == []
 
 
 @pytest.mark.xfail(strict=True, reason="safety review 448 SHOULD-1: the job itself (not only the "
@@ -123,7 +125,8 @@ def test_the_job_refuses_the_start_up_after_arm_out(tmp_path):
     assert p.drive(job.open()).ok
     n = len(sim.received)
     res = job.start_up()
-    assert res.kind == J.Kind.REFUSED and sim.received[n:] == []
+    assert (res.kind, res.reason) == (J.Kind.REFUSED, "arm_out_start_up_not_recorded")
+    assert sim.received[n:] == []
 
 
 # ---- item 2 --------------------------------------------------------------------------------------

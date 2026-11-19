@@ -1432,6 +1432,15 @@ class TableJob:
             return "not_stopped"
         if not reason.startswith(HOME_AFTER_STOP_REASONS):
             return "stop_not_at_a_place_check"
+        if d.motions_sent != 0 or d.start_up_sent:
+            # safety review 448, MUST-1: the place check "right before the homing" also takes
+            # the first reading after ChromIQ's OWN homings of this sitting (the park, the
+            # start-up of a just-switched-on table). An arm out there means a homing reported
+            # done and did not reach rest: a mechanical doubt, never an offer. The offer is
+            # only for an arm FOUND out at a START, before anything moved in this sitting.
+            # (The hand-alignment mode, the only way a hand moves the arm, is switched on only
+            # at the alignment start, after the drive there: always after a movement.)
+            return "moved_in_this_sitting"
         if self.stopped_by_person:
             return "stopped_by_person"
         if self.instrument_out:
