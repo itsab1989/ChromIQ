@@ -9065,7 +9065,7 @@ alone.
 
 ### M-STRIP-SHIFT-REFUSED-PAPER · PROPOSED · the Measure log's line when the refusal rests on one patch — Measure tab, strip mode
 
-*New 2026-11-19 (4.3.50). As M-STRIP-SHIFT-REFUSED, when the record's "k" is 1: the first or last reading as read is the white paper (L* at least 85, chroma at most 12) where the expected colour is at least 50 from the paper. {score}: that reading's L*; {limit}: 85.0.*
+*New 2026-11-19 (4.3.50). As M-STRIP-SHIFT-REFUSED, when the record's "k" is 1: the first or last reading as read is the white paper (L* at least 85, chroma at most 12) and misses its own expected colour by at least 50. {score}: that reading's L*; {limit}: 85.0.*
 
 > **Strip {strip} refused: a reading at one end is the white paper**
 >
