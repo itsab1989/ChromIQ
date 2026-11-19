@@ -47,15 +47,17 @@ HELPER_C = (Path(__file__).resolve().parent.parent
 # above these lines in chromiq_chartread.c (a move, nothing else changed)
 # +139 on 2026-11-19 (4.3.49, helper 19d): the kept conditions record (cq_cond_keep, the
 # partial files, cq_cond_resume) inserted above these lines (a move, nothing else changed)
+# +45 on 2026-11-19 (4.3.50, helper 19e): cq_strip_shift_check, the strip shift test's
+# reader, inserted above these lines (a move, nothing else changed)
 HELPER_LINES = {
     "capability":  ("Need reflection spot, strip, xy or chart reading capability,",
-                    "Need reflection spot, strip, xy or chart reading capability", 3504),
+                    "Need reflection spot, strip, xy or chart reading capability", 3549),
     "ccmx_set":    ("Setting Colorimeter Correction Matrix failed with error :'x' (0x1)",
-                    "Setting Colorimeter Correction Matrix failed with error", 3563),
+                    "Setting Colorimeter Correction Matrix failed with error", 3608),
     "ccmx_read":   ("Reading CCMX/CCSS File 'x.ccmx' failed with error 2:'nope'",
-                    "Reading CCMX/CCSS File", 3585),
+                    "Reading CCMX/CCSS File", 3630),
     "mode_set":    ("Setting instrument mode failed with error :'unsupported' (0x2)",
-                    "Setting instrument mode failed with error", 3931),
+                    "Setting instrument mode failed with error", 3976),
     "init_fail":   ("Initialising instrument failed with message 'Communications failure'",
                     None, None),
     "coms_fail":   ("Establishing communications with instrument failed with message 'timeout'",

@@ -227,7 +227,8 @@ def test_eight_files_skip_wholesale_without_it():
     # 37 in part with the kept conditions (4.3.49): the real helper keeping the record of
     # M1 / M2 after an end, its partial files and Continue (test_conditions_kept_4349.py)
     # 38 with the final fix round's test (4.3.49 review: a hand-edited partial pair on the real helper)
-    assert len(whole) == 10 and len(partial) == 38, (
+    # 39 with the strip shift test (4.3.50): a strip read one patch out refused by the real helper
+    assert len(whole) == 10 and len(partial) == 39, (
         "the number of files gated on the chart-reading helper has changed "
         f"({len(whole)} wholesale, {len(partial)} in part) -> update the "
         f"header in tests/conftest.py. wholesale={whole} partial={partial}")

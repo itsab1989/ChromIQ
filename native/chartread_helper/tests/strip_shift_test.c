@@ -8,7 +8,7 @@
  *   <read X Y Z> <expected X Y Z>      n lines, in row order
  * Output per strip:
  *   RESULT <i> <flagged> <end> <k> <score> <s[0][0]> <s[0][1]> <s[1][0]> <s[1][1]>
- *          <d[0][0]> <d[0][1]> <d[1][0]> <d[1][1]> <m>      (%.17g)
+ *          <d[0][0]> <d[0][1]> <d[1][0]> <d[1][1]> <m> <chroma> <pd>   (%.17g)
  * then "ALL DONE".
  * AGPL-3.0 - see ../../instlib/License.txt. */
 #include <stdio.h>
@@ -34,10 +34,10 @@ int main(void) {
 			          &ex[i][0], &ex[i][1], &ex[i][2]) != 6)
 				return 4;
 		cq_shift_test((const double (*)[3])rd, (const double (*)[3])ex, n, paper, &r);
-		printf("RESULT %d %d %d %d %.17g %.17g %.17g %.17g %.17g %.17g %.17g %.17g %.17g %.17g\n",
+		printf("RESULT %d %d %d %d %.17g %.17g %.17g %.17g %.17g %.17g %.17g %.17g %.17g %.17g %.17g %.17g\n",
 		       idx++, r.flagged, r.end, r.k, r.score,
 		       r.s[0][0], r.s[0][1], r.s[1][0], r.s[1][1],
-		       r.d[0][0], r.d[0][1], r.d[1][0], r.d[1][1], r.m);
+		       r.d[0][0], r.d[0][1], r.d[1][0], r.d[1][1], r.m, r.chroma, r.pd);
 		free(rd);
 		free(ex);
 	}

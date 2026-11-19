@@ -5404,24 +5404,32 @@ a1log *log			/* verb, debug & error log */
 							if (cap2 & inst2_no_feedback)
 								bad_beep();
 							cq_lights_say(0);	/* CHROMIQ_EXT: red twice (Beta) */
-							snprintf(det_, sizeof(det_),
-							         "Readings moved by one patch at the %s of the strip"
-							         " (shift score %.1f, limit %.1f)",
-							         at_start ? "start" : "end", sres.score,
-							         sres.k == 3 ? CQS_T3 : CQS_T2);
+							double lim_ = sres.k == 3 ? CQS_T3 : sres.k == 2 ? CQS_T2 : CQS_P_L;
+							if (sres.k == 1)	/* the paper's fingerprint: one patch */
+								snprintf(det_, sizeof(det_),
+								         "Readings moved by one patch at the %s of the strip"
+								         " (the %s reading is the paper: L* %.1f, at least %.1f)",
+								         at_start ? "start" : "end", at_start ? "first" : "last",
+								         sres.score, lim_);
+							else
+								snprintf(det_, sizeof(det_),
+								         "Readings moved by one patch at the %s of the strip"
+								         " (shift score %.1f, limit %.1f)",
+								         at_start ? "start" : "end", sres.score, lim_);
 							printf("\nStrip read failed due to misread (%s)\n", det_);
 							printf("  shift check: k %d, s2 %.1f/%.1f, s3 %.1f/%.1f, D2 %.1f/%.1f,"
-							       " D3 %.1f/%.1f, median %.1f\n", sres.k,
+							       " D3 %.1f/%.1f, median %.1f, paper reading C %.1f / %.1f from paper\n",
+							       sres.k,
 							       sres.s[0][0], sres.s[1][0], sres.s[0][1], sres.s[1][1],
-							       sres.d[0][0], sres.d[1][0], sres.d[0][1], sres.d[1][1], sres.m);
+							       sres.d[0][0], sres.d[1][0], sres.d[0][1], sres.d[1][1], sres.m,
+							       sres.chroma, sres.pd);
 							printf("Hit Esc to give up, any other key to retry%s:",fl_end); do_fflush();
 							cq_emit_raw("{\"event\":\"error\",\"kind\":\"misread\","
 							            "\"detail\":\"%s\",\"button_retry\":%s,"
 							            "\"shift\":{\"at\":\"%s\",\"k\":%d,\"score\":%.2f,"
 							            "\"limit\":%.1f}}", det_,
 							            cq_button_retry_ok(it, uswitch) ? "true" : "false",
-							            at_start ? "start" : "end", sres.k, sres.score,
-							            sres.k == 3 ? CQS_T3 : CQS_T2);
+							            at_start ? "start" : "end", sres.k, sres.score, lim_);
 							cq_switch_gate_set(1);
 							ch = cq_wait_char();
 							cq_switch_gate_set(0);

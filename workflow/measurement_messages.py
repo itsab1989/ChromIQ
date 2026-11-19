@@ -10884,6 +10884,19 @@ M_STRIP_SHIFT_REFUSED = _m(
     "(shift score {score}, limit {limit}). Read it again.",
     approved=False)
 
+#: The same when it rests on one patch (the record's "k" is 1): the first or
+#: last reading is the white paper itself where a colour far from it was
+#: expected. {score}: that reading's lightness L*, {limit}: the least L* that
+#: counts as paper, one decimal.
+M_STRIP_SHIFT_REFUSED_PAPER = _m(
+    "M-STRIP-SHIFT-REFUSED-PAPER",
+    "Strip {strip} refused: a reading at one end is the white paper",
+    "Strip {strip} was not kept: the reading at one end of the movement is the "
+    "white paper (lightness {score}, paper from {limit}) where a colour far "
+    "from the paper was expected, as when the white paper is read as a patch. "
+    "Read it again.",
+    approved=False)
+
 M_STRIP_FAILED_BUTTON = _m(
     "M-STRIP-FAILED-BUTTON",
     "You can also use the button on your instrument",
@@ -13491,6 +13504,7 @@ CATALOGUE = {m.id: m for m in (
     M_STRIP_REVERSED_TURN,
     M_STRIP_TURNED,
     M_STRIP_SHIFT_REFUSED,
+    M_STRIP_SHIFT_REFUSED_PAPER,
     M_STRIP_RULER_NOT_COVERED,
     M_I1PRO2_LIGHTS_LEFT_ON,
     M_FILTER_REFUSED,

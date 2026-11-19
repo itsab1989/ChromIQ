@@ -5214,8 +5214,9 @@ class MeasureManager(QObject):
             self.info_message.emit("patch_not_found", tr("Patch '{name}' not found.").format(name=m.group(1)))
 
     def _log_shift_refusal(self, shift: dict) -> None:
-        """M-STRIP-SHIFT-REFUSED in the Measure log, with the shift score and
-        the limit it reached (the helper's misread event, 4.3.50)."""
+        """M-STRIP-SHIFT-REFUSED (-PAPER when it rests on one patch) in the
+        Measure log, with the figure and the limit it reached (the helper's
+        misread event, 4.3.50)."""
         from core.i18n import decimal_text
         from workflow import measurement_messages as M
         try:
@@ -5224,7 +5225,9 @@ class MeasureManager(QObject):
         except (TypeError, ValueError):
             return
         strip = getattr(self, "_ready_strip_label", "") or "?"
-        _title, body = M.M_STRIP_SHIFT_REFUSED.render(
+        msg = (M.M_STRIP_SHIFT_REFUSED_PAPER if shift.get("k") == 1
+               else M.M_STRIP_SHIFT_REFUSED)
+        _title, body = msg.render(
             strip=strip, score=decimal_text(score, 1), limit=decimal_text(limit, 1))
         log.info("strip %s refused by the shift check: %s", strip, shift)
         self.info_message.emit("strip_shift", body)

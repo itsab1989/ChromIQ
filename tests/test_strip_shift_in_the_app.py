@@ -57,7 +57,7 @@ def test_the_window_says_what_happened_and_what_to_do():
 
 def test_the_texts_are_proposed_and_have_no_em_dash():
     for m in (M.M_STRIP_FAILED_SHIFTED_START, M.M_STRIP_FAILED_SHIFTED_END,
-              M.M_STRIP_SHIFT_REFUSED):
+              M.M_STRIP_SHIFT_REFUSED, M.M_STRIP_SHIFT_REFUSED_PAPER):
         assert m.id in M.PROPOSED
         assert "—" not in m.title + m.body
 
@@ -86,6 +86,20 @@ def test_the_manager_raises_the_misread_window_and_logs_the_score(qapp):
     assert len(infos) == 1 and infos[0][0] == "strip_shift"
     text = infos[0][1]
     assert text.startswith("Strip C was not kept") and "49.0" in text and "10.0" in text
+
+
+def test_a_refusal_on_one_patch_logs_the_paper_line(qapp):
+    from test_knut_5956210745_next_strip_after_a_read import _feed
+    m = _manager()
+    infos = []
+    m.info_message.connect(lambda cat, text: infos.append(text))
+    _feed(m, {"event": "strip_ready", "strip": "D", "read": False, "all_done": False},
+          {"event": "error", "kind": "misread", "button_retry": False,
+           "detail": "Readings moved by one patch at the start of the strip "
+                     "(the first reading is the paper: L* 93.4, at least 85.0)",
+           "shift": {"at": "start", "k": 1, "score": 93.4, "limit": 85.0}})
+    assert len(infos) == 1
+    assert infos[0].startswith("Strip D was not kept: the reading at one end") and "93.4" in infos[0]
 
 
 def test_an_ordinary_misread_logs_no_shift_line(qapp):

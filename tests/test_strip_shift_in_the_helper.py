@@ -154,7 +154,8 @@ def _end(s):
     return s.finish()
 
 
-@pytest.mark.parametrize("slip,k,end", [("start:3", 3, 0), ("start:6", 6, 0), ("end:3", 3, 1), ("end:2", 2, 1)])
+@pytest.mark.parametrize("slip,k,end", [("start:3", 3, 0), ("start:6", 6, 0), ("end:3", 3, 1),
+                                        ("end:2", 2, 1), ("start:1", 1, 0), ("end:1", 1, 1)])
 def test_a_moved_strip_is_refused_then_read_again(tmp_path, slip, k, end):
     base = _chart(tmp_path)
     letter = _a_strip_the_test_sees(base, k, end)

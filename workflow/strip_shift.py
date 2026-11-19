@@ -9,7 +9,8 @@ app calls it.
 
 What it decides: whether the first (or last) two or three readings of a strip
 fit "moved by one patch, with the white paper in front" clearly better than
-the colours they were filed under. That is what happens when ArgyllCMS's strip
+the colours they were filed under, or whether the first (or last) reading is
+the white paper itself where a colour far from it was expected. That is what happens when ArgyllCMS's strip
 patch finder takes the white run-up before the first patch (or the white after
 the last) as a patch. See chromiq_shift.h for the full rule and the reasons for
 its numbers.
@@ -28,6 +29,11 @@ T2 = 20.0
 F2 = 0.5
 QMIN = 0.5
 NMIN = 4
+#: k = 1, the paper's fingerprint (CQS_P_*): the end reading as read is
+#: paper-like while its expected colour is far from the paper.
+P_L = 85.0
+P_C = 12.0
+P_D = 50.0
 
 _W = (0.9642, 1.0000, 0.8249)
 
@@ -55,6 +61,8 @@ class ShiftResult:
     s: list = field(default_factory=lambda: [[0.0, 0.0], [0.0, 0.0]])
     d: list = field(default_factory=lambda: [[0.0, 0.0], [0.0, 0.0]])
     m: float = 0.0
+    chroma: float = 0.0
+    pd: float = 0.0
 
 
 def shift_test(read: Sequence[Sequence[float]], expected: Sequence[Sequence[float]],
@@ -96,4 +104,14 @@ def shift_test(read: Sequence[Sequence[float]], expected: Sequence[Sequence[floa
                 ok = s >= T3 if kk == 3 else (s >= T2 and s >= F2 * dd)
                 if ok and (not res.flagged or s > res.score):
                     res.flagged, res.end, res.k, res.score = True, e, kk, s
+    for e in (0, 1):
+        if res.flagged:
+            break
+        ix = 0 if e == 0 else n - 1
+        raw = _lab(read[ix])
+        c = math.hypot(raw[1], raw[2])
+        dp = _de(le[ix], lp)
+        if raw[0] >= P_L and c <= P_C and dp >= P_D:
+            res.flagged, res.end, res.k, res.score = True, e, 1, raw[0]
+            res.chroma, res.pd = c, dp
     return res

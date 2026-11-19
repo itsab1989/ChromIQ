@@ -25,7 +25,10 @@ The thresholds and the margins they keep (measured on all 4,671 real strips,
 ~/Desktop/ChromIQ-work/2026-11-19_shift450/out):
   s_3 >= 10: the worst correct strip scores 2.2, the mildest real misread 11.4;
   s_2 >= 20 AND s_2 >= 0.5 x D_2: the worst correct strips score 17.8 (at
-  0.26 x D_2) and 17.1 (at 0.38 x D_2), never both.
+  0.26 x D_2) and 17.1 (at 0.38 x D_2), never both;
+  one patch (k = 1): the end reading as read L* >= 85 and chroma <= 12 where
+  the expected colour is >= 50 from the paper: the brightest such correct
+  reading is L* 69.7.
 """
 from __future__ import annotations
 
@@ -142,11 +145,28 @@ def test_two_patches_moved_then_in_step_is_mostly_refused(strips, end):
     assert _rate(strips, 2, end) >= 0.70
 
 
-def test_one_patch_alone_is_not_judged(strips):
-    """One reading near paper cannot be told from a light print of a colour
-    the rough expected values put far out of gamut, so a single moved patch
-    is left to the later checks (documented, not a goal)."""
-    assert _rate(strips, 1, 0) <= 0.15
+@pytest.mark.parametrize("end", [0, 1])
+def test_one_patch_moved_is_refused_by_the_papers_fingerprint(strips, end):
+    """The commonest pattern of the study's simulation: the run-up taken as
+    patch 1, the real patch 1 dropped, the rest in step. Caught where patch 1's
+    colour is far from the paper (most of a chart); where it is near the paper
+    a paper reading there is no evidence, and the test stays silent. 74 % on
+    all real strips; this fixture holds the 150 hardest, so less."""
+    assert _rate(strips, 1, end) >= 0.50
+
+
+def test_the_papers_fingerprint_has_a_margin_on_correct_strips(strips):
+    """Correct end readings whose colour is far from the paper never come
+    near the paper: the brightest is L* 69.7 on all 4,671 real strips."""
+    worst = 0.0
+    for st in strips:
+        if st["label"] != "honest":
+            continue
+        for ix in (0, -1):
+            lr = S._lab(st["read"][ix])
+            if math.hypot(lr[1], lr[2]) <= S.P_C and S._de(S._lab(st["exp"][ix]), S._lab(st["paper"])) >= S.P_D:
+                worst = max(worst, lr[0])
+    assert worst <= S.P_L - 12.0
 
 
 # ------------------------------------------------ synthetic strips, short and long
@@ -256,6 +276,7 @@ def test_too_short_or_unreadable_is_not_judged():
 def test_the_twin_says_what_the_header_says():
     h = (Path(__file__).parents[1] / "native" / "chartread_helper" / "chromiq_shift.h").read_text(encoding="utf-8")
     for name, val in (("CQS_T3", S.T3), ("CQS_T2", S.T2), ("CQS_F2", S.F2),
-                      ("CQS_QMIN", S.QMIN), ("CQS_NMIN", S.NMIN)):
+                      ("CQS_QMIN", S.QMIN), ("CQS_NMIN", S.NMIN), ("CQS_P_L", S.P_L),
+                      ("CQS_P_C", S.P_C), ("CQS_P_D", S.P_D)):
         line = next(ln for ln in h.splitlines() if ln.startswith(f"#define {name} "))
         assert math.isclose(float(line.split()[2]), val), line

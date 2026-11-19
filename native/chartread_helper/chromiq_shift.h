@@ -36,9 +36,16 @@
  * Thresholds chosen from ~4,700 real strips that pass the colour check today
  * (~/Desktop/ChromIQ-work/2026-11-19_shift450, review_brief.txt): the worst
  * correct strip scores s_3 = 2.2, s_2 = 17.8 at a ratio of 0.26; the mildest
- * real misread s_3 = 11.4. A single moved patch (k = 1) is NOT tested: one
- * reading near paper cannot be told from a light print of a colour the rough
- * expected values put far out of gamut (correct strips reach 39 there).
+ * real misread s_3 = 11.4.
+ *
+ * ONE MOVED PATCH (k = 1, the commonest pattern in the study's simulation:
+ * the run-up taken as patch 1 and the real patch 1 dropped, the rest in
+ * step). s_1 alone cannot tell it from a light print of a colour the rough
+ * expected values put far out of gamut (correct strips reach s_1 = 39), so it
+ * is judged by the paper's own fingerprint instead: the end reading, AS READ
+ * (not Y-normalised), is paper-like (L* >= CQS_P_L, chroma <= CQS_P_C) while
+ * its expected colour is far from the paper (dE >= CQS_P_D). On the real
+ * strips the brightest such reading of a correct strip is L* 69.7.
  *
  * AGPL-3.0 like the rest of ChromIQ's helper code (see License.txt). */
 #ifndef CHROMIQ_SHIFT_H
@@ -53,12 +60,18 @@ extern "C" {
 #define CQS_F2     0.5	/* ... and at least this share of D_2              */
 #define CQS_QMIN   0.5	/* D_k at least this share of the strip's median dE */
 #define CQS_NMIN   4	/* the shortest strip the test looks at            */
+#define CQS_P_L   85.0	/* k = 1: the end reading's L* at least this ...   */
+#define CQS_P_C   12.0	/* ... its chroma at most this ...                 */
+#define CQS_P_D   50.0	/* ... and its expected colour this far from paper */
 
 typedef struct {
 	int    flagged;		/* 1: the strip looks moved by one patch           */
 	int    end;			/* 0 = at the strip's first patch (as filed), 1 = at its last */
-	int    k;			/* 2 or 3: how many patches the finding rests on   */
-	double score;		/* the s_k that fired (or the largest s_k looked at) */
+	int    k;			/* 1, 2 or 3: how many patches the finding rests on */
+	double score;		/* the s_k that fired (or the largest s_k looked at);
+						 * k = 1: the end reading's L* */
+	double chroma;		/* k = 1: the end reading's chroma                 */
+	double pd;			/* k = 1: dE of its expected colour from the paper */
 	/* every figure, for the log and the tests: [end][k-2] */
 	double s[2][2], d[2][2];
 	double m;			/* the strip's median dE between expected colours  */

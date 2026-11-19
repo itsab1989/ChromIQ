@@ -100,6 +100,22 @@ int cq_shift_test(const double (*read)[3], const double (*expd)[3], int n,
 			}
 		}
 	}
+	/* k = 1, the paper's fingerprint, only when k = 2 / 3 found nothing */
+	for (e = 0; e < 2 && !res->flagged; e++) {
+		int ix = e == 0 ? 0 : n - 1;
+		double raw[3], c, dp;
+		cqs_lab(read[ix], 1.0, raw);		/* as read, not Y-normalised */
+		c = sqrt(raw[1] * raw[1] + raw[2] * raw[2]);
+		dp = cqs_de(le[ix], lp);
+		if (raw[0] >= CQS_P_L && c <= CQS_P_C && dp >= CQS_P_D) {
+			res->flagged = 1;
+			res->end = e;
+			res->k = 1;
+			res->score = raw[0];
+			res->chroma = c;
+			res->pd = dp;
+		}
+	}
 	free(lr); free(le); free(pd);
 	return res->flagged;
 }

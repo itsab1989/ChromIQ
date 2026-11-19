@@ -417,7 +417,7 @@ AWAITING_APPROVAL: "set[str]" = {
     # 4.3.50 (the patch finder study, 2026-11-19): the helper's shift test,
     # the white paper at one end of the movement read as a patch, and its log line
     "M-STRIP-FAILED-SHIFTED-START", "M-STRIP-FAILED-SHIFTED-END",
-    "M-STRIP-SHIFT-REFUSED",
+    "M-STRIP-SHIFT-REFUSED", "M-STRIP-SHIFT-REFUSED-PAPER",
     # M3 (4.3.8 beta 3): the engine could not save the readings, proposed 2026-10-21
     "M-AUTOSAVE-NOT-SAVED",
     # M3 (4.3.8 beta 3): the line under the chart while a save failed, 2026-10-21

@@ -36,7 +36,7 @@ def _cases():
     strips = json.loads(DATA.read_text(encoding="utf-8"))["strips"]
     cases = [(st["read"], st["exp"], st["paper"], st["label"]) for st in strips]
     for st in strips[157:257]:     # moved copies of 100 correct strips (the random part)
-        for k, end in ((3, 0), (2, 1), (999, 0), (999, 1)):
+        for k, end in ((3, 0), (2, 1), (999, 0), (999, 1), (1, 0), (1, 1)):
             cases.append((_moved(st["read"], k, end), st["exp"], st["paper"], "moved"))
     cases.append((strips[10]["read"][:3], strips[10]["exp"][:3], strips[10]["paper"], "short"))
     return cases
@@ -81,7 +81,7 @@ def test_every_figure_of_the_c_file_is_the_twins(c_results):
             assert int(t[3]) == py.end and int(t[4]) == py.k
         got = [float(v) for v in t[5:]]
         want = [py.score, py.s[0][0], py.s[0][1], py.s[1][0], py.s[1][1],
-                py.d[0][0], py.d[0][1], py.d[1][0], py.d[1][1], py.m]
+                py.d[0][0], py.d[0][1], py.d[1][0], py.d[1][1], py.m, py.chroma, py.pd]
         assert got == pytest.approx(want, abs=1e-9)
 
 
