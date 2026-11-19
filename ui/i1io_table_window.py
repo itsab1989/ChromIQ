@@ -850,6 +850,10 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
             "the second pass, with the UV light, did not lie over the patches where ChromIQ "
             "expected it (it was off by about 0.7 mm or more), so its values could include a "
             "little of the neighbouring patches"),
+        "lamp_pass_timing_off": tr(
+            "the first pass, with the lamp, did not lie over the patches where ChromIQ "
+            "expected it (it was off by about 1.2 mm or more), so its values could include a "
+            "little of the neighbouring patches"),
         "uv_spot_failed": tr(
             "the reading with the UV light did not succeed on a patch, even when it was read "
             "again"),

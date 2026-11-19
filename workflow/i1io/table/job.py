@@ -3375,9 +3375,13 @@ class TableJob:
                           f"{sc.UV_MOTION_START_AFTER_TRIGGER_S} s), lamp "
                           f"{(timing.get('lamp') or {}).get('best_motion_start_s')} s (assumed "
                           f"{sc.MOTION_START_AFTER_LAMP_S} s); judged {timing.get('checked')}, "
-                          f"refused {timing.get('refuse')}")
+                          f"refused {timing.get('refuse')}; lamp judged "
+                          f"{timing.get('lamp_checked')}, refused {timing.get('lamp_refuse')}")
             if not cut.ok:
                 raise _RowFailed(cut.reason, str(cut.info.get("loc") or ""))
+            if timing.get("lamp_refuse"):
+                # SHOULD-A (4.3.48 re-review): the lamp pass judged as the UV pass is
+                raise _RowFailed("lamp_pass_timing_off", "")
             if timing.get("refuse"):
                 raise _RowFailed("uv_pass_timing_off", "")
             xyz0 = stp._xyz(cut.lamp, cut.wavelengths)

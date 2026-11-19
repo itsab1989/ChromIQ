@@ -537,3 +537,24 @@ one) and the real helper's replay instrument, and driven on screen; never run on
   its case. After Stop while a step ran, the report page says the arm does not go on. The failed
   row's message says ChromIQ uses none of the row's values (its raw readings stay in the session
   folder).
+
+### 10b. Fix round after the re-review (2026-11-19, for 4.3.48)
+
+**Confirmed by:** *nobody yet.* Built and tested against the simulated table and helper, and
+driven on screen; never run on a real table.
+
+* **The lamp pass of a dual row is judged too** (SHOULD-A). The same fit as the UV pass's, over
+  the lamp pass's readings at 380-730 nm. A lamp pass whose best start lies 1.75 readings or more
+  LATE of the assumed one, or 2.5 or more EARLY, with the same gain gate, fails the row
+  (`lamp_pass_timing_off`: "the first pass, with the lamp, did not lie over the patches where
+  ChromIQ expected it (it was off by about 1.2 mm or more) ..."), and the row is offered again
+  as a row or patch by patch. The window is uneven because the recorded data are: the five
+  recorded lamp passes (driven by the vendor's software) fit 0.25 to 2.25 readings early and
+  read well, and moving them costs little up to 2.75 early but 1.5 to 1.95 dE00 at 2.25 to 2.75
+  late. On the recorded rows, every recorded pass accepted; every accepted shift within 0.44
+  dE00 (max) of the vendor's M0; every shift that cost 0.6 dE00 or more refused. The released
+  single-scan strip rows are not judged (unchanged). The verdict goes into the row's record
+  (`lamp_checked`, `lamp_refuse`) and the session log.
+* **Every page of the table's panel that waits for an answer keeps its answers in view** (also
+  a fix of 4.3.47): in a small main window the failed row's answers could be out of view while
+  the arm stood over the sheet. A text longer than the room now scrolls above the answers.

@@ -199,8 +199,9 @@ def cut_dual(lamp, uv, lamp_rows, uv_rows, edges=None) -> DualCut:
 # every recorded row came out 1.5 to 2.75 readings "off", because the LAMP pass's own constant
 # (scan.MOTION_START_AFTER_LAMP_S) sits 1.25 to 3.25 readings early against the chart on the
 # same rows (the review saw the same from the lamp side: +1.3 mm improves M0). Against the chart
-# each pass is judged on its own; the lamp pass's best start is logged too (not judged here: the
-# released strip rows share its constant, and the lamp's uniformity check guards its cut).
+# each pass is judged on its own; the lamp pass's best start is logged, and since 4.3.48 judged
+# too, in the dual row only (see the next section; the released strip rows share its constant
+# and are not changed).
 #
 # Both best starts are written into the row's record (``dual_cut.json``, the row record), so the
 # first real rows tell the true values. TUNED on the volunteer's recorded rows (private,
@@ -214,6 +215,29 @@ UV_FIT_REFUSE_READINGS = 1.0       # |best - assumed| at or beyond this: refused
 UV_FIT_MIN_GAIN = 0.005            # ... when R squared at the best start is this much better
 UV_FIT_MIN_SPREAD = 0.05           # std / mean of the readings inside the patches
 UV_FIT_BANDS_NM = (380.0, 400.0)
+
+# ---- the lamp pass's timing (4.3.48 re-review, SHOULD-A) ------------------------------------------
+#
+# The same fit, over the lamp pass's readings at 380-730 nm, judged too: in the reviewer's stress
+# run a lamp pass 2 readings late gave M0 off by up to 2.65 dE00, 3 readings 10 dE00, and the
+# lamp's uniformity check refused only 2 of 12. Only the DUAL ROW is judged; the released
+# single-scan strip rows are not changed (the review found no fault in them).
+#
+# TUNED on the volunteer's recorded dual rows (private, 2026-11-19, work folder
+# 2026-11-19_release_4348/proof/lamp_tune*_private.txt): the five recorded lamp passes (driven
+# by the vendor's software) fit best 0.25 to 2.25 readings EARLY of ChromIQ's assumed start (the
+# re-review's M0 comparison found the same, -1 to -1.5), and the fit is sharp (R squared 0.998
+# at the best start). Against the vendor's M0, moving a recorded pass costs little while its
+# best start stays within -2.75 and +1.75 readings of the assumed one (M0 max 0.40 dE00), and
+# a lot beyond: +2.25 to +2.75 gave max 1.5 to 1.95 dE00, -3.25 gave 1.37, -3.5 gave 2.9 to
+# 8.4. So a lamp pass is refused (``lamp_pass_timing_off``) when its best start lies
+# LAMP_FIT_REFUSE_LATE readings or more late (1.75: the fit's 0.25-reading steps put a pass
+# truly 2 readings late at 1.75 or 2.0), or LAMP_FIT_REFUSE_EARLY or more early (the recorded
+# passes reach 2.25 early and read well), with the same gain gate as the UV pass. A
+# row whose patches hardly differ, or whose edges do not move R squared, is not judged.
+LAMP_FIT_REFUSE_LATE = 1.75        # readings late of the assumed start: refused ...
+LAMP_FIT_REFUSE_EARLY = 2.5        # ... or this many early ...
+LAMP_FIT_MIN_GAIN = UV_FIT_MIN_GAIN   # ... when R squared at the best start is this much better
 
 
 def _position_at(plan, t: float) -> float:
@@ -291,20 +315,40 @@ def _layout_fit(plan, signal, first_reading_s: float, motion_start_s: float) -> 
             "r2_best": round(rb, 6), "r2_assumed": round(r0, 6), "spread": round(spread0, 4)}
 
 
+def _judge_lamp(lf) -> dict:
+    """The lamp pass's verdict from its fit (see LAMP_FIT_REFUSE_LATE)."""
+    if lf is None or lf.get("best_readings") is None:
+        return {"lamp_checked": False, "lamp_refuse": False,
+                "lamp_why": "too few readings inside the patches"}
+    if lf["spread"] < UV_FIT_MIN_SPREAD:
+        return {"lamp_checked": False, "lamp_refuse": False,
+                "lamp_why": "the row's patches hardly differ"}
+    b = lf["best_readings"]
+    off = b >= LAMP_FIT_REFUSE_LATE or b <= -LAMP_FIT_REFUSE_EARLY
+    if off and (lf["r2_best"] - lf["r2_assumed"]) < LAMP_FIT_MIN_GAIN:
+        return {"lamp_checked": False, "lamp_refuse": False,
+                "lamp_why": "the patches' edges do not show the timing (R squared hardly changes)"}
+    return {"lamp_checked": True, "lamp_refuse": off}
+
+
 def uv_timing_fit(lamp, uv, lamp_rows, uv_rows, wavelengths=None) -> dict:
-    """The UV pass's timing against the chart (see the section's comment), with the lamp pass's
-    best start as a diagnostic. Returns a dict for the row's record: ``checked`` (False: the
-    patches hardly differ at 380-400 nm, or too few readings), ``refuse`` (True: the UV pass's
-    best start is UV_FIT_REFUSE_READINGS or more from the assumed one, and R squared there is
-    UV_FIT_MIN_GAIN better), ``uv`` and ``lamp``
-    (each pass's best start in readings and seconds, R squared at the best and at the assumed
-    start)."""
+    """Both passes' timing against the chart (see the sections' comments). Returns a dict for
+    the row's record: ``checked`` (False: the patches hardly differ at 380-400 nm, or too few
+    readings), ``refuse`` (True: the UV pass's best start is UV_FIT_REFUSE_READINGS or more from
+    the assumed one, and R squared there is UV_FIT_MIN_GAIN better), ``lamp_checked`` and
+    ``lamp_refuse`` (the same for the lamp pass, LAMP_FIT_REFUSE_LATE / _EARLY), ``uv`` and
+    ``lamp`` (each pass's best start in readings and seconds, R squared at the best and at the
+    assumed start)."""
     out = {"checked": False, "refuse": False, "assumed_uv_motion_start_s":
            sc.UV_MOTION_START_AFTER_TRIGGER_S, "assumed_lamp_motion_start_s":
            sc.MOTION_START_AFTER_LAMP_S, "refuse_at_readings": UV_FIT_REFUSE_READINGS,
-           "span_readings": UV_FIT_SPAN, "uv": None, "lamp": None}
+           "lamp_refuse_at_readings": {"late": LAMP_FIT_REFUSE_LATE,
+                                       "early": LAMP_FIT_REFUSE_EARLY},
+           "span_readings": UV_FIT_SPAN, "uv": None, "lamp": None,
+           "lamp_checked": False, "lamp_refuse": False}
     if not lamp.patches or not lamp_rows or not uv_rows:
         out["why"] = "no readings"
+        out["lamp_why"] = "no readings"
         return out
     su = _band_means(uv_rows, wavelengths)
     sl = _band_means(lamp_rows, wavelengths, (380.0, 730.0))
@@ -312,6 +356,7 @@ def uv_timing_fit(lamp, uv, lamp_rows, uv_rows, wavelengths=None) -> dict:
                             sc.UV_MOTION_START_AFTER_TRIGGER_S)
     out["lamp"] = _layout_fit(lamp, sl, sc.FIRST_READING_AFTER_LAMP_S,
                               sc.MOTION_START_AFTER_LAMP_S)
+    out.update(_judge_lamp(out["lamp"]))
     u = out["uv"]
     if u["best_readings"] is None:
         out["why"] = "too few readings inside the patches"
