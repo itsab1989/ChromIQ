@@ -12765,6 +12765,32 @@ M_I1IO_DRIVE_STOPPED_END_FIRST = _m(
     "Please send us the diagnostics file of this measurement: {log}.",
     approved=False)
 
+# --- PROPOSED (4.3.48): ChromIQ stopped at a place check, and may bring the arm home itself ----
+M_I1IO_DRIVE_HOME_AFTER_STOP = _m(
+    "M-I1IO-DRIVE-HOME-AFTER-STOP",
+    "ChromIQ has stopped, and can bring the arm home",
+    "ChromIQ has stopped and sends nothing more to the table by itself in this "
+    "measurement. The arm last reported {where}. The motors hold it there, and nothing "
+    "is moving or waiting.\n\n"
+    "ChromIQ can bring the arm home for you, once: press Bring the arm home. ChromIQ "
+    "first asks you to take your hands away from the table and the arm. Then it reads "
+    "where the arm is, sends it home the way i1Profiler ends a job, and checks "
+    "that the table reports it at its resting place. Nothing else is sent, and afterwards "
+    "ChromIQ sends nothing more in this measurement.\n\n"
+    "If you would rather not, leave the arm where it is: {instead} open i1Profiler 3.8.6 or "
+    "older once and let it find the table; it should bring the arm home. You can always "
+    "stop the table at once with its power switch.\n\n"
+    "Please send us the diagnostics file of this measurement: {log}.",
+    approved=False)
+
+M_I1IO_DRIVE_HOME_AFTER_STOP_DONE = _m(
+    "M-I1IO-DRIVE-HOME-AFTER-STOP-DONE",
+    "The arm is at its resting place",
+    "ChromIQ has brought the arm home, and the table reports it at its resting place. "
+    "ChromIQ sends nothing more in this measurement, and you do not need i1Profiler "
+    "for the arm this time.\n\n{next}",
+    approved=False)
+
 M_I1IO_DRIVE_END = _m(
     "M-I1IO-DRIVE-END",
     "The arm while you choose",
@@ -13123,6 +13149,7 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_STOPPED, M_I1IO_DRIVE_LINK_LOST,
     M_I1IO_DRIVE_LINK_LOST_SWITCH_OFF, M_I1IO_DRIVE_COLD,
     M_I1IO_DRIVE_COLD_WAY_OUT, M_I1IO_DRIVE_FREE_LEFT, M_I1IO_DRIVE_STOPPED_END_FIRST,
+    M_I1IO_DRIVE_HOME_AFTER_STOP, M_I1IO_DRIVE_HOME_AFTER_STOP_DONE,
     M_I1IO_DRIVE_END,
     M_I1IO_DRIVE_DONE, M_I1IO_DRIVE_NOT_I1IO2, M_I1IO_DRIVE_NOT_I1PRO2,
     M_I1IO_DRIVE_BUSY, M_I1IO_DRIVE_I1PROFILER_OPEN,

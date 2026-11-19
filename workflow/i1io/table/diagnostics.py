@@ -10,6 +10,15 @@ log AND as ``<stage>-<n>/result.json``, the alignment as ``d1-<n>/alignment.json
 tester's stage (``d1`` the alignment, ``dz`` the creep, ``d2`` the check move, ``f`` the homing);
 the park is ``park``.
 
+4.3.48 (safety review 448, SHOULD-3): a row's result block carries ``data["second_moves"]``, one
+entry per automatic second move to a patch the arm had stopped beside (0.6 to 1 mm off, read
+twice). Each entry: ``what`` (the move), ``target`` (table units, 0.1 mm), ``readings_before``
+(the arrival reading and the one read again 0.3 s later), ``readings_after`` (the reading after
+the second move, and the one read again if the first was off), ``cured`` (True: it arrived;
+False: it did not; None: it was not sent, because a stop or a problem came first), ``result`` in
+words, ``took_s`` when the move took longer than recorded, and ``line`` (the line number in this
+sitting). The same is in the log as DATA lines.
+
 PRIVACY: never a serial number (the table's memory answers are never written down: the table
 module logs only their length), never a person's or a computer's name, never a folder path. Every
 line passes :func:`scrub` before it is written: the home folder, the session folder and the

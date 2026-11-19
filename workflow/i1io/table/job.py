@@ -52,6 +52,7 @@ import copy
 import json
 import math
 import os
+import re
 import threading
 import time
 from dataclasses import dataclass, field, replace
@@ -117,7 +118,9 @@ CHOICES = {
     Confirm.FRONT_YES: ("yes", "no"),
     Confirm.FIRST_VISIT: ("yes", "no"),
     Confirm.MARKER: ("switched off and on", "stop"),
-    Confirm.READY_TO_OPEN: ("yes", "stop"),
+    # 4.3.48: "arm out": the person says the arm is NOT at its resting place (an earlier stop
+    # left it out); ChromIQ connects, reads where it is and moves nothing before it asks
+    Confirm.READY_TO_OPEN: ("yes", "arm out", "stop"),
     Confirm.REPORT_AFTER_STEP: ("as described", "something wrong", "not sure"),
     Confirm.READER_CONSENT: ("yes", "no"),
     Confirm.CAL_PLACE: ("own tile", "table tile", "stop"),
@@ -245,6 +248,10 @@ class WayBack:
     SWITCH_OFF_PENDING = "switch_off_pending"       # a strip move may still wait for the lamp
     LINK_LOST_REPLUG = "link_lost_replug"           # lost link, nothing waiting
     LINK_LOST_SWITCH_OFF_FIRST = "link_lost_switch_off_first"   # lost link, something may wait
+    #: 4.3.48: this job stopped sending, but at a place check the table answered cleanly, with
+    #: the arm held where recorded homings start: ChromIQ may bring it home itself after a
+    #: hands-off GO (``home_after_stop``), once; otherwise the old way (open i1Profiler once)
+    HOME_AFTER_STOP = "home_after_stop"
     COLD_NOT_STARTED = "cold_not_started"           # a just-switched-on table, start-up not sent
     COLD_WAY_OUT = "cold_way_out"                   # the start-up was sent and did not finish
 
@@ -320,6 +327,7 @@ class PersonStopped(Exception):
 MAX_RUNS = {"park": 8, "d1": 5, "dz": 3, "d2": 3, "f": 8, "c1": 3, "c2": 3}
 #: the steps and the tester's stage key each writes its result block under
 STAGE_KEY = {"park": "park", "align": "d1", "creep": "dz", "check_move": "d2", "home": "f",
+             "home_after_stop": "f",
              "calibrate": "c1", "read_tile": "c2", "read_row": "row"}
 #: the step caps the tester used for its own stages (lines, movements)
 DZ_CAPS = cp.CREEP
@@ -369,6 +377,22 @@ def doubt_id(reason: str) -> str:
     return "table_answer_unexpected"
 
 
+_MODE_FLAG_RE = re.compile(r"f4 answered (\S*) where the recordings show (\S+) here")
+
+
+def mode_flag_detail(reason: str, step: str) -> dict:
+    """Safety review 448, SHOULD-2: what the table answered about its hand-alignment mode (f4),
+    what the recordings show at that point, and whether it was the opening, so the window can
+    say the one sentence that is true for this case (mode on at an opening, mode on where the
+    motors should hold the arm, mode off where they should have let it go, an answer no
+    recording shows)."""
+    m = _MODE_FLAG_RE.search(reason)
+    if not m:
+        return {}
+    return {"mode_answer": m.group(1), "mode_expected": m.group(2),
+            "at_opening": step == "open"}
+
+
 #: AlignmentRefused reasons (geometry's words) -> ids; detail keeps the numbers
 _ALIGN_IDS = (
     ("a mark or a position reading is not a finite number", "aims_not_numbers"),
@@ -413,6 +437,45 @@ ARRIVAL_BESIDE_UNITS = 10
 
 def _near(p, q, d=5) -> bool:
     return p is not None and abs(p[0] - q[0]) <= d and abs(p[1] - q[1]) <= d
+
+
+def homing_starts_here(p, arm_free) -> bool:
+    """Where ChromIQ sends its homing from (4.3.47's rule in ``_end_of_job``, one place for it
+    since 4.3.48): inside the measuring area's raw box (14 of i1Profiler's 16 recorded homings
+    from a held arm out on the volunteer's table, in 9 recordings, and its 2 clean ones from a
+    free arm start there; the other two lie 3-4 units beyond its X -1434), on the
+    stretch of the home line near the resting place (START_GUARD), or, held, in the front zone up
+    to its cap. Nowhere else: no recording starts a homing at the alignment start (X 2507)."""
+    return p is not None and (geo.AREA_RAW.contains(p) or tbl.START_GUARD.contains(p)
+                              or (arm_free is False and geo.CAP_RAW.contains(p)))
+
+
+#: 4.3.48 (safety review 448, NOTE 1): the homing AFTER A STOP is offered only inside the
+#: envelope of the recorded homings from a HELD arm out on the table, narrower than
+#: ``homing_starts_here`` (4.3.47's rule for the usual homing, unchanged). 16 homings in 9 of
+#: the volunteer's recordings, all status 0: 15 at the end of a job (R1 338.379 (-1314, 1643),
+#: 546.843 (-1285, 1757); R2 706.049 (-1263, 1785); S2 179.201 (1169, 2560), 371.169
+#: (-1088, 1636), 497.615 (1172, 1663), 586.887 (1176, 2120), 769.808 (1179, 1665); 17 Nov
+#: 240.899 (-1352, 1646), 122.470 (-1311, 2181), 148.689 (-1307, 2182); 18 Nov 249.679
+#: (-1437, 1794), 80.377 (-1438, 1868), 292.945 (-1343, 1864)) and i1Profiler's own at-open
+#: recovery, R1 85.848, from (1102, 1202). X -1438..1179, Y 1202..2560; nothing beyond: not the
+#: front zone, not X 1180..1766, not the alignment start. The two starts at X -1437 and -1438
+#: lie 3-4 units beyond the measuring area's raw box (X from -1434), where 4.3.47's homing
+#: refuses anyway (``homing_starts_here``), so the box begins at X -1434.
+HOME_AFTER_STOP_AREA = geo.Area(geo.AREA_RAW.xmin, 1179, 1202, 2560)
+
+
+#: 4.3.48: the stops after which ChromIQ may offer its own homing (``home_after_stop``): the
+#: first reason the table module closed the sending with must start with one of these. Each is
+#: a PLACE check whose answer the table gave in its recorded form (status 0, the position), with
+#: nothing moving and nothing pending, where the arm was simply not where the step expected it:
+#: the position read right before the homing a step starts with (HOME_FIRST: START_GUARD),
+#: i.e. the arm found out on the table (an earlier stop left it there). NOT on this list, on
+#: purpose: a move that did not arrive, a slow move, a homing that failed (a mechanical doubt);
+#: any answer not understood, a refusal, no answer, a lost link, the caps (the table's state is
+#: not known); the person's own "Send nothing more" (their word stands for this measurement);
+#: i1Profiler started meanwhile.
+HOME_AFTER_STOP_REASONS = ("right before the homing: the arm reports ",)
 
 
 def _rect_contains(r, p) -> bool:
@@ -672,6 +735,15 @@ class TableJob:
         self.row_status: "dict[int, dict[int, str]]" = {}
         #: per page, how many rows were read again (NEXT_STEPS 4d)
         self.rows_again: "dict[int, int]" = {}
+        #: 4.3.48: the automatic second moves after an arrival beside the target (for the
+        #: diagnostics), and how many the running row attempt may still send
+        self.beside_retries: "list[dict]" = []
+        self._beside_retries_left = 0
+        self._beside_at_block = 0
+        #: 4.3.48: the person answered "arm out" at the ready question
+        self.opened_with_arm_out = False
+        #: 4.3.48: the homing after a stop was tried in this session (it is offered once)
+        self._home_after_stop_tried = False
         self._row_seq = 0
         self.tile_readings: "list[dict]" = []
         self._tile_spectrum: "list[float] | None" = None
@@ -770,6 +842,8 @@ class TableJob:
             return WayBack.OPEN_I1PROFILER_ONCE if d.mode_on else WayBack.NONE
         if d.closed_reason is None and self.phase == "open" and self._ready("home") is None:
             return WayBack.HOME_OFFERED
+        if self._home_after_stop_why() is None:
+            return WayBack.HOME_AFTER_STOP
         return WayBack.OPEN_I1PROFILER_ONCE
 
     def _progress(self, **event) -> None:
@@ -961,7 +1035,13 @@ class TableJob:
             rid = doubt_id(str(exc))
             if d is not None and d.link_lost_at is not None:
                 rid = "link_lost"
-            res = self._result(step, Kind.STOPPED, rid, log_reason=str(exc))
+            extra = mode_flag_detail(str(exc), step) if rid == "mode_flag_unexpected" else {}
+            if extra and d is not None:
+                # fix2 (found on screen): the table contradicted what ChromIQ believed about the
+                # hand-alignment mode, so whether the motors hold the arm is NOT known; no page
+                # may then say "the arm is still free" (or that it is held)
+                d.arm_free = None
+            res = self._result(step, Kind.STOPPED, rid, log_reason=str(exc), **extra)
         elif isinstance(exc, (Stopped, KeyboardInterrupt)):
             if d is not None:
                 d.close_for_sending("stopped by you")
@@ -988,6 +1068,7 @@ class TableJob:
                        "folder": f"{key}-{n}", "lines_before": d.lines_sent,
                        "moves_before": d.motions_sent, "position_before": d.position_now,
                        "t_start": round(d.t.now(), 3), "answers": [], "data": {}}
+        self._beside_at_block = len(self.beside_retries)
         self.diag.stage_dir(key, n)
         d.log("STAGE", f"start {key} run {n}")
 
@@ -1005,6 +1086,11 @@ class TableJob:
                   "movement_unconfirmed": d.motion_unconfirmed, "t_end": round(d.t.now(), 3),
                   "front_zone_reached_y": d.front_y, "way_back": res.way_back,
                   "state": {k: v for k, v in res.state.__dict__.items()}})
+        second = self.beside_retries[self._beside_at_block:]
+        if second:
+            # safety review 448, SHOULD-3: every automatic second move of this step, with its
+            # readings and whether it cured the miss (diagnostics.py, "second_moves")
+            b["data"]["second_moves"] = copy.deepcopy(second)
         if res.kind == Kind.OK and b["stage"] in ("d1", "dz", "d2", "f", "park"):
             self.worked.add(b["stage"])
         b.setdefault("notes", [])
@@ -1134,8 +1220,12 @@ class TableJob:
         # 4. the tester's PRE_QUESTIONS (review of step 6, REQUIRED A): the person confirms the
         #    arm at its resting place and nothing on the bed but the sheet; else nothing opens
         ready = yield Ask(Confirm.READY_TO_OPEN, {"items": list(READY_TO_OPEN_ITEMS)})
-        if ready != "yes":
+        if ready not in ("yes", "arm out"):
             raise PersonStopped("not_ready_to_open")
+        #: 4.3.48: the person said the arm is out over the table: after the opening the window
+        #: asks where_is_the_arm() (one reading) before anything else, and nothing moves
+        #: without its own hands-off GO
+        self.opened_with_arm_out = ready == "arm out"
         # 5. the USB opening: ChromIQ's own library only; nothing sent before the descriptors
         try:
             self.transport = self._open_transport()
@@ -1178,6 +1268,8 @@ class TableJob:
         d._touch_out = lambda: "asked after the step"
         state = d.opening()
         out = {"table": state, "system": pf.system}
+        if self.opened_with_arm_out:
+            out["arm_out"] = True
         if pf.system == "windows":
             out["table_driver"] = "driver_installed"
         return out
@@ -1193,6 +1285,11 @@ class TableJob:
             return self._result("start_up", Kind.REFUSED, "instrument_not_in_the_arm")
         if self.stopped_by_person:
             return self._result("start_up", Kind.REFUSED, "stopped_by_person")
+        if self.opened_with_arm_out:
+            # safety review 448, SHOULD-1: the start-up (i0, then its homing) is recorded only
+            # with the arm at its resting place, never with the arm out over the table; the
+            # person said it is out, so the job itself refuses it (not only the window)
+            return self._result("start_up", Kind.REFUSED, "arm_out_start_up_not_recorded")
         if self._gen is None and self._stale_stop("start_up"):
             return self._result("start_up", Kind.REFUSED, STOPPED_BEFORE_THE_NEXT_MOVE,
                                 by_person=True)
@@ -1274,6 +1371,13 @@ class TableJob:
             return "needs_creep_first"
         if step == "home" and not (self.out_known() or d.arm_free is True):
             return "arm_not_out_on_the_table"
+        if step == "home" and d.arm_free is False and d.position_now is not None and \
+                not homing_starts_here(d.position_now, d.arm_free):
+            # 4.3.48: a HELD arm (the motors keep it where it was read) is never offered the
+            # homing where the homing itself would refuse (``_end_of_job``): no recorded homing
+            # starts there (the alignment start, say). A free arm may have been moved by hand
+            # since its last reading; its homing reads it afresh and decides then, as before.
+            return "homing_not_from_here"
         return None
 
     def _check_other_program(self) -> None:
@@ -1344,6 +1448,120 @@ class TableJob:
 
     def home(self) -> StepResult:
         return self._stage("home", self._home)
+
+    # ---- 4.3.48: where the arm is at a START, and the homing after a stop ----------------------
+    def where_is_the_arm(self) -> StepResult:
+        """After an opening the person answered "arm out": ONE position reading (``;p025``, the
+        line a calibration's own rest check sends first), nothing moves. At its resting place:
+        ok, and the measurement goes on as usual. Elsewhere: refused ``arm_not_at_rest`` with the
+        true state; the way back then says whether ChromIQ may bring it home (HOME_OFFERED, the
+        usual homing with its own hands-off GO) or not."""
+        step = "where_is_the_arm"
+        if self._gen is not None:
+            return self._begin(step, None)
+        why = SESSION_ENDED if self.ended is not None else self._sending_ready()
+        if why:
+            return self._result(step, Kind.REFUSED, why)
+        if self._table.state == "cold":
+            return self._result(step, Kind.REFUSED, "table_not_started")
+        return self._begin(step, self._where_is_the_arm())
+
+    def _where_is_the_arm(self):
+        d = self._table
+        self._step("locate", 1, 0)
+        try:
+            p = d.position()
+        finally:
+            d.current_step = None
+        d.log("DATA", f"where the arm is at the start: {p}")
+        if not (tbl.REST_GUARD.contains(p) and d.arm_free is False and not d.mode_on):
+            raise StageFailed("arm_not_at_rest", read=p, at_start=True)
+        return {"read": p, "at_rest": True}
+        yield  # pragma: no cover  (a generator)
+
+    def _home_after_stop_why(self) -> "str | None":
+        """None when ChromIQ may offer to bring the arm home after this stop; else why not. From
+        the table's answers only (HOME_AFTER_STOP_REASONS)."""
+        d = self._table
+        if d is None or self.phase != "open":
+            return "table_not_open"
+        if self._home_after_stop_tried:
+            return "tried_already"
+        if d.link_lost_at is not None:
+            return "link_lost"
+        if d.motion_unconfirmed or d.closed_reason == "a scan move may be pending" or (
+                d.last_move and d.last_move[0] == "scan move" and d.last_move[1] is None):
+            return "movement_may_be_unfinished"
+        if d.state == "cold" or (d.start_up_sent and not d.cold_done):
+            return "table_not_started"
+        reason = d.closed_reason
+        if reason is None:
+            return "not_stopped"
+        if not reason.startswith(HOME_AFTER_STOP_REASONS):
+            return "stop_not_at_a_place_check"
+        if d.motions_sent != 0 or d.start_up_sent:
+            # safety review 448, MUST-1: the place check "right before the homing" also takes
+            # the first reading after ChromIQ's OWN homings of this sitting (the park, the
+            # start-up of a just-switched-on table). An arm out there means a homing reported
+            # done and did not reach rest: a mechanical doubt, never an offer. The offer is
+            # only for an arm FOUND out at a START, before anything moved in this sitting.
+            # (The hand-alignment mode, the only way a hand moves the arm, is switched on only
+            # at the alignment start, after the drive there: always after a movement.)
+            return "moved_in_this_sitting"
+        if self.stopped_by_person:
+            return "stopped_by_person"
+        if self.instrument_out:
+            return "instrument_not_in_the_arm"
+        p = d.position_now
+        if p is None or getattr(d, "read_at_line", None) != d.lines_sent:
+            # the reading the stop came with must be the last line the table answered
+            return "no_fresh_position_reading"
+        if d.arm_free is not False or d.mode_on:
+            return "arm_not_held"
+        if not homing_starts_here(p, d.arm_free) or not HOME_AFTER_STOP_AREA.contains(p):
+            return "homing_not_from_here"
+        return None
+
+    def home_after_stop(self) -> StepResult:
+        """4.3.48 (the owner: "is there something we could do so this [i1Profiler] would not be
+        needed anymore?"): after a stop this job made at a place check (the way back
+        HOME_AFTER_STOP), the arm is brought home by ChromIQ's usual homing (``_end_of_job``,
+        4.3.47's lines: s0 p0 i1 s0 f0 f4 f4 p0, i1Profiler's own recorded end of a job from a
+        held arm plus the reading at rest), after its own hands-off GO, ONCE per session. The
+        table module lets exactly these lines through (``Table.reopen_for_homing``), and nothing
+        more is sent afterwards, whether the arm got home or not."""
+        step = "home_after_stop"
+        if self._gen is not None:
+            return self._begin(step, None)
+        why = self._home_after_stop_why()
+        if why:
+            return self._result(step, Kind.REFUSED, why)
+        return self._begin(step, self._home_after_stop())
+
+    def _home_after_stop(self):
+        ans = yield Ask(Confirm.GO, {"step": "home_after_stop", "page": self.page + 1,
+                                     "after_a_stop": True})
+        if ans != "yes":
+            raise PersonStopped("person_chose_back")
+        why = self._home_after_stop_why()       # nothing may have changed while it was asked
+        if why:
+            raise StageFailed(why)
+        if self._other_program is not None and self._other_program() is True:
+            raise StageFailed("i1profiler_running")
+        d = self._table
+        self._home_after_stop_tried = True
+        stopped_because = d.closed_reason
+        d.reopen_for_homing(stopped_because, cp.HOME)
+        self.runs[(self.page, "f")] = self.runs.get((self.page, "f"), 0) + 1
+        self._start_block("home_after_stop")
+        try:
+            self._end_of_job(where=HOME_AFTER_STOP_AREA.contains)
+        finally:
+            d.current_step = None
+            d.close_for_sending("the homing after the stop has ended; nothing more is sent in "
+                                "this measurement")
+        d.log("DATA", f"brought home after the stop ({stopped_because})")
+        return {"read": d.position_now, "after": stopped_because}
 
     def _note(self, note, step: "str | None", about: str) -> "dict | None":
         """The person's own words, into the log (a NOTE line) and into the result block of the
@@ -1675,10 +1893,12 @@ class TableJob:
         self._soft_stop()
         return b
 
-    def _move_to(self, target, what: str):
+    def _move_to(self, target, what: str, retry_beside: bool = False):
         """One computed m0 from the position just read, checked, timed and arrival-checked (a
         generator: the first-visit confirmation may be asked). 4.3.47 MUST-1: never from a
-        reading taken before the last question or the last release of the arm."""
+        reading taken before the last question or the last release of the arm. 4.3.48
+        (*retry_beside*, patch rows only): an arrival read twice beside the target by 6..10
+        units is moved to once more, see :meth:`_move_again_beside`."""
         self._soft_stop()
         d = self._table
         a = d.position_now
@@ -1726,6 +1946,10 @@ class TableJob:
                 d.outside_at = got
                 if _near(got, target, ARRIVAL_BESIDE_UNITS) and _near(first, target,
                                                                        ARRIVAL_BESIDE_UNITS):
+                    if retry_beside and self._beside_retry_allowed(got, target):
+                        # 4.3.48: once, the same move again from this fresh reading
+                        return (yield from self._move_again_beside(a, got, target, what,
+                                                                   first=first))
                     d.log("DATA", f"{what}: the arm stands beside the target by "
                                   f"({got[0] - target[0]:+d}, {got[1] - target[1]:+d}) units "
                                   f"(within {ARRIVAL_BESIDE_UNITS}): the step ends cleanly, "
@@ -1734,6 +1958,92 @@ class TableJob:
                 raise d._doubt(f"{what}: the arm reads {got}, not {target} (twice)")
         self.driven.append((a, target))
         return got
+
+    # ---- 4.3.48: one automatic retry of an arrival beside its target ---------------------------
+    def _beside_retry_allowed(self, got, target) -> bool:
+        """The retry is sent only while this row attempt has one left (cp.BESIDE_RETRIES_PER_ROW),
+        the arm is held, the new way lies on the part of the table just confirmed for this row,
+        and nothing (a stop, a reported problem) waits."""
+        d = self._table
+        left = self._beside_retries_left > 0
+        ok = (left and d.arm_free is False and not d.motion_unconfirmed
+              and self._seg_visited(got, target) and not self._pause_stop)
+        if not ok:
+            d.log("DATA", f"no automatic second move to {target}: "
+                          + ("this row's retries are used up" if not left else
+                             "the arm is not held, the way is not confirmed, or a stop waits"))
+        return ok
+
+    def _move_again_beside(self, a, got, target, what: str, first=None):
+        """4.3.48 (release review 4.3.47, SHOULD-1): the arm read twice beside its target by
+        6..10 units after a move that ended normally. The SAME m0 line (the same absolute
+        target) is sent once more from the fresh reading *got*, as i1Profiler does on this table
+        (23 recorded m0 lines to the previous move's own target, from a fresh p0 0..3 units off:
+        R1 285.068, R2 480.292, 18 Nov A 161.408, B 49.904 ...). Its arrival is checked exactly as
+        the first one's (read again once after 0.3 s); a second arrival beside fails the row as
+        before (``_ArrivedBeside``), beyond 1 mm it is a doubt. Lines: m0, p0 (and the p0 read
+        again), at most 3, 1 movement (cp.BESIDE_RETRY).
+
+        Safety review 448, SHOULD-3: every such move is written into the session's diagnostics
+        (the row's result block, ``data["second_moves"]``, see diagnostics.py): the target, the
+        two readings before it, the reading(s) after it, and whether it cured the miss."""
+        d = self._table
+        self._beside_retries_left -= 1
+        entry = {"what": what, "target": list(target), "read": list(got),
+                 "readings_before": [list(first) if first is not None else None, list(got)],
+                 "readings_after": [], "cured": None, "result": "not sent",
+                 "line": d.lines_sent}
+        self.beside_retries.append(entry)
+        d.log("DATA", f"{what}: the arm stands beside the target by ({got[0] - target[0]:+d}, "
+                      f"{got[1] - target[1]:+d}) units; the same move is sent once more from "
+                      "this reading")
+        # a stop or a problem reported meanwhile is honoured before the move
+        self._between_patches()
+        entry["result"] = "sent"
+        # no lower bound: a move of a few units may finish at once (i1Profiler's recorded moves
+        # to the previous target, 0..3 units, took 0.016 s); its arrival is read in any case
+        win = (0.0, geo.move_window(got, target)[1])
+        try:
+            d.c_exchange(geo.m0_line(target[0], target[1]), 0, window=win,
+                         timeout=win[1] + 4.0, late_is_doubt=False)
+        except tbl.MoveOutside as exc:
+            again = d.position()
+            entry["readings_after"].append(list(again))
+            entry["took_s"] = round(exc.took, 3)
+            if _near(again, target):
+                self.driven.append((a, target))
+                entry.update(cured=True, result="arrived, but slower than recorded")
+                raise StageFailed("movement_late_but_arrived", took=round(exc.took, 3),
+                                  window=(round(exc.lo, 2), round(exc.hi, 2))) from None
+            entry.update(cured=False, result="slower than recorded and not arrived")
+            raise d._doubt(f"{what}: after a slow move the arm reads {again}, not {target}")
+        again = d.position()
+        entry["readings_after"].append(list(again))
+        if not _near(again, target):
+            first = again
+            d.c_wait(ARRIVAL_RECHECK_S)
+            again = d.position()
+            entry["readings_after"].append(list(again))
+            d.log("DATA", f"{what}: after the second move the arm read {first}, "
+                          f"{ARRIVAL_RECHECK_S:.1f} s later {again} (target {target})")
+            if not _near(again, target):
+                d.outside_at = again
+                if _near(again, target, ARRIVAL_BESIDE_UNITS) and _near(first, target,
+                                                                         ARRIVAL_BESIDE_UNITS):
+                    entry.update(cured=False, result="beside the target again")
+                    d.log("DATA", f"{what}: beside the target again, by "
+                                  f"({again[0] - target[0]:+d}, {again[1] - target[1]:+d}) "
+                                  "units: the row ends cleanly, nothing is read there")
+                    raise _ArrivedBeside("arrived_beside_the_target_again", target=target,
+                                         read=again)
+                entry.update(cured=False, result="more than 1 mm off after the second move")
+                raise d._doubt(f"{what}: the arm reads {again}, not {target} (twice, after the "
+                               "second move)")
+        entry.update(cured=True, result="arrived")
+        d.log("DATA", f"{what}: the second move arrived at {again}")
+        self.driven.append((a, target))
+        return again
+        yield  # pragma: no cover  (a generator)
 
     def _alignment_homed(self) -> None:
         self.alignment = None
@@ -1929,7 +2239,9 @@ class TableJob:
         return {"read": self._table.position_now}
         yield  # pragma: no cover
 
-    def _end_of_job(self) -> None:
+    def _end_of_job(self, where=None) -> None:
+        """*where* (the homing after a stop only): a further check of the fresh reading, on top of
+        ``homing_starts_here`` (HOME_AFTER_STOP_AREA)."""
         d = self._table
         self._step(f"{self._block['stage']}_end", *cp.HOME)
         d.exchange("status")
@@ -1937,8 +2249,7 @@ class TableJob:
         got = d.position()
         if last is not None and not _near(got, last) and d.arm_free is False:
             raise d._doubt(f"before the homing the arm reads {got}, not {last}")
-        held_front = d.arm_free is False and geo.CAP_RAW.contains(got)
-        if not (geo.AREA_RAW.contains(got) or tbl.START_GUARD.contains(got) or held_front):
+        if not homing_starts_here(got, d.arm_free) or (where is not None and not where(got)):
             raise StageFailed("homing_only_from_inside_the_area", read=got,
                               arm_free=bool(d.arm_free))
         try:
@@ -2886,6 +3197,7 @@ class TableJob:
         d = self._table
         n = len(plan.patches)
         self._step("row", *cp.spot_row_step(n))
+        self._beside_retries_left = cp.BESIDE_RETRIES_PER_ROW
         self._row_seq += 1
         name = plan.name if attempt == 1 else f"{plan.name}_again{attempt - 1}"
         folder = self.diag.folder / self._block["folder"]
@@ -2938,7 +3250,8 @@ class TableJob:
                 # after the stop check and the pause, never while it still waits at the last one
                 self._progress(event="patch_next", row=plan.index + 1, loc=p.loc, index=i)
                 try:
-                    yield from self._move_to(p.target, f"the move to patch {p.loc}")
+                    yield from self._move_to(p.target, f"the move to patch {p.loc}",
+                                             retry_beside=True)
                 except _ArrivedBeside as exc:
                     # fix2: the row fails cleanly; the person may read it again (fresh reading)
                     raise _RowFailed(exc.reason, p.loc) from None
@@ -3735,9 +4048,14 @@ class TableJob:
     def _after_end(self) -> dict:
         """What may follow an ending: the homing when it can run (its own GO). Review 8, NOTE:
         the same test the way back uses for HOME_OFFERED (``_ready("home")``), so ``next``
-        never names a homing that would be refused (the instrument out of the arm, say)."""
+        never names a homing that would be refused (the instrument out of the arm, say).
+        4.3.48: after a stop, the homing after the stop when it is offered."""
         ok = self._table is not None and self._ready("home") is None
-        return {"next": ["home"] if ok else []}
+        if ok:
+            return {"next": ["home"]}
+        if self._table is not None and self._home_after_stop_why() is None:
+            return {"next": ["home_after_stop"]}
+        return {"next": []}
 
     def _end(self, st):
         ans = yield Ask(Confirm.END, {"end_state": st})

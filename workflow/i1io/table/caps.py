@@ -14,6 +14,8 @@ with caps worked out from the chart's own rows, patches and pages:
                      + 2 x the page's longest ROW  (two rows read again)
                      + CAL + TILE                (step 7: a new white and a tile reading)
                      + ceil(10 % of page_need)
+                     + (rows + 2) x 2 x (3, 1)   (4.3.48: each row attempt's two automatic
+                                                  second moves after an arrival beside)
 
 and the same for movements. Every per-step number below is the tester's own (its stage caps and
 the recorded steps' list lengths), so a session can never send more than the tester's stages
@@ -84,6 +86,15 @@ CALIBRATION = (2, 0)
 TILE_READING = (3, 0)
 
 
+#: 4.3.48 (release review 4.3.47, SHOULD-1): an arrival read twice beside its target by 6..10
+#: units in a patch row is moved to once more, automatically, from the fresh reading (the same
+#: m0 line, as i1Profiler sends it on this table). One such retry costs at most BESIDE_RETRY:
+#: the m0, its arrival p0 and that p0 read once more after 0.3 s (the first arrival's two
+#: readings are the row's own S-7 slots). At most BESIDE_RETRIES_PER_ROW per row attempt.
+BESIDE_RETRY = (3, 1)
+BESIDE_RETRIES_PER_ROW = 2
+
+
 def spot_row(n: int) -> "tuple[int, int]":
     """A spot row of *n* patches: stage D3's caps (2 n + 4 lines, n movements)."""
     return (2 * n + 4, n)
@@ -95,8 +106,9 @@ def spot_row_step(n: int) -> "tuple[int, int]":
     fresh reading of where the arm stands, the owner's rule), plus one more per patch since the
     owner-results round (S-7: an arrival outside the tolerance is read once more before any
     doubt). The session caps keep D3's numbers; such re-reads come out of the page's
-    allowance."""
-    return (4 * n + 4, n)
+    allowance. 4.3.48: plus BESIDE_RETRIES_PER_ROW automatic second moves (BESIDE_RETRY each)."""
+    return (4 * n + 4 + BESIDE_RETRIES_PER_ROW * BESIDE_RETRY[0],
+            n + BESIDE_RETRIES_PER_ROW * BESIDE_RETRY[1])
 
 
 def row_cost(n: int, dual: bool = False) -> "tuple[int, int]":
@@ -159,10 +171,14 @@ def page_caps(rows: "tuple[int, ...]", dual: bool = False) -> "tuple[int, int]":
     need = [ALIGN_CYCLE[i] + sum(row_cost(n, dual)[i] for n in rows) for i in (0, 1)]
     longest = max(row_cost(n, dual) for n in rows)
     out = []
+    # 4.3.48: every row attempt of the page (its rows, and the two rows read again) may send its
+    # BESIDE_RETRIES_PER_ROW automatic second moves
+    attempts = len(rows) + ALLOWANCE_ROWS
     for i in (0, 1):
         allow = (ALLOWANCE_ALIGNMENTS * ALIGN_CYCLE[i] + ALLOWANCE_ROWS * longest[i]
                  + CALIBRATION[i] + TILE_READING[i]
-                 + math.ceil(ALLOWANCE_FRACTION * need[i]))
+                 + math.ceil(ALLOWANCE_FRACTION * need[i])
+                 + attempts * BESIDE_RETRIES_PER_ROW * BESIDE_RETRY[i])
         out.append(need[i] + allow)
     return out[0], out[1]
 
@@ -180,6 +196,7 @@ class Caps:
                            "+ allowance)",
                 "allowance": {"fraction": ALLOWANCE_FRACTION, "rows": ALLOWANCE_ROWS,
                               "alignments": ALLOWANCE_ALIGNMENTS,
+                              "beside_retries_per_row_attempt": BESIDE_RETRIES_PER_ROW,
                               "calibrations": 1, "tile_readings": 1}}
 
 
