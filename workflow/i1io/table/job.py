@@ -468,6 +468,18 @@ def homing_starts_here(p, arm_free, cap_y=None) -> bool:  # noqa: ARG001 - cap_y
     return HELD_HOMING_AREA.contains(p)
 
 
+def _homing_target(p) -> bool:
+    """4.3.50 (re-review 449, S-3): a place the way back may END at, for the homing to start
+    from: a held homing start (``homing_starts_here``), and in the front zone not beyond the
+    frontmost recorded aim itself (Y 3109): an arrival at 3112 may read 3117 when the arm gets
+    there, and the homing would then refuse with no further way."""
+    if not homing_starts_here(p, False):
+        return False
+    if geo.AREA_RAW.contains(p) or tbl.START_GUARD.contains(p):
+        return True
+    return p[1] <= geo.FRONTMOST_AIM_Y
+
+
 #: Where i1Profiler's homings of a HELD arm out on the table start, as 4.3.48 bounded them: the
 #: measuring area's raw box, its front extended to the frontmost recorded aim (Y 3109) plus the
 #: arrival tolerance (the simulator's own copy: part_c_sim.C_SWEEP_BOX).
@@ -2561,8 +2573,15 @@ class TableJob:
         i = len(pts) - 1
         cur = pts[i]
         if not _near(here, cur):
+            # 4.3.50 (re-review 449, S-2): the first leg is "back along the way" by
+            # construction: at most one creep step (plus the arrival tolerance) on each axis, as
+            # after a creep step that met the end, or over ground already driven
+            if (abs(here[0] - cur[0]) > geo.CREEP_STEP + geo.ARRIVAL_SLACK
+                    or abs(here[1] - cur[1]) > geo.CREEP_STEP + geo.ARRIVAL_SLACK) \
+                    and not self._seg_visited(here, cur):
+                return None
             way.append(cur)
-        while not homing_starts_here(cur, False):
+        while not _homing_target(cur):
             if i == 0 or len(way) >= cp.WAY_BACK_MOVES_MAX:
                 return None
             # the most recent earlier arrival that is a homing start, over driven ground
@@ -2570,7 +2589,7 @@ class TableJob:
             nxt = None
             seen = 0
             for j in range(i - 1, -1, -1):
-                if homing_starts_here(pts[j], False):
+                if _homing_target(pts[j]):
                     seen += 1
                     if self._seg_visited(cur, pts[j]):
                         nxt = j
@@ -2621,7 +2640,9 @@ class TableJob:
 
     def _end_of_job(self, where=None) -> None:
         """*where* (the homing after a stop only): a further check of the fresh reading, on top of
-        ``homing_starts_here`` (HOME_AFTER_STOP_AREA)."""
+        ``homing_starts_here`` (HOME_AFTER_STOP_AREA). The way back (``_way_back``) is taken
+        ONLY by the usual homing (*where* None) of a held arm: never by the homing after a stop,
+        which may send only HOME's own lines (``Table.reopen_for_homing``)."""
         d = self._table
         self._step(f"{self._block['stage']}_end", *cp.HOME)
         d.exchange("status")
@@ -4487,6 +4508,15 @@ class TableJob:
                 shutil.copyfile(str(src), str(tmp))
                 os.replace(tmp, to)
                 filed[cond] = to
+                # the other kind of pair under the SAME readings' name is never this filing's
+                # (readings that came out byte for byte as before): as the hand path's engine
+                # does, it goes, so that a complete pair never stands beside a partial one
+                other = (ic.partial_sibling_path(dest, cond) if pair == "complete"
+                         else ic.sibling_path(dest, cond))
+                key = ic.data_block_hash(dest)
+                if other is not None and other != to and other.is_file() and key and \
+                        ic._written_by_us(other, key):
+                    other.unlink()
             if pair == "complete":
                 ok = all(ic.condition_file(dest, c) is not None for c in dl.CONDITIONS)
             else:
@@ -4495,6 +4525,15 @@ class TableJob:
             if not ok:
                 filed = {}
                 out["why"] = "conditions_not_in_step"
+        if not filed:
+            # no pair filed for these readings: none of an earlier filing under the same name
+            # may stand in for it (readings that came out byte for byte as before)
+            key = ic.data_block_hash(dest)
+            for cond in dl.CONDITIONS:
+                for other in (ic.sibling_path(dest, cond), ic.partial_sibling_path(dest, cond)):
+                    if other is not None and other.is_file() and key and \
+                            ic._written_by_us(other, key):
+                        other.unlink()
         strips = [f"p{pg + 1}_row{k + 1}" for pg, page in enumerate(self.sheet["pages"])
                   for k in range(len(page["strips"]))]
         rec = PassRecord(strips, chosen=self.dual.chosen)

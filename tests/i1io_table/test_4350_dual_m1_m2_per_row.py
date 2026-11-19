@@ -247,3 +247,30 @@ def test_in_the_window_the_row_keeps_m0_and_the_save_files_the_partial_pair(
     assert ic.m0_only_locs(main) and ic.condition_file(main, "M1") is None
     assert ic.sibling_in_step(main, ic.partial_sibling_path(main, "M1"))
     assert S.build_from_preset(main)[0] == "M0"
+
+
+def test_a_refined_row_whose_uv_pass_fails_never_keeps_the_old_m1_m2(tmp_path):
+    """A complete dual measurement; a later refinement reads row 1 again and its UV pass fails:
+    row 1's new M0 (the lamp pass) replaces the old one, and its OLD M1 / M2 go with the old
+    reading (never left beside a new M0); row 2 keeps its M1 / M2."""
+    job, sim, helper, run, p, _rep = _job(tmp_path)
+    _ready(job, p)
+    assert all(r.ok for r in _read_all(job, p))
+    assert job.save().ok
+    main = Path(run.measurement_ti3)
+    assert ic.condition_file(main, "M1") is not None
+    sheet = long_sheet()
+    job2, sim2, helper2, run2 = RS.make_reading_job(
+        tmp_path, sheet=sheet, aims=H.demo_aims(sheet), ask_after_each_step=False,
+        faults=UV_FAILS_ON_ROW_1, stamp=LATER)
+    job2.dual = dual_setup("M2")
+    rep = job2.set_options(STRIP + ["-r"], only_locs=set(_row_locs(job, 1)))
+    assert rep.ok and rep.detail.get("refine") == len(_row_locs(job, 1)), rep.detail
+    p2 = H.Person(job2, sim2, {J.Confirm.ROW_FAILED_STRIP: "skip"})
+    _ready(job2, p2)
+    assert all(r.ok for r in _read_all(job2, p2))
+    assert job2.save().ok
+    assert sorted(ic.m0_only_locs(main)) == sorted(_row_locs(job, 1))
+    part = ic.partial_sibling_path(main, "M1")
+    assert ic.sibling_in_step(main, part)
+    assert sorted(ic._locs_of(part)) == sorted(_row_locs(job, 2))
