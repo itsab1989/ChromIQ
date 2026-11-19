@@ -145,11 +145,35 @@ def test_d3_a_uv_pass_over_4000_readings_is_refused_whole(trace):
     assert t == ["TAKE 1 n 4000 nread 4000", "TAKE 0 n 0 nread 4001"]
 
 
+def test_h_a_command_held_during_the_uv_wait_sends_nothing_and_m1_m2_go_on(trace):
+    """4.3.49: the wait for the UV pass left by a command and armed again (the helper holds the
+    command): no request for the held wait, the UV pass is the recorded 0x0209 and ends the
+    stream, and the next strip's lamp pass starts its own (0x0105), its UV pass may come."""
+    reqs = [r for r in _requests(trace, "uv-held") if r["req"] == "0xD4"]
+    assert [r["flags"] for r in reqs] == [0x0000, 0x0105, 0x0000, 0x0209, 0x0000, 0x0105]
+    assert reqs[3]["lampclocks"] == 41
+    assert _value(trace, "uv-held", "READY-HELD") == "READY-HELD 1 uv_en 0 lit 0"
+    assert _value(trace, "uv-held", "RULER") == "RULER got 1 ended 1 reader stopped"
+    assert _value(trace, "uv-held", "READY-NEXT") == "READY-NEXT 1"
+    lines = _lines(trace, "uv-held")
+    held = lines.index("STEP uv-wait-left-by-a-command")
+    assert lines[held + 1].startswith("READY-HELD"), "nothing on the wire for the held wait"
+
+
+def test_i_a_strip_after_an_unusable_calibration_is_a_plain_single_scan(trace):
+    """4.3.49: no ruler stream, no UV flag: exactly the single scan's requests."""
+    a = [ln for ln in _lines(trace, "single") if ln.startswith("CTL")]
+    b = [ln for ln in _lines(trace, "uncal") if ln.startswith("CTL")]
+    assert a == b and a
+    assert _value(trace, "uncal", "AFTER") == "AFTER reader stopped ready 0 uv_en 0"
+
+
 def test_e_no_request_beyond_triggers_and_the_volts(trace):
     """No EEPROM write (0xC3), no read of it, no indicator program (0xD6), no
     0xD7, no bulk write: i1Profiler's usage log and light programs are not
     sent. Only 0xD4 and 0xD8."""
-    for scn in ("single-on", "tile", "spot", "strip", "uv-error", "uv-unpaired", "uv-too-long"):
+    for scn in ("single-on", "tile", "spot", "strip", "uv-error", "uv-unpaired", "uv-too-long",
+                "uv-held", "uncal"):
         reqs = {r["req"] for r in _requests(trace, scn)}
         assert reqs <= {"0xD4", "0xD8"}, (scn, reqs)
         assert not [ln for ln in _lines(trace, scn) if ln.startswith("WR ")], scn

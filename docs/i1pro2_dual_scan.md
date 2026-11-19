@@ -50,7 +50,7 @@ Which instruments cannot do it:
 
 Not available with the dual scan: **"High resolution spectral mode (-H)"** (the instrument's
 factory data for M1 and M2 is given only at 10 nm steps). Switch it off before a dual-scan
-measurement.
+measurement: with it on, ChromIQ does not start the measurement and says why (since 4.3.49).
 
 ## 1. Switch it on
 
@@ -115,8 +115,12 @@ you can lift the instrument.
 ![Calibration Complete: the tile was read with the UV light too](i1pro2_dual_scan/05-calibration-complete.png)
 
 If the UV reading of the tile did not succeed, the window says that M1 and M2 cannot be worked
-out from this calibration. M0 is measured as always; to have M1 and M2 as well, calibrate again
-(press K or the Calibrate button) before the next strip.
+out from this calibration. To keep M1 and M2, calibrate again (press K or the Calibrate button)
+before the next strip. If you read a strip without calibrating again, ChromIQ reads it once,
+does not keep it, and asks you once more to calibrate (**"Calibrate again to keep M1 and M2"**
+in the Strip Read Failed window). If calibrating again does not help, read the strip again
+without calibrating: ChromIQ then keeps it and goes on with M0 only for the rest of the
+measurement.
 
 ## 5. Each strip twice: pass 1 with the lamp, pass 2 with the UV light
 
@@ -141,6 +145,10 @@ What to look for:
   "pass 2 of 2 (UV light)".
 * The green arrows in the preview mark the strip that is due. Both passes are of that strip.
 * During pass 2 the instrument's UV light should come on. Please tell us whether you saw it.
+* While pass 2 is due, ChromIQ does not move to another strip or patch: a click on the preview,
+  an arrow key or "I read strip B" is held, and the line under the log says **"Strip A: read its
+  second pass first"**. Read pass 2, then choose again. A calibration you ask for then starts
+  after pass 2. Stop still ends the measurement at any time.
 
 ChromIQ checks that the second pass really belongs to the same strip: it matches the two passes
 patch by patch with the ruler's positions and compares their readings. A second pass over the
@@ -163,11 +171,10 @@ In a few cases M1 and M2 cannot go on for the rest of the measurement. The Measu
 ChromIQ reads M0 as always, one pass per strip: carry on measuring. The cases are:
 
 * the ruler cannot be used for the rest of the measurement (it gave no usable positions, or a
-  second pass was left unread);
+  second pass was left unread with Esc);
 * the instrument is not an i1Pro 2, or does not offer what the dual scan needs;
-* a strip was read after a calibration that could not give M1 and M2, without calibrating again
-  first (ChromIQ asks you to calibrate again before that strip, and says what happens if you do
-  not);
+* a strip was read twice after a calibration that could not give M1 and M2, without calibrating
+  again in between (the first time, ChromIQ does not keep the strip and asks you to calibrate);
 * a value was typed in by hand;
 * the files for M1 and M2 could not be saved, or something unexpected happened (the app's log
   file has the details).

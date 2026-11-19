@@ -568,3 +568,47 @@ driven on screen; never run on a real table.
   and the pass's own reading exclude each other (the lamp pass's last motion is confirmed when
   the UV pass starts, and every motion clears the kept reading). A dual row: 28 lines, 6
   movements. A tenth line is refused by the step's cap.
+
+### 11. The hand dual scan's gaps (2026-11-19, for 4.3.49)
+
+**Confirmed by:** *nobody yet.* Built from the desk analysis `DUAL_GAPS.md` (work folder
+2026-11-19_dual_gaps), tested against the simulated helper, the real helper's replay instrument
+and the fake-USB trace of the real driver (`tests/test_i1pro2_dual_gaps_4349.py`, scenarios
+`uv-held` and `uncal` of `i1pro2_dual_test.c`), and driven on screen against the simulated
+helper; never run on a real instrument. Changes what sections 7 (c), 8 and 9 describe, as listed.
+
+* **While the second pass (UV light) of a hand strip is due, nothing moves the reader.** A jump
+  (a click on the chart preview), a navigation key, "I read strip B" and "turn round" are held:
+  the app does not send them (`MeasureManager._dual_pass_holds`) and says so in the status line
+  and once in the log (M-DUAL-PASS-HELD); the helper holds such a command too if one reaches it
+  (`cq_dd_held_command`) and goes on waiting for the UV pass (event `dual_pass_held`). The wait
+  is left before any trigger (ArgyllCMS returns before its dark reading on an abort), so holding
+  sends nothing; the UV pass that follows is the recorded 0x0209 and closes the stream. The
+  helper closes its calibration gate during the wait, so a calibration asked for then runs at
+  the next strip prompt, never over the open ruler stream (the app held it already). Esc, quit,
+  done and the finishing window's hold leave the wait as before; Esc still ends M1 / M2 for the
+  session (section 7 (c)). Why not "discard the first pass and jump": the first pass's ruler
+  stream is closed only by the UV pass's trigger ("ruler end", the one recorded form); nothing
+  else may close it.
+* **A calibration that cannot give M1 / M2 asks for a new one instead of ending them** (replaces
+  section 9's "the pass prompts say so ... not asking for that pass at all needs a helper
+  change"). The strip after it is read as a plain lamp scan (no "ruler start", so no second
+  pass is due: the single scan's requests, byte for byte) and refused once per calibration with
+  `dual_pass_result` `"calibrate": true` (a misread; M-DUAL-CAL-AGAIN in Strip Read Failed); a
+  new calibration then gives M1 / M2 again. Read again without a new calibration, the strip is
+  kept as M0 and M1 / M2 end for the session as before (the way out, so a broken UV light never
+  loops). The reasons: `no_dual_calibration`, `uv_tile_dark`, `calibration_mode_changed`
+  (known before the strip) and `calibration_mismatch` (known after the UV pass; that strip had
+  both passes). Patch by patch the same, without the UV half. M-DUAL-PASS-TWO-NO-CAL is
+  withdrawn; M-DUAL-PASS-ONE-NO-CAL and M-DUAL-CAL-REFUSED say the new rule.
+* **A refused Continue keeps the measurement's identity.** When the engine refuses to take M1 /
+  M2 up again on a Continue Measurement (`why: "resume"`), the main file keeps
+  `CHROMIQ_DUAL_SCAN` and the factor keywords, plus `CHROMIQ_DUAL_ENDED "resume"` (section 9 said
+  it was written without them). A later Continue is then the engine's "resume" again, not
+  "mixed".
+* **"High resolution spectral mode (-H)" with the dual scan by hand is refused before START**
+  (M-DUAL-HIGHRES-REFUSED), as the table already refused it; before, the note promised a dual
+  scan and the engine ended it at once.
+* Not changed: Continue Measurement still cannot bring M1 / M2 back after they ended (gap 3 of
+  the analysis), high resolution itself, the i1iO table, the FD-9.
+
