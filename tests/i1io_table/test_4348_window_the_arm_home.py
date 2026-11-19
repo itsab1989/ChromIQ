@@ -89,7 +89,7 @@ def test_start_with_the_arm_out_on_a_cold_table_sends_no_start_up(qtbot, monkeyp
     win, sim, p = _ready_page(qtbot, monkeypatch, tmp_path, settings, OUT_HELD, cold=True)
     _press_arm_out(win, p)
     assert p.page() == "refused"
-    assert "recorded only with the arm at its resting place" in win._text.text()
+    assert "never been recorded with the arm out over the table" in win._text.text()
     assert p.labels() == ["Close"]
     assert ";i02c" not in sim.sim.received
 
