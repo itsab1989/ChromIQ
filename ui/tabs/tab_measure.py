@@ -12884,7 +12884,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         none_kept = dual and _c.no_pair_kept(main)
         # 4.3.50: a chart the i1iO table reads gets the table's own words (the table reads the
         # rows itself; "takes you back to strip A" is the hand path's)
-        table = dual and not none_kept and self._table_chart_loaded()
+        loaded = getattr(self, "_table_chart_loaded", None)
+        table = bool(dual and not none_kept and callable(loaded) and loaded())
         rows = _c.rows_phrase(strips) if table else ""
         if resuming:
             if none_kept:

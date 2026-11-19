@@ -59,7 +59,10 @@ def test_the_known_issues_say_what_is_not_proven():
 def test_the_entry_names_things_as_the_app_shows_them():
     from workflow import measurement_messages as M
     text = "\n".join(_entry("v4.3.49"))
-    for msg in (M.M_I1IO_DRIVE_FRONT, M.M_I1IO_DRIVE_FRONT_END, M.M_DUAL_CAL_AGAIN):
+    # (M-I1IO-DRIVE-FRONT: the 4.3.49 entry names that release's page title, "Part of this sheet
+    # lies further forward than usual"; 4.3.50 rewrote the page, its notes name the new one)
+    assert "Part of this sheet lies further forward than usual" in text
+    for msg in (M.M_I1IO_DRIVE_FRONT_END, M.M_DUAL_CAL_AGAIN):
         assert msg.title in text, msg.id
     assert M.M_DUAL_PASS_HELD.render(strip="C", reason="")[0] in text
     assert M.M_DUAL_CONTINUE_FILL.render(strips="strips C, D", resume="", start="")[0] in text

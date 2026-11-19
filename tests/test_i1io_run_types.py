@@ -171,7 +171,9 @@ def _measure_refuses(w, ti2: Path, monkeypatch) -> str:
             return "M-I1IO-MEASURE-CHART, by hand"
         assert shown[0][1].endswith(M.tr(M._I1IO_OTHER_WAY_PATCH_SETS))
         return "M-I1IO-MEASURE-CHART, patch sets"
-    for msg in (M.M_I1IO_NOT_YET, M.M_I1IO_NOT_YET_BY_HAND):
+    # 4.3.50: the -SIDE-FILE variants when the chart's side file is beside it and readable
+    for msg in (M.M_I1IO_NOT_YET, M.M_I1IO_NOT_YET_BY_HAND, M.M_I1IO_NOT_YET_SIDE_FILE,
+                M.M_I1IO_NOT_YET_SIDE_FILE_BY_HAND):
         # the notice, and as its last paragraph what to aim at
         # (`measurement_messages.i1io_aim_text`)
         title, body = msg.render()
@@ -219,7 +221,8 @@ def test_a_calibration_chart_is_made_for_the_i1io(win, qapp, qtbot,
     assert ch["patch_set_given"] is False
     # review M3: a calibration run cannot import, so its chart keeps the
     # window by hand (no Measure Chart steps ending in Import Measurement)
-    assert _measure_refuses(w, cti2, monkeypatch) == "M-I1IO-NOT-YET-BY-HAND"
+    # (4.3.50: its side file is beside it, so the window says so: the -SIDE-FILE variant)
+    assert _measure_refuses(w, cti2, monkeypatch) == "M-I1IO-NOT-YET-SIDE-FILE-BY-HAND"
 
 
 @requires_argyll
