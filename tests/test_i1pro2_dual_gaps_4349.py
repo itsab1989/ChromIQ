@@ -741,3 +741,105 @@ def test_r4_the_hold_ends_with_the_dual_scan(qapp):
     _line(m, '{"event":"scan_started"}')
     m._runner.sent.clear()
     assert m.user_goto_strip("C") is True
+
+
+# ------------------------------------------------ the re-review's probes
+# (2026-11-19_dual_fix_rereview/probe): planted faults Q1, Q3 and Q9 (the early
+# hold without its `_dual_on` check, without `_scan_in_progress`, and the dual
+# flags kept from one measurement to the next) pass every test above and turn
+# these red.
+
+
+class _StartRunner:
+    def __init__(self):
+        self.calls, self.sent, self.is_running = [], [], False
+    def run(self, tool, args, cwd, on_line=None, on_finish=None, use_pty=False):
+        self.calls.append((str(tool), list(args)))
+    def set_kill_courtesy(self, line):
+        pass
+    def write_stdin(self, text):
+        self.sent.append(text)
+
+
+def _start_real(m, tmp_path, monkeypatch):
+    from workflow import chartread_engine
+    from workflow.measure_manager import MeasureManager, MeasureParams
+    monkeypatch.setattr(chartread_engine, "helper_caps",
+                        lambda helper=None: frozenset())
+    monkeypatch.setattr(MeasureManager, "_refuse_system_port",
+                        lambda self, *a, **k: False)
+    p = MeasureParams(ti1_path=tmp_path / "chart.ti1",
+                      engine_helper=tmp_path / "chromiq-chartread")
+    m.start(p, lambda _l: None, lambda _c: None)
+    m._guided_state = "disabled"
+
+
+@pytest.mark.parametrize("ending", ["done", "nothing"])
+def test_a_plain_measurement_after_a_dual_one_jumps_as_before(
+        qapp, tmp_path, monkeypatch, ending):
+    from workflow.measure_manager import MeasureManager
+    m = MeasureManager(_StartRunner())
+    _start_real(m, tmp_path, monkeypatch)          # measurement 1: dual
+    _dual_start(m)
+    _line(m, '{"event":"strip_ready","strip":"A"}')
+    if ending == "done":
+        _line(m, '{"event":"done"}')
+    _start_real(m, tmp_path, monkeypatch)          # measurement 2: no dual
+    _line(m, '{"event":"session_start"}')
+    _line(m, '{"event":"strip_ready","strip":"A"}')
+    _line(m, '{"event":"scan_started"}')
+    m._runner.sent.clear()
+    assert m.user_goto_strip("C") is True, "jump swallowed in a non-dual measurement"
+    assert any('"goto"' in s for s in _sent(m))
+
+
+def _m(qapp):
+    return _manager(qapp)
+
+
+def test_before_the_first_scan_of_a_strip_a_jump_and_a_key_go_out(qapp):
+    m = _m(qapp)
+    _dual_start(m)
+    _line(m, '{"event":"strip_ready","strip":"A"}')
+    m._runner.sent.clear()
+    assert m.user_goto_strip("C") is True
+    m.send_key("f")
+    assert sum('"goto"' in s for s in _sent(m)) == 1
+    assert any('"forward"' in s for s in _sent(m)), _sent(m)
+
+
+def test_between_strips_after_both_passes_a_jump_goes_out(qapp):
+    m = _m(qapp)
+    _dual_start(m)
+    _line(m, '{"event":"strip_ready","strip":"A"}')
+    _line(m, '{"event":"scan_started"}')
+    _line(m, '{"event":"dual_pass","strip":"A","pass":"uv","of":2,"lamp_ok":true}')
+    _line(m, '{"event":"scan_started"}')
+    _line(m, '{"event":"dual_pass_result","what":"strip","strip":"A","ok":true}')
+    _line(m, '{"event":"strip_read","strip":"A"}')
+    m._runner.sent.clear()
+    assert m.user_goto_strip("C") is True
+    assert any('"goto"' in s for s in _sent(m))
+
+
+def test_after_m1_m2_ended_a_key_during_a_swipe_goes_out(qapp):
+    m = _m(qapp)
+    _dual_start(m)
+    _line(m, '{"event":"conditions","active":false,"why":"dual_dual_needs_ruler"}')
+    _line(m, '{"event":"strip_ready","strip":"A"}')
+    _line(m, '{"event":"scan_started"}')
+    m._runner.sent.clear()
+    m.send_key("f")
+    assert any('"forward"' in s for s in _sent(m)), _sent(m)
+
+
+def test_a_key_during_the_first_pass_is_held_esc_is_not(qapp):
+    m = _m(qapp)
+    _dual_start(m)
+    _line(m, '{"event":"strip_ready","strip":"A"}')
+    _line(m, '{"event":"scan_started"}')
+    m._runner.sent.clear()
+    m.send_key("f")
+    assert _sent(m) == []
+    m.send_key("\x1b")
+    assert _sent(m) != [], "Esc must still go out during the first pass"
