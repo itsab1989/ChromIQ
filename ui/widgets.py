@@ -142,6 +142,11 @@ def _may_be_painted_by_the_platform(btn) -> bool:
         return True        # when in doubt, be the wider of the two
 
 
+#: a button property: keep the label's case (a product name such as "i1Pro 2"), see
+#: ButtonFontFilter.fit
+KEEP_CASE_PROPERTY = "chromiq_keep_case"
+
+
 def fit_button_width(btn) -> None:
     """Make sure *btn* is wide enough for the label it will actually paint.
 
@@ -433,10 +438,17 @@ class ButtonFontFilter(QObject):
 
     @staticmethod
     def fit(btn) -> None:
-        """Give *btn* the app's button font, then the width that font needs."""
+        """Give *btn* the app's button font, then the width that font needs.
+
+        A button whose label is a product name written with a small first letter ("i1Pro 2")
+        carries the property ``chromiq_keep_case`` (table safety review, 2026-11-19, SHOULD-B2):
+        it keeps its case, because "I1PRO 2" is not the instrument's name.
+        ``fit_button_width`` measures what the font will paint, so its width follows."""
         font = btn.font()
         font.setFamilies(["Menlo", "Consolas", "Courier New", "monospace"])
-        font.setCapitalization(QFont.Capitalization.AllUppercase)
+        font.setCapitalization(QFont.Capitalization.MixedCase
+                               if btn.property(KEEP_CASE_PROPERTY)
+                               else QFont.Capitalization.AllUppercase)
         btn.setFont(font)
         before = btn.minimumWidth()
         fit_button_width(btn)

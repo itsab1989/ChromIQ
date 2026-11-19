@@ -12565,6 +12565,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         box.setText(title)
         box.setInformativeText(body)
         b2 = box.addButton(tr("i1Pro 2"), QMessageBox.ButtonRole.AcceptRole)
+        # SHOULD-B2: the instrument's name keeps its case ("i1Pro 2", never "I1PRO 2")
+        from ui.widgets import KEEP_CASE_PROPERTY
+        b2.setProperty(KEEP_CASE_PROPERTY, True)
         bo = box.addButton(tr("Another instrument"),
                            QMessageBox.ButtonRole.AcceptRole)
         bu = box.addButton(tr("Not sure"), QMessageBox.ButtonRole.AcceptRole)
