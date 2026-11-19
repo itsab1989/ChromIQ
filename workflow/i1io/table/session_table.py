@@ -1110,6 +1110,30 @@ class Table:
         self.start_up_line_no: "int | None" = None
         #: how the start-up failed (set by the session; None while nothing failed)
         self.cold_failure: "str | None" = None
+        # ---- 4.3.48 ----
+        #: after reopen_for_homing: only the homing's own lines may be written
+        self.homing_only = False
+        #: (lines, movements) that homing adds to the caps, once
+        self.homing_allowance = (0, 0)
+
+    #: 4.3.48: the command ids the homing after a stop sends (s0 p0 i1 s0 f0 f4 f4 p0)
+    HOMING_ONLY_CIDS = ("s0", "p0", "i1", "f0", "f4")
+
+    def reopen_for_homing(self, expected: str, allowance: "tuple[int, int]") -> None:
+        """4.3.48: the job's homing after a stop. Sending is opened again ONLY when it was closed
+        for exactly *expected* (the reason the job checked), the link works, nothing moves or
+        waits, and this was never done in this sitting; from then on only HOMING_ONLY_CIDS pass
+        ``_write`` (a bug guard), with *allowance* on top of the caps. The job closes the sending
+        again when the homing has ended, however it ended."""
+        if (self.closed_reason is None or self.closed_reason != expected
+                or self.link_lost_at is not None or self.motion_unconfirmed
+                or self.homing_only or self.stop_requested):
+            raise Doubt("the homing after a stop asked for out of order (a bug)")
+        self.log("STOP", f"sending opened again for the homing after the stop only "
+                         f"(it stopped: {expected})")
+        self.closed_reason = None
+        self.homing_only = True
+        self.homing_allowance = (int(allowance[0]), int(allowance[1]))
 
     # ---- logging and stopping ------------------------------------------------------
     def log(self, kind: str, text: str) -> None:
@@ -1183,8 +1207,10 @@ class Table:
             max_lines, max_motions = PART_CAPS[self.part]
             is_motion = line in MOTION_LINES
             label = None
-        max_lines += self.cold_allowance[0]
-        max_motions += self.cold_allowance[1]
+        if self.homing_only and cid not in self.HOMING_ONLY_CIDS:
+            raise self._doubt(f"{cid} after the homing after a stop was allowed (a bug)")
+        max_lines += self.cold_allowance[0] + self.homing_allowance[0]
+        max_motions += self.cold_allowance[1] + self.homing_allowance[1]
         if self.lines_sent >= max_lines:
             raise self._doubt("the program reached its limit of lines for one session")
         if is_motion and self.motions_sent >= max_motions:

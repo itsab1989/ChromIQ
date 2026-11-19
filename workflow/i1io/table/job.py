@@ -114,7 +114,9 @@ CHOICES = {
     Confirm.FRONT_YES: ("yes", "no"),
     Confirm.FIRST_VISIT: ("yes", "no"),
     Confirm.MARKER: ("switched off and on", "stop"),
-    Confirm.READY_TO_OPEN: ("yes", "stop"),
+    # 4.3.48: "arm out": the person says the arm is NOT at its resting place (an earlier stop
+    # left it out); ChromIQ connects, reads where it is and moves nothing before it asks
+    Confirm.READY_TO_OPEN: ("yes", "arm out", "stop"),
     Confirm.REPORT_AFTER_STEP: ("as described", "something wrong", "not sure"),
     Confirm.READER_CONSENT: ("yes", "no"),
     Confirm.CAL_PLACE: ("own tile", "table tile", "stop"),
@@ -242,6 +244,10 @@ class WayBack:
     SWITCH_OFF_PENDING = "switch_off_pending"       # a strip move may still wait for the lamp
     LINK_LOST_REPLUG = "link_lost_replug"           # lost link, nothing waiting
     LINK_LOST_SWITCH_OFF_FIRST = "link_lost_switch_off_first"   # lost link, something may wait
+    #: 4.3.48: this job stopped sending, but at a place check the table answered cleanly, with
+    #: the arm held where recorded homings start: ChromIQ may bring it home itself after a
+    #: hands-off GO (``home_after_stop``), once; otherwise the old way (open i1Profiler once)
+    HOME_AFTER_STOP = "home_after_stop"
     COLD_NOT_STARTED = "cold_not_started"           # a just-switched-on table, start-up not sent
     COLD_WAY_OUT = "cold_way_out"                   # the start-up was sent and did not finish
 
@@ -317,6 +323,7 @@ class PersonStopped(Exception):
 MAX_RUNS = {"park": 8, "d1": 5, "dz": 3, "d2": 3, "f": 8, "c1": 3, "c2": 3}
 #: the steps and the tester's stage key each writes its result block under
 STAGE_KEY = {"park": "park", "align": "d1", "creep": "dz", "check_move": "d2", "home": "f",
+             "home_after_stop": "f",
              "calibrate": "c1", "read_tile": "c2", "read_row": "row"}
 #: the step caps the tester used for its own stages (lines, movements)
 DZ_CAPS = cp.CREEP
@@ -410,6 +417,29 @@ ARRIVAL_BESIDE_UNITS = 10
 
 def _near(p, q, d=5) -> bool:
     return p is not None and abs(p[0] - q[0]) <= d and abs(p[1] - q[1]) <= d
+
+
+def homing_starts_here(p, arm_free) -> bool:
+    """Where ChromIQ sends its homing from (4.3.47's rule in ``_end_of_job``, one place for it
+    since 4.3.48): inside the measuring area's raw box (i1Profiler's 16 recorded homings out on
+    the volunteer's table, held, and its 2 clean ones from a free arm all start there), on the
+    stretch of the home line near the resting place (START_GUARD), or, held, in the front zone up
+    to its cap. Nowhere else: no recording starts a homing at the alignment start (X 2507)."""
+    return p is not None and (geo.AREA_RAW.contains(p) or tbl.START_GUARD.contains(p)
+                              or (arm_free is False and geo.CAP_RAW.contains(p)))
+
+
+#: 4.3.48: the stops after which ChromIQ may offer its own homing (``home_after_stop``): the
+#: first reason the table module closed the sending with must start with one of these. Each is
+#: a PLACE check whose answer the table gave in its recorded form (status 0, the position), with
+#: nothing moving and nothing pending, where the arm was simply not where the step expected it:
+#: the position read right before the homing a step starts with (HOME_FIRST: START_GUARD),
+#: i.e. the arm found out on the table (an earlier stop left it there). NOT on this list, on
+#: purpose: a move that did not arrive, a slow move, a homing that failed (a mechanical doubt);
+#: any answer not understood, a refusal, no answer, a lost link, the caps (the table's state is
+#: not known); the person's own "Send nothing more" (their word stands for this measurement);
+#: i1Profiler started meanwhile.
+HOME_AFTER_STOP_REASONS = ("right before the homing: the arm reports ",)
 
 
 def _rect_contains(r, p) -> bool:
@@ -665,6 +695,10 @@ class TableJob:
         #: diagnostics), and how many the running row attempt may still send
         self.beside_retries: "list[dict]" = []
         self._beside_retries_left = 0
+        #: 4.3.48: the person answered "arm out" at the ready question
+        self.opened_with_arm_out = False
+        #: 4.3.48: the homing after a stop was tried in this session (it is offered once)
+        self._home_after_stop_tried = False
         self._row_seq = 0
         self.tile_readings: "list[dict]" = []
         self._tile_spectrum: "list[float] | None" = None
@@ -763,6 +797,8 @@ class TableJob:
             return WayBack.OPEN_I1PROFILER_ONCE if d.mode_on else WayBack.NONE
         if d.closed_reason is None and self.phase == "open" and self._ready("home") is None:
             return WayBack.HOME_OFFERED
+        if self._home_after_stop_why() is None:
+            return WayBack.HOME_AFTER_STOP
         return WayBack.OPEN_I1PROFILER_ONCE
 
     def _progress(self, **event) -> None:
@@ -1125,8 +1161,12 @@ class TableJob:
         # 4. the tester's PRE_QUESTIONS (review of step 6, REQUIRED A): the person confirms the
         #    arm at its resting place and nothing on the bed but the sheet; else nothing opens
         ready = yield Ask(Confirm.READY_TO_OPEN, {"items": list(READY_TO_OPEN_ITEMS)})
-        if ready != "yes":
+        if ready not in ("yes", "arm out"):
             raise PersonStopped("not_ready_to_open")
+        #: 4.3.48: the person said the arm is out over the table: after the opening the window
+        #: asks where_is_the_arm() (one reading) before anything else, and nothing moves
+        #: without its own hands-off GO
+        self.opened_with_arm_out = ready == "arm out"
         # 5. the USB opening: ChromIQ's own library only; nothing sent before the descriptors
         try:
             self.transport = self._open_transport()
@@ -1166,6 +1206,8 @@ class TableJob:
         d._touch_out = lambda: "asked after the step"
         state = d.opening()
         out = {"table": state, "system": pf.system}
+        if self.opened_with_arm_out:
+            out["arm_out"] = True
         if pf.system == "windows":
             out["table_driver"] = "driver_installed"
         return out
@@ -1262,6 +1304,13 @@ class TableJob:
             return "needs_creep_first"
         if step == "home" and not (self.out_known() or d.arm_free is True):
             return "arm_not_out_on_the_table"
+        if step == "home" and d.arm_free is False and d.position_now is not None and \
+                not homing_starts_here(d.position_now, d.arm_free):
+            # 4.3.48: a HELD arm (the motors keep it where it was read) is never offered the
+            # homing where the homing itself would refuse (``_end_of_job``): no recorded homing
+            # starts there (the alignment start, say). A free arm may have been moved by hand
+            # since its last reading; its homing reads it afresh and decides then, as before.
+            return "homing_not_from_here"
         return None
 
     def _check_other_program(self) -> None:
@@ -1332,6 +1381,111 @@ class TableJob:
 
     def home(self) -> StepResult:
         return self._stage("home", self._home)
+
+    # ---- 4.3.48: where the arm is at a START, and the homing after a stop ----------------------
+    def where_is_the_arm(self) -> StepResult:
+        """After an opening the person answered "arm out": ONE position reading (``;p025``, the
+        line a calibration's own rest check sends first), nothing moves. At its resting place:
+        ok, and the measurement goes on as usual. Elsewhere: refused ``arm_not_at_rest`` with the
+        true state; the way back then says whether ChromIQ may bring it home (HOME_OFFERED, the
+        usual homing with its own hands-off GO) or not."""
+        step = "where_is_the_arm"
+        if self._gen is not None:
+            return self._begin(step, None)
+        why = SESSION_ENDED if self.ended is not None else self._sending_ready()
+        if why:
+            return self._result(step, Kind.REFUSED, why)
+        if self._table.state == "cold":
+            return self._result(step, Kind.REFUSED, "table_not_started")
+        return self._begin(step, self._where_is_the_arm())
+
+    def _where_is_the_arm(self):
+        d = self._table
+        self._step("locate", 1, 0)
+        try:
+            p = d.position()
+        finally:
+            d.current_step = None
+        d.log("DATA", f"where the arm is at the start: {p}")
+        if not (tbl.REST_GUARD.contains(p) and d.arm_free is False and not d.mode_on):
+            raise StageFailed("arm_not_at_rest", read=p, at_start=True)
+        return {"read": p, "at_rest": True}
+        yield  # pragma: no cover  (a generator)
+
+    def _home_after_stop_why(self) -> "str | None":
+        """None when ChromIQ may offer to bring the arm home after this stop; else why not. From
+        the table's answers only (HOME_AFTER_STOP_REASONS)."""
+        d = self._table
+        if d is None or self.phase != "open":
+            return "table_not_open"
+        if self._home_after_stop_tried:
+            return "tried_already"
+        if d.link_lost_at is not None:
+            return "link_lost"
+        if d.motion_unconfirmed or d.closed_reason == "a scan move may be pending" or (
+                d.last_move and d.last_move[0] == "scan move" and d.last_move[1] is None):
+            return "movement_may_be_unfinished"
+        if d.state == "cold" or (d.start_up_sent and not d.cold_done):
+            return "table_not_started"
+        reason = d.closed_reason
+        if reason is None:
+            return "not_stopped"
+        if not reason.startswith(HOME_AFTER_STOP_REASONS):
+            return "stop_not_at_a_place_check"
+        if self.stopped_by_person:
+            return "stopped_by_person"
+        if self.instrument_out:
+            return "instrument_not_in_the_arm"
+        p = d.position_now
+        if p is None or getattr(d, "read_at_line", None) != d.lines_sent:
+            # the reading the stop came with must be the last line the table answered
+            return "no_fresh_position_reading"
+        if d.arm_free is not False or d.mode_on:
+            return "arm_not_held"
+        if not homing_starts_here(p, d.arm_free):
+            return "homing_not_from_here"
+        return None
+
+    def home_after_stop(self) -> StepResult:
+        """4.3.48 (the owner: "is there something we could do so this [i1Profiler] would not be
+        needed anymore?"): after a stop this job made at a place check (the way back
+        HOME_AFTER_STOP), the arm is brought home by ChromIQ's usual homing (``_end_of_job``,
+        4.3.47's lines: s0 p0 i1 s0 f0 f4 f4 p0, i1Profiler's own recorded end of a job from a
+        held arm plus the reading at rest), after its own hands-off GO, ONCE per session. The
+        table module lets exactly these lines through (``Table.reopen_for_homing``), and nothing
+        more is sent afterwards, whether the arm got home or not."""
+        step = "home_after_stop"
+        if self._gen is not None:
+            return self._begin(step, None)
+        why = self._home_after_stop_why()
+        if why:
+            return self._result(step, Kind.REFUSED, why)
+        return self._begin(step, self._home_after_stop())
+
+    def _home_after_stop(self):
+        ans = yield Ask(Confirm.GO, {"step": "home_after_stop", "page": self.page + 1,
+                                     "after_a_stop": True})
+        if ans != "yes":
+            raise PersonStopped("person_chose_back")
+        why = self._home_after_stop_why()       # nothing may have changed while it was asked
+        if why:
+            raise StageFailed(why)
+        if self._other_program is not None and self._other_program() is True:
+            raise StageFailed("i1profiler_running")
+        d = self._table
+        self._home_after_stop_tried = True
+        stopped_because = d.closed_reason
+        d.reopen_for_homing(stopped_because, cp.HOME)
+        self.runs[(self.page, "f")] = self.runs.get((self.page, "f"), 0) + 1
+        self._start_block("home_after_stop")
+        try:
+            self._end_of_job()
+        finally:
+            d.current_step = None
+            d.close_for_sending("the homing after the stop has ended; nothing more is sent in "
+                                "this measurement")
+        d.log("DATA", f"brought home after the stop ({stopped_because})")
+        return {"read": d.position_now, "after": stopped_because}
 
     def _note(self, note, step: "str | None", about: str) -> "dict | None":
         """The person's own words, into the log (a NOTE line) and into the result block of the
@@ -1999,8 +2153,7 @@ class TableJob:
         got = d.position()
         if last is not None and not _near(got, last) and d.arm_free is False:
             raise d._doubt(f"before the homing the arm reads {got}, not {last}")
-        held_front = d.arm_free is False and geo.CAP_RAW.contains(got)
-        if not (geo.AREA_RAW.contains(got) or tbl.START_GUARD.contains(got) or held_front):
+        if not homing_starts_here(got, d.arm_free):
             raise StageFailed("homing_only_from_inside_the_area", read=got,
                               arm_free=bool(d.arm_free))
         try:
@@ -3367,9 +3520,14 @@ class TableJob:
     def _after_end(self) -> dict:
         """What may follow an ending: the homing when it can run (its own GO). Review 8, NOTE:
         the same test the way back uses for HOME_OFFERED (``_ready("home")``), so ``next``
-        never names a homing that would be refused (the instrument out of the arm, say)."""
+        never names a homing that would be refused (the instrument out of the arm, say).
+        4.3.48: after a stop, the homing after the stop when it is offered."""
         ok = self._table is not None and self._ready("home") is None
-        return {"next": ["home"] if ok else []}
+        if ok:
+            return {"next": ["home"]}
+        if self._table is not None and self._home_after_stop_why() is None:
+            return {"next": ["home_after_stop"]}
+        return {"next": []}
 
     def _end(self, st):
         ans = yield Ask(Confirm.END, {"end_state": st})

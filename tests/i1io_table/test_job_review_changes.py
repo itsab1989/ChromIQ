@@ -42,7 +42,8 @@ def test_ready_to_open_comes_before_anything_is_opened():
     r = job.open()
     while r.confirm != J.Confirm.READY_TO_OPEN:
         r = job.answer(r.confirm, H.DEFAULT[r.confirm])
-    assert r.kind == J.Kind.NEEDS and r.choices == ("yes", "stop")
+    # 4.3.48: "arm out" (the arm is not at its resting place) opens too, and moves nothing
+    assert r.kind == J.Kind.NEEDS and r.choices == ("yes", "arm out", "stop")
     assert r.detail["items"] == ["arm_at_its_resting_place", "nothing_on_the_bed_but_the_sheet"]
     assert opened == [] and sim.received == [] and job._table is None
     r = job.answer(J.Confirm.READY_TO_OPEN, "yes")
