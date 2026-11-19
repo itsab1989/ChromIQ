@@ -842,11 +842,14 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
         # the X-Rite i1Pro 2 dual scan on the table (2026-11-18, a first try)
         "uv_pass_failed_clean": tr(
             "the second pass, with the UV light, could not be started, so the arm did not "
-            "drive back over the row. Nothing of the row is kept"),
+            "drive back over the row"),
         "uv_pass_wrong_strip": tr(
             "the second pass, with the UV light, does not match the first pass of this row, "
-            "so ChromIQ cannot be sure both passes read the same patches. Nothing of the row is "
-            "kept"),
+            "so ChromIQ cannot be sure both passes read the same patches"),
+        "uv_pass_timing_off": tr(
+            "the second pass, with the UV light, did not lie over the patches where ChromIQ "
+            "expected it (it was off by about 0.7 mm or more), so its values could include a "
+            "little of the neighbouring patches"),
         "uv_spot_failed": tr(
             "the reading with the UV light did not succeed on a patch, even when it was read "
             "again"),
@@ -879,7 +882,8 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
             "the patches are too short to be read twice as a strip"),
         "stopped_before_the_uv_pass": tr(
             "You pressed Stop, so ChromIQ stopped after the first pass of the row, before the "
-            "pass with the UV light. Nothing of the row is kept."),
+            "pass with the UV light. None of the row's values are used; its raw readings stay "
+            "in the measurement's session folder."),
         "mixed_scan_kind": tr(
             "The readings this measurement would complete were made in another way (with or "
             "without the dual scan), so they cannot go into one file. Please start a new "
@@ -2857,6 +2861,13 @@ class TableMeasureWindow(QFrame):
             if not (isinstance(sw, dict) and not sw.get("used")):
                 act = self._next_action()
                 moves = act[2] if act else None
+        if moves and getattr(j, "_pause_stop", False):
+            # NOTE-4 (table safety review, 2026-11-19): Stop was pressed while the step ran (a
+            # dual row's UV pass, say); it is honoured before the next move, so the arm does
+            # NOT go on to the next row whatever the answer is
+            return tr("You pressed Stop, so the arm does not go on: it stays where it is. "
+                      "Please still tell ChromIQ whether the table and the arm did what you "
+                      "expected; after your answer ChromIQ shows what you can do next.")
         if moves:
             return tr("If it did, please take your hands away from the table and the arm, and "
                       "then press “As described, my hands are away”. ChromIQ goes on at once: "

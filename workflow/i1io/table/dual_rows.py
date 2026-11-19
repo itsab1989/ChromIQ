@@ -176,6 +176,158 @@ def cut_dual(lamp, uv, lamp_rows, uv_rows, edges=None) -> DualCut:
     return DualCut(True, "", L, U, info=info)
 
 
+# ---- the UV pass's timing (safety review of 2026-11-19, SHOULD-2) --------------------------------
+#
+# A UV pass whose motion started 2 to 4 readings (1.3 to 2.6 mm) away from where the cut assumes
+# passes the helper's pairing check: the shift stays inside the 1.0-1.5 mm clean edge, so the
+# per-patch MEANS barely move (median |ratio - 1| 0.007 against 0.008) while the windows' edges
+# already take in the neighbouring patch, and M2 is off by up to 2.7 dE00 (review, recorded rows).
+# No check on the cut values can see that; the stream of readings can.
+#
+# THE CHECK: the UV pass's readings at 380-400 nm (where nothing glows: the LED light the patch
+# reflects) are laid over the chart's own patches for every UV motion start within +-UV_FIT_SPAN
+# readings of the assumed one, and the start is taken whose readings are flattest inside the
+# patches (the share of the readings' variance the patches explain, R squared, over each patch's
+# middle: its half length less half the aperture). A pass whose best start lies
+# UV_FIT_REFUSE_READINGS or more away from the assumed one is refused (``uv_pass_timing_off``)
+# when the fit is sure of it: R squared at the best start beats the assumed start's by at least
+# UV_FIT_MIN_GAIN (a patch edge really lies where the assumed windows are). A row whose patches
+# hardly differ at 380-400 nm, or whose edges do not move R squared, cannot show its timing (and
+# a shift could then hardly change its M2): not judged, said in the row's record.
+#
+# WHY AGAINST THE CHART AND NOT AGAINST THE LAMP PASS: fitted against the lamp pass's readings,
+# every recorded row came out 1.5 to 2.75 readings "off", because the LAMP pass's own constant
+# (scan.MOTION_START_AFTER_LAMP_S) sits 1.25 to 3.25 readings early against the chart on the
+# same rows (the review saw the same from the lamp side: +1.3 mm improves M0). Against the chart
+# each pass is judged on its own; the lamp pass's best start is logged too (not judged here: the
+# released strip rows share its constant, and the lamp's uniformity check guards its cut).
+#
+# Both best starts are written into the row's record (``dual_cut.json``, the row record), so the
+# first real rows tell the true values. TUNED on the volunteer's recorded rows (private,
+# 2026-11-19, work folder table_fix/proof/tune_uv_timing*.txt; RE_REVIEW_BRIEF.md has the table):
+# every recorded UV pass's best start lies within 0.5 readings of the assumed one (R squared gain
+# at most 0.0041); shifted by 2 or more readings, every one is refused (gain at least 0.0133).
+
+UV_FIT_SPAN = 6.0                  # readings either side of the assumed start
+UV_FIT_STEP = 0.25                 # readings
+UV_FIT_REFUSE_READINGS = 1.0       # |best - assumed| at or beyond this: refused ...
+UV_FIT_MIN_GAIN = 0.005            # ... when R squared at the best start is this much better
+UV_FIT_MIN_SPREAD = 0.05           # std / mean of the readings inside the patches
+UV_FIT_BANDS_NM = (380.0, 400.0)
+
+
+def _position_at(plan, t: float) -> float:
+    """The arm's place along *plan* (mm from its start) *t* seconds after its motion started
+    (the inverse of :func:`scan.time_at`)."""
+    V = float(plan.speed)
+    ta = plan.A / 1000.0
+    L = plan.dist / 10.0
+    a = V / ta
+    if t <= 0:
+        return 0.0
+    if t >= plan.move_s:
+        return L
+    d_acc = 0.5 * a * ta * ta
+    if L < 2 * d_acc:
+        th = math.sqrt(L / a)
+        if t <= th:
+            return 0.5 * a * t * t
+        r = 2 * th - t
+        return L - 0.5 * a * r * r
+    if t <= ta:
+        return 0.5 * a * t * t
+    if t <= plan.move_s - ta:
+        return d_acc + (t - ta) * V
+    r = plan.move_s - t
+    return L - 0.5 * a * r * r
+
+
+def _band_means(rows, wavelengths=None, bands=UV_FIT_BANDS_NM) -> "list[float]":
+    if wavelengths:
+        idx = [j for j, w in enumerate(wavelengths)
+               if bands[0] - 1e-6 <= float(w) <= bands[1] + 1e-6]
+    else:
+        n = len(rows[0]) if rows else 36
+        idx = [j for j in range(n) if bands[0] - 1e-6 <= 380.0 + 10.0 * j <= bands[1] + 1e-6]
+    if not idx:
+        return []
+    return [sum(r[j] for j in idx) / len(idx) for r in rows]
+
+
+def _layout_fit(plan, signal, first_reading_s: float, motion_start_s: float) -> dict:
+    """The motion start (readings from *motion_start_s*) at which *signal* (one value per
+    reading of a pass along *plan*) is flattest inside the plan's patches."""
+    def score(k):
+        start = motion_start_s + k * sc.READING_S
+        groups = []
+        for q in plan.patches:
+            hc = q.half_mm - plan.aperture_mm / 2
+            if hc <= 0:
+                continue
+            g = []
+            for j, v in enumerate(signal):
+                t = first_reading_s + j * sc.READING_S - start
+                if 0.0 < t < plan.move_s and abs(_position_at(plan, t) - q.along_mm) <= hc:
+                    g.append(v)
+            if len(g) >= 2:
+                groups.append(g)
+        vals = [v for g in groups for v in g]
+        if len(groups) < 2 or len(vals) < 6:
+            return float("nan"), 0.0
+        m = sum(vals) / len(vals)
+        tot = sum((v - m) ** 2 for v in vals)
+        within = sum(sum((v - sum(g) / len(g)) ** 2 for v in g) for g in groups)
+        spread = math.sqrt(tot / len(vals)) / m if m > 0 else 0.0
+        return (1.0 - within / tot) if tot > 0 else float("nan"), spread
+    n_steps = int(round(UV_FIT_SPAN / UV_FIT_STEP))
+    scores = [(i * UV_FIT_STEP, *score(i * UV_FIT_STEP)) for i in range(-n_steps, n_steps + 1)]
+    good = [(k, r2, sp_) for k, r2, sp_ in scores if r2 == r2]
+    r0, spread0 = score(0.0)
+    if not good or r0 != r0:
+        return {"best_readings": None, "r2_best": None, "r2_assumed": None, "spread": spread0}
+    kb, rb, _sp = max(good, key=lambda t: (t[1], -abs(t[0])))
+    return {"best_readings": kb, "best_motion_start_s": round(motion_start_s + kb * sc.READING_S,
+                                                               4),
+            "r2_best": round(rb, 6), "r2_assumed": round(r0, 6), "spread": round(spread0, 4)}
+
+
+def uv_timing_fit(lamp, uv, lamp_rows, uv_rows, wavelengths=None) -> dict:
+    """The UV pass's timing against the chart (see the section's comment), with the lamp pass's
+    best start as a diagnostic. Returns a dict for the row's record: ``checked`` (False: the
+    patches hardly differ at 380-400 nm, or too few readings), ``refuse`` (True: the UV pass's
+    best start is UV_FIT_REFUSE_READINGS or more from the assumed one, and R squared there is
+    UV_FIT_MIN_GAIN better), ``uv`` and ``lamp``
+    (each pass's best start in readings and seconds, R squared at the best and at the assumed
+    start)."""
+    out = {"checked": False, "refuse": False, "assumed_uv_motion_start_s":
+           sc.UV_MOTION_START_AFTER_TRIGGER_S, "assumed_lamp_motion_start_s":
+           sc.MOTION_START_AFTER_LAMP_S, "refuse_at_readings": UV_FIT_REFUSE_READINGS,
+           "span_readings": UV_FIT_SPAN, "uv": None, "lamp": None}
+    if not lamp.patches or not lamp_rows or not uv_rows:
+        out["why"] = "no readings"
+        return out
+    su = _band_means(uv_rows, wavelengths)
+    sl = _band_means(lamp_rows, wavelengths, (380.0, 730.0))
+    out["uv"] = _layout_fit(uv, su, sc.UV_FIRST_READING_AFTER_TRIGGER_S,
+                            sc.UV_MOTION_START_AFTER_TRIGGER_S)
+    out["lamp"] = _layout_fit(lamp, sl, sc.FIRST_READING_AFTER_LAMP_S,
+                              sc.MOTION_START_AFTER_LAMP_S)
+    u = out["uv"]
+    if u["best_readings"] is None:
+        out["why"] = "too few readings inside the patches"
+        return out
+    if u["spread"] < UV_FIT_MIN_SPREAD:
+        out["why"] = "the row's patches hardly differ at 380-400 nm"
+        return out
+    off = abs(u["best_readings"]) >= UV_FIT_REFUSE_READINGS
+    if off and (u["r2_best"] - u["r2_assumed"]) < UV_FIT_MIN_GAIN:
+        out["why"] = "the patches' edges do not show the timing (R squared hardly changes)"
+        return out
+    out["checked"] = True
+    out["refuse"] = off
+    return out
+
+
 def write_dual_in(path: str, cut: DualCut) -> None:
     """The helper's input: n, then per patch the lamp pass's 36 values and the UV pass's 36."""
     lines = [str(len(cut.lamp))]

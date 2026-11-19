@@ -12448,8 +12448,8 @@ M_I1IO_DRIVE_ROW_FAILED_STRIP = _m(
     "Row {row} could not be read as a strip",
     "The arm is held where the strip move ended. Before it moves again, ChromIQ asks you to "
     "take your hands away from the table and the arm.\n\n"
-    "Row {row} of page {page} could not be read as a strip: {why}. ChromIQ keeps none of "
-    "this row's readings, because it never guesses a value. What would you like to do?\n"
+    "Row {row} of page {page} could not be read as a strip: {why}. ChromIQ uses none of "
+    "this row's values, because it never guesses a value. What would you like to do?\n"
     "  •  Read it again as a strip.\n"
     "  •  Read it patch by patch: slower, and the careful way.\n"
     "  •  Skip this row: the measurement is saved without it, and you can read it later.\n"

@@ -541,7 +541,11 @@ def _one_path_to_the_fire(table: tbl.Table, inst, plan: RowPlan, outdir: str,
                 and res.fired.get("ms_lit_trig", -1) >= 0:
             t_lamp = res.t_fire_sent + res.fired["ms_lit_trig"] / 1000.0
             extra = res.t_done - t_lamp - plan.move_s
-            res.notes.append(f"done = lamp + T + A + {extra:.3f} s (recorded 0.42-0.50)")
+            # NOTE-3 (table safety review, 2026-11-19): a dual row's passes have their own
+            # recorded ranges (B: lamp pass 0.65, UV pass 0.35); the accepted window holds all
+            rec_rng = ("0.33-0.36 for a UV pass" if plan.dual and plan.name.endswith("_uv")
+                       else "0.62-0.68 for a dual lamp pass" if plan.dual else "0.42-0.50")
+            res.notes.append(f"done = lamp + T + A + {extra:.3f} s (recorded {rec_rng})")
             if not DONE_EXTRA_ACCEPT_S[0] <= extra <= DONE_EXTRA_ACCEPT_S[1]:
                 doubts.append(f"it ended {extra:.2f} s after lamp + T + A, outside the "
                               "recorded range")

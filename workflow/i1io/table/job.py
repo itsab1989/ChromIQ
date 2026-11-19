@@ -3359,13 +3359,27 @@ class TableJob:
                 raise _RowFailed("strip_readings_unreadable", "") from None
             cut = dl.cut_dual(lamp, uv, lrows, urows)
             cut.wavelengths = list(wl)
+            # SHOULD-2 (table safety review, 2026-11-19): the UV pass's timing against the
+            # chart's patches; both passes' best-fitting motion starts go into the record so
+            # that a real run tells the true values
+            timing = dl.uv_timing_fit(lamp, uv, lrows, urows, wl)
+            cut.info["uv_timing"] = timing
             _write_json(folder / f"{name}.dual_cut.json",
                         {"ok": cut.ok, "reason": cut.reason, "info": cut.info})
             rec["cut"] = {"ok": cut.ok, "reason": cut.reason,
                           "lamp_readings_per_patch": cut.info.get("lamp_readings_per_patch"),
                           "uv_readings_per_patch": cut.info.get("uv_readings_per_patch")}
+            rec["uv_timing"] = timing
+            self.diag.log("DATA", f"{name}: best-fitting motion starts: UV "
+                          f"{(timing.get('uv') or {}).get('best_motion_start_s')} s (assumed "
+                          f"{sc.UV_MOTION_START_AFTER_TRIGGER_S} s), lamp "
+                          f"{(timing.get('lamp') or {}).get('best_motion_start_s')} s (assumed "
+                          f"{sc.MOTION_START_AFTER_LAMP_S} s); judged {timing.get('checked')}, "
+                          f"refused {timing.get('refuse')}")
             if not cut.ok:
                 raise _RowFailed(cut.reason, str(cut.info.get("loc") or ""))
+            if timing.get("refuse"):
+                raise _RowFailed("uv_pass_timing_off", "")
             xyz0 = stp._xyz(cut.lamp, cut.wavelengths)
             for q, xyz in zip(plan.patches, xyz0):
                 why = sp.plausible(xyz)
