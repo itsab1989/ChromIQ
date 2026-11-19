@@ -31,8 +31,21 @@ from workflow.margin_inspector import MarginReport, Violation
 
 @pytest.fixture
 def settings(tmp_path):
+    """The app's settings on a FRESH store of this test's own (4.3.49).
+
+    `AppSettings()` alone is the worker's sandboxed store, which every test
+    file that ran earlier on the same xdist worker has written into. One of
+    them leaves "calibration_mode" on; the target bar's hint is then the
+    shorter Calibration sentence, one line instead of two at 900 px, the
+    masthead 15 px lower, and the preview at y 194 instead of 209: the
+    "[size1]" red of gate after gate, never alone, because alone nothing ran
+    before it (reproduced: a file that only sets calibration_mode, run first,
+    turns it red every time). The 4.3.34 numbers were measured on the
+    defaults, so this test starts from the defaults."""
+    from PyQt6.QtCore import QSettings
     from core.settings import AppSettings
     s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "fold.ini"), QSettings.Format.IniFormat)
     s.set("custom_output_path", str(tmp_path / "work"))
     s.set("restore_last_session", False)
     s.set("session_project", "")
@@ -154,6 +167,28 @@ def test_open_it_costs_no_pixel_and_folded_the_preview_gets_it_all(
         assert _geom(w, prev._nav)[1] == nav_y + boxes
     finally:
         w.close()
+
+
+def test_the_settings_here_never_inherit_another_files_choices(qapp, settings):
+    """The cause of the "[size1]" red (4.3.49): the worker's shared store said
+    calibration_mode on, left there by a file that ran before. Written there
+    again now, it must not reach this file's window."""
+    from core.settings import AppSettings
+    from core.i18n import tr
+    shared = AppSettings()
+    before = shared.get("calibration_mode", False)
+    shared.set("calibration_mode", True)
+    try:
+        assert settings.get("calibration_mode", False) is False
+        w = _window(qapp, settings, (900, 951))
+        try:
+            assert w._target_bar._hint.text() == tr(
+                "Load a profile project, or specify a profile project name and "
+                "create your first chart, then you may choose a profile run.")
+        finally:
+            w.close()
+    finally:
+        shared.set("calibration_mode", before)
 
 
 def test_the_page_buttons_do_not_move(qapp, settings, one_page_tif):
