@@ -13,7 +13,7 @@ alike). Per row the i1Pro 2 got exactly:
 The REAL vendored driver code (native/instlib/cq_i1pro2_dual.h, section (d)) runs on a fake USB
 layer (native/chartread_helper/tests/i1io_table_dual_test.c) and must send exactly that, and
 nothing when a pass is not allowed: no UV pass before or without this row's lamp pass, none
-without a dual tile, none longer than the longest recorded UV-LED time (1,150 readings), none
+without a dual tile, none longer than the cap of 1,150 readings (below the recorded UV-LED passes), none
 from an original i1Pro or an i1Pro 2 without a UV LED.
 """
 from __future__ import annotations

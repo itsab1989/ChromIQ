@@ -91,8 +91,10 @@ DUAL_EDGES_MM = (1.5, 1.0)
 DUAL_EDGE_MM = DUAL_EDGES_MM[0]
 #: readings each patch must get in EACH pass (the hand dual scan's own minimum, CQ_DUAL_MIN_UV)
 DUAL_MIN_READINGS = 3
-#: the longest UV-LED on time ever recorded: 1150 readings (a slow hand pass, 6.0 s; the
-#: helper's CQ_TDUAL_NMAX refuses more)
+#: the most readings a dual row may ask for: 1150 (5.8 s of UV light; the helper's
+#: CQ_TDUAL_NMAX refuses more). NOT the longest recorded UV-LED pass: hand recordings hold
+#: passes of 1650 and 1820 readings (table safety review, NOTE-1); ChromIQ's own rows need
+#: 550-590, so the cap is below every recorded length and never binds them
 DUAL_N_MAX = 1150
 
 
@@ -169,7 +171,7 @@ def check_plan(p: RowPlan, at=None, front_y=None) -> None:
         raise PlanRefused(f"speed {p.speed} is not a recorded scan speed"
                           + (" for a dual row" if p.dual else ""))
     if p.dual and p.N > DUAL_N_MAX:
-        raise PlanRefused(f"{p.N} readings: longer than the longest recorded UV-LED pass "
+        raise PlanRefused(f"{p.N} readings: more than a dual row may ask for "
                           f"({DUAL_N_MAX})")
     try:
         geo.check_target(p.start, "the row start", front_y)

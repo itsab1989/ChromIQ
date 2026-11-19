@@ -325,7 +325,7 @@ int main(int argc, char **argv) {
 	ready(p, CQ_TDUAL_PASS_LAMP, 550, 0);		/* never without a dual tile */
 	ready(p, CQ_TDUAL_PASS_LAMP, 550, 1);		/* no lights-off yet: never */
 	lights(p); msec_sleep(10);
-	ready(p, CQ_TDUAL_PASS_LAMP, 1160, 1);	/* longer than the longest recorded UV-LED time */
+	ready(p, CQ_TDUAL_PASS_LAMP, 1160, 1);	/* longer than a dual row may ask for */
 	ready(p, CQ_TDUAL_PASS_LAMP, 550, 1);
 	fire(p, CQ_TDUAL_PASS_LAMP, 550);
 	msec_sleep(10);

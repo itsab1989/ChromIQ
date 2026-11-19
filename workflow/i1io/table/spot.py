@@ -274,7 +274,7 @@ def plan_dual_row(sheet: dict, page: int, index: int, alignment, front_y=None,
 
     * ``strip_only_some_patches``: a resume or a refinement wants only part of the row;
     * ``strip_row_too_long``: the run leaves the measuring area, or it needs more readings than
-      the longest UV-LED pass ever recorded (``scan.DUAL_N_MAX``);
+      a dual row may ask for (``scan.DUAL_N_MAX``, 1150, below the recorded UV-LED passes);
     * ``dual_row_patches_too_short``: a patch gets fewer than ``scan.DUAL_MIN_READINGS``
       readings in one of the two passes with the dual row's clean edge."""
     try:

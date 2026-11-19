@@ -489,7 +489,8 @@ data".
   d1 210 are allowed only in the dual row's matching pass. The table's position log (y1-y5) is not
   asked for: both passes are cut by position (1.5 mm clean edge, 1.0 mm when 1.5 mm leaves a patch too few readings, as on ChromIQ's own 10 mm patches; lamp motion start 0.372 s, first
   reading 0.370 s; UV 0.236 s / 0.231 s), at least three readings per patch per pass; a row that
-  cannot give that, or would need more than the longest recorded UV-LED pass (1,150 readings), is
+  cannot give that, or would need more than 1,150 readings (the cap a dual row may ask for, below
+  the recorded UV-LED passes, which reach 1,820 readings by hand), is
   read patch by patch with the dual scan. M1 / M2 are worked out by the helper from the app's cut
   (the factory tables never leave it), after the hand dual scan's pairing check: a UV pass that
   does not belong to the row fails the row, which is offered again as a row or patch by patch (no
