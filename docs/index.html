@@ -28,7 +28,7 @@
   "operatingSystem": "macOS, Windows, Linux",
   "applicationCategory": "DesignApplication",
   "applicationSubCategory": "Colour management / printer profiling",
-  "softwareVersion": "4.3.47",
+  "softwareVersion": "4.3.48",
   "license": "https://www.gnu.org/licenses/gpl-3.0.html",
   "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"},
   "url": "https://itsab1989.github.io/ChromIQ/",
@@ -458,6 +458,15 @@ footer .sp{flex:1}
           recorded from i1Profiler. Other i1iO tables are not supported yet. Off until you turn it on in
           <b>Preferences &rsaquo; Beta</b>; with it off, nothing changes. Your report is welcome on
           <a href="https://github.com/itsab1989/ChromIQ/issues/129">GitHub issue 129</a>.</p>
+        <p><b class="mono" style="color:var(--amb)">IN BETA &middot; X-RITE i1PRO 2 DUAL SCAN</b><br>
+          New in 4.3.48: an i1Pro 2 has a small UV light beside its lamp. With the dual scan on, ChromIQ
+          reads every strip twice, once with the lamp and once with the UV light, and works out
+          <b>M1 and M2</b> besides M0, by hand on the ruler and on the i1iO 2 table, without any X-Rite
+          software or licence. A first try: it was built from recordings of i1Profiler and checked
+          against them, and no part of it has run on a real instrument yet. On those recordings M1 and
+          M2 agree with i1Profiler&rsquo;s to a few hundredths of a &Delta;E00 when the instrument&rsquo;s
+          own factor is known; with the standard factor, M2 was off by about 0.2 on average on strongly
+          brightened paper. Off until you turn it on in <b>Preferences &rsaquo; Beta</b>.</p>
       </div>
       <div style="display:grid;gap:22px">
       <figure class="shot" style="--edge:var(--grn)">

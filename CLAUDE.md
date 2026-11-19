@@ -828,6 +828,7 @@ Two obligations, and the second is the one that is easy to get wrong:
 | `i1io_table_support.md` | the X-Rite i1iO table Beta's preparation step: the option and its consent window, the i1iO chart for row scanning, its file tags, the Measure tab's notice (**awaiting confirmation**) |
 | `isis_chart_support.md` | the X-Rite i1iSis chart Beta: the option, the removed old entry and its guard, the chart laid out as i1Profiler does, the cut rule, the .txf and order file, the Measure tab's window (**awaiting confirmation**) |
 | `chart_load_and_generate_paths.md` | every path that shows a stored chart and every path that builds a new one (#182), measured by driving the app; the chart-file import rule, and the two ways of laying a chart out again (**DRAFT, awaiting confirmation**) |
+| `i1pro2_dual_scan.md` | the X-Rite i1Pro 2 dual scan (M0, M1 and M2 from a lamp pass and a UV pass): the calculation and its factor, the stored form, the instrument's commands, the hand measurement and the i1iO 2 table's dual rows and patches, built from recordings and never run on a real instrument (**DRAFT, awaiting confirmation**) |
 
 New user-facing message text is governed by §M of
 `unified_measurement_management.md`: it goes to §M-PROPOSED, listed there until

@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-4.3.47-7c5cff">
+  <img alt="Version" src="https://img.shields.io/badge/version-4.3.48-7c5cff">
   <img alt="Downloads" src="https://img.shields.io/endpoint?url=https://itsab1989.github.io/github-traffic-downloads-dashboard/assets/badges/itsab1989_ChromIQ-downloads.json">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2a9d8f">
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-blue">
@@ -652,6 +652,9 @@ ways:
 > - Only the i1iO 2 with an i1Pro 2 is supported. Other i1iO tables (the first
 >   i1iO and the i1iO 3) and other instruments on the arm are not supported
 >   yet.
+> - New in 4.3.48: with the i1Pro 2 dual scan (beta, see below) on as well,
+>   the table reads M1 and M2 besides M0, patch by patch or in rows. Like the
+>   rest of the drive, this has not yet run on a real table.
 > - The option is off by default, and with it off nothing changes.
 
 Why it may be worth it all the same: X-Rite has ended support for these
@@ -662,6 +665,30 @@ report is very welcome on
 table measurement writes a diagnostics file you can attach. The table drive is
 built on USB recordings of i1Profiler and test runs that
 [crismi2](https://github.com/crismi2) made on his own table: thank you!
+
+### M0, M1 and M2 from an X-Rite i1Pro 2: the dual scan (beta)
+An i1Pro 2 has a small UV light beside its lamp. With **Preferences → Beta →
+X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every scan (beta)** and,
+under it, **X-Rite i1Pro 2: also M1 and M2, by a dual scan (beta, first try)**
+switched on, ChromIQ reads every strip twice, first with the lamp and then once
+more with the UV light, and works out M1 and M2 besides M0 from the two
+readings and the data X-Rite stored in the instrument. No licence for X-Rite's
+software is needed. By hand, both passes are read on the ruler; on the X-Rite
+i1iO 2 table (beta) the dual scan works patch by patch and in rows. The
+filter row of the Measure tab chooses which condition your profile is made
+from, and Build Profile starts at it.
+
+> [!WARNING]
+> **Honest limits.** New in 4.3.48 and a first try: **no part of it has run on
+> a real instrument or a real table yet.** It was built from USB recordings of
+> X-Rite's i1Profiler and checked against them. On those recordings, ChromIQ's
+> M1 and M2 agree with i1Profiler's to a few hundredths of a ΔE00 on average
+> when the instrument's own factor is known; with the standard factor ChromIQ
+> uses for every i1Pro 2, M2 was off by about 0.2 ΔE00 on average on strongly
+> brightened paper. By hand the dual scan needs the ruler, a failed pass means
+> both passes of the strip are read again, and M1 and M2 cannot be taken up
+> again with Continue Measurement once they have ended. With the option off,
+> nothing changes.
 
 ### Tools menu — standalone utilities
 The masthead **Tools** button opens a menu of conversions and checks you can run
