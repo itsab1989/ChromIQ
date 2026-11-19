@@ -1025,6 +1025,11 @@ class TableJob:
             if d is not None and d.link_lost_at is not None:
                 rid = "link_lost"
             extra = mode_flag_detail(str(exc), step) if rid == "mode_flag_unexpected" else {}
+            if extra and d is not None:
+                # fix2 (found on screen): the table contradicted what ChromIQ believed about the
+                # hand-alignment mode, so whether the motors hold the arm is NOT known; no page
+                # may then say "the arm is still free" (or that it is held)
+                d.arm_free = None
             res = self._result(step, Kind.STOPPED, rid, log_reason=str(exc), **extra)
         elif isinstance(exc, (Stopped, KeyboardInterrupt)):
             if d is not None:

@@ -78,6 +78,9 @@ def test_off_after_the_arm_was_let_go_never_says_the_mode_is_on(tmp_path):
     text = W.reason_text(r.reason, r.detail)
     _only(text, HOLDING)
     assert "earlier measurement" not in text
+    # found on screen: the free-arm paragraph ("the arm is still free ... still in the mode")
+    # was shown beside it, because the job still believed the f1 answer; now the state is unknown
+    assert job.state().arm_free is None and job._table.arm_free is None
 
 
 @pytest.mark.parametrize("after, answer", [("i1", "02"), ("f1", "FF")])
