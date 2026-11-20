@@ -342,7 +342,9 @@ never on a real instrument. Code: `workflow/dual_scan/session.py` (the rules),
   flashed line shows for its time and then gives it back): "Strip A, pass 1 of 2
   (lamp)" at every strip prompt, "Strip A, pass 2 of 2 (UV light)" when the engine's `dual_pass`
   asks for the second (M-DUAL-PASS-ONE / -TWO; after a first pass ArgyllCMS did not recognise,
-  M-DUAL-PASS-TWO-UNREAD). The strip stays highlighted as for any strip.
+  M-DUAL-PASS-TWO-UNREAD, with its own headline "Strip A: pass 1 did not read. Read pass 2 anyway"
+  and the "Strip read failed" sound at that moment, 4.3.52). The strip stays highlighted as for any
+  strip.
 * **A refused pass.** The engine makes the strip a misread; "Strip Read Failed" opens as for any
   misread (its buttons, keys and sound unchanged) and shows "The second pass of strip B failed"
   with the reason's sentence, which says that both passes are read again (provisional, section 0

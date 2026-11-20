@@ -13271,6 +13271,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._dual_prompt(title, body)
         self._log.appendPlainText(f"[{title}]\n{body}")
         self._log.ensureCursorVisible()
+        # 4.3.52 (pharmacist, thread 17593): a first pass that did not read is
+        # heard at once, not only after pass 2 (measurement_window_sounds.md
+        # 4l). Nothing goes to the instrument's lights for it.
+        if not ev.get("lamp_ok", True) and getattr(self, "_sound", None) is not None:
+            import core.sound as _snd
+            self._sound.play(_snd.STRIP_FAIL)
 
     def _on_dual_pass_held(self, strip: str) -> None:
         """A jump or a move asked for while the second pass of *strip* is

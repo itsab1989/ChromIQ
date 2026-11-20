@@ -9546,5 +9546,7 @@
  "The arm is not at its resting place. The table reports it at {where}.\n\nChromIQ does not bring it home from there, so it moves nothing. No recording shows the table's homing starting from that place. At a start, ChromIQ brings the arm home from the line straight in front of the resting place, up to about 8 cm out. This line is very narrow: the arm must be no more than about 1 mm to either side of it. From anywhere over the measuring area and the front part of the table, ChromIQ offers to try it. The arm is outside those parts now.\n\n{way}": "机械臂不在停放位置。扫描台报告它在 {where}。\n\nChromIQ 不会从那里让它回到停放位置，所以不移动任何东西。没有任何录制显示扫描台的归位从那个位置开始。开始时，ChromIQ 会从停放位置正前方的直线上（最多约 8 cm）让机械臂回到停放位置。这条线很窄：机械臂向任何一侧偏离它都不能超过约 1 mm。在测量区域和扫描台前部的任何位置，ChromIQ 都会提供尝试。机械臂现在不在这些部分。\n\n{way}",
  "Please note: i1Profiler 3.8.7 and newer no longer work with the i1iO 2. Only i1Profiler 3.8.6 or older can do what this page describes, so you may not have a version that can.": "请注意：i1Profiler 3.8.7 及更新版本已不再支持 i1iO 2。只有 i1Profiler 3.8.6 或更早版本才能做到本页所描述的事情，所以你可能没有能做到的版本。",
  "The table answered the homing with an error code instead of reporting it finished.": "扫描台对归位回复了错误代码，而没有报告归位已完成。",
- "The table refused the homing command.": "扫描台拒绝了归位命令。"
+ "The table refused the homing command.": "扫描台拒绝了归位命令。",
+ "Strip {strip}: pass 1 did not read. Read pass 2 anyway": "色条 {strip}：第 1 遍没有读取成功。仍请读取第 2 遍",
+ "The first pass of a dual scan strip did not read (i1Pro 2, Beta)": "双重扫描中色条的第一遍没有读取成功（i1Pro 2，测试版）"
 }

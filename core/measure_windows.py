@@ -83,6 +83,10 @@ EVENT_ROWS = [
      tr("Patch reading looks off")),
     (tr("A strip was accepted"), tr("Strip reading"), tr("Strip read OK")),
     (tr("A strip was accepted but read quickly"), tr("Strip reading"), tr("Slow down")),
+    # 4.3.52 (pharmacist, thread 17593; awaiting confirmation): the i1Pro 2
+    # dual scan's first pass did not read; said at once, before pass 2.
+    (tr("The first pass of a dual scan strip did not read (i1Pro 2, Beta)"),
+     tr("Strip reading"), tr("Strip read failed")),
     (tr("The measurement finished"), tr("Both"), tr("Measurement finished")),
     (tr("A profile finished building"), tr("—"), tr("Profile build finished")),
 ]
