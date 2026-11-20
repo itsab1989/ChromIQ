@@ -39,7 +39,9 @@ def test_a_folder_that_only_starts_like_the_home_is_someone_else(ident):
 
 
 def test_the_name_inside_an_ordinary_word_is_not_mangled(ident):
-    line = "bastion of the bastille: Bastian_x basti_y xbasti"
+    # "basti_y" is a JOINED form since M2 (an underscore joins a device or
+    # queue name) and is scrubbed below; a letter or digit still does not join
+    line = "bastion of the bastille: Bastian_x xbasti basti2 Sebastiano Musterhaus"
     assert S(line) == line
 
 
@@ -252,3 +254,34 @@ def test_settings_that_name_a_device_are_written_without_their_value(caplog):
     said = " ".join(r.getMessage() for r in caplog.records)
     assert "CM454M0223" not in said and "AA:BB" not in said
     assert "cr30_last_device_info" in said
+
+
+# --- M2 (review of 20 Nov): names built from the owner's first name or account name ---
+
+@pytest.mark.parametrize("line,expect", [
+    ("Sebastians AirPods", "<user>s AirPods"),
+    ("Sebastian's iPhone", "<user>'s iPhone"),
+    ("Sebastian\u2019s iPhone", "<user>\u2019s iPhone"),
+    ("/dev/cu.Sebastian-iPhone", "/dev/cu.<user>-iPhone"),
+    ("'bastis AirPods Pro'", "'<user>s AirPods Pro'"),
+    ("/dev/cu.bastis-AirPods", "/dev/cu.<user>s-AirPods"),
+    ("Printer bastis_Epson_ET8550", "Printer <user>s_Epson_ET8550"),
+    ("basti_test project", "<user>_test project"),
+    ("by Muster", "by <user>"),
+])
+def test_possessive_and_joined_forms_are_scrubbed(ident, line, expect):
+    assert S(line) == expect
+
+
+def test_the_paired_ports_line_counts_and_never_names(caplog, monkeypatch):
+    from core import argyll_env as E
+    monkeypatch.setattr(E, "_LOGGED", set())
+    monkeypatch.setattr(E, "argyll_serial_exclusion_ports",
+                        lambda: ["/dev/cu.Bastis-AirPods", "/dev/cu.Sebastians-iPhone"])
+    with caplog.at_level(logging.DEBUG, logger=E.log.name):
+        E.serial_exclusion_value("/dev/cu.mine", platform="darwin")
+    said = " ".join(r.getMessage() for r in caplog.records)
+    assert "AirPods" not in said and "iPhone" not in said and "Bastis" not in said
+    assert "4 port(s) skipped" in said and "2 paired or Bluetooth port(s)" in said
+    assert "/dev/cu.Bluetooth-Incoming-Port" in said  # the fixed one is named
+    assert "1 from the user's own" in said

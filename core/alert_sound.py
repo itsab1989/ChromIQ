@@ -40,8 +40,21 @@ class _Address(ctypes.Structure):
                 ("mElement", ctypes.c_uint32)]
 
 
-def _coreaudio_devices() -> "tuple[str | None, str | None]":
-    """(alert device name, default output device name), None where unknown."""
+#: kAudioDevicePropertyTransportType values, as the log names them. The KIND
+#: of a device is what a missing beep is diagnosed by; its NAME is often the
+#: owner's ("<First>s AirPods") and never goes into the log (4.3.50, M2).
+_TRANSPORTS = {
+    "bltn": "built-in", "blue": "Bluetooth", "blea": "Bluetooth LE",
+    "usb ": "USB", "hdmi": "HDMI", "dprt": "DisplayPort", "airp": "AirPlay",
+    "virt": "virtual", "grup": "aggregate", "aggr": "aggregate",
+    "1394": "FireWire", "pci ": "PCI", "thun": "Thunderbolt", "avb ": "AVB",
+    "cntd": "Continuity",
+}
+
+
+def _coreaudio_devices() -> "tuple[str | None, str | None, bool | None]":
+    """(alert device KIND, default output device KIND, whether they are the
+    same device), None where unknown. The device names are not read."""
     ca = ctypes.CDLL("/System/Library/Frameworks/CoreAudio.framework/CoreAudio")
     cf = ctypes.CDLL("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
     get = ca.AudioObjectGetPropertyData
@@ -63,23 +76,23 @@ def _coreaudio_devices() -> "tuple[str | None, str | None]":
                   ctypes.byref(size), ctypes.byref(dev))
         return dev.value if err == 0 else 0
 
-    def name(dev: int) -> "str | None":
+    def kind(dev: int) -> "str | None":
         if not dev:
             return None
-        addr = _Address(_fourcc("lnam"), glob, 0)   # kAudioObjectPropertyName
-        ref = ctypes.c_void_p(0)
-        size = ctypes.c_uint32(ctypes.sizeof(ref))
+        addr = _Address(_fourcc("tran"), glob, 0)   # kAudioDevicePropertyTransportType
+        val = ctypes.c_uint32(0)
+        size = ctypes.c_uint32(ctypes.sizeof(val))
         if get(dev, ctypes.byref(addr), 0, None, ctypes.byref(size),
-               ctypes.byref(ref)) != 0 or not ref.value:
-            return None
-        buf = ctypes.create_string_buffer(512)
-        ok = cf.CFStringGetCString(ref, buf, 512, 0x08000100)   # UTF-8
-        cf.CFRelease(ref)
-        return buf.value.decode("utf-8", "replace") if ok else None
+               ctypes.byref(val)) != 0:
+            return "unknown kind"
+        code = val.value.to_bytes(4, "big").decode("ascii", "replace")
+        return _TRANSPORTS.get(code, "other" if val.value else "unknown kind")
 
     # kAudioHardwarePropertyDefaultSystemOutputDevice: where alerts and sound
     # effects go ("Play sound effects through"); DefaultOutputDevice: the rest.
-    return name(device("sOut")), name(device("dOut"))
+    alert, out = device("sOut"), device("dOut")
+    same = (alert == out) if (alert and out) else None
+    return kind(alert), kind(out), same
 
 
 def _alert_volume() -> "int | None":
@@ -107,18 +120,19 @@ def describe() -> str:
     """The log line's text (blocking: call it off the GUI thread)."""
     vol = _alert_volume()
     try:
-        alert_dev, out_dev = _coreaudio_devices()
+        alert_dev, out_dev, same_dev = _coreaudio_devices()
     except Exception:                        # noqa: BLE001
-        alert_dev = out_dev = None
+        alert_dev = out_dev = same_dev = None
     parts = [f"alert volume {vol if vol is not None else 'unknown'}"
              + (" (MUTED: the instrument's ready beep will not be heard)"
                 if vol == 0 else "")]
     if alert_dev is None:
         parts.append("alert sounds play through: unknown or no device")
     else:
-        same = "the same as" if alert_dev == out_dev else "NOT the same as"
-        parts.append(f"alert sounds play through {alert_dev!r}, {same} the "
-                     f"output device {out_dev!r}")
+        same = {True: "the same device as", False: "NOT the same device as",
+                None: "unknown whether the same as"}[same_dev]
+        parts.append(f"alert sounds play through a {alert_dev} device, {same} "
+                     f"the output device ({out_dev or 'unknown kind'})")
     return ("macOS alert sound at measurement start (the instrument's ready "
             "beep is the system alert): " + "; ".join(parts))
 

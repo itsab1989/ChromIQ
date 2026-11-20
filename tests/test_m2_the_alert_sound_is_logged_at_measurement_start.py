@@ -17,17 +17,17 @@ from core import alert_sound as A
 
 def test_the_line_names_volume_and_device(monkeypatch):
     monkeypatch.setattr(A, "_alert_volume", lambda: 75)
-    monkeypatch.setattr(A, "_coreaudio_devices", lambda: ("USB DAC", "Speakers"))
+    monkeypatch.setattr(A, "_coreaudio_devices", lambda: ("USB", "built-in", False))
     line = A.describe()
     assert "alert volume 75" in line
-    assert "'USB DAC', NOT the same as the output device 'Speakers'" in line
+    assert "a USB device, NOT the same device as the output device (built-in)" in line
 
 
 def test_a_muted_alert_says_the_beep_will_not_be_heard(monkeypatch):
     monkeypatch.setattr(A, "_alert_volume", lambda: 0)
-    monkeypatch.setattr(A, "_coreaudio_devices", lambda: ("Speakers", "Speakers"))
+    monkeypatch.setattr(A, "_coreaudio_devices", lambda: ("built-in", "built-in", True))
     line = A.describe()
-    assert "alert volume 0 (MUTED" in line and "the same as" in line
+    assert "alert volume 0 (MUTED" in line and "the same device as" in line
 
 
 def test_nothing_known_is_still_one_line(monkeypatch):
@@ -72,3 +72,20 @@ def test_the_real_query_answers_quickly_here():
     line = A.describe()
     assert line.startswith("macOS alert sound at measurement start")
     assert time.monotonic() - t0 < 10
+
+
+def test_the_line_names_the_kind_never_the_device(monkeypatch):
+    """M2 (review of 20 Nov): a device name is often the owner's ("<First>s
+    AirPods"); the kind is what a missing beep is diagnosed by."""
+    src = inspect.getsource(A._coreaudio_devices)
+    assert '"lnam"' not in src and "CFStringGetCString" not in src.split("def kind")[1]
+    monkeypatch.setattr(A, "_alert_volume", lambda: 50)
+    monkeypatch.setattr(A, "_coreaudio_devices", lambda: ("Bluetooth", "Bluetooth", True))
+    assert "a Bluetooth device, the same device as" in A.describe()
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS only")
+def test_the_real_query_gives_a_kind():
+    alert, out, same = A._coreaudio_devices()
+    for k in (alert, out):
+        assert k is None or k in set(A._TRANSPORTS.values()) | {"other", "unknown kind"}

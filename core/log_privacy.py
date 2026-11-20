@@ -14,9 +14,12 @@ WHAT IS REPLACED
 * other accounts' home folders -> ``/Users/<user>``, ``/home/<user>``,
   ``C:\\Users\\<user>`` (``Shared``, ``Public``, ``Default`` and ``All Users``
   stay: they name no person);
-* the account name (and the home folder's own name, when it differs) as a WHOLE
-  WORD, case-insensitive, unicode-aware -> ``<user>``. A word that merely
-  contains it is left alone ("bastion" stays for the account "basti"). Names
+* the account name (and the home folder's own name, when it differs), and the
+  first and the last name from the account database, as a WHOLE WORD and in
+  their possessive and joined forms ("Bastis AirPods", "Basti's iPhone",
+  "/dev/cu.Bastis-AirPods", "basti_test"), case-insensitive, unicode-aware ->
+  ``<user>`` (the possessive tail is kept: ``<user>s AirPods``). A word that
+  merely contains it is left alone ("bastion" stays for the account "basti"). Names
   shorter than three letters are replaced only inside the home paths above,
   never as words, since a one- or two-letter word occurs everywhere;
 * the full name from the account database, as a whole phrase -> ``<user>``;
@@ -169,13 +172,18 @@ class _Identity:
                 names.add(v)
         except Exception:      # noqa: BLE001
             pass
+        full = ""
         try:
             import pwd  # POSIX only
-            gecos = (pwd.getpwuid(os.getuid()).pw_gecos or "").split(",")[0].strip()
-            if gecos and len(gecos) >= 3:
-                phrases.add(gecos)
+            full = (pwd.getpwuid(os.getuid()).pw_gecos or "").split(",")[0].strip()
         except Exception:      # noqa: BLE001
             pass
+        if not full and os.name == "nt":
+            full = _windows_display_name()
+        given = set()
+        if full and len(full) >= 3:
+            phrases.add(full)
+            given = set(_name_parts(full))
         try:
             import socket
             host = socket.gethostname() or ""
@@ -197,8 +205,8 @@ class _Identity:
                 homes.add(h.replace("\\", "/"))
         self.homes = sorted({h.rstrip("\\/") for h in homes if len(h.rstrip("\\/")) > 1},
                             key=len, reverse=True)
-        self.names = sorted({n for n in names if n}, key=len, reverse=True)
-        self.phrases = sorted(phrases - names, key=len, reverse=True)
+        self.names = sorted({n for n in names | given if n}, key=len, reverse=True)
+        self.phrases = sorted(phrases - names - given, key=len, reverse=True)
         self.hosts = sorted(hosts, key=len, reverse=True)
         self.key = ("\x00".join(self.homes + self.names + self.hosts)
                     + "\x00chromiq-log").encode("utf-8", "replace")
@@ -212,7 +220,14 @@ class _Identity:
         self.home_re = (re.compile(r"(?:" + alt(self.homes) + r")(?=$|[\\/\s'\":,;)\]}])", flags)
                         if self.homes else None)
         words = [n for n in self.names if len(n) >= 3]
-        self.word_re = (re.compile(r"(?<!\w)(?:" + alt(words) + r")(?!\w)", re.IGNORECASE)
+        # M2 (4.3.50): a name is a word on its own AND in its possessive and
+        # joined forms: "Bastis AirPods", "Basti's iPhone", "Basti’s",
+        # "/dev/cu.Bastis-AirPods", "basti_test". An underscore separates here
+        # (it joins a device or queue name); a letter or digit does not, so
+        # "bastion", "xbasti" and "/Users/basti2" stay. The tail is kept:
+        # "<user>s AirPods".
+        self.word_re = (re.compile(r"(?<![^\W_])(?:" + alt(words) + r")(?P<tail>['\u2019]s|s)?"
+                                   r"(?![^\W_])", re.IGNORECASE)
                         if words else None)
         self.phrase_re = (re.compile(r"(?<!\w)(?:" + alt(self.phrases) + r")(?!\w)", re.IGNORECASE)
                           if self.phrases else None)
@@ -229,6 +244,36 @@ class _Identity:
         digest = hmac.new(self.key, value.strip().lower().encode("utf-8", "replace"),
                           hashlib.sha256).hexdigest()[:8]
         return f"<{kind}:{digest}>"
+
+
+def _name_parts(full: str) -> "list[str]":
+    """M2 (4.3.50): the first and the last name of a full name, each as a word
+    of three letters or more: macOS names a device "<First>s AirPods" /
+    "<First>'s iPhone"."""
+    out = []
+    for part in re.split(r"[\s,]+", str(full or "")):
+        part = part.strip(".-'")
+        if len(part) >= 3 and part.replace("-", "").isalpha():
+            out.append(part)
+    return out
+
+
+def _windows_display_name() -> str:
+    """The account's display name on Windows (GetUserNameExW, NameDisplay):
+    a cheap call, no process. "" when unknown."""
+    try:
+        import ctypes
+        size = ctypes.c_ulong(0)
+        fn = ctypes.windll.secur32.GetUserNameExW   # type: ignore[attr-defined]
+        fn(3, None, ctypes.byref(size))
+        if not size.value:
+            return ""
+        buf = ctypes.create_unicode_buffer(size.value + 1)
+        if fn(3, buf, ctypes.byref(size)):
+            return buf.value.strip()
+    except Exception:      # noqa: BLE001
+        pass
+    return ""
 
 
 _ID: "_Identity | None" = None
@@ -253,6 +298,9 @@ def reset_for_tests(**override) -> _Identity:
             if k == "printers":
                 continue
             setattr(ident, k, list(v))
+        if "phrases" in override:
+            parts = [p for ph in ident.phrases for p in _name_parts(ph)]
+            ident.names = list(ident.names) + [p for p in parts if p not in ident.names]
         if override:
             ident.key = ("\x00".join(ident.homes + ident.names + ident.hosts)
                          + "\x00chromiq-log").encode("utf-8", "replace")
@@ -323,10 +371,12 @@ def scrub(text: str) -> str:
         s = _OTHER_HOME.sub(_other, s)
     if ident.phrase_re is not None and any(p.lower() in low for p in ident.phrases):
         s = ident.phrase_re.sub("<user>", s)
-    if ident.word_re is not None and any(n in low for n in ident.lower_names):
-        s = ident.word_re.sub("<user>", s)
+    # the computer's name before the words: "Bastis-Mac-mini" is a computer
     if ident.host_re is not None and any(h.lower() in low for h in ident.hosts):
         s = ident.host_re.sub("<computer>", s)
+        low = s.lower()
+    if ident.word_re is not None and any(n in low for n in ident.lower_names):
+        s = ident.word_re.sub(lambda m: "<user>" + (m.group("tail") or ""), s)
     def _sn(m):
         return m.group("pre") + ident.tag("sn", m.group("val"))
     if "serial" in low or ".cal" in low or "chip" in low or "internal" in low:

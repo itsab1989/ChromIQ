@@ -197,18 +197,36 @@ def serial_exclusion_value(existing: "str | None", *, phantoms: bool = True,
             found = []
         ports += [p for p in found if p not in ports]
     value = merged_serial_exclusion(existing, ports)
-    _log_once(value)
+    _log_once(value, existing=existing, always=always_excluded_ports(platform))
     return value
 
 
 _LOGGED: "set[str]" = set()
 
 
-def _log_once(value: "str | None") -> None:
-    """One debug line per distinct value, not one per launch."""
-    if value and value not in _LOGGED:
+def _log_once(value: "str | None", *, existing: "str | None" = None,
+              always: "list[str] | None" = None) -> None:
+    """One debug line per distinct value, not one per launch.
+
+    4.3.50 (M2): the line COUNTS the skipped ports and names only the fixed
+    ones ChromIQ always skips. A paired device's port is named after the device
+    ("/dev/cu.<First>s-AirPods"), and which headset someone owns does not help
+    to diagnose a measurement; that such ports were skipped, and how many,
+    does."""
+    try:
+        if not value or value in _LOGGED:
+            return
         _LOGGED.add(value)
-        log.debug("Argyll tools start with %s=%s", EXCLUDE_VAR, value)
+        items = [x for x in value.split(";") if x]
+        theirs = {x for x in (existing or "").replace(",", ";").split(";") if x}
+        fixed = [x for x in items if x in (always or ()) and x not in theirs]
+        others = len(items) - len(fixed) - len(theirs & set(items))
+        log.debug("Argyll tools start with %s set: %d port(s) skipped (always: %s; "
+                  "%d paired or Bluetooth port(s), not named; %d from the user's "
+                  "own %s)", EXCLUDE_VAR, len(items), ", ".join(fixed) or "none",
+                  others, len(theirs & set(items)), EXCLUDE_VAR)
+    except Exception:      # noqa: BLE001 - a log line never blocks a launch
+        pass
 
 
 def argyll_env(base: "Mapping[str, str] | None" = None, *,
