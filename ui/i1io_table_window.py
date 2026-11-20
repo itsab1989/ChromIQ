@@ -32,7 +32,9 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 import re
+import threading
 import time
 from pathlib import Path
 
@@ -47,10 +49,34 @@ log = logging.getLogger(__name__)
 
 #: the version of M-I1IO-DRIVE-CONSENT's text; a changed text raises it and asks again (2: the
 #: volunteer's results of 17 Nov 2026 in "What has been tried"; 3: 4.3.50, the first real page,
-#: the first row from the free arm, the homing at the ending, no mark-3 check)
-CONSENT_VERSION = 3
+#: the first row from the free arm, the homing at the ending, no mark-3 check; 4: 4.3.52, the
+#: reader's facts, "Guided, step by step measurement" and its countdown, the switch-off alarm,
+#: M-I1IO-DRIVE-CONSENT-GUIDANCE). DECIDED BY US, NOT BY THE OWNER: raising it shows the consent
+#: page once more to every user of the table Beta (3 here puts 4.3.51's behaviour back, and the
+#: reader consent is then asked even with the guidance off: job.CONSENT_WITH_READER_FACTS)
+CONSENT_VERSION = 4
 CONSENT_KEY = "i1io_table_consent_given"
-ASK_KEY = "i1io_table_ask_after_each_step"
+#: 4.3.52: "Guided, step by step measurement" (Preferences > Beta): the ONE key, the same one
+#: the first page's tick and the done page's offer write (the name is older than the switch)
+ASK_KEY = GUIDED_KEY = "i1io_table_ask_after_each_step"
+#: 4.3.52: "Keep the table's detailed log" (Preferences > Beta), read once at START
+EXTRA_LOG_KEY = "i1io_table_extra_logging"
+#: 4.3.52: the tables (their salted keys, reach.table_key: no serial) on which a measurement in
+#: rows was completed (TableJob.rows_sitting_completed), comma-separated; and the key of the
+#: table connected last. The Measure tab's line under "Patch-by-patch mode (-p)" is not shown
+#: for a table on that list (rows_note_retired)
+ROWS_DONE_KEY = "i1io_table_rows_completed_on"
+LAST_TABLE_KEY = "i1io_table_last_key"
+#: 4.3.52 (design3 F8): THE SWITCH-OFF ALARM. Decided by us, not by the owner. False (the
+#: default, as measurement_window_sounds.md W-3 and core/sound.py's master switch say): the
+#: alarm is the "Instrument error" sound through the user's own sound settings, so it is silent
+#: while "Play sounds during measurement" is off (the default) or the sound is set to Off.
+#: True: it plays even then, with the bundled "error" sound (the design's proposal; the owner
+#: decides: it contradicts W-3).
+ALARM_IGNORES_SOUND_SETTING = False
+ALARM_SOUND = "INSTRUMENT_ERROR"
+ALARM_REPEAT_MS = 3000
+ALARM_FOR_MS = 60000
 #: where the i1Pro 2 is calibrated: the table's tile unless the person chose the own tile in
 #: Preferences > Beta or from the panel's first page (never asked: the volunteer's table of
 #: 17 Nov 2026 gave whites 0.13 dE00 apart, and i1Profiler calibrates on the table's tile). The
@@ -76,6 +102,8 @@ PRESENTATION_PANEL, PRESENTATION_POPUPS = "panel", "popups"
 POPUP_POS_KEY = "i1io_table_popup_pos"
 #: the pop-up's width (it stands over the Measure tab's left column, beside the chart preview)
 POPUP_MIN_W, POPUP_MAX_W = 380, 560
+#: the widest a pop-up gets so that its answers stay in one row (then they are stacked)
+POPUP_WIDE_MAX_W = 900
 #: the sound a pop-up plays as it opens (measurement_window_sounds.md, rule W-1: a warning or an
 #: error window sounds as it appears; a question that is part of the normal flow, like the
 #: hand path's "Calibrate the instrument" or the pause after a page, makes none): a row that
@@ -88,6 +116,10 @@ POPUP_SOUND = {
     "usb_missing": "INSTRUMENT_ERROR", "stored_white_refused": "INSTRUMENT_ERROR",
     "white_later_refused": "INSTRUMENT_ERROR",
     "pending_marker": "INSTRUMENT_ERROR",
+    # fix round, S-1 (awaiting confirmation): the countdown before the arm moves with the
+    # guidance off, as its pop-up opens (W-1), through the person's sound settings: Knut's
+    # "attention" sound (measurement_window_sounds.md §4b)
+    "countdown": "INSTRUMENT_ERROR",
 }
 
 
@@ -105,7 +137,7 @@ HANDS_OFF_LABELS = (
 #: REVIEW 14, S-3: the pages after whose answer the arm moves at once; as a pop-up each carries
 #: the one-line switch-off sentence itself (the tab's line stands behind the pop-up)
 MOVES_AT_ONCE_PAGES = ("go", "start_up", "sheet_laid", "first_visit", "report_after_step",
-                       "home_at_end", "home_not_now")
+                       "home_at_end", "home_not_now", "home_at_start")
 #: REVIEW 14, M-1: the ways back that mean a move may still be waiting, or a movement (or the
 #: start-up) was never reported as finished: "Switch the table off now" is the first thing shown,
 #: and no later page hides or contradicts it
@@ -187,9 +219,9 @@ _ACCEPT_LABELS = (
     "Read it again", "Read it again as a strip", "Save and stop",
     "Go on", "Carry on", "Bring the arm home", "Bring the arm home, my hands are away",
     "Complete it", "Continue", "Measure the rest that way", "Calibrate again",
-    "Table's tile")
+    "Table's tile", "Yes. Start the table")
 _REJECT_LABELS = ("Not now", "Cancel", "No", "Back", "End this step", "Leave it there",
-                  "I will move the sheet",
+                  "I will move the sheet", "Let i1Profiler start it",
                   "Leave it to i1Profiler", "Keep measuring", "Not sure", "End measurement")
 _DESTRUCTIVE_LABELS = ("Discard and stop", "Discard it", "Send nothing more")
 
@@ -299,10 +331,59 @@ def consent_given(settings) -> bool:
 
 
 def ask_after_each_step(settings) -> bool:
+    """4.3.52: "Guided, step by step measurement" is on (the key's older name)."""
     try:
         return bool(settings.get(ASK_KEY, True))
     except Exception:      # noqa: BLE001 - the safe answer
         return True
+
+
+guided = ask_after_each_step
+
+
+def extra_logging(settings) -> bool:
+    """4.3.52: "Keep the table's detailed log" (on by default: the data is still needed)."""
+    try:
+        return bool(settings.get(EXTRA_LOG_KEY, True))
+    except Exception:      # noqa: BLE001 - the default
+        return True
+
+
+def rows_note_retired(settings, key: "str | None" = None) -> bool:
+    """True when a measurement in rows has been completed on the table *key* (None: the table
+    connected last). False while no table is known (the safe default: the line shows)."""
+    try:
+        k = key if key is not None else str(settings.get(LAST_TABLE_KEY, "") or "")
+        done = [x for x in str(settings.get(ROWS_DONE_KEY, "") or "").split(",") if x]
+        return bool(k) and k in done
+    except Exception:      # noqa: BLE001 - the safe default
+        return False
+
+
+def _remember_table_after(win, job) -> None:
+    """4.3.52: after a sitting: the table connected last, and, when it completed a measurement
+    in rows, that table on the list (the app log says so once). Never raises."""
+    try:
+        key = getattr(getattr(job, "reach", None), "key", None)
+        if not key:
+            return
+        s = win._settings
+        s.set(LAST_TABLE_KEY, key)
+        if job.rows_sitting_completed() and not rows_note_retired(s, key):
+            done = [x for x in str(s.get(ROWS_DONE_KEY, "") or "").split(",") if x]
+            s.set(ROWS_DONE_KEY, ",".join(done + [key]))
+            from core.app_log import line
+            line("table rows note retired", why="a measurement in rows was completed on this "
+                 "table", pages_read=len(job.row_status))
+    except Exception:      # noqa: BLE001
+        pass
+
+
+def consent_version_given(settings) -> int:
+    try:
+        return int(settings.get(CONSENT_KEY, 0) or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 #: the place used while the person has not chosen one
@@ -361,14 +442,17 @@ def table_reach_store():
     return rc.ReachStore(load, save)
 
 
-def default_job_factory(sheet: dict, page: int, run, stamp: str, ask: bool):
-    """The real job: ChromIQ's own USB route, the real helper, the app-level marker place."""
+def default_job_factory(sheet: dict, page: int, run, stamp: str, guided: bool,
+                        extra_logging: bool = True, consent_version: int = 0):
+    """The real job: ChromIQ's own USB route, the real helper, the app-level marker place.
+    4.3.52: *guided* is "Guided, step by step measurement" (the job owns what OFF means)."""
     from workflow.i1io.table import job as J
     from workflow.i1io.table_settle import app_marker_place
     from core.app_nap import latency_critical
-    return J.TableJob(sheet, page, run=run, stamp=stamp, ask_after_each_step=ask,
+    return J.TableJob(sheet, page, run=run, stamp=stamp, guided=guided,
                       app_marker_place=app_marker_place(), latency_guard=latency_critical,
-                      reach_store=table_reach_store())
+                      reach_store=table_reach_store(), extra_logging=extra_logging,
+                      consent_version=consent_version)
 
 
 #: replaced by the on-screen driver (and the tests) with the simulated table
@@ -437,6 +521,10 @@ def choice_label(kind: str, value: str) -> str:
         # page asks the person to take the hands away and names the move that follows)
         ("start_up", "yes"): tr("Start the table, my hands are away"),
         ("start_up", "i1profiler"): tr("Leave it to i1Profiler"),
+        # 4.3.52: the unguided page's answers (M-I1IO-DRIVE-START-UP-ARM)
+        ("start_up_arm", "yes"): tr("Yes. Start the table"),
+        ("start_up_arm", "arm out"): tr("No, the arm is out over the table"),
+        ("start_up_arm", "i1profiler"): tr("Let i1Profiler start it"),
         ("go", "yes"): tr("Go"),
         ("go", "back"): tr("Back"),
         ("sheet_laid", "yes"): tr("The page is laid, and my hands are away from the table"),
@@ -503,7 +591,9 @@ JOB_QUESTION_PAGES = frozenset({
     "calibration_own_tile", "calibration_reseated", "row_failed", "row_failed_strip",
     "end_of_session", "report_after_step", "home_at_end",
     # 4.3.50 fix round: the homing's question, still open after "Not now"
-    "home_not_now"})
+    "home_not_now",
+    # 4.3.52: the job's START_UP question, as the unguided page asks it
+    "start_up_arm"})
 
 #: the job's refusals that are the person's own Stop taking effect
 STOP_REASONS = ("stopped_before_the_next_move", "stopped_between_patches",
@@ -987,9 +1077,13 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
             "recording shows at this point. ChromIQ cannot tell whether the motors hold the "
             "arm, so it sends nothing more to the table."),
         "moved_in_this_sitting": tr(
-            "The arm has already moved in this measurement. ChromIQ brings the arm home after a "
-            "stop only when it found the arm out at the start, before anything moved, so it "
-            "sends nothing more to the table now."),
+            "The table reported a movement as finished, but the arm was not where that movement "
+            "should have taken it. ChromIQ cannot tell why, so it sends nothing more to the "
+            "table."),
+        # 4.3.52: the one place ChromIQ does not bring a held arm home from (job.in_back_strip)
+        "arm_in_the_back_strip": tr(
+            "The arm is at the back of the table, beside the holder of the white tile. ChromIQ "
+            "does not move it from there."),
         "arm_out_start_up_not_recorded": tr(
             "You said the arm is out over the table. The table has just been switched on, and "
             "its start-up has never been recorded with the arm out over the table, so ChromIQ "
@@ -1265,21 +1359,99 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
 # ---- the worker -------------------------------------------------------------------------------
 
 class _Signals(QObject):
-    """Lives in the GUI thread; a job call's result reaches the window through it (queued)."""
+    """A job call's result and the job's progress reach the window through it (queued).
+    Review 2, M-1: it has NO Qt parent. It belongs to a :class:`_JobRelay`, which keeps it
+    alive for as long as anything on the job's thread can still reach it, so an emit from
+    that thread never writes into an object the window took with it when it was deleted."""
 
     done = pyqtSignal(int, object)
     #: the job's display-only progress, emitted from the job's thread
     progress = pyqtSignal(dict)
 
 
+#: relays that are open, or detached and waiting for the pool to be idle (GUI thread only)
+_RELAYS: "list[_JobRelay]" = []
+#: how often, and how many times, a detached relay looks for an idle pool before its
+#: signals object is let go (after that it is simply kept: a few bytes, never a crash)
+RELAY_REAP_MS = 100
+RELAY_REAP_TRIES = 600
+
+
+class _JobRelay:
+    """THE ONLY WAY BACK FROM THE JOB'S THREAD TO THE WINDOW (review 2, M-1).
+
+    The job is handed :meth:`progress` (a plain Python callable), never a bound emit of an
+    object the window owns: a stored ``pyqtBoundSignal.emit`` keeps a raw pointer to its
+    QObject, and when the window (its parent) was deleted before the job's thread called it,
+    the job wrote through a dead pointer (SIGSEGV). Here the signals object is parentless
+    and held by this relay, which the module keeps until the pool is idle; each call looks at
+    an "open" flag under a lock and emits through the signals object, whose connections to
+    the window are queued, so nothing on the job's thread ever touches a Qt object of the
+    window. :meth:`detach` (the window finishing, or being destroyed) closes the flag: after
+    it returns no emit is running and none follows."""
+
+    def __init__(self) -> None:
+        self.signals = _Signals()
+        self._lock = threading.Lock()
+        self._open = True
+        self._tries = 0
+        #: the job this relay was handed to (its on_progress is cleared on detach)
+        self.job = None
+        _RELAYS.append(self)
+
+    @property
+    def is_open(self) -> bool:
+        return self._open
+
+    def progress(self, ev: dict) -> None:
+        """Called on the job's thread (and sometimes on the GUI thread): queued, never direct."""
+        with self._lock:
+            if not self._open:
+                return
+            self.signals.progress.emit(ev)
+
+    def done(self, token: int, res) -> None:
+        with self._lock:
+            if not self._open:
+                return
+            self.signals.done.emit(token, res)
+
+    def detach(self, *_args) -> None:
+        """GUI thread: nothing reaches the window through this relay any more. Idempotent;
+        also the window's ``destroyed`` slot (a bound method of a plain object, no lambda)."""
+        with self._lock:
+            was_open, self._open = self._open, False
+        j = self.job
+        if j is not None and getattr(j, "on_progress", None) == self.progress:
+            try:
+                j.on_progress = None
+            except Exception:      # noqa: BLE001 - a job without the attribute: nothing held
+                pass
+        self.job = None
+        if was_open:
+            self._reap()
+
+    def _reap(self) -> None:
+        """Lets the signals object go only when no job call can still run (the pool idle),
+        on the GUI thread; until then, and if the pool never gets idle, it is kept."""
+        if self._open or self not in _RELAYS:
+            return
+        if _pool().activeThreadCount() == 0:
+            _RELAYS.remove(self)
+            return
+        self._tries += 1
+        if self._tries <= RELAY_REAP_TRIES:
+            QTimer.singleShot(RELAY_REAP_MS, self._reap)
+
+
 class _JobCall(QRunnable):
     """One job call, run in the window's own one-thread pool (so calls never overlap and the
     GUI thread is never blocked). The result, or the exception it raised, goes back through
-    *signals*; a window closed meanwhile gets nothing."""
+    the window's *relay*; a window finished or deleted meanwhile gets nothing."""
 
-    def __init__(self, token: int, fn, signals: _Signals) -> None:
+    def __init__(self, token: int, fn, relay: "_JobRelay") -> None:
         super().__init__()
-        self.token, self.fn, self.signals = token, fn, signals
+        self.token, self.fn, self.relay = token, fn, relay
         self.setAutoDelete(True)
 
     def run(self) -> None:
@@ -1289,7 +1461,7 @@ class _JobCall(QRunnable):
             log.exception("i1iO table job call failed")
             res = exc
         try:
-            self.signals.done.emit(self.token, res)
+            self.relay.done(self.token, res)
         except RuntimeError:              # the window is gone
             pass
 
@@ -1303,6 +1475,59 @@ def _pool() -> QThreadPool:
         _POOL = QThreadPool()
         _POOL.setMaxThreadCount(1)
     return _POOL
+
+
+#: panels finished and waiting for the pool to be idle before they are deleted (GUI thread)
+_RETIRING: "list[_Retire]" = []
+#: how often, and for how long, a finished panel waits for an idle pool (100 ms x 100 = 10 s);
+#: after that it is kept (hidden, its relay detached) rather than deleted under a running call
+RETIRE_POLL_MS = 100
+RETIRE_TRIES = 100
+
+
+class _Retire:
+    """Deletes a finished panel only when no job call runs (review 2, M-1, belt and braces):
+    the usual case (the pool idle) deletes it at once, exactly as before; otherwise it looks
+    again every RETIRE_POLL_MS on the GUI thread and never blocks it."""
+
+    def __init__(self, win) -> None:
+        self.win, self.tries = win, 0
+        _RETIRING.append(self)
+
+    def step(self) -> None:
+        from PyQt6 import sip
+        win = self.win
+        if win is None or sip.isdeleted(win):
+            self._drop()
+            return
+        if _pool().activeThreadCount() == 0:
+            win.deleteLater()
+            self._drop()
+            return
+        self.tries += 1
+        if self.tries <= RETIRE_TRIES:
+            QTimer.singleShot(RETIRE_POLL_MS, self.step)
+            return
+        log.warning("i1iO table: a job call still runs %d ms after the panel finished; the "
+                    "panel is kept (hidden) rather than deleted under it",
+                    RETIRE_POLL_MS * RETIRE_TRIES)
+        self._drop()
+
+    def _drop(self) -> None:
+        self.win = None
+        if self in _RETIRING:
+            _RETIRING.remove(self)
+
+
+def retire_window(win) -> None:
+    """The tab's way to delete a finished table panel (never ``deleteLater`` directly)."""
+    try:
+        relay = getattr(win, "_relay", None)
+        if relay is not None:
+            relay.detach()
+    except Exception:      # noqa: BLE001 - the deletion below decides
+        pass
+    _Retire(win).step()
 
 
 class _StatusLine(QLabel):
@@ -1390,10 +1615,16 @@ class TablePopup(QDialog):
         self.end_btn.setObjectName("i1io_table_popup_end")
         self.close_btn = QPushButton(tr("Close"), self.foot)
         self.close_btn.setObjectName("i1io_table_popup_close")
+        #: fix round, S-1: the countdown page's only button (the tab's Stop is behind the modal
+        #: pop-up): stops before the arm moves, as the tab's Stop does
+        self.stop_btn = QPushButton(tr("Stop"), self.foot)
+        self.stop_btn.setObjectName("i1io_table_popup_stop")
+        self.stop_btn.setMinimumHeight(46)
         self.foot.addButton(self.problem_btn, QDialogButtonBox.ButtonRole.HelpRole)
         self.foot.addButton(self.end_btn, QDialogButtonBox.ButtonRole.DestructiveRole)
         self.foot.addButton(self.close_btn, QDialogButtonBox.ButtonRole.RejectRole)
-        for b in (self.problem_btn, self.end_btn, self.close_btn):
+        self.foot.addButton(self.stop_btn, QDialogButtonBox.ButtonRole.DestructiveRole)
+        for b in (self.problem_btn, self.end_btn, self.close_btn, self.stop_btn):
             # the height the application's button style gives (a fixed 32 px, as the hand
             # path's horizontal rows set, was overridden by the style's own minimum and the
             # last button of a stacked box was cut: measured on screen)
@@ -1404,6 +1635,7 @@ class TablePopup(QDialog):
         self.problem_btn.clicked.connect(win._on_problem)
         self.end_btn.clicked.connect(win._on_end_pressed)
         self.close_btn.clicked.connect(win._on_close_pressed)
+        self.stop_btn.clicked.connect(win._on_stop)
         lay.addWidget(self.foot)
         #: where the window last put the pop-up (a later difference is the person's move)
         self.placed_at = None
@@ -1451,6 +1683,12 @@ class TableMeasureWindow(QFrame):
     moving_changed = pyqtSignal(bool)
     #: the pop-up presentation: the sound a pop-up plays as it opens (a ``core.sound`` name)
     cue = pyqtSignal(str)
+    #: 4.3.52: the switch-off alarm (a ``core.sound`` name, and whether it plays even with the
+    #: sounds switched off: ALARM_IGNORES_SOUND_SETTING); connected in both presentations
+    alarm = pyqtSignal(str, bool)
+    #: 4.3.52: a line for the Measure tab's notice area ("" clears it): the guidance is off,
+    #: or the countdown before the arm moves
+    notice = pyqtSignal(str)
 
     def __init__(self, parent, settings, sheet: dict, run, chart_args, *, only_locs=None,
                  mode: str = "manual", replace_agreed: bool = False, archive=None,
@@ -1510,8 +1748,18 @@ class TableMeasureWindow(QFrame):
         self._press_timer = QTimer(self)
         self._press_timer.setInterval(100)
         self._press_timer.timeout.connect(self._poll_button)
+        #: 4.3.52: the switch-off alarm's repeat, and how often it played (tests, the log)
+        self._alarm_timer = QTimer(self)
+        self._alarm_timer.setInterval(ALARM_REPEAT_MS)
+        self._alarm_timer.timeout.connect(self._alarm_tick)
+        self.alarm_plays = 0
+        #: 4.3.52: every countdown second the window was told about (tests, the driver)
+        self.countdowns_seen: "list[int]" = []
         self._build()
-        self._signals = _Signals(self)
+        # review 2, M-1: the job reaches the window only through this relay (see _JobRelay)
+        self._relay = _JobRelay()
+        self._signals = self._relay.signals
+        self.destroyed.connect(self._relay.detach)
         self._signals.done.connect(self._on_done, Qt.ConnectionType.QueuedConnection)
         self._signals.progress.connect(self._relay_progress, Qt.ConnectionType.QueuedConnection)
 
@@ -1747,10 +1995,42 @@ class TableMeasureWindow(QFrame):
                      max(300, av.height() - 80))
 
     def _popup_width(self) -> int:
+        """The pop-up's width: the Measure tab's left column (at most POPUP_MAX_W), WIDER when
+        the page's answers would not fit side by side in it (the project owner, 2026-11-20: a
+        table pop-up had its buttons under each other; the app's other pop-ups keep them in one
+        row). Widened up to POPUP_WIDE_MAX_W and the screen; only answers that do not fit even
+        then are stacked."""
         r = self._area_rect()
-        if r is None:
-            return POPUP_MAX_W
-        return max(POPUP_MIN_W, min(POPUP_MAX_W, r.width() - 32))
+        base = POPUP_MAX_W if r is None else max(POPUP_MIN_W, min(POPUP_MAX_W, r.width() - 32))
+        need = self._popup_row_need()
+        if need <= base:
+            return base
+        cap = POPUP_WIDE_MAX_W
+        try:
+            from PyQt6.QtGui import QGuiApplication
+            scr = (self._popup.screen() if self._popup is not None else None) \
+                or QGuiApplication.primaryScreen()
+            if scr is not None:
+                cap = min(cap, scr.availableGeometry().width() - 80)
+        except Exception:      # noqa: BLE001 - the cap alone then
+            pass
+        return max(base, min(need, cap))
+
+    def _popup_row_need(self) -> int:
+        """The pop-up's width that holds this page's answers in one row (0: no answers)."""
+        pop = self._popup
+        box = getattr(self, "_answer_box", None)
+        made = list(getattr(self, "_buttons", []) or [])
+        if pop is None or box is None or not made:
+            return 0
+        try:
+            m = pop.layout().contentsMargins()
+            sp = box.layout().spacing() if box.layout() is not None else 12
+            row = sum(max(b.sizeHint().width(), b.minimumSizeHint().width()) for b in made) \
+                + max(6, sp) * (len(made) - 1)
+            return row + m.left() + m.right()
+        except RuntimeError:          # a button gone with its page
+            return 0
 
     def _host_width(self) -> int:
         """The width the answers are laid out in: the panel's, or the pop-up's."""
@@ -1891,6 +2171,9 @@ class TableMeasureWindow(QFrame):
             self._popup.end_btn.setStyleSheet(qss)
         mark_destructive(self._popup.end_btn)
 
+    #: fix round, S-1: the countdown's title, large
+    COUNTDOWN_TITLE_QSS = "QLabel { font-size: 22pt; font-weight: 600; }"
+
     #: review 14, S-1: a hands-off answer in its first moment: shown, but not yet pressable
     NOT_READY_QSS = ("\nQPushButton:disabled { background: transparent; color: #8a8a8a;"
                      " border: 1px dashed #8a8a8a; }")
@@ -1951,13 +2234,19 @@ class TableMeasureWindow(QFrame):
                  (pop.close_btn, self._close_btn))
         # the ending itself offers no End measurement (it IS the ending)
         on_ending = getattr(self, "_page_id", "") in ("end_of_session", "done")
+        counting = getattr(self, "_page_id", "") == "countdown"
+        pop.stop_btn.setVisible(counting)
+        if counting:
+            # the panel's own Stop look (red), by this button's own name (the tab's style
+            # sheet names the tab's button, so it would not apply here: seen on screen)
+            pop.stop_btn.setStyleSheet(stop_button_qss("QPushButton#i1io_table_popup_stop"))
         for mine, theirs in pairs:
             mine.setVisible(not theirs.isHidden() and mine.text() not in labels
-                            and not (on_ending and mine is pop.end_btn)
+                            and not ((on_ending or counting) and mine is pop.end_btn)
                             and not (getattr(self, "_page_id", "") == "problem"
                                      and mine is pop.problem_btn))
             mine.setEnabled(theirs.isEnabled())
-        pop.foot.setVisible(any(not b.isHidden() for b, _t in pairs))
+        pop.foot.setVisible(counting or any(not b.isHidden() for b, _t in pairs))
 
     def _present_popup(self, page_id: str, title: str) -> None:
         """Open (or refresh) the pop-up for the page just built: only when an answer is
@@ -1965,8 +2254,10 @@ class TableMeasureWindow(QFrame):
         pop = self._popup
         if pop is None:
             return
-        if self._busy:
-            # never over a running step (condition 3); the step's result builds the next page
+        if self._busy and page_id != "countdown":
+            # never over a running step (condition 3); the step's result builds the next page.
+            # The one exception is the countdown (fix round, S-1): it asks nothing, only Stop,
+            # and it is closed one slice before the arm moves (job._countdown)
             log.warning("i1iO table: a page was built while a step runs; no pop-up for %s",
                         page_id)
             return
@@ -2330,6 +2621,9 @@ class TableMeasureWindow(QFrame):
     PINNED_ANSWER_PAGES = (
         # the panel's own pages
         "error", "usb_missing", "consent", "earlier_elsewhere", "earlier", "option_refused",
+        # 4.3.52: the countdown (guidance off; no answer, Stop below) and the unguided arm
+        # question after power-on
+        "countdown", "start_up_arm",
         "white_other_reference", "options_fields", "cal_choice", "prepare",
         "stored_white_refused", "white_later_refused", "report_after_step",
         "next_page", "open_refused", "driver_offer", "refused", "stopped_by_you", "stopped",
@@ -2342,6 +2636,8 @@ class TableMeasureWindow(QFrame):
         "calibration_own_tile", "calibration_reseated", "row_failed", "row_failed_strip",
         # 4.3.50: the homing of the ending (and its question still open after "Not now")
         "home_at_end", "home_not_now",
+        # 4.3.52: the START rule's one question (the arm not at its resting place)
+        "home_at_start",
     )
     #: the pages whose answers stand in one row when they fit (review 12, S-3: the ending)
     ONE_ROW_ANSWER_PAGES = ("end_of_session",)
@@ -2482,6 +2778,8 @@ class TableMeasureWindow(QFrame):
             # decides (needs_old_i1profiler), never the wording (re-review S1, S2)
             text = text + "\n\n" + _M.M_I1IO_DRIVE_I1PROFILER_LIMIT.render()[1]
         self._title.setText(title)
+        # fix round, S-1: the countdown is shown large (both presentations)
+        self._title.setStyleSheet(self.COUNTDOWN_TITLE_QSS if page_id == "countdown" else "")
         self._text.setText(text)
         self._scroll.verticalScrollBar().setValue(0)
         made_ticks = []
@@ -2548,7 +2846,25 @@ class TableMeasureWindow(QFrame):
         self._sync_footer()
         if self._popups:
             self._present_popup(page_id, title)
+        if self._page_says_switch_off(says_it, page_id):
+            # 4.3.52: the page tells the person to switch the table off now
+            self.alarm_for_switch_off()
         return made
+
+    def _page_says_switch_off(self, says_it: bool, page_id: str) -> bool:
+        """The page shown tells the person to switch the table off now (a move may still wait,
+        a movement or the start-up was never reported finished, the link was lost with
+        something waiting): from the job's true state, never from the text."""
+        try:
+            if page_id in ("countdown", "working"):
+                return False
+            if self._switch_off_needed():
+                return True
+            j = self.job
+            return bool(says_it and j is not None and j.phase != "new"
+                        and j.way_back() in SWITCH_OFF_WAYS)
+        except Exception:      # noqa: BLE001
+            return False
 
     # ---- the true state --------------------------------------------------------------------
     def state_text(self) -> str:
@@ -2729,7 +3045,7 @@ class TableMeasureWindow(QFrame):
         if self._popups:
             # condition 3: never a job call (and so never a move) while a pop-up is open
             self._hide_popup()
-        _pool().start(_JobCall(self._token, fn, self._signals))
+        _pool().start(_JobCall(self._token, fn, self._relay))
 
     def _show_working(self, status: str = "") -> None:
         """While a job call runs: no answer buttons (an answer given is not shown as open),
@@ -2745,6 +3061,7 @@ class TableMeasureWindow(QFrame):
         self._buttons = []
         self._tick_widgets = []
         self._page_id = "working"
+        self._title.setStyleSheet("")
         self._title.setText(status or tr("The table is working"))
         QTimer.singleShot(0, self._fit_text)
         self._text.setText(tr("Please keep your hands away from the table and the arm while it "
@@ -2834,12 +3151,27 @@ class TableMeasureWindow(QFrame):
     def _show_consent(self) -> None:
         from workflow import measurement_messages as M
         title, body = M.M_I1IO_DRIVE_CONSENT.render()
+        # 4.3.52, version 4: the reader's facts, the guidance and its countdown, the alarm
+        mac = M.M_I1IO_DRIVE_READER_CONSENT_MAC.render()[1] if sys.platform == "darwin" else ""
+        body += "\n\n" + M.M_I1IO_DRIVE_CONSENT_GUIDANCE.render(
+            mac=mac, countdown=M.i1io_countdown_sentence(countdown_seconds() or 0),
+            alarm=M.i1io_alarm_sentence(ALARM_IGNORES_SOUND_SETTING))[1]
         btns = self._show("consent", title, body,
                           [(tr("Not now"), self._on_consent_declined),
                            (tr("I understand, drive my table"), self._on_consent_given)],
-                          ticks=[tr("I have read this.")])
+                          ticks=[tr("I have read this."),
+                                 tr("Guided, step by step measurement (ChromIQ asks before each "
+                                    "step)")])
         self._consent_go = btns[1]
         self._consent_go.setEnabled(False)
+        # 4.3.52 fix round (safety review MUST-2): THE ONE-TIME MIGRATION. The old OFF ("Don't
+        # ask after each step", 4.3.50 / 4.3.51) dropped only the report after each step; the
+        # new OFF is far more automatic, and a choice given for the old meaning is not consent
+        # to the new one. So the page that explains the new meaning shows the guidance switched
+        # ON, whatever the stored value is, and that is what "I understand" stores
+        # (_on_consent_given); the text says so. Unticked here, it is the person's own choice,
+        # made on the page that explains it. After that the person's choice is theirs.
+        self._tick_widgets[1].setChecked(True)
         if self._popups:
             self._style_popup_buttons()
         self._tick_widgets[0].toggled.connect(self._on_consent_tick)
@@ -2856,19 +3188,42 @@ class TableMeasureWindow(QFrame):
     def _on_consent_given(self) -> None:
         if not self._tick_widgets or not self._tick_widgets[0].isChecked():
             return
+        before = guided(self._settings)
+        try:
+            given_before = int(self._settings.get(CONSENT_KEY, 0) or 0)
+        except (TypeError, ValueError):
+            given_before = 0
+        on = (self._tick_widgets[1].isChecked() if len(self._tick_widgets) > 1 else True)
+        # MUST-2: the guidance as the consent page shows it (on, unless the person unticked it
+        # on this page); stored before the consent, so a job is never built on the old value
+        self._settings.set(ASK_KEY, bool(on))
         self._settings.set(CONSENT_KEY, CONSENT_VERSION)
+        try:
+            from core.app_log import line
+            line("table guidance", now="on" if on else "off",
+                 was="on" if before else "off", why="consent_page", consent_from=given_before,
+                 consent_to=CONSENT_VERSION)
+        except Exception:      # noqa: BLE001 - a record only
+            pass
         self._build_job()
 
     def _build_job(self) -> None:
         page = 0
         self.job = JOB_FACTORY(self._sheet, page, self._run, self._stamp,
-                               ask_after_each_step(self._settings))
+                               guided(self._settings),
+                               extra_logging=extra_logging(self._settings),
+                               consent_version=consent_version_given(self._settings))
         # D-4b (Preferences > Beta, off by default): the table's stored white tile values
         self.job.stored_tile_white = stored_tile_white(self._settings)
+        # 4.3.52: where the i1Pro 2 is calibrated (Preferences > Beta): the job takes it as its
+        # place, so the window never answers a question of the job itself
+        self.job.calibration_place_preference = calibration_place(self._settings)
         # the i1Pro 2 dual scan (Preferences > Beta): decided at START, None = off
         self.job.dual = self._dual
         # the preview follows the job (display only; emitted from the job's thread)
-        self.job.on_progress = self._signals.progress.emit
+        # review 2, M-1: a plain callable of the relay, never a stored bound emit
+        self.job.on_progress = self._relay.progress
+        self._relay.job = self.job
         try:
             log_path = self._run.i1io_table_log(self._stamp)
             self._log_name = tr("{path}, in this run's folder").format(
@@ -3019,6 +3374,8 @@ class TableMeasureWindow(QFrame):
     def choose_calibration_place(self, place: str) -> None:
         if place in CAL_PLACES:
             self._settings.set(CAL_KEY, place)
+            if self.job is not None:
+                self.job.calibration_place_preference = place
         self._show_prepare()
 
     def _show_prepare(self) -> None:
@@ -3029,6 +3386,7 @@ class TableMeasureWindow(QFrame):
         from workflow import measurement_messages as M
         pages = self.job.pages_in_chart()
         title, body = M.M_I1IO_DRIVE_PREPARE.render(page=self.job.page + 1, pages=pages)
+        notes = [n for n in (getattr(self, "_reads_note", ""), self._options_note) if n]
         if getattr(self, "_reads_note", ""):
             body = self._reads_note + "\n\n" + body
         if self._options_note:
@@ -3041,6 +3399,11 @@ class TableMeasureWindow(QFrame):
             body += "\n\n" + (M.M_I1IO_DRIVE_DUAL_ROWS if self.job.row_kind == "strip"
                               else M.M_I1IO_DRIVE_DUAL_SPOT).render(
                 chosen=self._dual.chosen)[1]
+        if self.job.row_kind == "strip":
+            notes.append(M.M_I1IO_DRIVE_STRIP_FIRST_TRY.render()[1])
+        if self._dual is not None:
+            notes.append((M.M_I1IO_DRIVE_DUAL_ROWS if self.job.row_kind == "strip"
+                          else M.M_I1IO_DRIVE_DUAL_SPOT).render(chosen=self._dual.chosen)[1])
         body += "\n\n" + (tr("The i1Pro 2 is calibrated on the table's white tile; it stays "
                               "in the arm.")
                            if calibration_place(self._settings) == "table tile" else
@@ -3055,24 +3418,69 @@ class TableMeasureWindow(QFrame):
                            if stored_tile_white(self._settings) else
                            tr("White reference: the i1Pro 2's own, as when you measure by hand "
                               "(Preferences > Beta)."))
+        if not guided(self._settings):
+            # 4.3.52 (design3 F2 #4): with the guidance off the first page is not shown: START
+            # MEASUREMENT is the start. Its notes go to the Measure tab's log and the app log
+            # (and its instructions too, which a guided START shows here), and the notice area
+            # says that the guidance is off
+            self._unguided_start(body, notes)
+            return
         self._show("prepare", title, body,
                    [(tr("Not now"), self._finish_not_started),
                     (tr("Start"), self._on_start_pressed),
                     (tr("Change where it is calibrated"), self._show_cal_choice)],
-                   ticks=[tr("Ask after each step of this measurement whether the table did "
-                             "what was described")])
-        self._tick_widgets[0].setChecked(ask_after_each_step(self._settings))
+                   ticks=[tr("Guided, step by step measurement (ChromIQ asks before each "
+                             "step)")])
+        self._tick_widgets[0].setChecked(guided(self._settings))
         self._tick_widgets[0].toggled.connect(self._on_ask_toggled)
+
+    def _unguided_start(self, body: str, notes) -> None:
+        """4.3.52: the first page skipped (guidance off): what it says, in the tab's log and the
+        app log; the notice; then the START itself."""
+        try:
+            for text in [body]:
+                for para in str(text).split("\n\n"):
+                    if para.strip():
+                        self._say(para.strip())
+            from core.app_log import line
+            line("table first page", shown=False, why="guidance_off",
+                 notes=len([n for n in notes if n]) or None)
+            from core.question_log import auto_answered
+            auto_answered("M-I1IO-DRIVE-PREPARE", "not_shown", answered_by_setting="prepare",
+                          why="guidance_off")
+        except Exception:      # noqa: BLE001 - a record, never in the way of the start
+            log.debug("i1iO table: the first page's notes were not logged", exc_info=True)
+        self._guidance_notice()
+        self._on_start_pressed()
+
+    def guidance_notice_text(self) -> str:
+        return tr("Guided, step by step measurement is off. You can switch it on in "
+                  "Preferences > Beta.")
+
+    def _guidance_notice(self) -> None:
+        """The Measure tab's notice area while the guidance is off (never raises)."""
+        try:
+            j = self.job
+            if j is not None and not j.guided:
+                text = self.guidance_notice_text()
+                self.notice.emit(text)
+                self._say(text)
+        except Exception:      # noqa: BLE001
+            pass
 
     def _on_ask_toggled(self, on: bool) -> None:
         self._settings.set(ASK_KEY, bool(on))
         if self.job is not None and self.job.phase == "new":
-            self.job.ask_after_each_step = bool(on)
+            self.job.guided = bool(on)
 
     def _on_start_pressed(self) -> None:
         # review 11, opinion (iii): Stop and Report a problem appear when the USB is opened
         # (the "Start" answer on the ready-to-open question), not before
         self._end_btn.setVisible(True)
+        if self.job is not None and not self.job.guided and \
+                getattr(self, "_page_id", "") == "prepare":
+            # 4.3.52: the first page's tick switched the guidance off for this START
+            self._guidance_notice()
         self._call(self.job.open, status=tr("Connecting to the table..."))
 
     # ---- one result --------------------------------------------------------------------------
@@ -3115,9 +3523,10 @@ class TableMeasureWindow(QFrame):
 
     def _after_ok(self, res) -> None:
         step = res.step
-        if step == "open" and res.detail.get("arm_out") and res.detail.get("table") == "cold":
-            # 4.3.48: the start-up of a just-switched-on table was recorded only with the arm at
-            # rest; with the arm out ChromIQ sends nothing and leaves it to i1Profiler
+        if step == "open" and res.detail.get("arm_out") and res.detail.get("table") == "cold" \
+                and _start_up_asks_about_the_arm():
+            # 4.3.48-4.3.52 (4.3.52: only with job.START_UP_ASKS_ABOUT_THE_ARM on): with the arm
+            # out ChromIQ sent nothing to a just-switched-on table
             self._show_arm_out_cold()
             return
         if step == "open" and res.detail.get("table") == "cold":
@@ -3338,11 +3747,29 @@ class TableMeasureWindow(QFrame):
             self._status.setText(tr("ChromIQ waits for your answer. Nothing moves until you "
                                     "answer."))
             return
-        if kind == "calibration_place":
-            # answered from the stored choice (the job keeps asking, its data still names
-            # the recommended place and the open decision D-4 for the log and the analysis)
+        if kind == "go" and d.get("step") == "home_at_start":
+            # 4.3.52, THE START RULE (the owner, 2026-11-20): the arm is not at its resting
+            # place; ChromIQ brings it there now, from wherever it is, after this one question
+            title, body = M.M_I1IO_DRIVE_HOME_AT_START.render()
             self._pending_kind = kind
-            self.answer(calibration_place(self._settings))
+            self._show("home_at_start", title, body,
+                       [(tr("Not now"), self._answer_slot("back")),
+                        (tr("Bring the arm home, my hands are away"), self._answer_slot("yes"))])
+            self._status.setText(tr("ChromIQ waits for your answer. Nothing moves until you "
+                                    "answer."))
+            return
+        if kind == "start_up" and self._guidance_off_now() and _start_up_asks_about_the_arm():
+            # 4.3.52 (the owner, W9): with the guidance off, the ONE arm question after the
+            # table was switched on (M-I1IO-DRIVE-START-UP-ARM); "Yes" is followed by the
+            # countdown, "No" sends nothing (the 4.3.48 refusal)
+            title, body = M.M_I1IO_DRIVE_START_UP_ARM.render(
+                countdown=M.i1io_countdown_sentence(countdown_seconds() or 0))
+            self._pending_kind = kind
+            self._show("start_up_arm", title, body,
+                       [(choice_label("start_up_arm", v), self._answer_slot(v))
+                        for v in ("i1profiler", "arm out", "yes")])
+            self._status.setText(tr("ChromIQ waits for your answer. Nothing moves until you "
+                                    "answer."))
             return
         texts = {
             "pending_marker": (M.M_I1IO_DRIVE_MARKER_APP_ENDED.render
@@ -3789,29 +4216,24 @@ class TableMeasureWindow(QFrame):
                             "it back where it was.")
         buttons = self._way_on_buttons() if after is None else None
         j = self.job
-        if res.reason == "arm_not_at_rest" and after is None and j is not None and \
-                j._nothing_moved_yet() and j.ended is None:
-            # 4.3.51, ONE START rule: the arm found away from its resting place at a START,
-            # by whichever step read it first: the table's state and the arm's place decide
-            # what is offered (job.start_homing_form), never the answer to the ready question
-            if j.way_back() == "home_after_stop":
-                msg = M.M_I1IO_DRIVE_ARM_OUT_AT_START
-                if self._start_form() == "end_of_job":
-                    # the re-review (S4): no recording from there at a start; the page says so
-                    msg = M.M_I1IO_DRIVE_ARM_OUT_AT_START_AREA
-                if self._start_form() == "try":
-                    # the owner's decision of 2026-11-20: a try, and the page says so
-                    msg = M.M_I1IO_DRIVE_ARM_OUT_TRY
-                # the offer first, as the pop-up places its confirming answer (review of
-                # 4.3.51, SHOULD-2: the panel showed them the other way round)
-                buttons = [(tr("Bring the arm home"), self._on_home_after_stop),
-                           (tr("End measurement"), self._on_end_pressed)]
-            else:
-                msg = M.M_I1IO_DRIVE_ARM_OUT_NOT_HERE
-                buttons = [(tr("End measurement"), self._on_end_pressed)]
-            title, body = msg.render(**_fill(msg, where=self._where(),
-                                             way=M.M_I1IO_DRIVE_ARM_WAY_OUT.render()[1]))
-            self._show("refused", title, body, buttons)
+        if res.reason in ("arm_not_at_rest", "person_chose_back", "arm_in_the_back_strip") \
+                and after is None and j is not None and j.ended is None and \
+                j.way_back() == "home_after_stop":
+            # 4.3.52, THE START RULE: the arm away from its resting place, the homing not taken
+            # yet ("Not now"): the same short page, and the homing from wherever the arm is
+            title, body = M.M_I1IO_DRIVE_HOME_AFTER_STOP.render(
+                **_fill(M.M_I1IO_DRIVE_HOME_AFTER_STOP, where=self._where(),
+                        log=self._log_name))
+            self._show("refused", title, body,
+                       [(tr("Bring the arm home"), self._on_home_after_stop),
+                        (tr("End measurement"), self._on_end_pressed)])
+            return
+        if res.reason in ("arm_not_at_rest", "arm_in_the_back_strip") and after is None and \
+                j is not None and j.ended is None and _J_in_back_strip(j.state().position_now):
+            # 4.3.52: the one place ChromIQ does not bring a held arm home from (physical)
+            title, body = M.M_I1IO_DRIVE_ARM_OUT_BACK.render(
+                way=M.M_I1IO_DRIVE_ARM_WAY_OUT.render()[1])
+            self._show("refused", title, body, [(tr("End measurement"), self._on_end_pressed)])
             return
         if res.reason == "arm_not_at_rest" and after is None:
             # 4.3.48: the arm found out at a START (or before a calibration): plainly what
@@ -3895,10 +4317,11 @@ class TableMeasureWindow(QFrame):
                 "home_offered": M.M_I1IO_DRIVE_HOME_OFFERED,
                 "home_after_stop": M.M_I1IO_DRIVE_HOME_AFTER_STOP}
         msg = msgs.get(wb)
-        if wb == "home_after_stop" and self._start_form() == "try":
-            msg = M.M_I1IO_DRIVE_ARM_OUT_TRY
         self._says_switch_off = wb in SWITCH_OFF_WAYS
-        if getattr(res, "step", "") == "home_after_stop" and wb not in SWITCH_OFF_WAYS \
+        j_failed = self.job is not None and getattr(self.job, "start_homing_failed", False) \
+            and self.job.ended is None
+        if (getattr(res, "step", "") == "home_after_stop" or j_failed) \
+                and wb not in SWITCH_OFF_WAYS \
                 and not str(wb).startswith("link_lost") and res.reason not in (
                     "stopped_by_person", "cancelled_by_person", "person_chose_back"):
             # 4.3.51, the owner's decision of 2026-11-20: ONE page when the homing at a START
@@ -3913,6 +4336,17 @@ class TableMeasureWindow(QFrame):
             title, body = M.M_I1IO_DRIVE_HOME_TRY_FAILED.render(
                 why=why, where=where,
                 way=M.M_I1IO_DRIVE_ARM_WAY_OUT.render()[1], log=self._log_name)
+            self._show("stopped", title, body, self._way_on_buttons())
+            self._after_stop_controls()
+            self._show_note()
+            return
+        jb = self.job
+        if wb == "open_i1profiler_once" and jb is not None and jb.ended is None and \
+                jb.phase == "open" and jb.state().arm_free is False and \
+                _J_in_back_strip(jb.state().position_now):
+            # 4.3.52: the one place ChromIQ does not bring a held arm home from (physical)
+            title, body = M.M_I1IO_DRIVE_ARM_OUT_BACK.render(
+                way=M.M_I1IO_DRIVE_ARM_WAY_OUT.render()[1])
             self._show("stopped", title, body, self._way_on_buttons())
             self._after_stop_controls()
             self._show_note()
@@ -3974,19 +4408,18 @@ class TableMeasureWindow(QFrame):
             if wb in SWITCH_OFF_WAYS:
                 # review 14, M-1: "Switch the table off now" first, then why
                 body = body + "\n\n" + reason_text(res.reason, res.detail)
+            elif wb == "home_after_stop":
+                # 4.3.52: the page itself says where the arm is and what ChromIQ can do (short)
+                pass
             else:
                 why = reason_text(res.reason, res.detail)
-                if wb == "home_after_stop":
-                    # 4.3.48: the place check right before a homing, in plain words
-                    why = tr("Right before its usual homing, ChromIQ read the arm away from its "
-                             "resting place, out over the table, where it did not expect it.")
                 if wb == "open_i1profiler_once" and j is not None and j.phase == "open":
                     # 4.3.48: why ChromIQ does not bring the arm home itself this time
                     why += " " + tr("ChromIQ brings the arm home itself only after a stop at "
-                                    "which the table answered every line as recorded and "
-                                    "nothing had moved yet in this measurement, and only from "
-                                    "a place where a recorded homing starts. This stop is not "
-                                    "one of those, so please use the way below.")
+                                    "which the table answered every line as recorded, the "
+                                    "motors hold the arm, and the arm was not found away from where a "
+                                    "movement of the table should have taken it. This stop is "
+                                    "not one of those, so please use the way below.")
                 body = why + "\n\n" + body
             if getattr(res, "step", "") == "home_after_stop":
                 body = tr("ChromIQ could not bring the arm home.") + " " + body
@@ -4084,6 +4517,7 @@ class TableMeasureWindow(QFrame):
         return tr("X {x}, Y {y} (in tenths of a millimetre)").format(x=int(p[0]), y=int(p[1]))
 
     def _on_stop(self) -> None:
+        self._alarm_stop("button")
         if self.job is None:
             return
         self.job.stop_at_next_pause()
@@ -4249,15 +4683,6 @@ class TableMeasureWindow(QFrame):
             return
         self._call(self.job.home_after_stop, status=tr("Bringing the arm home..."))
 
-    def _start_form(self) -> "str | None":
-        """The START rule's form for where the arm was last read (job.start_homing_form)."""
-        from workflow.i1io.table import job as _J
-        j = self.job
-        try:
-            return _J.start_homing_form(j.state().position_now) if j is not None else None
-        except Exception:      # noqa: BLE001 - a page never fails on this
-            return None
-
     def _show_home_after_stop_done(self) -> None:
         from workflow import measurement_messages as M
         j = self.job
@@ -4306,6 +4731,7 @@ class TableMeasureWindow(QFrame):
 
     # ---- endings --------------------------------------------------------------------------
     def _on_end_pressed(self) -> None:
+        self._alarm_stop("button")
         if self.job is None or self._busy:
             return
         case = getattr(self.job, "start_case", None)
@@ -4444,6 +4870,7 @@ class TableMeasureWindow(QFrame):
 
     def _after_close(self, res) -> None:
         self._closed_job = True
+        _remember_table_after(self, self.job)
         self._moving_controls(False)
         self._end_btn.setVisible(False)
         from workflow import measurement_messages as M
@@ -4470,11 +4897,9 @@ class TableMeasureWindow(QFrame):
             elif st.mode_on:
                 way = M.M_I1IO_DRIVE_LEFT_OUT.render()[1]
             else:
-                # 4.3.50 (table re-review, SHOULD-5): the same honesty as LEFT-OUT
-                way = _old_i1p(tr("The arm stayed extended over the table. Stay beside the table, with its "
-                         "power switch in reach, and open i1Profiler 3.8.6 or older once and let "
-                         "it find the table. It should bring the arm home, but no recording "
-                         "shows it doing that from where the arm is now."))
+                # 4.3.52 (review 2, S-1): the way the stop page gave (ARM-WAY-OUT), without its
+                # End measurement step: the power switch first, i1Profiler last with its limit
+                way = M.M_I1IO_DRIVE_ARM_WAY_OUT_ENDED.render()[1]
             body = way + "\n\n" + body
         elif wb not in ("none", "home_offered"):
             msgs = {"switch_off_pending": M.M_I1IO_DRIVE_SWITCH_OFF,
@@ -4496,8 +4921,9 @@ class TableMeasureWindow(QFrame):
         self._offer_dont_ask = (res.detail.get("offer") == "may_offer_do_not_ask_again"
                                 and not self._troubled and not self._quit_wanted)
         if self._offer_dont_ask:
-            ticks = [tr("Don't ask after each step from now on. (You can switch the question "
-                        "back on in Preferences.)")]
+            ticks = [tr("From now on, run my table measurements without guidance, like the "
+                        "other instruments. You can switch the guidance on again in "
+                        "Preferences > Beta.")]
         buttons = [(tr("Close"), self._on_done_close)]
         if self._strip_default_offer_due():
             # the owner (4.3.45): after a clean strip measurement, the strip choice may become
@@ -4556,6 +4982,7 @@ class TableMeasureWindow(QFrame):
         return self.job is None or self.job.phase in ("new", "closed")
 
     def _on_close_pressed(self) -> None:
+        self._alarm_stop("button")
         if self._busy:
             return
         if self._closed_job:
@@ -4586,9 +5013,14 @@ class TableMeasureWindow(QFrame):
     def _finish(self, why: str) -> None:
         if self._finished:
             return
+        self._alarm_stop("finished")
+        self.notice.emit("")
         self._finished = True
         self._hide_popup()
         self.progress.emit({"event": "end"})
+        # review 2, M-1: the panel is finished (and the tab deletes it): nothing on the job's
+        # thread reaches it any more (no call is running: every path here checks _busy)
+        self._relay.detach()
         self.setVisible(False)
         self.finished_with.emit("quit" if self._quit_wanted else why)
 
@@ -4640,8 +5072,146 @@ class TableMeasureWindow(QFrame):
 
     def _relay_progress(self, ev: dict) -> None:
         self._live_event(ev)
+        self._turned_guided_event(ev)
+        self._countdown_event(ev)
         self.progress.emit(dict(ev))
         _applog_table_row(self, ev)
+
+    # ---- 4.3.52 fix round (MUST-1): the rest of the sitting is guided ----------------------
+    def turned_guided_text(self) -> str:
+        return tr("The measurement was stopped, or something did not go as expected. So "
+                  "ChromIQ now asks every question again until this measurement ends, also "
+                  "before the arm moves.")
+
+    def _turned_guided_event(self, ev: dict) -> None:
+        """The job turned the rest of the sitting guided (a Stop, a problem, a fault): the app
+        log says so and why; the notice area and the tab's log say what it means. Display and
+        record only (the policy is the job's); never raises."""
+        try:
+            kind = ev.get("event")
+            if kind not in ("turned_guided",):
+                return
+            from core.app_log import line
+            line("table guidance", now="guided", was="off", why=str(ev.get("why") or ""),
+                 rest_of_sitting="every question asked, no countdown, nothing answered by "
+                                 "the setting")
+            text = self.turned_guided_text()
+            self.notice.emit(text)
+            self._say(text)
+        except Exception:      # noqa: BLE001 - a record, never in the way
+            log.debug("i1iO table: the guided rest of the sitting was not shown", exc_info=True)
+
+    def _guidance_off_now(self) -> bool:
+        j = self.job
+        return j is not None and not getattr(j, "guided_now", j.guided)
+
+    # ---- 4.3.52: the countdown (guidance off) ----------------------------------------------
+    def _countdown_event(self, ev: dict) -> None:
+        """The job counts down before the arm moves (it sends nothing meanwhile): the panel
+        shows the countdown page with its Stop below. In the pop-up presentation (fix round,
+        safety review S-1: a strip under the preview is easy to miss while the person stands at
+        the table) the countdown opens as the table's own pop-up page, large, with ONE button,
+        Stop, and its sound (POPUP_SOUND, through the person's sound settings); the notice
+        area shows it too. It is the one pop-up open during a job call: it asks nothing, and the
+        job tells its end one slice before the arm moves, so it is closed before the first
+        line. Display only; never raises."""
+        try:
+            kind = ev.get("event")
+            if kind not in ("countdown", "countdown_end"):
+                return
+            from workflow import measurement_messages as M
+            if kind == "countdown":
+                n = int(ev.get("left") or 0)
+                title, body = M.M_I1IO_DRIVE_COUNTDOWN.render(n=n)
+                if ev.get("for_step") == "home_at_start":
+                    # 4.3.52: the START rule's homing with the guidance off: what moves, first
+                    title = M.M_I1IO_DRIVE_HOME_AT_START.render()[0]
+                    body = M.M_I1IO_DRIVE_HOME_AT_START.render()[1].split("\n\n")[0] + \
+                        "\n\n" + body
+                first = not getattr(self, "_counting", False)
+                self._counting = True
+                self.countdowns_seen.append(n)
+                if self._popups:
+                    self.notice.emit(body.split("\n\n")[0])
+                    if first:
+                        self._say(body)
+                        self._show("countdown", title, body)
+                    elif getattr(self, "_page_id", "") == "countdown":
+                        self._text.setText(body)
+                else:
+                    self._show("countdown", title, body)
+                    self._status.setText(tr("Stop below keeps the arm where it is."))
+                return
+            self._counting = False
+            if self._popups:
+                if getattr(self, "_page_id", "") == "countdown":
+                    self._show_working()          # closes the pop-up (condition 2)
+                if self._guidance_off_now():
+                    self.notice.emit(self.guidance_notice_text())
+                elif self.job is not None and getattr(self.job, "turned_guided", None):
+                    self.notice.emit(self.turned_guided_text())
+                else:
+                    self.notice.emit("")
+            elif self._busy:
+                self._show_working(tr("The table is working"))
+        except Exception:      # noqa: BLE001 - display only
+            log.debug("i1iO table: the countdown was not shown", exc_info=True)
+
+    # ---- 4.3.52: the switch-off alarm (design3 F8; ALARM_IGNORES_SOUND_SETTING) -------------
+    def alarm_for_switch_off(self) -> None:
+        """A page that tells the person to switch the table off now has opened: "Instrument
+        error" now (W-1), again every ALARM_REPEAT_MS while such a page is open, for at most
+        ALARM_FOR_MS; any button stops it for this window. Only for a page that really opened
+        (W-2: a pop-up that was not shown plays nothing). Never raises (W-4)."""
+        try:
+            if getattr(self, "_alarm_ack", False) or self._alarm_timer.isActive():
+                return
+            if self._popups and not self.popup_open():
+                return
+            self._alarm_t0 = time.monotonic()
+            self._alarm_page = getattr(self, "_page_id", "")
+            self._alarm_play()
+            self._alarm_timer.start()
+        except Exception:      # noqa: BLE001
+            log.debug("i1iO table: the alarm did not start", exc_info=True)
+
+    def _alarm_play(self) -> None:
+        try:
+            self.alarm_plays += 1
+            self.alarm.emit(ALARM_SOUND, bool(ALARM_IGNORES_SOUND_SETTING))
+            from core.app_log import line
+            line("table alarm", sound=ALARM_SOUND, n=self.alarm_plays,
+                 page=getattr(self, "_page_id", None),
+                 ignores_sound_setting=bool(ALARM_IGNORES_SOUND_SETTING))
+        except Exception:      # noqa: BLE001
+            pass
+
+    def _alarm_tick(self) -> None:
+        try:
+            open_now = (self.popup_open() if self._popups else self.isVisible()) \
+                and not self._finished
+            if not open_now or (time.monotonic() - getattr(self, "_alarm_t0", 0.0)) * 1000 \
+                    >= ALARM_FOR_MS:
+                self._alarm_stop("over" if open_now else "page_closed")
+                return
+            self._alarm_play()
+        except Exception:      # noqa: BLE001
+            self._alarm_timer.stop()
+
+    def _alarm_stop(self, why: str) -> None:
+        try:
+            if not self._alarm_timer.isActive():
+                if why == "button":
+                    self._alarm_ack = getattr(self, "_alarm_ack", False) or bool(
+                        self.alarm_plays)
+                return
+            self._alarm_timer.stop()
+            if why == "button":
+                self._alarm_ack = True
+            from core.app_log import line
+            line("table alarm stopped", why=why, plays=self.alarm_plays)
+        except Exception:      # noqa: BLE001
+            pass
 
     def _aim_event(self, mark, patch=None) -> None:
         """Where the arm should point now (display only): mark *mark* of the job's page, or
@@ -4693,14 +5263,16 @@ class _ReadRow:
     """The job call that reads one row again (Keep measuring), bound (no lambda)."""
 
     def __init__(self, win: TableMeasureWindow, row: int) -> None:
-        self.win, self.row = win, row
+        # review 2, M-1: the job is taken here, on the GUI thread; fire() runs on the job's
+        # thread and touches nothing of the window
+        self.win, self.row, self.job = win, row, win.job
 
     def prepare(self) -> None:
         if self.win._again_rows and self.win._again_rows[0] == self.row:
             self.win._again_rows.pop(0)
 
     def fire(self):
-        return self.win.job.read_row(self.row)
+        return self.job.read_row(self.row)
 
 
 class _PageDone:
@@ -4708,13 +5280,14 @@ class _PageDone:
     page (the job's calls, run in the worker)."""
 
     def __init__(self, win: TableMeasureWindow, home: bool) -> None:
-        self.win, self.home = win, home
+        # review 2, M-1: the job is taken on the GUI thread (fire() runs on the job's thread)
+        self.win, self.home, self.job = win, home, win.job
 
     def prepare(self) -> None:
-        self.win._page_done = self.win.job.page + 1
+        self.win._page_done = self.job.page + 1
 
     def fire(self):
-        return self.win.job.home() if self.home else self.win.job.next_page()
+        return self.job.home() if self.home else self.job.next_page()
 
 
 class _Answer:
@@ -4751,6 +5324,22 @@ def _refused(M, why: str) -> "tuple[str, str]":
 #: the refusals that become the offer to open the Instrument drivers window (never on ARM)
 _DRIVER_OFFERS = ("driver_not_installed_for_table", "driver_not_installed_for_instrument",
                   "driver_file_missing_for_table")
+
+
+def _start_up_asks_about_the_arm() -> bool:
+    """job.START_UP_ASKS_ABOUT_THE_ARM (4.3.52: False; True brings back the arm question after
+    power-on and its refusal)."""
+    from workflow.i1io.table import job as _J
+    return bool(getattr(_J, "START_UP_ASKS_ABOUT_THE_ARM", False))
+
+
+def _J_in_back_strip(p) -> bool:
+    """job.in_back_strip, never raising (a page never fails on it)."""
+    try:
+        from workflow.i1io.table import job as _J
+        return _J.in_back_strip(p)
+    except Exception:      # noqa: BLE001
+        return False
 
 
 def _fill(msg, **kw) -> dict:
@@ -4796,7 +5385,10 @@ def _applog_table_opened(win) -> None:
         line("table session", stamp=win._stamp, folder=str(folder) if folder else None,
              job_version=getattr(J, "JOB_VERSION", None),
              pages=job.pages_in_chart() if job is not None else None,
-             guided=bool(getattr(job, "ask_after_each_step", True)),
+             guided="on" if bool(getattr(job, "guided", True)) else "off",
+             countdown_s=countdown_seconds(),
+             detailed_log="on" if bool(getattr(job, "extra_logging", True)) else "off",
+             report_after_each_step=bool(getattr(job, "ask_after_each_step", True)),
              dual_scan=getattr(job, "dual", None) is not None,
              stored_tile_white=bool(getattr(job, "stored_tile_white", False)),
              popups=bool(getattr(win, "_popups", False)))
@@ -4836,12 +5428,50 @@ def _applog_table_result(win, res) -> None:
                                      "save", "discard", "problem", None)):
             from core.question_log import auto_answered
             auto_answered("M-I1IO-DRIVE-AFTER-STEP", "not_asked", step=res.step,
-                          why="ask_after_each_step_off")
+                          why="ask_after_each_step_off",
+                          answered_by_setting="report_after_step")
+        _applog_table_by_setting(win)
         if res.step in ("close", "end", "save", "discard") and res.kind != "needs_confirmation":
             kv = dict(step=res.step, kind=res.kind, reason=res.reason or None,
                       ending=(getattr(res, "detail", None) or {}).get("ending"),
                       **_table_state_pairs(getattr(res, "state", None)))
             line("table session end", **{k: v for k, v in kv.items() if v is not None})
+    except Exception:      # noqa: BLE001
+        pass
+
+
+def countdown_seconds():
+    """The job's UNGUIDED_COUNTDOWN_S (the countdown with the guidance off), or None."""
+    try:
+        from workflow.i1io.table import job as J
+        return float(J.UNGUIDED_COUNTDOWN_S)
+    except Exception:      # noqa: BLE001
+        return None
+
+
+def _applog_table_by_setting(win) -> None:
+    """4.3.52: every question the job answered itself since the last result (with its message
+    id and the kind), and every countdown, one line each. On the GUI thread after a result;
+    never raises, sends nothing."""
+    try:
+        job = win.job
+        if job is None:
+            return
+        from core.app_log import line
+        from core.question_log import auto_answered
+        answers = list(getattr(job, "auto_answers", []) or [])
+        n = getattr(win, "_applog_auto_n", 0)
+        for a in answers[n:]:
+            auto_answered(a.get("id"), a.get("answer"), answered_by_setting=a.get("kind"),
+                          step=a.get("step"), guided="off")
+        win._applog_auto_n = len(answers)
+        cds = list(getattr(job, "countdowns", []) or [])
+        m = getattr(win, "_applog_cd_n", 0)
+        for c in cds[m:]:
+            auto_answered("M-I1IO-DRIVE-GO", "countdown", answered_by_setting="go",
+                          step=c.get("step"), countdown_s=c.get("seconds"),
+                          result=c.get("result"), shown_as="M-I1IO-DRIVE-COUNTDOWN")
+        win._applog_cd_n = len(cds)
     except Exception:      # noqa: BLE001
         pass
 
@@ -4919,6 +5549,10 @@ class _LoggedAnswer:
         self.win, self.page_id, self.label, self.slot = win, page_id, label, slot
 
     def fire(self, *_a):
+        try:
+            self.win._alarm_stop("button")
+        except Exception:      # noqa: BLE001
+            pass
         try:
             import time as _t
             from core.question_log import answered, english

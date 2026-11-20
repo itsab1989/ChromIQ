@@ -56,7 +56,8 @@ def test_the_known_issues_say_what_is_not_proven():
 def test_the_entry_names_things_as_the_app_shows_them():
     from workflow import measurement_messages as M
     text = "\n".join(_entry("v4.3.51"))
-    for msg in (M.M_I1IO_DRIVE_ARM_OUT_TRY, M.M_I1IO_DRIVE_HOME_TRY_FAILED,
+    # (4.3.52 withdrew ARM-OUT-TRY; its title is HOME-AT-START's, the page that replaced it)
+    for msg in (M.M_I1IO_DRIVE_HOME_AT_START, M.M_I1IO_DRIVE_HOME_TRY_FAILED,
                 M.M_I1IO_DRIVE_STILL_AIMING, M.M_I1IO_DRIVE_COLD, M.M_I1IO_DRIVE_FRONT):
         assert msg.title in text, msg.id
     for s in ("Bring the arm home", "End measurement", "START MEASUREMENT", "The arm is out",

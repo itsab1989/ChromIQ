@@ -278,11 +278,17 @@ class CSimTable(SimTable):
                 inst = self.instrument
                 if inst is None or not inst.ready_now():
                     raise SimViolation("a scan move while the instrument was not ready to fire")
-        # 4.3.51: the home line up to Y 815: the owner's start-up capture of 19 Nov 2026, where
-        # i1Profiler homed a started table's arm from (1098, 810) (the simulator's own copy)
-        if line == I1 and not (_inside(C_SWEEP_BOX, here) or (1090 <= here[0] <= 1115
-                                                              and -1 <= here[1] <= 815)):
-            raise SimViolation(f"i1 from {here}")
+        # 4.3.52 (the owner's ruling of 2026-11-20, the simulator's own copy): a HELD arm is
+        # homed from wherever it stands, the ends of travel included; the one place that stays
+        # a violation is physical: the back strip beside the white tile's holder (Y below 473,
+        # off the home line X 1090..1115). A FREE arm keeps 4.3.51's region (a state rule: the
+        # one recorded homing that went wrong was a free arm)
+        on_line = 1090 <= here[0] <= 1115
+        if line == I1 and not self.free_arm and here[1] < C_SWEEP_BOX[2] and not on_line:
+            raise SimViolation(f"i1 from {here}: from the back strip")
+        if line == I1 and self.free_arm and not (_inside(C_SWEEP_BOX, here) or (
+                on_line and -1 <= here[1] <= 815)):
+            raise SimViolation(f"i1 from {here} with the arm free")
         if line == M1L and (self.free_arm or not (_near(here, (2507, 1498))
                                                   or _near(here, (1000, 1500)))):
             raise SimViolation(f"m1 from {here}")

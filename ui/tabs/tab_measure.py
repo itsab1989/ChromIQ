@@ -2903,17 +2903,45 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                     cb.blockSignals(False)
 
     def _pbp_table_note_label(self, parent) -> QLabel:
-        """Round B: one line under "Patch-by-patch mode (-p)", shown for an i1iO table chart
-        only: what the box means there (the explanation is in its tooltip)."""
-        lab = QLabel(tr("For this i1iO table chart: ticked, the table reads patch by patch. Not "
-                        "ticked, it reads each row as a strip: a first try, not tried on a "
-                        "real table yet. Save as Defaults keeps your choice for every table "
-                        "chart."), parent)
+        """Round B, as the owner reshaped it on 2026-11-20 ("can it automatically go away after
+        a measurement has been completed this way?"): one short line under "Patch-by-patch mode
+        (-p)" for an i1iO table chart, ONLY while the box is not ticked (reading in rows) and no
+        measurement in rows has been completed on the table connected last
+        (ui.i1io_table_window.rows_note_retired). What the box means, and Save as Defaults, are
+        in its tooltip (M-I1IO-DRIVE-STRIP-OPTION)."""
+        lab = QLabel(tr("Reading in rows has not been tried on a real table yet. Please keep "
+                        "the table's power switch in reach."), parent)
         lab.setObjectName("pbp_table_note")
         lab.setWordWrap(True)
         lab.setStyleSheet("font-size: 11px; color: #e6a23c; padding-left: 24px;")
         lab.setVisible(False)
         return lab
+
+    def _pbp_table_note_toggled(self, *_a) -> None:
+        """A box was toggled: the line now, and once more after the other module's box has
+        followed it (the two boxes are mirrored)."""
+        self._pbp_table_note_follow()
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(0, self._pbp_table_note_follow)
+
+    def _pbp_table_note_follow(self, *_a) -> None:
+        """4.3.52: each module's line follows its own box, live: shown for a table chart only
+        while the box is not ticked and the line has not been retired for the table connected
+        last. Never raises."""
+        try:
+            table = bool(getattr(self, "_pbp_table_note_table", False))
+            retired = False
+            if table:
+                from ui.i1io_table_window import rows_note_retired
+                retired = rows_note_retired(self._settings)
+            for name, cb_name in (("_pbp_table_note", "_pbp_cb"),
+                                  ("_m_pbp_table_note", "_m_pbp_cb")):
+                note, cb = getattr(self, name, None), getattr(self, cb_name, None)
+                if note is not None:
+                    note.setVisible(table and not retired and cb is not None
+                                    and not cb.isChecked())
+        except Exception:      # noqa: BLE001 - a hint, never a blocker
+            log.debug("the table's row note was not updated", exc_info=True)
 
     def _apply_cr30_pbp_lock(self) -> None:
         """Show, in both modules, that a CR30 chart reads patch by patch.
@@ -2942,10 +2970,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         cr30 = bool(self._chart_is_cr30())
         # The i1iO table (Beta) reads one patch at a time too (open point d)
         table = not cr30 and self._table_chart_loaded()
-        for name in ("_pbp_table_note", "_m_pbp_table_note"):
-            note = getattr(self, name, None)
-            if note is not None:
-                note.setVisible(bool(table))
+        self._pbp_table_note_table = bool(table)
+        self._pbp_table_note_follow()
         if table and not cr30:
             # round B (i1iO table, Beta; STEP4_PROPOSAL 2): for a table chart the box CHOOSES
             # how the table reads: ticked (the default for a table chart) patch by patch, not
@@ -2972,6 +2998,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                     cb.setToolTip(title + "\n\n" + body)
                 finally:
                     cb.blockSignals(False)
+            # the ticks are set now (signals blocked): the line follows them
+            self._pbp_table_note_follow()
             return
         if cr30 or table:
             if snap is None:
@@ -3852,6 +3880,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # round B (i1iO table, Beta): what the box means for a table chart, shown only then
         self._pbp_table_note = self._pbp_table_note_label(left)
         cg.addWidget(self._pbp_table_note)
+        if getattr(self, "_pbp_cb", None) is not None:
+            self._pbp_cb.toggled.connect(self._pbp_table_note_toggled)
         # SHOWN IN GUIDED (#160). It used to be hidden here while
         # `_collect_guided` still read it, so a stored preference put `-p` on
         # every Guided measurement with no control on screen to change it — the
@@ -4468,6 +4498,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # round B (i1iO table, Beta): what the box means for a table chart, shown only then
         self._m_pbp_table_note = self._pbp_table_note_label(left)
         mcg.addWidget(self._m_pbp_table_note)
+        if getattr(self, "_m_pbp_cb", None) is not None:
+            self._m_pbp_cb.toggled.connect(self._pbp_table_note_toggled)
 
         m_resume_row = QHBoxLayout()
         self._m_resume_cb = QCheckBox(tr("Refine / resume existing measurement (-r)"), left)
@@ -7488,6 +7520,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         win.saved.connect(self._on_table_measurement_saved)
         win.finished_with.connect(self._on_table_window_finished)
         win.progress.connect(self._on_table_progress)
+        # 4.3.52: the switch-off alarm and the notice area, in both presentations
+        win.alarm.connect(self._on_table_alarm)
+        win.notice.connect(self._on_table_notice)
         self._table_window = win
         self._table_sheet = sheet
         self._table_patch_by_patch = "-p" in args
@@ -7619,6 +7654,36 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         win = getattr(self, "_table_window", None)
         if win is not None:
             win._on_problem()
+
+    def _on_table_alarm(self, event: str, ignores_setting: bool) -> None:
+        """4.3.52: the table window's switch-off alarm (W-4: a name core.sound does not have
+        is silent, never a crash). The outcome goes to the app log."""
+        import core.sound as _snd
+        outcome = "not_played"
+        try:
+            outcome = self._sound.play_alarm(getattr(_snd, event), bool(ignores_setting))
+        except Exception:      # noqa: BLE001 - a sound must never block a page
+            log.warning("could not play the table's alarm %s", event, exc_info=True)
+        try:
+            from core.app_log import line
+            line("table alarm sound", sound=event, outcome=outcome,
+                 ignores_sound_setting=bool(ignores_setting))
+        except Exception:      # noqa: BLE001
+            pass
+
+    def _on_table_notice(self, text: str) -> None:
+        """4.3.52: the table's line in the notice area under the chart preview (the guidance
+        is off; the countdown before the arm moves). "" gives the area back."""
+        try:
+            if text:
+                self._table_notice_on = True
+                self._preview.set_notice(str(text), warn=True)
+            elif getattr(self, "_table_notice_on", False):
+                self._table_notice_on = False
+                notice = getattr(self, "_dual_model_notice", "")
+                self._preview.set_notice(notice or None, warn=bool(notice))
+        except Exception:      # noqa: BLE001 - a notice, never a blocker
+            log.debug("the table's notice was not shown", exc_info=True)
 
     def _on_table_log_line(self, text: str) -> None:
         # A5: the table window writes its pages, answers and results to the
@@ -8008,7 +8073,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         win, self._table_window = self._table_window, None
         if win is not None:
             self._stack.removeWidget(win)
-            win.deleteLater()
+            # review 2, M-1: deleted only when no job call runs any more (at once when idle)
+            from ui.i1io_table_window import retire_window
+            retire_window(win)
         if getattr(self, "_table_quiet", False):
             self._table_quiet = False
             self._table_quiet_room(False)

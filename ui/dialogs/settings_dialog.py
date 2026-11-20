@@ -4035,73 +4035,84 @@ class SettingsDialog(QDialog):
         _i1iorow.addWidget(i1io_support_tip)
         _beta.addLayout(_i1iorow)
         _beta.addWidget(self._i1io_support_restart_hint)
-        # ...and its table drive (build step 9): whether the table window asks
-        # after each step. Only while the Beta is on for this run of ChromIQ
-        # (latched), so with the Beta off Preferences is exactly as before.
-        self._i1io_ask_check = None
-        from workflow.i1io.support import i1io_enabled as _i1io_on
-        if _i1io_on():
-            self._i1io_ask_check = QCheckBox(
-                tr("Ask after each step of a table measurement"), self)
-            self._i1io_ask_check.setToolTip(tr(
-                "While this is on, ChromIQ asks after every step of an i1iO "
-                "table measurement whether the table did what was described. It "
-                "is on for your first measurement with the table; at the end of "
-                "a measurement that went well, ChromIQ offers to switch it off."))
-            _i1ioask = QHBoxLayout()
-            _i1ioask.setContentsMargins(28, 0, 0, 0)
-            _i1ioask.addWidget(self._i1io_ask_check)
-            _i1ioask.addStretch()
-            _beta.addLayout(_i1ioask)
-            # ...and where its i1Pro 2 is calibrated: the table's tile by default
-            # (never asked since the volunteer's table of 17 Nov 2026), the own
-            # tile as a choice
-            from PyQt6.QtWidgets import QComboBox as _QCB, QLabel as _QL
-            self._i1io_cal_combo = _QCB(self)
-            self._i1io_cal_combo.addItem(tr("On the table's white tile (as i1Profiler does)"),
-                                         "table tile")
-            self._i1io_cal_combo.addItem(tr("On the i1Pro 2's own white tile"), "own tile")
-            self._i1io_cal_combo.setToolTip(i1io_cal_place_help())
-            _i1iocal = QHBoxLayout()
-            _i1iocal.setContentsMargins(28, 0, 0, 0)
-            _i1iocal.addWidget(_QL(tr("Calibrate the i1Pro 2 of a table measurement:"), self))
-            _i1iocal.addWidget(self._i1io_cal_combo)
-            _i1iocal.addStretch()
-            # review 13, S-8: its help reachable without hovering, as every row around it
-            _i1iocal.addWidget(TooltipButton(
-                tr("Calibrate the i1Pro 2 of a table measurement:"),
-                i1io_cal_place_help(), self))
-            _beta.addLayout(_i1iocal)
-            # ...and D-4b, an option until the owner decides (off): the white
-            # scaled to the tile values stored in the table, as i1Profiler does
-            self._i1io_stored_white_check = QCheckBox(
-                tr("Use the table's stored white tile values (as i1Profiler does)"), self)
-            self._i1io_stored_white_check.setToolTip(i1io_stored_white_help())
-            _i1iosw = QHBoxLayout()
-            _i1iosw.setContentsMargins(28, 0, 0, 0)
-            _i1iosw.addWidget(self._i1io_stored_white_check)
-            _i1iosw.addStretch()
-            _i1iosw.addWidget(TooltipButton(
-                tr("Use the table's stored white tile values (as i1Profiler does)"),
-                i1io_stored_white_help(), self))
-            _beta.addLayout(_i1iosw)
-            # ...and how a table chart starts reading (4.3.45, the owner): the table's own
-            # "-p" default, the same value Save as Defaults keeps with a table chart loaded
-            self._i1io_pbp_check = QCheckBox(
-                tr("Table charts start with “Patch-by-patch mode (-p)” ticked"), self)
-            self._i1io_pbp_check.setToolTip(i1io_table_pbp_help())
-            _i1iopbp = QHBoxLayout()
-            _i1iopbp.setContentsMargins(28, 0, 0, 0)
-            _i1iopbp.addWidget(self._i1io_pbp_check)
-            _i1iopbp.addStretch()
-            _i1iopbp.addWidget(TooltipButton(
-                tr("Table charts start with “Patch-by-patch mode (-p)” ticked"),
-                i1io_table_pbp_help(), self))
-            _beta.addLayout(_i1iopbp)
-        else:
-            self._i1io_cal_combo = None
-            self._i1io_stored_white_check = None
-            self._i1io_pbp_check = None
+        # ...and its sub-options (4.3.52, the owner, 2026-11-19: "both should be
+        # suboptions of the i1io beta option, greyed when it is not active"): built
+        # ALWAYS, indented under the Beta, enabled only while its box is ticked, their
+        # values shown either way (_i1io_rows_follow). Nothing else greys them
+        # (safe-defaults-but-options-open: only the defaults are safe).
+        from PyQt6.QtWidgets import QComboBox as _QCB, QLabel as _QL
+        from workflow import measurement_messages as _MM
+        _gh_title, _gh_body = _MM.M_I1IO_GUIDED_HELP.render(countdown="")
+        self._i1io_ask_check = QCheckBox(tr("Guided, step by step measurement"), self)
+        self._i1io_ask_check.setObjectName("i1io_guided_check")
+        # its body names the countdown, which lives in the table package: rendered when it is
+        # opened, so Preferences never loads the table's code (test_i1io_off_changes_nothing)
+        self._i1io_ask_tip = _GuidedHelpButton(tr("Guided, step by step measurement"),
+                                               _gh_body, self, min_width=680)
+        _i1ioask = QHBoxLayout()
+        _i1ioask.setContentsMargins(28, 0, 0, 0)
+        _i1ioask.addWidget(self._i1io_ask_check)
+        _i1ioask.addStretch()
+        _i1ioask.addWidget(self._i1io_ask_tip)
+        _beta.addLayout(_i1ioask)
+        _lh_title, _lh_body = _MM.M_I1IO_LOG_HELP.render()
+        self._i1io_log_check = QCheckBox(tr("Keep the table's detailed log"), self)
+        self._i1io_log_check.setObjectName("i1io_extra_log_check")
+        self._i1io_log_tip = TooltipButton(tr("Keep the table's detailed log"), _lh_body,
+                                           self, min_width=680)
+        _i1iolog = QHBoxLayout()
+        _i1iolog.setContentsMargins(28, 0, 0, 0)
+        _i1iolog.addWidget(self._i1io_log_check)
+        _i1iolog.addStretch()
+        _i1iolog.addWidget(self._i1io_log_tip)
+        _beta.addLayout(_i1iolog)
+        # ...and where its i1Pro 2 is calibrated: the table's tile by default
+        # (never asked since the volunteer's table of 17 Nov 2026), the own
+        # tile as a choice
+        self._i1io_cal_combo = _QCB(self)
+        self._i1io_cal_combo.addItem(tr("On the table's white tile (as i1Profiler does)"),
+                                     "table tile")
+        self._i1io_cal_combo.addItem(tr("On the i1Pro 2's own white tile"), "own tile")
+        self._i1io_cal_label = _QL(tr("Calibrate the i1Pro 2 of a table measurement:"), self)
+        _i1iocal = QHBoxLayout()
+        _i1iocal.setContentsMargins(28, 0, 0, 0)
+        _i1iocal.addWidget(self._i1io_cal_label)
+        _i1iocal.addWidget(self._i1io_cal_combo)
+        _i1iocal.addStretch()
+        # review 13, S-8: its help reachable without hovering, as every row around it
+        self._i1io_cal_tip = TooltipButton(
+            tr("Calibrate the i1Pro 2 of a table measurement:"),
+            i1io_cal_place_help(), self)
+        _i1iocal.addWidget(self._i1io_cal_tip)
+        _beta.addLayout(_i1iocal)
+        # ...and D-4b, an option until the owner decides (off): the white
+        # scaled to the tile values stored in the table, as i1Profiler does
+        self._i1io_stored_white_check = QCheckBox(
+            tr("Use the table's stored white tile values (as i1Profiler does)"), self)
+        _i1iosw = QHBoxLayout()
+        _i1iosw.setContentsMargins(28, 0, 0, 0)
+        _i1iosw.addWidget(self._i1io_stored_white_check)
+        _i1iosw.addStretch()
+        self._i1io_stored_white_tip = TooltipButton(
+            tr("Use the table's stored white tile values (as i1Profiler does)"),
+            i1io_stored_white_help(), self)
+        _i1iosw.addWidget(self._i1io_stored_white_tip)
+        _beta.addLayout(_i1iosw)
+        # ...and how a table chart starts reading (4.3.45, the owner): the table's own
+        # "-p" default, the same value Save as Defaults keeps with a table chart loaded
+        self._i1io_pbp_check = QCheckBox(
+            tr("Table charts start with “Patch-by-patch mode (-p)” ticked"), self)
+        _i1iopbp = QHBoxLayout()
+        _i1iopbp.setContentsMargins(28, 0, 0, 0)
+        _i1iopbp.addWidget(self._i1io_pbp_check)
+        _i1iopbp.addStretch()
+        self._i1io_pbp_tip = TooltipButton(
+            tr("Table charts start with “Patch-by-patch mode (-p)” ticked"),
+            i1io_table_pbp_help(), self)
+        _i1iopbp.addWidget(self._i1io_pbp_tip)
+        _beta.addLayout(_i1iopbp)
+        self._i1io_support_check.toggled.connect(self._i1io_rows_follow)
+        self._i1io_rows_follow()
 
         # X-Rite i1iSis family charts (ChromIQ's layout, measured in
         # i1Profiler). Restart to apply, like the i1iO (`workflow.isis.
@@ -6976,8 +6987,12 @@ class SettingsDialog(QDialog):
             bool(s.get("i1io_support_beta", False)))
         self._i1io_support_toggled()
         if getattr(self, "_i1io_ask_check", None) is not None:
+            # 4.3.52: read every time Preferences opens (the done page's offer and the first
+            # page's tick write the same key)
             self._i1io_ask_check.setChecked(
                 bool(s.get("i1io_table_ask_after_each_step", True)))
+        if getattr(self, "_i1io_log_check", None) is not None:
+            self._i1io_log_check.setChecked(bool(s.get("i1io_table_extra_logging", True)))
         if getattr(self, "_i1io_cal_combo", None) is not None:
             k = self._i1io_cal_combo.findData(
                 str(s.get("i1io_table_calibration_place", "") or ""))
@@ -7244,6 +7259,22 @@ class SettingsDialog(QDialog):
         from workflow.fd9.support import fd9_enabled
         self._fd9_support_restart_hint.setVisible(
             self._fd9_support_check.isChecked() != fd9_enabled())
+
+    def i1io_sub_rows(self) -> list:
+        """4.3.52: the widgets of the i1iO Beta's sub-options (each row's control, its label and
+        its help button)."""
+        return [w for w in (self._i1io_ask_check, self._i1io_ask_tip, self._i1io_log_check,
+                            self._i1io_log_tip, self._i1io_cal_label, self._i1io_cal_combo,
+                            self._i1io_cal_tip, self._i1io_stored_white_check,
+                            self._i1io_stored_white_tip, self._i1io_pbp_check,
+                            self._i1io_pbp_tip) if w is not None]
+
+    def _i1io_rows_follow(self, *_a) -> None:
+        """The i1iO Beta's sub-options are greyed, their values shown, while its box is
+        unticked; and ONLY then (no other condition greys them)."""
+        on = self._i1io_support_check.isChecked()
+        for w in self.i1io_sub_rows():
+            w.setEnabled(on)
 
     def _i1io_support_toggled(self, *_a) -> None:
         """i1iO support is restart-to-apply (`workflow.i1io.support`): say so
@@ -8616,6 +8647,10 @@ class SettingsDialog(QDialog):
                     s.get("i1io_table_ask_after_each_step", True)):
             s.set("i1io_table_ask_after_each_step",
                   self._i1io_ask_check.isChecked())
+        if getattr(self, "_i1io_log_check", None) is not None and \
+                self._i1io_log_check.isChecked() != bool(
+                    s.get("i1io_table_extra_logging", True)):
+            s.set("i1io_table_extra_logging", self._i1io_log_check.isChecked())
         if getattr(self, "_i1io_cal_combo", None) is not None and \
                 self._i1io_cal_combo.currentData() != (str(
                     s.get("i1io_table_calibration_place", "") or "") or "table tile"):
@@ -10571,6 +10606,16 @@ def page_pause_note_help() -> str:
 # a table", and "only commands whose meaning is known" stood in the risks; both
 # are replaced by the one sentence on the drive. The spec
 # `docs/design/i1io_table_support.md` ("The option") says the same.
+
+class _GuidedHelpButton(TooltipButton):
+    """4.3.52: M-I1IO-GUIDED-HELP with its countdown sentence filled when it is opened."""
+
+    def dialog_body(self) -> str:
+        from workflow import measurement_messages as M
+        from ui.i1io_table_window import countdown_seconds
+        return M.M_I1IO_GUIDED_HELP.render(
+            countdown=M.i1io_countdown_sentence(countdown_seconds() or 0))[1]
+
 
 def i1io_support_help() -> str:
     """The (i) of Preferences > Beta > "X-Rite i1iO support (beta)"."""

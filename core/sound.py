@@ -611,6 +611,46 @@ class SoundManager:
         except Exception as exc:      # noqa: BLE001 — audio must never break a window
             log.debug("could not play window sound %s: %s", event, exc)
 
+    def play_alarm(self, event: str, ignore_setting: bool = False) -> str:
+        """4.3.52: the i1iO table's switch-off alarm (``ui.i1io_table_window``,
+        ALARM_IGNORES_SOUND_SETTING). *ignore_setting* False: exactly :meth:`play_window`
+        (the master switch and a sound set to Off hold, measurement_window_sounds.md W-3).
+        True: the event's chosen sound, or the bundled default file when it is set to Off or
+        missing, even with the master switch off. Returns what happened ("played",
+        "sounds_off", "sound_set_to_off", "no_audio", "no_file"); never raises."""
+        try:
+            if not ignore_setting:
+                if not self.enabled():
+                    return "sounds_off"
+                if choice_for(self._settings, event) == OFF:
+                    return "sound_set_to_off"
+                self.play_window(event)
+                return "played"
+            cls = _sound_effect_cls()
+            if cls is None:
+                return "no_audio"
+            path = resolve_file(self._settings, event)
+            if path is None:
+                cand = bundled_sounds_root() / SUBFOLDER_OF[event] / \
+                    f"{DEFAULT_CHOICE.get(event, '')}.wav"
+                path = cand if cand.is_file() else None
+            if path is None:
+                return "no_file"
+            from PyQt6.QtCore import QUrl
+            key = "alarm:" + event
+            eff = self._effects.get(key)
+            want = QUrl.fromLocalFile(str(path))
+            if not (isinstance(eff, cls) and eff.source() == want):
+                eff = cls()
+                eff.setSource(want)
+                eff.setVolume(0.85)
+                self._effects[key] = eff
+            eff.play()
+            return "played"
+        except Exception as exc:      # noqa: BLE001 - audio must never break a page
+            log.debug("could not play the alarm %s: %s", event, exc)
+            return "error"
+
     def play(self, event: str) -> None:
         """Play *event*'s sound now, if sounds are on, a file is selected, and
         the event is allowed in the current context (only completion sounds play

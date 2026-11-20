@@ -162,11 +162,11 @@ def test_the_preferences_box_is_there_only_with_the_beta_on(qapp, tmp_path, monk
         try:
             dlg = SettingsDialog(s)
             box = getattr(dlg, "_i1io_ask_check", None)
-            assert (box is not None) is on
-            if on:
-                assert box.isChecked()
-                box.setChecked(False)
-                dlg._save() if hasattr(dlg, "_save") else None
+            # 4.3.52 (the owner, W7: "greyed when it is not active"): always there, its value
+            # shown; enabled only while the Beta's box is ticked
+            assert box is not None and box.isChecked()
+            dlg._i1io_support_check.setChecked(on)
+            assert box.isEnabled() is on
             dlg.deleteLater()
         finally:
             sup.set_enabled_for_this_process(None)

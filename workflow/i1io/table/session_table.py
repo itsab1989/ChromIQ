@@ -1125,6 +1125,11 @@ class Table:
         # ---- 4.3.48 ----
         #: after reopen_for_homing: only the homing's own lines may be written
         self.homing_only = False
+        #: 4.3.52: the start-up's own reading before its homing found the arm away from rest
+        #: (the job then brings it home with the START rule's homing)
+        self.cold_stopped_at_place = False
+        #: 4.3.52: the first reading after a movement (set by position())
+        self.read_is_arrival = False
         #: (lines, movements) that homing adds to the caps, once
         self.homing_allowance = (0, 0)
 
@@ -1147,6 +1152,20 @@ class Table:
         self.homing_only = True
         self.homing_allowance = (int(allowance[0]), int(allowance[1]))
 
+    def reopen_after_homing(self) -> None:
+        """4.3.52: the START rule's homing (opened by reopen_for_homing after a place check)
+        ended with the arm read at its resting place, held, the aiming mode off: the table is
+        a started table at rest, as at any START, and the measurement goes on. Only right after
+        such a homing (the job's caller checks the reading); the homing's allowance stays on
+        top of the caps."""
+        if not self.homing_only or self.closed_reason is not None or self.motion_unconfirmed \
+                or self.link_lost_at is not None or self.position_now is None \
+                or not REST_GUARD.contains(self.position_now):
+            raise Doubt("the measurement asked to go on after a homing out of order (a bug)")
+        self.homing_only = False
+        self.log("STOP", "the arm is at its resting place after the homing at the start: "
+                         "sending is open again for the measurement")
+
     # ---- logging and stopping ------------------------------------------------------
     def log(self, kind: str, text: str) -> None:
         self._log(kind, f"{self.t.now():10.3f}  {text}")
@@ -1155,6 +1174,8 @@ class Table:
         self.stop_requested = True
 
     def close_for_sending(self, reason: str) -> None:
+        if getattr(self, "_move_note", None) is not None:
+            self._flush_move()
         if self.closed_reason is None:
             self.closed_reason = reason
             self.log("STOP", f"nothing more is sent: {reason}")
@@ -1170,7 +1191,56 @@ class Table:
             self.log("DATA", f"the USB link was lost: {detail}")
         return self.link_lost_text
 
+    # ---- 4.3.52: one compact line per movement (written whatever "Keep the table's detailed
+    # log" says): "MOVE n kind target t_sent took predicted status arrival". Built from what the
+    # table module already knows, logged before the next line is written or right after the
+    # reading that follows the move: never inside a movement's timed window; never raises.
+    def _note_move_sent(self, line, kind, cid) -> None:
+        try:
+            self._flush_move()
+            text = bytes(line).decode("ascii", "replace").rstrip("\r")
+            target = text[3:].strip() if cid in ("m0", "m2") else "-"
+            self._move_note = {"n": self.motions_sent, "kind": str(kind or cid),
+                               "target": target or "-", "t": self.t.now(), "took": None,
+                               "predicted": None, "status": "sent"}
+        except Exception:      # noqa: BLE001 - a record, never the table's concern
+            self._move_note = None
+
+    def _note_move_done(self, took, window) -> None:
+        try:
+            m = getattr(self, "_move_note", None)
+            if m is not None:
+                m.update(took=took, status="0",
+                         predicted=None if window is None else (window[0], window[1]))
+        except Exception:      # noqa: BLE001
+            pass
+
+    def _note_arrival(self, p) -> None:
+        try:
+            m = getattr(self, "_move_note", None)
+            if m is not None and m.get("took") is not None:
+                self._flush_move(arrival=p)
+        except Exception:      # noqa: BLE001
+            pass
+
+    def _flush_move(self, arrival=None, status: "str | None" = None) -> None:
+        try:
+            m, self._move_note = getattr(self, "_move_note", None), None
+            if m is None:
+                return
+            took = "-" if m.get("took") is None else f"{m['took']:.3f}"
+            pr = m.get("predicted")
+            pred = "-" if not pr else f"{pr[0]:.2f}-{pr[1]:.2f}"
+            arr = "-" if arrival is None else f"{int(arrival[0])},{int(arrival[1])}"
+            self.log("MOVE", f"{m['n']} {m['kind']} {m['target']} t={m['t']:.3f} took={took} "
+                             f"predicted={pred} status={status or m.get('status')} "
+                             f"arrival={arr}")
+        except Exception:      # noqa: BLE001
+            pass
+
     def _doubt(self, reason: str, plain: "str | None" = None) -> Doubt:
+        if getattr(self, "_move_note", None) is not None:
+            self._flush_move(status="doubt")
         if reason.startswith(LINK_FAILED):
             # 0.5.1: part C says plainly what a lost link means (parts A and B unchanged)
             lost = self._note_link_lost(reason[len(LINK_FAILED):].lstrip(": "))
@@ -1258,6 +1328,8 @@ class Table:
                 self.step_motions += 1
                 self.motion_unconfirmed = True
                 self.last_move = (label or _key_of(line), None)
+            if is_motion:
+                self._note_move_sent(line, label or _key_of(line), cid)
             self.log("SEND", line.decode("ascii").rstrip("\r"))
             if label == "start_up":
                 self.start_up_sent = True
@@ -1371,6 +1443,7 @@ class Table:
             self.timings.append((f"{key}/{window}", took))
             self.log("DATA", f"{cid} ({key}) took {took:.3f} s")
             lo, hi = TIME_WINDOW[window]
+            self._note_move_done(took, (lo, hi))
             self.last_move = (key, lo <= took <= hi)
             if not lo <= took <= hi:
                 raise self._doubt(f"{cid} took {took:.3f} s, outside {lo}-{hi} s ({window})",
@@ -1455,6 +1528,7 @@ class Table:
             self.arm_free = False
             self.timings.append((f"{cid}/computed", took))
             self.log("DATA", f"{cid} took {took:.3f} s")
+            self._note_move_done(took, window)
             if window is not None:
                 lo, hi = window
                 self.last_move = (self.last_move[0] if self.last_move else cid, lo <= took <= hi)
@@ -1515,10 +1589,14 @@ class Table:
     # ---- the opening and the steps --------------------------------------------------
     def position(self) -> "tuple[int, int]":
         p = self.exchange("position").xy()
+        self._note_arrival(p)
         self.position_now = p
         #: 4.3.47 MUST-1: the line number this reading came with (the job compares it with the
         #: last question and the last release of the arm before a computed move)
         self.read_at_line = self.lines_sent
+        #: 4.3.52: True when this reading is the first one after a movement (its arrival); the
+        #: job never offers its START homing on the arrival of its own movement
+        self.read_is_arrival = bool(self.arrival_unknown)
         if getattr(self, "first_read", None) is None:
             #: 4.3.51: the first place this sitting read, and how many movements came before
             #: it (the job's record of the START; nothing depends on it)
@@ -1537,8 +1615,14 @@ class Table:
         self.busy += 1
         try:
             self.drain()
+            got = {}
             for key in OPEN_KEYS[:5]:
-                self.exchange(key)
+                got[key] = self.exchange(key).data
+            # 4.3.52 fix round (safety review S-5): the table's model answers, one DATA line
+            # that "Keep the table's detailed log" off never leaves out (they identify the
+            # model, not the person: both are checked against the one recorded form)
+            self.log("DATA", f"the table's model answers: a1 = {got.get('identity')}, "
+                             f"k2 = {got.get('k2')}")
             a0 = self.exchange("a0").data
             if a0 == A0_COLD:
                 # 0.6.0: nothing more is sent unless the person chooses the start-up

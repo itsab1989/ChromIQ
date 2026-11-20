@@ -350,29 +350,34 @@ def test_the_homing_is_never_sent_from_outside_the_area():
     assert moves(sim.received[n:]) == []
 
 
-def test_a_far_away_arm_is_not_homed_at_the_start():
+def test_a_far_away_arm_is_not_homed_at_the_start_without_its_question():
+    """Read out on the table, nothing moved by the park itself: the park's homing never runs
+    from there; the START rule's homing (its own question, test_4352_start_rule_by_state.py)
+    is what may bring it home, and "Not now" sends nothing."""
+    def not_now(person, res):
+        if res.confirm == J.Confirm.GO and res.detail.get("step") == "home_at_start":
+            person.script[J.Confirm.GO] = "back"
     job, sim, _t = H.make_job(pos=[1102.0, 400.0])
-    p = H.Person(job, sim)
+    p = H.Person(job, sim, on_ask=not_now)
     assert p.drive(job.open()).ok
     r = p.drive(job.park())
-    assert r.kind == J.Kind.STOPPED and r.reason == "arm_not_where_expected"
-    # read out on the table, nothing moved by the park itself. 4.3.51 (the owner's start-up
-    # capture of 19 Nov 2026): Y 400 lies on the home line inside the recorded Y 815, so the
-    # START rule's own homing is OFFERED (its own GO, test_4351_one_start_rule.py)
+    assert r.kind == J.Kind.STOPPED and r.reason == "person_chose_back"
     assert moves(sim.received) == [] and r.way_back == J.WayBack.HOME_AFTER_STOP
 
 
-def test_an_arm_further_out_on_the_home_line_is_not_homed_at_the_start():
-    """4.3.51: beyond the recorded Y 815 (and short of Y 1202) the home line's own homing is not
-    offered; since the owner's decision of 2026-11-20 the TRY is (4.3.48's lines, not s0 p0 i1
-    s0 p0), and nothing moves before it is taken."""
+def test_an_arm_further_out_on_the_home_line_is_homed_at_the_start():
+    """4.3.51 refused a homing from Y 1000 on the home line (beyond its recorded Y 815) and
+    offered a try; 4.3.52 (the owner's ruling of 2026-11-20): the park's own reading finds the
+    arm out, the one hands-off question, then i1Profiler's start homing from there, then the
+    park's homing from rest, as recorded."""
     job, sim, _t = H.make_job(pos=[1102.0, 1000.0])
     p = H.Person(job, sim)
     assert p.drive(job.open()).ok
     r = p.drive(job.park())
-    assert r.kind == J.Kind.STOPPED and r.reason == "arm_not_where_expected"
-    assert moves(sim.received) == []
-    assert J.start_homing_form((1102, 1000)) == "try"
+    assert r.ok, (r.kind, r.reason)
+    assert sim.received[11:18] == [";s022", ";p025", ";s022", ";p025", ";i12b", ";s022",
+                                   ";p025"]
+    assert [a[1] for a in p.asked if a[2].get("step") == "home_at_start"] == [J.Confirm.GO]
 
 
 def test_a_free_arm_that_moves_between_two_readings_is_not_moved():

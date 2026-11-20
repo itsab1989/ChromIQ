@@ -4693,7 +4693,14 @@ class TiffPreview(QWidget):
     # ------------------------------------------------------------------
 
     def _schedule_refresh(self) -> None:
-        self._refresh_timer.start()
+        # Review 2 of 4.3.52 (the table's fast read): a THROTTLE, not a postponement. A running
+        # timer is not restarted, so the redraw comes at most _REFRESH_DELAY_MS after the FIRST
+        # change of a burst. Restarting it on every change put the redraw off for as long as
+        # changes kept coming less than 80 ms apart: a whole page of a fast read, drawn once at
+        # its end. The last change of a burst is still drawn (the next change after a fire
+        # starts the timer again), so what is shown at rest is the same as before.
+        if not self._refresh_timer.isActive():
+            self._refresh_timer.start()
 
     def _update_display(self) -> None:
         # A deferred repaint (QTimer.singleShot in load_tiff) can fire after the

@@ -67,7 +67,8 @@ def test_a_held_arm_left_out_keeps_its_old_last_page_words():
     import inspect
     import ui.i1io_table_window as W
     src = inspect.getsource(W.TableMeasureWindow._after_close)
-    assert "The arm stayed extended over the table." in src and "_arm_left_free()" in src
+    # 4.3.52 review 2, S-1: the held case now gives the power switch first
+    assert "M_I1IO_DRIVE_ARM_WAY_OUT_ENDED" in src and "_arm_left_free()" in src
 
 
 @pytest.mark.parametrize("asking", [True, False])

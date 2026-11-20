@@ -419,6 +419,10 @@ DEFAULTS: dict[str, Any] = {
     #: Beta switches it back). Only read or written while the Beta is on.
     "i1io_table_consent_given":  0,
     "i1io_table_ask_after_each_step": True,
+    #: 4.3.52: Preferences > Beta > "Keep the table's detailed log" (on: every line the
+    #: table and ChromIQ exchanged; off: a compact line per movement, and the 300 lines
+    #: before anything that stopped; workflow/i1io/table/diagnostics.py). Read once at START.
+    "i1io_table_extra_logging": True,
     #: where the table's i1Pro 2 is calibrated: "" or "table tile" = on the
     #: table's tile (the default since the volunteer's table of 17 Nov 2026:
     #: the two places 0.13 dE00 apart, and i1Profiler uses the table's tile;

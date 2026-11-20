@@ -70,9 +70,9 @@ def test_not_now_then_close_moves_nothing_and_the_done_page_says_how_the_arm_com
 
 def test_his_page_ends_with_the_arm_brought_home_from_in_front_of_every_homing_start(
         qtbot, monkeypatch, tmp_path, settings):  # noqa: F811
-    """His sheet where he laid it, his aims: the last row ends in front of Y 3114 (no recorded
-    homing starts there), so the homing of the ending takes the arm back along the way it came
-    first, then home."""
+    """His sheet where he laid it, his aims: the last row ends in front of Y 3114, where no
+    recorded homing starts. 4.3.52 (the owner's ruling of 2026-11-20): the homing of the ending
+    goes straight home from there, as i1Profiler's does (no move back first)."""
     from tests.i1io_table import job_harness as Hm
     sim = WindowSim(aims=CROSSES_1, reach_store=rc.MemoryReachStore(), **HIS_TABLE)
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
@@ -81,29 +81,44 @@ def test_his_page_ends_with_the_arm_brought_home_from_in_front_of_every_homing_s
     p.drive_until("end_of_session")
     job = sim.jobs[0]
     here = job.state().position_now
-    assert here is not None and not J.homing_starts_here(here, False)
+    assert here is not None and here[1] > 3114
     p.press("Save and stop")
     assert p.page() == "home_at_end"
+    n = len(sim.sim.received)
     p.press("Bring the arm home, my hands are away")
     assert p.page() == "done", (p.page(), win._text.text()[:200])
-    assert job.at_rest() and job.way_back_moves and sim.sim.violations == []
+    assert job.at_rest() and job.way_back_moves == [] and sim.sim.violations == []
+    assert [ln[1:3] for ln in sim.sim.received[n:]] == ["s0", "p0", "i1", "s0", "f0", "f4", "f4",
+                                                        "p0"]
 
 
-def test_a_start_with_the_arm_left_out_in_front_moves_nothing_by_itself(tmp_path):
-    """The next START after "Leave it there" at (-1284, 3275), the real page's last place: the
-    person says "The arm is out"; ChromIQ reads it once, offers no homing (no way back is known
-    in a new sitting, and no recorded homing starts there) and sends no movement."""
+def test_a_start_with_the_arm_left_out_in_front_is_brought_home(tmp_path):
+    """The next START with the arm held at (-1284, 3275), the real page's last place, the aiming
+    mode off: the person says "The arm is out"; ChromIQ reads it once, asks the one hands-off
+    question and brings it home with i1Profiler's start homing (4.3.52)."""
     sim = csim.CSimTable(part_c=True, aims=H.demo_aims())
     sim.pos = [-1284.0, 3275.0]
     job, sim, _t = H.make_job(sim=sim)
     p = H.Person(job, sim, {J.Confirm.READY_TO_OPEN: "arm out"})
     assert p.drive(job.open()).ok
     r = p.drive(job.where_is_the_arm())
-    assert (r.kind, r.reason) == (J.Kind.REFUSED, "arm_not_at_rest")
-    assert r.way_back != J.WayBack.HOME_OFFERED
-    assert job.home().reason == "homing_not_from_here"
+    assert r.ok and r.detail.get("brought_home") is True, (r.kind, r.reason)
+    assert sim.received[11:] == [";p025", ";s022", ";p025", ";i12b", ";s022", ";p025"]
+    assert job.at_rest() and sim.violations == []
+
+
+def test_a_start_after_leave_it_there_in_the_aiming_mode_moves_nothing(tmp_path):
+    """After "Leave it there" the table is still in its aiming mode (no f0 was sent): the next
+    START meets f4 = 01 at the opening and sends nothing that moves (STILL-AIMING), wherever the
+    arm is."""
+    sim = csim.CSimTable(part_c=True, aims=H.demo_aims())
+    sim.pos, sim.mode, sim.free_arm = [-1284.0, 3275.0], "01", True
+    job, sim, _t = H.make_job(sim=sim)
+    p = H.Person(job, sim, {J.Confirm.READY_TO_OPEN: "arm out"})
+    r = p.drive(job.open())
+    assert r.kind == J.Kind.STOPPED and r.reason == "mode_flag_unexpected"
     assert job.home_after_stop().kind == J.Kind.REFUSED
-    for step in ("park", "align", "creep"):
+    for step in ("park", "align", "creep", "home"):
         assert getattr(job, step)().kind != J.Kind.OK
     assert not [ln for ln in sim.received if ln[1:3] in MOVES]
     assert sim.violations == []

@@ -366,7 +366,9 @@ def test_a2_6_f3_answers_01_with_the_arm_already_free_and_the_app_never_sends_it
     import inspect
     from workflow.i1io.table import job as Jm
     src = inspect.getsource(Jm.TableJob._align)
-    assert src.index("self._run_b(C_HOME)") < src.index("self._run_b(C_ALIGN)")
+    # (4.3.52: C_HOME runs inside _home_first_or_start_homing, the START rule's wrapper)
+    assert src.index("self._home_first_or_start_homing()") < src.index("self._run_b(C_ALIGN)")
+    assert "self._run_b(C_HOME)" in inspect.getsource(Jm.TableJob._home_first_or_start_homing)
     assert "if not (d.arm_free is True and d.mode_on):" in src
 
 
