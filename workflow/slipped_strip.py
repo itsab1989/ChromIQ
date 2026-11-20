@@ -209,6 +209,11 @@ class SlippedRun:
     #: one (`whole_strip_shift`: a strip two patches out has two patches
     #: holding what lies beyond it). Empty: `lead` alone says it.
     leads: tuple = ()
+    #: A finding of `shift_at_an_end` (4.3.50): how many readings at that
+    #: end of the strip it rests on (1, 2 or 3), 0 for every other finding.
+    #: Such a finding judged only those readings, together, so its question
+    #: says no more than that (M-STRIP-ENDS-SHIFTED-*, M-STRIP-END-PAPER-*).
+    shift_k: int = 0
 
     @property
     def single(self) -> bool:
@@ -792,6 +797,133 @@ def own_row_direction(patches: "Sequence[dict]") -> "OwnRowDirection | None":
                   and 1.0 - better >= MOST):
                 verdict = "other"
         return OwnRowDirection(saved, turned, mirror, better, verdict)
+    except Exception:            # noqa: BLE001 - a check, never a failure
+        return None
+
+
+#: A SHIFT AT AN END, JUDGED ON TWO OR THREE READINGS TOGETHER (4.3.50, the
+#: patch finder study of 2026-11-19). The rules above judge every patch of a
+#: short slip on its own and need the first (or last) reading to look like
+#: the white paper (L* 85 or more). A tester's i1Pro 2 strip of 2026-11-19
+#: (dual scan, 18 patches) read the white run-up as patch 1 at L* 83.5, a
+#: blend of the paper and the grey patch, and the next two readings carried
+#: the colours of the patches before them: nothing asked, the strip was kept.
+#: `workflow.strip_shift.shift_test` scores the first (and last) two and
+#: three readings together against "moved one place, the paper first" (see
+#: its module and the numbers in its constants); it is asked only when the
+#: rules above find nothing, and its finding raises the SAME question, with
+#: the same answers (read it again, keep it, stop). It never refuses
+#: anything. On top of the score, every reading after the first that the
+#: finding moves must itself fit the patch one place along better than its
+#: own (`SHIFT_EACH`): a ramp printed a step lighter than its design can
+#: make the average lean one way while its readings do not, and a slip
+#: cannot.
+SHIFT_EACH = True
+
+
+def _shift_labs(read, exp, yn):
+    from workflow.strip_shift import _lab
+    return [_lab(r, yn) for r in read], [_lab(e) for e in exp]
+
+
+def shift_at_an_end(read_xyz: "Sequence[Sequence[float]]",
+                    expected_xyz: "Sequence[Sequence[float]]",
+                    paper_xyz: "Sequence[float] | None" = None,
+                    other_best: float = -1.0) -> "SlippedRun | None":
+    """The readings at one end of the strip fit "moved one place, with the
+    white paper first" better than their own colours
+    (`workflow.strip_shift.shift_test`), as a `SlippedRun` with ``shift_k``
+    set, or None.
+
+    *read_xyz*, *expected_xyz*: XYZ (white Y = 100) of ONE strip in the order
+    it was filed; *paper_xyz*: the expected XYZ of the chart's paper (its
+    brightest expected colour; None: the strip's brightest); *other_best*:
+    `strip_shift.other_rows_best` of the reading against the chart's other
+    rows (negative: not known, that guard is skipped). Never raises."""
+    try:
+        from workflow import strip_shift as T
+        n = min(len(read_xyz), len(expected_xyz))
+        if n < T.NMIN:
+            return None
+        R = [tuple(float(v) for v in x) for x in read_xyz[:n]]
+        E = [tuple(float(v) for v in x) for x in expected_xyz[:n]]
+        paper = (tuple(float(v) for v in paper_xyz) if paper_xyz is not None
+                 else max(E, key=lambda x: x[1]))
+        res = T.shift_test(R, E, paper, other_best)
+        if not res.flagged:
+            return None
+        k, at_end = int(res.k), res.end == 1
+        pos = [(n - 1 - i) if at_end else i for i in range(k)]
+        nb = (lambda i: i + 1) if at_end else (lambda i: i - 1)
+        yn = sum(e[1] for e in E) / sum(r[1] for r in R)
+        lr, le = _shift_labs(R, E, yn)
+        lp = T._lab(paper)
+        m = [xyz_to_lab(x) for x in R]
+        e = [xyz_to_lab(x) for x in E]
+        p_lab = xyz_to_lab(paper)
+        # The patch whose place the paper took must not be paper-like
+        # itself, as in the approved short-slip rule ("whose own colour is not
+        # the paper"): on a strip that begins with a white patch "the paper
+        # first" explains nothing at that place, and the score then rests on
+        # the next readings alone, which a print lighter than its design
+        # makes look like the white before them (the reviewer's strip white,
+        # 33 %, 66 % magenta, asked 40 times in 40 without this).
+        if looks_like_paper(e[pos[0]]) or _de(e[pos[0]], p_lab) < MIN_NEIGHBOUR_DE:
+            return None
+        if SHIFT_EACH and k >= 2:
+            for t in range(1, k):
+                i = pos[t]
+                if not T._de(lr[i], le[nb(i)]) < T._de(lr[i], le[i]):
+                    return None
+        target = [p_lab if t == 0 else e[nb(pos[t])] for t in range(k)]
+        base = sum(T._de(lr[i], le[i]) for i in pos) / k
+        shifted = sum(T._de(lr[pos[t]], lp if t == 0 else le[nb(pos[t])])
+                      for t in range(k)) / k
+        try:
+            base00 = round(sum(_de00(m[i], e[i]) for i in pos) / k, 1)
+            sh00 = round(sum(_de00(m[pos[t]], target[t]) for t in range(k))
+                         / k, 1)
+        except Exception:        # noqa: BLE001 - the figures are a courtesy
+            base00 = sh00 = None
+        # The run is every reading the score rests on (its figures are
+        # averaged over all of them); the end one is also named as the lead.
+        lead = pos[0]
+        run = sorted(pos)
+        return SlippedRun(offset=-1 if at_end else 1,
+                          first=min(pos), last=max(pos),
+                          base_de=round(base, 2), shifted_de=round(shifted, 2),
+                          run_first=run[0], run_last=run[-1],
+                          base_de00=base00, shifted_de00=sh00, lead=lead,
+                          lead_paper=looks_like_paper(m[lead]),
+                          kind="end" if at_end else "start", shift_k=k)
+    except Exception:            # noqa: BLE001 - a check, never a failure
+        return None
+
+
+def shift_in_strip_read(patches: "Sequence[dict]",
+                        paper_xyz: "Sequence[float] | None" = None,
+                        other_rows: "Sequence[Sequence[Sequence[float]]] | None" = None
+                        ) -> "SlippedRun | None":
+    """`shift_at_an_end` over the engine's ``strip_read`` event patches (as
+    FILED), against the engine's own expected colours (``exyz``, the chart's:
+    what `strip_shift`'s limits were measured with). *other_rows*: the
+    expected XYZ of the chart's OTHER rows, each in strip order, for the
+    wrong-strip guard. None when a patch has no reading or no expected colour.
+    Never raises."""
+    try:
+        from workflow.strip_shift import other_rows_best
+        read, exp = [], []
+        for p in patches or ():
+            xyz, exyz = p.get("xyz"), p.get("exyz")
+            if not (isinstance(xyz, (list, tuple)) and len(xyz) == 3
+                    and isinstance(exyz, (list, tuple)) and len(exyz) == 3):
+                return None
+            read.append(tuple(float(v) for v in xyz))
+            exp.append(tuple(float(v) for v in exyz))
+        if not read or not any(e[1] > 0 for e in exp):
+            return None
+        other = other_rows_best(read, list(other_rows)) if other_rows else -1.0
+        return shift_at_an_end(read, exp, paper_xyz, other)
     except Exception:            # noqa: BLE001 - a check, never a failure
         return None
 

@@ -11239,6 +11239,99 @@ M_STRIP_END_SLIPPED_EARLY = _m(
     + _slip_tail(),
     approved=False)
 
+#: THE SHIFT SCORE AT AN END (4.3.50, the patch finder study of 2026-11-19):
+#: `slipped_strip.shift_at_an_end`, asked only when the rules above find
+#: nothing. It scores the first (or last) two or three readings TOGETHER
+#: against "moved one place, with the white paper first", so these words say
+#: only that: they name no paper reading (the first one is not tested for
+#: it), claim nothing about the rest of the strip, and name the other cause
+#: that looks the same (a print far from its design). {first} to {last}: the
+#: readings the score rests on, in strip order; {base} / {best}: their mean
+#: ΔE00 against their own expected colours / against the colours one place
+#: along (the paper for the end patch). Same buttons as every slip question.
+M_STRIP_ENDS_SHIFTED_LATE = _m(
+    "M-STRIP-ENDS-SHIFTED-LATE",
+    "The start of strip {strip} was probably read one patch out of place",
+    "The first readings of strip {strip}, patches {first} to {last}, match "
+    "the colours one place earlier better than their own colours: for patch "
+    "{first} the white paper in front of the strip, and for each of the "
+    "others the patch just before it. On average they miss their own "
+    "expected colours by {base} ΔE00, but those colours by only {best} ΔE00. "
+    "ChromIQ compared only these readings, so it cannot say whether the rest "
+    "of the strip is in step.\n\n"
+    "This usually happens when the instrument takes the white paper in front "
+    "of the first patch for a patch of its own. The readings after it are "
+    "then filed one place too far along, at least for a few patches.\n\n"
+    "A print whose colours are far from the chart's design can look the "
+    "same, for example a print much lighter than planned. If you read the "
+    "strip again carefully and this question comes back, the print is the "
+    "likely cause: then keep the reading.\n\n"
+    + _slip_tail(),
+    approved=False)
+
+#: The mirror at the strip's last patches: the white paper after the strip,
+#: and the patch just after each of the others.
+M_STRIP_ENDS_SHIFTED_EARLY = _m(
+    "M-STRIP-ENDS-SHIFTED-EARLY",
+    "The end of strip {strip} was probably read one patch out of place",
+    "The last readings of strip {strip}, patches {first} to {last}, match the "
+    "colours one place later better than their own colours: for patch "
+    "{last} the white paper after the strip, and for each of the others the "
+    "patch just after it. On average they miss their own expected colours by "
+    "{base} ΔE00, but those colours by only {best} ΔE00. ChromIQ compared "
+    "only these readings, so it cannot say whether the rest of the strip is "
+    "in step.\n\n"
+    "This usually happens when the instrument takes the white paper after "
+    "the last patch for a patch of its own. The readings before it are then "
+    "filed one place too early, at least for a few patches.\n\n"
+    "A print whose colours are far from the chart's design can look the "
+    "same, for example a print much lighter than planned. If you read the "
+    "strip again carefully and this question comes back, the print is the "
+    "likely cause: then keep the reading.\n\n"
+    + _slip_tail(),
+    approved=False)
+
+#: The shift score's one-reading finding (k = 1): the first (or last)
+#: reading, as read, is light and nearly neutral like the paper (L* 85 or
+#: more, chroma 12 or less) while it misses its own expected colour by 50
+#: CIE76 or more. One reading cannot tell a shift from a patch that did not
+#: print, so the words give both causes and how to tell them apart.
+#: {first}: that patch; {base}: its ΔE00 from its own expected colour.
+M_STRIP_END_PAPER_LATE = _m(
+    "M-STRIP-END-PAPER-LATE",
+    "The first reading of strip {strip} looks like the white paper",
+    "Patch {first} of strip {strip} came out with a colour like the white "
+    "paper, but its own expected colour is far from the paper: the reading "
+    "misses it by {base} ΔE00. ChromIQ looked only at this one reading.\n\n"
+    "There are two usual causes. The instrument may have taken the white "
+    "paper in front of the first patch for a patch of its own; then the "
+    "readings after it may be filed one place too far along. Or patch "
+    "{first} did not print, for example because a nozzle is blocked or an "
+    "ink ran out.\n\n"
+    "Look at patch {first} on the printed chart. If it is white or very "
+    "pale, the print is the cause: reading the strip again will not change "
+    "that, so keep the reading. If the patch printed well, read the strip "
+    "again.\n\n"
+    + _slip_tail(),
+    approved=False)
+
+M_STRIP_END_PAPER_EARLY = _m(
+    "M-STRIP-END-PAPER-EARLY",
+    "The last reading of strip {strip} looks like the white paper",
+    "Patch {last} of strip {strip} came out with a colour like the white "
+    "paper, but its own expected colour is far from the paper: the reading "
+    "misses it by {base} ΔE00. ChromIQ looked only at this one reading.\n\n"
+    "There are two usual causes. The instrument may have taken the white "
+    "paper after the last patch for a patch of its own; then the readings "
+    "before it may be filed one place too early. Or patch {last} did not "
+    "print, for example because a nozzle is blocked or an ink ran out.\n\n"
+    "Look at patch {last} on the printed chart. If it is white or very pale, "
+    "the print is the cause: reading the strip again will not change that, "
+    "so keep the reading. If the patch printed well, read the strip "
+    "again.\n\n"
+    + _slip_tail(),
+    approved=False)
+
 #: Two or three patches inside the strip, one patch late, where the patch
 #: just before them was read twice ({twice}).
 M_STRIP_MID_SLIPPED_LATE = _m(
@@ -13661,6 +13754,8 @@ CATALOGUE = {m.id: m for m in (
     M_STRIP_ONE_SLIPPED_LATE, M_STRIP_ONE_SLIPPED_EARLY,
     M_STRIP_END_SLIPPED_EARLY, M_STRIP_MID_SLIPPED_LATE,
     M_STRIP_MID_SLIPPED_EARLY,
+    M_STRIP_ENDS_SHIFTED_LATE, M_STRIP_ENDS_SHIFTED_EARLY,
+    M_STRIP_END_PAPER_LATE, M_STRIP_END_PAPER_EARLY,
     M_REPORT_PATCH_SHIFTED_LATE, M_REPORT_PATCH_SHIFTED_EARLY,
     M_REPORT_EVENNESS_SPREAD, M_REPORT_NEUTRAL_AIMS_BUNCHED,
     M_LIMIT_RECOMMENDED,
