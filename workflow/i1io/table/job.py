@@ -3979,7 +3979,16 @@ class TableJob:
         self._open_reader(reader, self._cal_place_ok)
         cal_ok = bool(getattr(reader, "calibrated", False))
         dual_ev = self._dual_event(reader, "dual_calibration") if self.dual is not None else None
-        self._close_reader(reader)
+        self._pre_tile = None
+        if cal_ok and place == "table tile" and self.dual is None and (
+                self.stored_tile_white or self.white_needed() == "stored"):
+            # 4.3.53 (group I, D4): the table's tile is read with the SAME reader right after
+            # its calibration (it already sits on its one patch, at rest over the tile), not by
+            # a second reader started for it: about 6 s less at every calibration. The reading,
+            # its checks and what is sent to the table are those of _read_tile
+            yield from self._read_tile(reader=reader)
+        else:
+            self._close_reader(reader)
         if not cal_ok:
             raise StageFailed("calibration_not_confirmed")
         if self.dual is not None:
@@ -4061,6 +4070,7 @@ class TableJob:
             self.session_white = "stored" if self.white_scale else "own"
             self.diag.log("STEP", f"the session's white reference is decided: {self.session_white} "
                                   "(kept for every later calibration of this session)")
+        self._pre_tile = None
         return out
 
     def _decide_white_by_a_row(self) -> None:
@@ -4138,15 +4148,33 @@ class TableJob:
     def read_tile(self) -> StepResult:
         return self._stage("read_tile", self._read_tile, go=False)
 
-    def _read_tile(self):
+    def _read_tile(self, reader=None):
+        """One reading of the table's white tile at rest (part C's C2). 4.3.53: *reader*, the
+        calibration's own reader, open on its one patch right after the white: the reading is
+        made with it (kept for the white-level check and the stored white that follow, which
+        then start no reader of their own); without it a reader is started as before."""
+        pre = getattr(self, "_pre_tile", None)
+        if reader is None and pre is not None:
+            # the calibration's reader read the tile a moment ago (nothing moved since: the
+            # arm is checked at rest after it)
+            self._pre_tile = None
+            self._check_rest("before using the tile reading made with the calibration")
+            self._tile_spectrum = pre.get("spectrum")
+            self.tile_readings.append({"xyz": pre["xyz"]})
+            return {"xyz": pre["xyz"]}
         d = self._table
-        self._check_rest("before the reading")
         folder = self.diag.folder / self._block["folder"]
-        reader = yield from self._start_reader(folder, "c2_tile", sp.CAL_PATCHES, False)
+        if reader is None:
+            self._check_rest("before the reading")
+            reader = yield from self._start_reader(folder, "c2_tile", sp.CAL_PATCHES, False)
+            name, own = "c2_tile", True
+        else:
+            name, own = "c1_tile", False
         rows = []
         try:
-            self._cal_refused = None
-            self._open_reader(reader, self._cal_in_a_row)
+            if own:
+                self._cal_refused = None
+                self._open_reader(reader, self._cal_in_a_row)
             self._check_rest("right before the reading")
             p = sp.PatchTarget("1", "A1", d.position_now)
             try:
@@ -4157,13 +4185,17 @@ class TableJob:
             rows.append(rec)
         finally:
             self._finish_reader(reader)
-            self._write_readings(folder, "c2_tile", rows)
+            self._write_readings(folder, name, rows)
         try:
             got = reader.readings.get("A1")
             self._tile_spectrum = list(got.spectrum) if got and got.spectrum else None
         except Exception:      # noqa: BLE001 - no spectrum: the stored white is refused
             self._tile_spectrum = None
         self._check_rest("after the reading")
+        if not own:
+            # kept for the white-level check / the stored white of this calibration
+            self._pre_tile = {"xyz": rows[0]["xyz"], "spectrum": self._tile_spectrum}
+            return {"xyz": rows[0]["xyz"]}
         self.tile_readings.append({"xyz": rows[0]["xyz"]})
         return {"xyz": rows[0]["xyz"]}
 

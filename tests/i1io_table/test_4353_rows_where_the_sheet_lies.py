@@ -431,3 +431,39 @@ def test_the_countdown_runs_where_hands_were_on_the_table_and_not_before_the_end
     job._countdown_owed = True                          # a new sheet laid by hand
     job._countdown("align", J.Ask(J.Confirm.GO, {"step": "align"}))
     assert job.countdowns[-1]["seconds"] == J.UNGUIDED_COUNTDOWN_S
+
+
+# ---- group I: the calibration and the tile check in ONE reader --------------------------------
+
+def _calibrated(tmp_path, monkeypatch, level=0.88):
+    from tests.i1io_table.test_job_reading import job_for
+    monkeypatch.setattr(RS, "REST_TILE", level)
+    job, sim, helper, run, p = job_for(tmp_path)
+    job.stored_tile_white = True
+    sim.stored_tile = tuple([0.88] * 36)
+    assert p.drive(job.open()).ok
+    n = len(sim.received)
+    before = job.readers_started
+    r = p.drive(job.calibrate())
+    return job, sim, helper, r, sim.received[n:], job.readers_started - before
+
+
+def test_the_tile_is_read_with_the_calibrations_own_reader(tmp_path, monkeypatch):
+    """4.3.53 (audit D4; the owner: the calibration itself stays at every new measurement):
+    until 4.3.52 the white on the table's tile was made by one reader and the tile read for the
+    white-level check / the stored white by a second one started for it (about 6 s). Now the
+    calibration's reader reads the tile right after the white; the check and its refusal are
+    unchanged, and the table lines are those of before (position readings only)."""
+    job, sim, helper, r, lines, readers = _calibrated(tmp_path, monkeypatch)
+    assert r.ok, (r.reason, r.detail)
+    assert readers == 1
+    assert [a[a.index("-p") + 1] for a in helper.started] == ["c1_spot"]
+    assert abs(r.detail["white_level_y"] - 88.0) < 0.5
+    assert r.detail["stored_white"]["used"] is True
+    assert {_cid(ln) for ln in lines} <= {"p0", "s0", "f4"}, lines     # nothing moves
+
+
+def test_a_white_level_off_is_still_refused_with_one_reader(tmp_path, monkeypatch):
+    job, sim, helper, r, lines, readers = _calibrated(tmp_path, monkeypatch, level=0.60)
+    assert (r.kind, r.reason) == (J.Kind.REFUSED, "white_level_implausible")
+    assert job.calibration is None and readers == 1
