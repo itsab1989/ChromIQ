@@ -9576,5 +9576,6 @@
  "To read row {row} as a strip, the arm would have to start or end the strip outside the part of the table ChromIQ may send it to now. So ChromIQ reads this row patch by patch instead. Nothing else changes.": "要把第 {row} 行作为色条读取，机械臂就得在 ChromIQ 现在可以让它到达的扫描台范围之外开始或结束这条色条。所以 ChromIQ 改为逐块读取这一行。其他一切不变。",
  "In the chart's side file, row {row} is not one straight run of at least 10 mm. So ChromIQ reads this row patch by patch instead. Nothing else changes.": "在色卡的附属文件里，第 {row} 行不是一段至少 10 mm 的直线路径。所以 ChromIQ 改为逐块读取这一行。其他一切不变。",
  "the strip would start or end outside the part of the table ChromIQ may send the arm to now": "这条色条会在 ChromIQ 现在可以让机械臂到达的扫描台范围之外开始或结束",
- "the row is not one straight run of at least 10 mm": "这一行不是一段至少 10 mm 的直线路径"
+ "the row is not one straight run of at least 10 mm": "这一行不是一段至少 10 mm 的直线路径",
+ "Checking whether the instrument needs a new calibration...": "正在检查仪器是否需要重新校准..."
 }

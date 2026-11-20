@@ -974,6 +974,9 @@ class TableJob:
         self.start_case_seq = 0
         self._row_seq = 0
         self.tile_readings: "list[dict]" = []
+        #: 4.3.53: with -N, whether this START has asked the instrument already if a
+        #: calibration of it is still valid (TableJob.calibrate(if_needed=True))
+        self.minus_n_checked = False
         self._tile_spectrum: "list[float] | None" = None
         self.ended: "str | None" = None          # "saved" / "discarded" / "nothing_read"
         #: step 8: interrupted earlier sessions adopted by this one (their readings count)
@@ -3884,10 +3887,29 @@ class TableJob:
         self.diag.log("BUTTON", f"a press of the instrument's button was ignored ({why})")
 
     # ---- calibration (part C's C1, spot white) ----------------------------------------------
-    def calibrate(self) -> StepResult:
+    def calibrate(self, if_needed: bool = False) -> StepResult:
         """With the arm at its resting place: the reader consent (once), the place, the
-        instrument's own calibration. Nothing moves; the arm is read before and after."""
+        instrument's own calibration. Nothing moves; the arm is read before and after.
+
+        4.3.53, *if_needed* ("Skip initial calibration (-N)" ticked in the Measure tab): as a
+        hand measurement with -N, the instrument is opened at rest WITHOUT a calibration
+        first; only when it asks for one (no calibration of it is still valid, ArgyllCMS's own
+        rule) is the calibration made, right there, before the aims. Until 4.3.52 the table
+        found that out only at the first row, after the aims, and then had to bring the arm
+        home, calibrate and have the sheet aimed at again."""
+        if if_needed:
+            return self._stage("calibrate", lambda: self._calibrate(if_needed=True), go=False)
         return self._stage("calibrate", self._calibrate, go=False)
+
+    def _cal_needed_at_start(self, ev) -> bool:
+        """-N at a START: the instrument asks for a calibration when it is opened at rest.
+        Not answered here: the reader ends, and the calibration is made as without -N."""
+        self._cal_was_needed = True
+        self._cal_refused = "calibration_needed_at_start"
+        self.diag.log("INST", "-N: the instrument asks for a calibration when it is opened "
+                              f"({ev.get('cond', '')}): no calibration of it is valid any more, "
+                              "so ChromIQ calibrates now, at rest, before the aims")
+        return False
 
     def _cal_place_ok(self, ev) -> bool:
         """The reader's calibration request (its own prompt, an event): only a reflective white
@@ -3908,7 +3930,7 @@ class TableJob:
                               f"({ev.get('cond', '')}); the row is not read")
         return False
 
-    def _calibrate(self):
+    def _calibrate(self, if_needed: bool = False):
         d = self._table
         p = yield from self._rest_or_start_homing("before opening the instrument")
         if not tbl.REST_RECORDED.contains(p):
@@ -3929,6 +3951,26 @@ class TableJob:
                 self._table.outside_at = p
                 raise StageFailed("arm_not_over_the_tile", read=p)
         folder = self.diag.folder / self._block["folder"]
+        if if_needed:
+            # 4.3.53: -N, as a hand measurement: open the instrument without calibrating
+            self._cal_was_needed = False
+            check = yield from self._start_reader(folder, "c1_check", sp.CAL_PATCHES, False)
+            self._cal_refused = None
+            try:
+                self._open_reader(check, self._cal_needed_at_start)
+            except StageFailed:
+                if not self._cal_was_needed:
+                    raise
+            else:
+                self._close_reader(check)
+                self.minus_n_checked = True
+                self._check_rest("after opening the instrument")
+                self.diag.log("STEP", "-N: the instrument's calibration is still valid "
+                                      "(it did not ask for one): no calibration is made, as "
+                                      "in a hand measurement with -N")
+                self._block["data"]["calibration"] = {"skipped": "still_valid"}
+                return {"place": None, "skipped": "still_valid"}
+            self.minus_n_checked = True
         # tester C1: the reader first (its checks and the consent), then the place, asked once
         # in the session (the tester asked it at the reader's calibration request)
         reader = yield from self._start_reader(

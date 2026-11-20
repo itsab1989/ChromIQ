@@ -9576,5 +9576,6 @@
  "To read row {row} as a strip, the arm would have to start or end the strip outside the part of the table ChromIQ may send it to now. So ChromIQ reads this row patch by patch instead. Nothing else changes.": "行 {row} をストリップとして読み取るには、ChromIQ が今アームを動かしてよいテーブルの範囲の外でストリップを始めるか終える必要があります。そのため ChromIQ は代わりにこの行をパッチ単位で読み取ります。ほかは何も変わりません。",
  "In the chart's side file, row {row} is not one straight run of at least 10 mm. So ChromIQ reads this row patch by patch instead. Nothing else changes.": "チャートのサイドファイルでは、行 {row} が 10 mm 以上の1本のまっすぐな経路になっていません。そのため ChromIQ は代わりにこの行をパッチ単位で読み取ります。ほかは何も変わりません。",
  "the strip would start or end outside the part of the table ChromIQ may send the arm to now": "ストリップが、ChromIQ が今アームを動かしてよいテーブルの範囲の外で始まるか終わります",
- "the row is not one straight run of at least 10 mm": "その行は 10 mm 以上の1本のまっすぐな経路ではありません"
+ "the row is not one straight run of at least 10 mm": "その行は 10 mm 以上の1本のまっすぐな経路ではありません",
+ "Checking whether the instrument needs a new calibration...": "測定器に新しいキャリブレーションが必要か確認しています..."
 }

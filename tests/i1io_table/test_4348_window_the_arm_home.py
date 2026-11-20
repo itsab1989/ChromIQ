@@ -105,6 +105,11 @@ def _stopped_at_the_homing(qtbot, monkeypatch, tmp_path, settings, pos):
     sim = WindowSim(pos=list(pos))
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
                                                     sim=sim, args=ARGS + ["-N"])
+    # 4.3.53: with -N the START first opens the instrument at rest to ask whether its
+    # calibration is still valid (as a hand measurement with -N); these tests are about the
+    # alignment's own homing, so the instrument's calibration counts as already checked
+    assert p.drive_until("ready_to_open") == "ready_to_open"
+    win.job.minus_n_checked = True
     page = p.drive_until(("stopped", "home_at_start"))
     if page == "home_at_start":
         p.press("Not now")                              # the person wants to wait

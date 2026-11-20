@@ -9576,5 +9576,6 @@
  "To read row {row} as a strip, the arm would have to start or end the strip outside the part of the table ChromIQ may send it to now. So ChromIQ reads this row patch by patch instead. Nothing else changes.": "För att läsa rad {row} som en remsa skulle armen behöva börja eller sluta remsan utanför den del av bordet som ChromIQ får skicka den till nu. Därför läser ChromIQ den här raden fält för fält i stället. Inget annat ändras.",
  "In the chart's side file, row {row} is not one straight run of at least 10 mm. So ChromIQ reads this row patch by patch instead. Nothing else changes.": "I diagrammets sidofil är rad {row} inte en rak sträcka på minst 10 mm. Därför läser ChromIQ den här raden fält för fält i stället. Inget annat ändras.",
  "the strip would start or end outside the part of the table ChromIQ may send the arm to now": "remsan skulle börja eller sluta utanför den del av bordet som ChromIQ får skicka armen till nu",
- "the row is not one straight run of at least 10 mm": "raden är inte en rak sträcka på minst 10 mm"
+ "the row is not one straight run of at least 10 mm": "raden är inte en rak sträcka på minst 10 mm",
+ "Checking whether the instrument needs a new calibration...": "Kontrollerar om instrumentet behöver en ny kalibrering..."
 }

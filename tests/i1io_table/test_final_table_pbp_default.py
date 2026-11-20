@@ -113,6 +113,18 @@ def test_a_cr30_chart_keeps_its_lock_and_the_table_default_is_untouched(tab, bet
 
 
 def test_beta_off_a_table_chart_leaves_pbp_alone(tab, tmp_path):
+    # 4.3.53: the Beta OFF said, not assumed: with the running value unset, i1io_enabled()
+    # reads the worker's settings file, which another file's test may have left with the Beta
+    # on (failed 2 of 4 parallel runs, passed every time alone)
+    import workflow.i1io.support as sup
+    sup.set_enabled_for_this_process(False)
+    try:
+        _beta_off_leaves_pbp_alone(tab, tmp_path)
+    finally:
+        sup.set_enabled_for_this_process(None)
+
+
+def _beta_off_leaves_pbp_alone(tab, tmp_path):
     tab._settings.set(KEY, False)
     tab._m_pbp_cb.setChecked(True)
     run, _ = table_run(tmp_path / "a")

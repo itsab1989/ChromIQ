@@ -9576,5 +9576,6 @@
  "To read row {row} as a strip, the arm would have to start or end the strip outside the part of the table ChromIQ may send it to now. So ChromIQ reads this row patch by patch instead. Nothing else changes.": "Om rij {row} als strook te lezen, zou de arm de strook moeten beginnen of eindigen buiten het deel van de tafel waar ChromIQ hem nu naartoe mag sturen. Daarom leest ChromIQ deze rij in plaats daarvan meetveld voor meetveld. Verder verandert er niets.",
  "In the chart's side file, row {row} is not one straight run of at least 10 mm. So ChromIQ reads this row patch by patch instead. Nothing else changes.": "In het zijbestand van de kaart is rij {row} geen rechte baan van minstens 10 mm. Daarom leest ChromIQ deze rij in plaats daarvan meetveld voor meetveld. Verder verandert er niets.",
  "the strip would start or end outside the part of the table ChromIQ may send the arm to now": "de strook zou beginnen of eindigen buiten het deel van de tafel waar ChromIQ de arm nu naartoe mag sturen",
- "the row is not one straight run of at least 10 mm": "de rij is geen rechte baan van minstens 10 mm"
+ "the row is not one straight run of at least 10 mm": "de rij is geen rechte baan van minstens 10 mm",
+ "Checking whether the instrument needs a new calibration...": "Controleren of het meetinstrument een nieuwe kalibratie nodig heeft..."
 }

@@ -9576,5 +9576,6 @@
  "To read row {row} as a strip, the arm would have to start or end the strip outside the part of the table ChromIQ may send it to now. So ChromIQ reads this row patch by patch instead. Nothing else changes.": "Pour lire la ligne {row} en bande, le bras devrait commencer ou finir la bande hors de la partie de la table où ChromIQ peut l'envoyer maintenant. ChromIQ lit donc cette ligne plage par plage. Rien d'autre ne change.",
  "In the chart's side file, row {row} is not one straight run of at least 10 mm. So ChromIQ reads this row patch by patch instead. Nothing else changes.": "Dans le fichier annexe de la mire, la ligne {row} n'est pas un seul trajet droit d'au moins 10 mm. ChromIQ lit donc cette ligne plage par plage. Rien d'autre ne change.",
  "the strip would start or end outside the part of the table ChromIQ may send the arm to now": "la bande commencerait ou finirait hors de la partie de la table où ChromIQ peut envoyer le bras maintenant",
- "the row is not one straight run of at least 10 mm": "la ligne n'est pas un seul trajet droit d'au moins 10 mm"
+ "the row is not one straight run of at least 10 mm": "la ligne n'est pas un seul trajet droit d'au moins 10 mm",
+ "Checking whether the instrument needs a new calibration...": "On vérifie si l'instrument a besoin d'une nouvelle calibration..."
 }

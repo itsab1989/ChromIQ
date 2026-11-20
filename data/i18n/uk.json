@@ -10640,5 +10640,6 @@
  "To read row {row} as a strip, the arm would have to start or end the strip outside the part of the table ChromIQ may send it to now. So ChromIQ reads this row patch by patch instead. Nothing else changes.": "Щоб зчитати ряд {row} смугою, рука мала б почати або закінчити смугу поза тією частиною столу, куди ChromIQ зараз може її надіслати. Тому ChromIQ зчитує цей ряд патч за патчем. Більше нічого не змінюється.",
  "In the chart's side file, row {row} is not one straight run of at least 10 mm. So ChromIQ reads this row patch by patch instead. Nothing else changes.": "У допоміжному файлі діаграми ряд {row} не є однією прямою ділянкою довжиною щонайменше 10 мм. Тому ChromIQ зчитує цей ряд патч за патчем. Більше нічого не змінюється.",
  "the strip would start or end outside the part of the table ChromIQ may send the arm to now": "смуга починалася б або закінчувалася поза тією частиною столу, куди ChromIQ зараз може надіслати руку",
- "the row is not one straight run of at least 10 mm": "ряд не є однією прямою ділянкою довжиною щонайменше 10 мм"
+ "the row is not one straight run of at least 10 mm": "ряд не є однією прямою ділянкою довжиною щонайменше 10 мм",
+ "Checking whether the instrument needs a new calibration...": "Перевірка, чи потрібне приладу нове калібрування..."
 }

@@ -10604,5 +10604,6 @@
  "To read row {row} as a strip, the arm would have to start or end the strip outside the part of the table ChromIQ may send it to now. So ChromIQ reads this row patch by patch instead. Nothing else changes.": "Чтобы считать ряд {row} полосой, рука должна была бы начать или закончить полосу вне той части стола, куда ChromIQ сейчас может её отправить. Поэтому ChromIQ считывает этот ряд патч за патчем. Больше ничего не меняется.",
  "In the chart's side file, row {row} is not one straight run of at least 10 mm. So ChromIQ reads this row patch by patch instead. Nothing else changes.": "Во вспомогательном файле мишени ряд {row} не является одним прямым участком длиной не менее 10 мм. Поэтому ChromIQ считывает этот ряд патч за патчем. Больше ничего не меняется.",
  "the strip would start or end outside the part of the table ChromIQ may send the arm to now": "полоса начиналась бы или заканчивалась вне той части стола, куда ChromIQ сейчас может отправить руку",
- "the row is not one straight run of at least 10 mm": "ряд не является одним прямым участком длиной не менее 10 мм"
+ "the row is not one straight run of at least 10 mm": "ряд не является одним прямым участком длиной не менее 10 мм",
+ "Checking whether the instrument needs a new calibration...": "Проверка, нужна ли прибору новая калибровка..."
 }

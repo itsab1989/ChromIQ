@@ -467,3 +467,95 @@ def test_a_white_level_off_is_still_refused_with_one_reader(tmp_path, monkeypatc
     job, sim, helper, r, lines, readers = _calibrated(tmp_path, monkeypatch, level=0.60)
     assert (r.kind, r.reason) == (J.Kind.REFUSED, "white_level_implausible")
     assert job.calibration is None and readers == 1
+
+
+# ---- "Skip initial calibration (-N)": the table follows it as a hand measurement does ---------
+
+def _minus_n_job(tmp_path, args, valid):
+    from tests.i1io_table.test_job_reading import job_for
+    job, sim, helper, run, p = job_for(tmp_path)
+    assert job.set_options(args).ok
+    helper.calibrated = bool(valid)          # an earlier calibration still valid (ArgyllCMS)
+    return job, sim, helper, p
+
+
+def _names(helper):
+    return [(a[a.index("-p") + 1], "-N" in a) for a in helper.started]
+
+
+def test_minus_n_off_calibrates_at_every_start(tmp_path):
+    job, sim, helper, p = _minus_n_job(tmp_path, ["-p"], valid=True)
+    assert p.drive(job.open()).ok
+    assert p.drive(job.calibrate()).ok and job.calibration is not None
+    assert _names(helper)[0] == ("c1_spot", False)       # a calibration, even with one valid
+
+
+def test_minus_n_on_with_a_valid_calibration_makes_none_and_reads(tmp_path):
+    job, sim, helper, p = _minus_n_job(tmp_path, ["-p", "-N"], valid=True)
+    assert p.drive(job.open()).ok
+    r = p.drive(job.calibrate(if_needed=True))
+    assert r.ok and r.detail["skipped"] == "still_valid", (r.reason, r.detail)
+    assert job.calibration is None and job.minus_n_checked
+    assert _names(helper) == [("c1_check", True)]
+    for s in ("align",):
+        assert p.drive(getattr(job, s)()).ok
+    r = p.drive(job.read_row())
+    assert r.ok and r.detail["status"] == "read"
+
+
+def test_minus_n_on_without_a_valid_calibration_calibrates_before_the_aims(tmp_path):
+    """Until 4.3.52 the table learnt it only at the first row, after the aims: the row ended,
+    the arm went home, the calibration was made, and the sheet had to be aimed at again."""
+    job, sim, helper, p = _minus_n_job(tmp_path, ["-p", "-N"], valid=False)
+    assert p.drive(job.open()).ok
+    n = len(sim.received)
+    r = p.drive(job.calibrate(if_needed=True))
+    assert r.ok and job.calibration is not None, (r.reason, r.detail)
+    assert [nm for nm, _n in _names(helper)] == ["c1_check", "c1_spot"]
+    assert {_cid(ln) for ln in sim.received[n:]} <= {"p0", "s0", "f4"}   # nothing moved
+    assert p.drive(job.align()).ok
+    r = p.drive(job.read_row())
+    assert r.ok and r.detail["status"] == "read"
+    aims = [c for _s, c, _d, _n, _m in p.asked if c == J.Confirm.AIMED]
+    assert len(aims) == 3                                     # aimed once, not twice
+
+
+def test_the_window_asks_the_instrument_first_with_minus_n(qtbot, monkeypatch, tmp_path):
+    from ui import i1io_table_window as W
+
+    class _Opts:
+        skip_initial_calibration = True
+
+    class _Rep:
+        options = _Opts()
+
+    class _Job:
+        ended = None
+        calibration_due = False
+        calibration = None
+        minus_n_checked = False
+        options_report = _Rep()
+
+        def out_known(self):
+            return False
+
+        def state(self):
+            return J.TableState(None, None, None, None, False, False, False, False, False,
+                                False, False, 0, 0, None, False)
+
+        def calibrate(self, if_needed=False):
+            return if_needed
+
+    win = W.TableMeasureWindow.__new__(W.TableMeasureWindow)
+    win.job = _Job()
+    fn, status, moves = win._next_action()
+    assert fn() is True and "calibration" in status and moves is None
+    win.job.minus_n_checked = True
+    win.job.alignment = None
+    win.job.rows_left = lambda: [1]
+    win.job.page_has_something_to_read = lambda: True
+    win.job.align = lambda: "align"
+    win._again_rows = []
+    win.job.front_need = None
+    fn, status, moves = win._next_action()
+    assert fn() == "align"

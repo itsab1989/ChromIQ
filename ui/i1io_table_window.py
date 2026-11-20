@@ -30,6 +30,7 @@ no USB device is ever opened by a driver.
 """
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import sys
@@ -429,6 +430,12 @@ def stored_white_reason(why: str) -> str:
             "can only be applied to a spectrum"),
     }
     return words.get(why, tr("ChromIQ could not use them"))
+
+
+def _calibrate_if_needed(job):
+    """4.3.53: the job call for "Skip initial calibration (-N)" at a START (as a hand
+    measurement with -N: calibrate only when the instrument asks for it)."""
+    return functools.partial(job.calibrate, if_needed=True)
 
 
 def table_reach_store():
@@ -3652,6 +3659,14 @@ class TableMeasureWindow(QFrame):
             if out:
                 return (j.home, tr("Bringing the arm home first."), home_txt)
             return (j.calibrate, tr("Calibrating the instrument..."), None)
+        if (j.calibration is None and j.options_report.options.skip_initial_calibration
+                and not j.minus_n_checked):
+            # 4.3.53: "Skip initial calibration (-N)", as in a hand measurement: the instrument
+            # is opened first, and calibrated only when it asks for it (before the aims)
+            if out:
+                return (j.home, tr("Bringing the arm home first."), home_txt)
+            return (_calibrate_if_needed(j), tr("Checking whether the instrument needs a new "
+                                                "calibration..."), None)
         # a page with nothing missing (a resume, an adopted session) is never aligned or read
         left = j.rows_left() if j.page_has_something_to_read() else []
         want = bool(left or self._again_rows)

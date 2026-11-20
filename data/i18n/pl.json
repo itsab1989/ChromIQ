@@ -10610,5 +10610,6 @@
  "To read row {row} as a strip, the arm would have to start or end the strip outside the part of the table ChromIQ may send it to now. So ChromIQ reads this row patch by patch instead. Nothing else changes.": "Aby odczytać rząd {row} jako pasek, ramię musiałoby zacząć lub zakończyć pasek poza częścią stołu, do której ChromIQ może je teraz wysłać. Dlatego ChromIQ odczytuje ten rząd zamiast tego pole po polu. Poza tym nic się nie zmienia.",
  "In the chart's side file, row {row} is not one straight run of at least 10 mm. So ChromIQ reads this row patch by patch instead. Nothing else changes.": "W pliku pomocniczym wzorca rząd {row} nie jest jednym prostym odcinkiem o długości co najmniej 10 mm. Dlatego ChromIQ odczytuje ten rząd zamiast tego pole po polu. Poza tym nic się nie zmienia.",
  "the strip would start or end outside the part of the table ChromIQ may send the arm to now": "pasek zaczynałby się lub kończył poza częścią stołu, do której ChromIQ może teraz wysłać ramię",
- "the row is not one straight run of at least 10 mm": "rząd nie jest jednym prostym odcinkiem o długości co najmniej 10 mm"
+ "the row is not one straight run of at least 10 mm": "rząd nie jest jednym prostym odcinkiem o długości co najmniej 10 mm",
+ "Checking whether the instrument needs a new calibration...": "Sprawdzanie, czy przyrząd potrzebuje nowej kalibracji..."
 }
