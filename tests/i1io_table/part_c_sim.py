@@ -46,10 +46,11 @@ C_SPEEDS_M2 = (40, 53, 54, 61, 87, 88, 110, 118, 137, 138, 168)
 #: in a sitting the simulator was told reads dual rows (``CSimTable.dual``)
 C_D1_UV = ";d100d23a"
 C_SPEEDS_DUAL = (132,)
-#: targets: 4.3.53 the sides are the absolute backstop (X -1800 / 2507, the simulator's own
-#: copy; until 4.3.52 the recorded extent -1384 / 1716); the front is physical since 4.3.49
+#: targets: the sides (the simulator's own copy): right = the protocol's signed 16-bit range
+#: since the 4.3.53 fix round (-1800 in the rows branch, the recorded extent -1384 until 4.3.52),
+#: left = 2507 (where the table's m1 stops the arm); the front is physical since 4.3.49
 #: (FRONT_END_Y below; the 3109 is kept for the record only)
-C_TARGET_BOX = (-1800, 2507, 483, 3109)
+C_TARGET_BOX = (-32768, 2507, 483, 3109)
 C_SWEEP_BOX = (-1434, 1766, 473, 3114)         # the swept rectangle from where the arm is
 #                                                (the cap plus the 5-unit arrival tolerance)
 #: fix 2, the simulator's own copy of the front-zone rule: in front of the proven zone (targets

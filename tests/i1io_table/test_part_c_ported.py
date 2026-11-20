@@ -83,11 +83,14 @@ def test_the_front_edge_is_the_frontmost_sensor_reading_not_a_sight_reading():
     assert geo.FRONTMOST_AIM_Y == P1_FRONTMOST[1] == max(
         p[1] for pts in geo.RECORDED_ALIGNMENTS.values() for p in pts)
     # 4.3.49 (Basti's ruling): the frontmost recorded aim is kept as a documented number; the
-    # stateless cap is now the absolute backstop (365 mm from home)
+    # stateless cap was the absolute backstop (365 mm from home). 4.3.53 fix round (rows review
+    # SHOULD-4): only the protocol's own number range (signed 16 bits of 0.1 mm), with room for
+    # the arrival tolerance; the real care at the front is the creep (once per table)
     assert geo.FRONTMOST_AIM_Y == 3109
-    assert geo.FRONT_CAP_Y == 3650 == geo.CAP_AREA.ymax
+    assert (geo.COORD_MIN, geo.COORD_MAX) == (-0x8000, 0x7FFF)
+    assert geo.FRONT_CAP_Y == geo.COORD_MAX - 100 == geo.CAP_AREA.ymax
     assert geo.ARRIVAL_SLACK == 5
-    assert geo.FRONT_SWEEP_CAP_Y == 3655 == geo.CAP_RAW.ymax
+    assert geo.FRONT_SWEEP_CAP_Y == geo.FRONT_CAP_Y + 5 == geo.CAP_RAW.ymax <= geo.COORD_MAX
 
 
 CAP = geo.CAP_AREA

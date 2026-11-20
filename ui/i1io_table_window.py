@@ -816,9 +816,13 @@ def aims_text(rid: str, d: dict) -> str:
                 "1, 2, 3."))
     if rid == "aims_outside_area":
         ways = _ways_text(d.get("sheet_move") or {})
+        # 4.3.53 fix round: only two sides still refuse an aim (the right and the front
+        # backstops are gone): the left, where the table's own move to the aiming place
+        # stops the arm, and the back strip beside the white tile's holder
         first = (tr("Your three aims have the right shape for this sheet, so you aimed at the "
-                    "right points. But mark {n} lies further out on the table than ChromIQ lets "
-                    "the arm go (no recording shows the table's arm that far out), so nothing "
+                    "right points. But mark {n} lies where ChromIQ does not send the arm: "
+                    "further left than the place where the table itself stops the arm, or in "
+                    "the strip at the back beside the holder of the white tile. So nothing "
                     "has moved over your sheet.").format(n=d.get("outside_mark", "?")))
         if ways:
             return first + " " + tr("Please lay the sheet {ways}. {again}").format(

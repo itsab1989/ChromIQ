@@ -143,9 +143,11 @@ def test_the_remembered_reach_holds_no_serial_and_validates_what_it_loads():
     assert ident not in text and salt in text and key in text
     back = store.get(key)
     assert (back.front_y, back.front_how, back.motor_front_y) == (2900, "free", 3000)
-    # a stored value outside what is physically possible is ignored, never trusted
-    bad = rc.Reach.from_dict(key, {"front_y": 9999, "front_how": "free", "motor_front_y": 99999,
-                                   "right_end_x": -5000, "right_how": "free"})
+    # a stored value outside what the table can report at all (4.3.53 fix round: the
+    # protocol's signed 16-bit range, no longer a recorded extent) is ignored, never trusted
+    bad = rc.Reach.from_dict(key, {"front_y": 40000, "front_how": "free",
+                                   "motor_front_y": 99999,
+                                   "right_end_x": -40000, "right_how": "free"})
     assert (bad.front_y, bad.motor_front_y, bad.right_end_x) == (rc.DEFAULT_FRONT_Y, None,
                                                                 rc.DEFAULT_RIGHT_END_X)
     assert rc.Reach.from_dict(key, {"front_y": 3000, "front_how": "guessed"}).front_y == \

@@ -229,8 +229,9 @@ def test_a_densest_page_aligns_within_its_caps_on_the_simulator():
 def test_the_creep_numbers_are_pinned():
     # 4.3.49: 19 steps (from 10), enough for an aimed area up to the absolute backstop
     assert (cp.CREEP_STEPS_MAX, cp.CREEP_PAUSE_S, geo.CREEP_STEP) == (19, 0.5, 50)
-    # enough for the whole front zone up to the absolute backstop: at most 19 steps
-    assert (geo.FRONT_CAP_Y - A.ymax) / geo.CREEP_STEP < cp.CREEP_STEPS_MAX
+    # 4.3.53 fix round (SHOULD-4): no front backstop of 365 mm any more; 19 is now only the
+    # number the caps' own allowance counts with, a creep to a front further out gets the steps
+    # it needs (test_the_creep_takes_the_steps_the_aimed_front_needs)
     # +1: S-7, the first arrival read again; +1: 4.3.47 MUST-1, the arm read again after the
     # creep's first-visit question
     assert cp.CREEP == (2 * 19 + 8 + 1 + 1, 19 + 1)
@@ -724,9 +725,11 @@ def test_a_turned_or_wrong_sheet_is_refused_before_any_move(name):
 
 
 def test_a_sheet_that_does_not_fit_names_its_rows_and_its_marks():
-    """A mark outside the area: refused with the reason, nothing moves after the aims. (4.3.49,
-    Basti's ruling: the front follows the aims, so the mark lies beyond the right side.)"""
-    aims = [(x - 600, y) for x, y in H.demo_aims()]
+    """A mark outside the area: refused with the reason, nothing moves after the aims. (4.3.53
+    fix round: the right side no longer refuses an aim; a mark beyond the LEFT side, where the
+    table's own m1 stops the arm, still does.)"""
+    aims = [(x + 1300, y) for x, y in H.demo_aims()]
+    assert max(a[0] for a in aims) > geo.TARGET_X_LEFT
     res, job, sim, _p = H.run_steps(["open", "align"], aims=aims)
     r = res[1]
     assert (r.kind, r.reason) == (J.Kind.REFUSED, "aims_outside_area")
@@ -770,17 +773,24 @@ def test_the_job_is_reached_by_nothing_in_the_app():
     assert out.stdout.strip().endswith("False"), out.stderr[-2000:]
 
 
-def test_the_creep_never_takes_more_steps_than_allowed(monkeypatch):
+def test_the_creep_takes_the_steps_the_aimed_front_needs(monkeypatch):
+    """4.3.53 fix round (SHOULD-4): with CREEP_STEPS_MAX at 2, a front further out than two
+    5 mm steps is still felt to in 5 mm steps: the count follows from how far the person aimed
+    (never a refusal by a count), and the caps grow by exactly those steps."""
     monkeypatch.setattr(cp, "CREEP_STEPS_MAX", 2)
     sheet, pts = H.recorded_sheet("S2 684.0", 18)
     job, sim, _t = H.make_job(sheet=sheet, aims=pts)
     p = H.Person(job, sim, {J.Confirm.FRONT_CHOICE: "go on"})
     assert p.drive(job.open()).ok and p.drive(job.align()).ok
     r = p.drive(job.creep())
-    assert (r.kind, r.reason) == (J.Kind.REFUSED, "more_creep_steps_than_allowed")
-    front = [x for x in computed(sim.received)
+    assert r.ok, (r.reason, r.detail)
+    front = [geo.decode_xyv(x.encode() + b"\r")[2] for x in computed(sim.received)
              if geo.decode_xyv(x.encode() + b"\r")[2] > A.ymax]
-    assert len(front) == 2
+    assert len(front) > 2
+    ys = [A.ymax] + front
+    assert all(0 < b - a <= geo.CREEP_STEP for a, b in zip(ys, ys[1:]) if b > a)
+    assert any("more 5 mm steps" in g[0] for g in job.caps_granted)
+    assert sim.violations == []
 
 
 def test_a_free_arm_pushed_outside_the_area_moves_only_to_its_allowed_target():

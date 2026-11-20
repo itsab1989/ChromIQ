@@ -157,3 +157,179 @@ def test_an_arrival_beside_its_target_is_still_a_question_not_a_silent_re_read()
     assert "arrived_beside_the_target" not in sp.READ_AGAIN_BY_ITSELF
     assert not {"instrument_asks_for_calibration", "calibration_failed",
                 "wrong_instrument", "reading_of_another_patch"} & set(sp.READ_AGAIN_BY_ITSELF)
+
+
+# ---- SHOULD-1: one free-arm reading far out no longer makes ChromIQ forget the table ----------
+
+def test_a_free_arm_reading_beyond_the_former_backstop_keeps_the_whole_record():
+    """The reviewer's probe: learn (-1805, 3000) free, store, load. Until the fix round the
+    whole entry was ignored at the next START ("a value outside what this build stores") and
+    the motor front with it: the creep and the careful moves came back every sitting."""
+    from workflow.i1io.table import reach as rc
+    store = rc.MemoryReachStore()
+    key = rc.table_key("a" * 64, store.salt())
+    r = store.get(key)
+    r.learn_motor_target((0, 3300), 3300)
+    r.learn((-1805, 3000), "free")
+    assert store.put(r)
+    back = store.get(key)
+    assert back.ignored is None, back.ignored
+    assert back.right_end_x == -1805 and back.motor_front_y == 3300
+
+
+def test_learning_clamps_to_what_loading_believes_so_nothing_voids_the_entry():
+    from workflow.i1io.table import geometry as geo
+    from workflow.i1io.table import reach as rc
+    store = rc.MemoryReachStore()
+    key = rc.table_key("b" * 64, store.salt())
+    r = store.get(key)
+    r.learn_motor_target((0, 3300), 3300)
+    r.learn((-40000, 40000), "free")              # beyond anything a table can report
+    assert (r.right_end_x, r.front_y) == (geo.TARGET_X_RIGHT, rc.CEILING_Y)
+    assert store.put(r)
+    back = store.get(key)
+    assert back.ignored is None and back.motor_front_y == 3300
+
+
+# ---- SHOULD-2: a move that did not arrive is never remembered as reached ---------------------
+
+def _rows_job(tmp_path, store, **simkw):
+    from tests.i1io_table import test_4353_rows_where_the_sheet_lies as R
+    return R._job(tmp_path, R.HIS_AIMS, store=store, sight_offset=R.CLOSE_SIGHT, **simkw)
+
+
+def _learned_points(job):
+    """Every point the reach record is asked to learn, with how (spy on the record)."""
+    seen = []
+    orig_load = job._load_reach
+
+    def load(d):
+        orig_load(d)
+        rr = job.reach
+        if rr is None:
+            return
+        o_learn, o_motor = rr.learn, rr.learn_motor_target
+
+        def learn(p, how, when=None):
+            seen.append((how, tuple(p)))
+            return o_learn(p, how, when)
+
+        def motor(target, aimed_y=None):
+            seen.append(("motor_target", tuple(target)))
+            return o_motor(target, aimed_y)
+        rr.learn, rr.learn_motor_target = learn, motor
+    job._load_reach = load
+    return seen
+
+
+def _rightmost_target(received):
+    from workflow.i1io.table import geometry as geo
+    xs = [geo.decode_xyv(ln.encode())[1] for ln in received
+          if ln[1:3] in ("m0", "m2") and len(ln.rstrip()) == 17]
+    return min(xs)
+
+
+def _drive_rows(job, p):
+    for step in ("open", "calibrate", "align"):
+        r = p.drive(getattr(job, step)())
+        assert r.ok, (step, r.reason)
+    if job.front_need and job.front_reached() < job.front_need:
+        assert p.drive(job.creep()).ok
+    out = []
+    while job.rows_left():
+        r = p.drive(job.read_row())
+        out.append(r)
+        if not r.ok:
+            break
+    return out
+
+
+@pytest.mark.parametrize("short_by", [8, 40])
+def test_a_careful_row_end_move_that_stops_short_is_not_remembered(tmp_path, short_by):
+    """The table's real right end lies *short_by* units inside the row's run-out (8: an arrival
+    beside, 40: a move that did not arrive). Nothing beyond where the arm can physically be is
+    ever learned (plants P3a: the ends learned before they are driven; P3b: an arrival beside
+    learned as reached), and the next sitting gets the careful moves again."""
+    from workflow.i1io.table import reach as rc
+    clean = rc.MemoryReachStore()
+    job0, sim0, _h0, p0 = _rows_job(tmp_path / "clean", clean)
+    _drive_rows(job0, p0)
+    far = _rightmost_target(sim0.received)
+    assert far < -1439                                    # the row really reaches new ground
+    job0.close()
+    store = rc.MemoryReachStore()
+    end = far + short_by
+    job, sim, _h, p = _rows_job(tmp_path / "short", store, right_end=end)
+    seen = _learned_points(job)
+    _drive_rows(job, p)
+    assert seen, "the spy saw nothing"
+    assert all(pt[0] >= end - 5 for _how, pt in seen), (end, [s for s in seen if s[1][0] < end])
+    assert job.reach.right_end_x >= min(end - 5, rc.DEFAULT_RIGHT_END_X)
+    job.close()
+    # the next sitting (the end gone, as if the table had been moved): careful moves again
+    from tests.i1io_table import test_4353_rows_where_the_sheet_lies as R
+    job2, sim2, _h2, p2 = _rows_job(tmp_path / "next", store)
+    care = R._spy_care(job2)
+    _drive_rows(job2, p2)
+    assert [c for c in care if c][:1] == [["right side"]]
+
+
+def test_a_strip_row_whose_end_arrives_beside_is_not_remembered(tmp_path):
+    """Plant P3c: a strip row's ends are learned only when the arm was read within the arrival
+    tolerance of them. A table that knows the ground (no careful moves) but whose arm stops 8
+    units short at the run-out: the target is never learned."""
+    from workflow.i1io.table import reach as rc
+    store = rc.MemoryReachStore()
+    job0, sim0, _h0, p0 = _rows_job(tmp_path / "learn", store)
+    _drive_rows(job0, p0)
+    far = _rightmost_target(sim0.received)
+    known = job0.reach.right_end_x
+    assert known <= far + 5
+    job0.close()
+    end = far + 8
+    job, sim, _h, p = _rows_job(tmp_path / "short", store, right_end=end,
+                                motors_have_been_to=job0.reach.motor_front_y)
+    seen = _learned_points(job)
+    _drive_rows(job, p)
+    beyond = [s for s in seen if s[1][0] < end - 5 and s[1][0] > known + 5]
+    assert beyond == [], beyond
+
+
+def test_the_strip_end_guard_itself_learns_only_ends_read_within_the_tolerance():
+    """The second guard behind the scan's own end check (a strip whose end reads beside is a
+    doubt and is never "done"): _learn_strip_ends learns an end only when the arm was READ
+    within the arrival tolerance of it. Plant P3c (learning the target whatever was read) makes
+    this red; the behavioural test above cannot see it, because the first guard stops first."""
+    from types import SimpleNamespace
+    job, sim, _t = H.make_job()
+    assert H.Person(job, sim).drive(job.open()).ok
+    r0 = job.reach.right_end_x
+    plan = SimpleNamespace(start=(1000, 2000), end=(-1700, 2000))
+    res = SimpleNamespace(at_start=(1001, 2000), end_xy=(-1692, 2000))     # 8 units short
+    job._learn_strip_ends(res, plan)
+    assert job.reach.right_end_x == r0                       # the end read beside: not learned
+    assert all(e["at"][0] > -1690 for e in job.reach_diag["events"])
+    res = SimpleNamespace(at_start=(1001, 2000), end_xy=(-1698, 2001))     # within 5 units
+    job._learn_strip_ends(res, plan)
+    assert job.reach.right_end_x == -1698
+
+
+def test_a_sheet_aimed_beyond_the_former_front_backstop_is_accepted_and_felt_to():
+    """4.3.53 fix round (SHOULD-4 / A3): the front backstop of 365 mm is gone. A sheet aimed so
+    far forward that the front need lies beyond Y 3650, on a table whose real front end lies
+    beyond it: the aims are accepted and the creep feels its way there in 5 mm steps."""
+    from workflow.i1io.table import geometry as geo
+    base = H.demo_aims()
+    dy = 3800 - max(p[1] for p in base)
+    aims = [(x, y + dy) for x, y in base]
+    res, job, sim, _p = H.run_steps(["open", "align", "creep"], aims=aims,
+                                    script={J.Confirm.FRONT_CHOICE: "go on"}, front_end=4500,
+                                    jitter=False)
+    assert res[1].ok, (res[1].reason, res[1].detail)
+    assert res[2].ok, (res[2].reason, res[2].detail)
+    assert job._table.front_y > 3650
+    ys = [geo.decode_xyv(ln.encode())[2] for ln in sim.received
+          if ln[1:3] == "m0" and len(ln.rstrip()) == 17]
+    front = [y for y in ys if y > geo.MEASURING_AREA.ymax]
+    assert all(0 < b - a <= geo.CREEP_STEP for a, b in zip(front, front[1:]) if b > a)
+    assert sim.violations == []

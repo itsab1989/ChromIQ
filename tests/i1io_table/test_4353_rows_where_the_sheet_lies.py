@@ -347,20 +347,44 @@ def test_on_the_corner_patch_chart_the_runs_lie_outside_the_aimed_points():
 
 # ---- what still makes a row patch by patch, said truly ------------------------------------------
 
-def test_a_run_beyond_the_backstop_is_read_patch_by_patch_and_says_why(tmp_path):
-    """The only side limit left is the absolute backstop (X -1800, not an end of travel): a
-    sheet laid so far right that its run-out would pass it is read patch by patch, and the
-    words say so (until 4.3.52 they said "too long")."""
-    aims = _aims_at(H.demo_sheet(), (-1790, 2900))
-    job, sim, helper, p = _job(tmp_path, aims)
+def _spy_events(job):
     events = []
-    job._on_progress_for_test = events
     orig = job._progress
 
     def spy(**ev):
         events.append(ev)
         return orig(**ev)
     job._progress = spy
+    return events
+
+
+def test_a_sheet_laid_beyond_the_former_right_backstop_is_read_in_rows(tmp_path):
+    """4.3.53 fix round (rows review SHOULD-4): the right backstop X -1800 is gone. A sheet laid
+    so far right that its run-out passes it is read IN ROWS (until the fix round: patch by
+    patch, "outside the part of the table ChromIQ may send it to now"), with the careful
+    row-end moves once on that new ground."""
+    aims = _aims_at(H.demo_sheet(), (-1790, 2900))
+    job, sim, helper, p = _job(tmp_path, aims)
+    for step in ("open", "calibrate", "align"):
+        assert p.drive(getattr(job, step)()).ok, step
+    r = p.drive(job.read_row())
+    assert r.ok and r.detail["row_kind"] == "strip", r.detail
+    assert "read_patch_by_patch_because" not in r.detail
+    xs = [geo.decode_xyv(ln.encode())[1] for ln in sim.received
+          if _cid(ln) in ("m0", "m2") and len(ln.rstrip()) == 17]
+    assert min(xs) < -1800
+    assert sim.violations == []
+
+
+def test_a_run_beyond_the_left_side_is_read_patch_by_patch_and_says_why(tmp_path):
+    """The left side (X 2507, where the table's own m1 stops the arm: physical) is the one side
+    left: a sheet laid so far left that its run-up would pass it is read patch by patch, and the
+    words say so (until 4.3.52 they said "too long")."""
+    sheet = _patch_chart()                      # aimed on its corner patches: the run-up of
+    aims = _aims_at(sheet, (-30, 2900))         # row 1 lies 15 mm beyond the aimed patch
+    assert max(a[0] for a in aims) <= geo.TARGET_X_LEFT < max(a[0] for a in aims) + 150
+    job, sim, helper, p = _job(tmp_path, aims, sheet=sheet)
+    events = _spy_events(job)
     for step in ("open", "calibrate", "align"):
         assert p.drive(getattr(job, step)()).ok, step
     r = p.drive(job.read_row())
@@ -372,7 +396,7 @@ def test_a_run_beyond_the_backstop_is_read_patch_by_patch_and_says_why(tmp_path)
     assert "outside the part of the table ChromIQ may send it to now" in text
     assert "too long" not in text
     assert sim.violations == []
-    assert all(geo.decode_xyv(ln.encode())[1] >= geo.TARGET_X_RIGHT
+    assert all(geo.decode_xyv(ln.encode())[1] <= geo.TARGET_X_LEFT
                for ln in sim.received if _cid(ln) in ("m0", "m2") and len(ln.rstrip()) == 17)
 
 
@@ -401,11 +425,15 @@ def test_the_known_ground_is_the_vendors_targets_widened_by_this_tables_readings
     assert geo.known_x() == (geo.VENDOR_ROW_START_X, geo.VENDOR_APPROACH_X) == (-1439, 2507)
     assert geo.known_x(-1546, 1254) == (-1546, 2507)
     assert geo.known_x(-1300, None)[0] == -1439
-    assert geo.known_x(-5000, 9999) == (geo.TARGET_X_RIGHT, geo.TARGET_X_LEFT)
-    # a stored right side out to the backstop is believed; beyond it, never
+    assert geo.known_x(-5000, 9999) == (-5000, geo.TARGET_X_LEFT)
+    assert geo.known_x(-40000, 9999) == (geo.TARGET_X_RIGHT, geo.TARGET_X_LEFT)
+    # a stored right side is believed anywhere in the protocol's range (4.3.53 fix round:
+    # -1801 was voided until then); beyond what a table can report at all, never
     r = rc.Reach.from_dict("0" * 16, {"right_end_x": -1546, "right_how": "free"})
     assert r.right_end_x == -1546
     r = rc.Reach.from_dict("0" * 16, {"right_end_x": -1801, "right_how": "free"})
+    assert r.right_end_x == -1801
+    r = rc.Reach.from_dict("0" * 16, {"right_end_x": -40000, "right_how": "free"})
     assert r.right_end_x == rc.DEFAULT_RIGHT_END_X
 
 

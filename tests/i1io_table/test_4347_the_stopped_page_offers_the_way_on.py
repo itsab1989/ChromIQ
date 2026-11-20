@@ -37,7 +37,11 @@ def test_the_stopped_page_has_an_answer_and_says_end_first(qtbot, monkeypatch, t
     text = win._text.text()
     assert tr("ChromIQ has stopped") == win._title.text()
     assert "Press End measurement. Until you do, ChromIQ still holds the table's USB" in text
-    assert text.index("Press End measurement") < text.index("Then open i1Profiler")
+    # 4.3.53 fix round (SHOULD-3): the power switch and ChromIQ's own START first,
+    # i1Profiler last (until then step 2 was "Then open i1Profiler")
+    assert text.index("Press End measurement") < text.index("Switch the table off at its "
+                                                            "power switch") \
+        < text.index("Press START MEASUREMENT") < text.index("i1Profiler 3.8.6 or older")
     assert "more than 5 mm" in text                    # the reason, in plain words
     assert M.M_I1IO_DRIVE_FREE_LEFT.render()[1] in text
     assert "Nothing was measured yet, so there is nothing to save." in text
@@ -83,7 +87,7 @@ def test_the_free_arm_paragraph_comes_before_the_steps_and_both_say_should(
     assert text.count(free) == 1
     assert text.index("The arm last reported") < text.index(free) < text.index("What to do now")
     assert text.index(free) < text.index("1. Press End measurement")
-    assert "it should bring the arm home." in text
+    assert "the table brings the arm home from where it is." in text
     assert "it brings the arm home" not in text
     assert text.index("Please send us the diagnostics file") < text.index(
         "Nothing was measured yet")
@@ -94,4 +98,4 @@ def test_without_a_free_arm_the_stopped_page_has_no_free_arm_paragraph():
                                                           free_arm="")
     assert "The arm is still free" not in body
     assert "reported X 1, Y 2.\n\nWhat to do now:" in body
-    assert "it should bring the arm home." in body
+    assert "the table brings the arm home from where it is." in body

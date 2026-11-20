@@ -587,11 +587,18 @@ def _mark_pending(outdir: str) -> None:
         pass
 
 
+#: 4.3.53 fix round (rows review SHOULD-3, the owner's ruling of 20 Nov 2026: i1Profiler is
+#: never the main or only way out): the power switch first, then ChromIQ's own START (a
+#: just-switched-on table gets its recorded start-up wherever the arm is, since 4.3.52),
+#: i1Profiler last, with its version limit
 PENDING_TEXT = (
     "SWITCH THE TABLE OFF NOW with its power switch. A scan move may still be waiting for the "
-    "instrument's lamp. Do not open i1Profiler while the table is on: its lamp could start that "
-    "move. After switching off, wait ten seconds, switch on, then open i1Profiler once to bring "
-    "the arm home.")
+    "instrument's lamp. Do not open i1Profiler or start a measurement while the table is on: "
+    "the instrument's lamp could start that move. After switching off, wait ten seconds and "
+    "switch the table on again. Then press START MEASUREMENT in ChromIQ: it starts the table "
+    "the way i1Profiler does, and the table brings the arm home. Keep your hands away from the "
+    "table and the arm while it moves. Only if that does not bring the arm home: i1Profiler "
+    "3.8.6 or older can do it too (i1Profiler 3.8.7 and newer no longer work with the i1iO 2).")
 
 
 # ---- readings into patches --------------------------------------------------------------

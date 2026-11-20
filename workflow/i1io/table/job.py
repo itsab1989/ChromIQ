@@ -3246,7 +3246,17 @@ class TableJob:
         mark = max(al.readings, key=lambda p: p[1])
         # 4.3.53: the target area's sides (the backstop), no longer the recorded extent
         x = min(max(int(mark[0]), geo.CAP_AREA.xmin), geo.CAP_AREA.xmax)
-        self._step("dz", *DZ_CAPS)
+        # 4.3.53 fix round (SHOULD-4 / A3): the front is no longer capped at 365 mm, so the
+        # number of 5 mm steps follows from how far the person aimed (never a refusal by a
+        # count): the step's caps and, beyond the caps' own CREEP_STEPS_MAX, the session's
+        # caps grow by exactly the steps this front needs (the aims were the person's answers)
+        steps = max(cp.CREEP_STEPS_MAX,
+                    math.ceil(max(0, need - self.front_reached()) / geo.CREEP_STEP) + 1)
+        extra = steps - cp.CREEP_STEPS_MAX
+        if extra > 0:
+            self._grant(f"{extra} more 5 mm steps to the aimed front Y {need}", 2 * extra, extra)
+        self._creep_steps_max = steps
+        self._step("dz", DZ_CAPS[0] + 2 * extra, DZ_CAPS[1] + extra)
         a = d.position()
         if d.arm_free:
             a = self._still(a)
@@ -3275,7 +3285,8 @@ class TableJob:
         n = 0
         while self.front_reached() < need:
             n += 1
-            if n > cp.CREEP_STEPS_MAX:
+            if n > self._creep_steps_max:
+                # a bug guard: more steps than this front can need
                 raise StageFailed("more_creep_steps_than_allowed")
             yield from self._hands_off("creep")
             here = self._read_again_if_asked(d.position_now, "creep")

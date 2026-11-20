@@ -69,6 +69,11 @@ DEFAULT_FRONT_Y = geo.FRONTMOST_Y_REACHED
 DEFAULT_RIGHT_END_X = geo.SMALLEST_X_REACHED
 #: the frontmost value a stored reach is believed up to (geometry's absolute backstop)
 CEILING_Y = geo.REACH_CEILING_Y
+#: 4.3.53 fix round (SHOULD-1): the ranges a stored value is believed in, the SAME for learning
+#: (:meth:`Reach.learn` clamps to them) and loading (:meth:`Reach.from_dict`): the protocol's
+#: own number range, never a recorded extent
+BELIEVED_X = (geo.TARGET_X_RIGHT, geo.COORD_MAX)
+BELIEVED_Y = (geo.COORD_MIN, CEILING_Y)
 #: two readings of a still arm agree within this (session_table.STILL_UNITS, the stillness
 #: check before every move of a free arm)
 STILL_UNITS = 2
@@ -143,12 +148,20 @@ class Reach:
 
     # ---- learning --------------------------------------------------------------------------
     def learn(self, p, how: str, when: "str | None" = None) -> "list[str]":
-        """Extend the extremes by the opening position *p*, learned *how*. Returns what grew."""
+        """Extend the extremes by the opening position *p*, learned *how*. Returns what grew.
+
+        4.3.53 fix round (rows review SHOULD-1): *p* is first CLAMPED to what :meth:`from_dict`
+        believes (the protocol's number range, geometry.COORD_MIN / COORD_MAX), so a value
+        learned can never make the stored entry be ignored whole at the next START (until then
+        one free-arm reading beyond X -1800 made ChromIQ forget the whole table: the creep and
+        the careful row-end moves came back every sitting)."""
         if how not in HOW[1:]:
             raise ValueError(f"unknown way of learning: {how!r}")
         q = _point(p)
         if q is None:
             return []
+        q = [min(max(q[0], BELIEVED_X[0]), BELIEVED_X[1]),
+             min(max(q[1], BELIEVED_Y[0]), BELIEVED_Y[1])]
         when = when or time.strftime("%Y-%m-%d %H:%M")
         grew = []
         if q[1] > self.front_y:
@@ -207,7 +220,7 @@ class Reach:
                 and d.get("right_how") in HOW[1:]:
             r.right_end_x, r.right_how = rx, str(d["right_how"])
         lx = _int_or_none(d.get("left_x"))
-        if lx is not None and -2000 <= lx <= 4000:
+        if lx is not None and BELIEVED_X[0] <= lx <= BELIEVED_X[1]:
             r.left_x = lx
         mf = _int_or_none(d.get("motor_front_y"))
         ma = _int_or_none(d.get("motor_aimed_y"))

@@ -33,7 +33,9 @@ LANGS = ["en"] + sorted(p.stem for p in I18N.glob("*.json"))
 FLAGGED = {
     "M-I1IO-DRIVE-STOPPED", "M-I1IO-DRIVE-STOPPED-END-FIRST", "M-I1IO-DRIVE-AFTER-PROBLEM-OUT",
     "M-I1IO-DRIVE-SWITCH-OFF", "M-I1IO-DRIVE-LINK-LOST", "M-I1IO-DRIVE-LINK-LOST-SWITCH-OFF",
-    "M-I1IO-DRIVE-COLD", "M-I1IO-DRIVE-COLD-WAY-OUT", "M-I1IO-DRIVE-FREE-LEFT",
+    # 4.3.53 fix round (SHOULD-3): FREE-LEFT no longer names i1Profiler (the power switch
+    # and ChromIQ's own START bring the arm home)
+    "M-I1IO-DRIVE-COLD", "M-I1IO-DRIVE-COLD-WAY-OUT",
     # 4.3.52: HOME-AFTER-STOP no longer names i1Profiler; ARM-OUT-AT-START(-AREA) withdrawn
     "M-I1IO-DRIVE-LEFT-OUT", "M-I1IO-DRIVE-STILL-AIMING",
     "M-I1IO-DRIVE-START-UP", "M-I1IO-DRIVE-USB-MISSING",

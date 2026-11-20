@@ -168,19 +168,31 @@ PROVEN_RAW, PROVEN = AREA_RAW, MEASURING_AREA
 #:   record's right_end_x / left_x, learned and stored per table) is known ground too: the arm
 #:   stood there, so the mechanism reaches it (the X carriage on the Y arm: every X reached at
 #:   one Y is reached at every Y of the travel, the belief AREA_RAW's derivation states).
-#: * TARGET_X_RIGHT / TARGET_X_LEFT are an ABSOLUTE BACKSTOP against a corrupted target, NOT an
-#:   end of travel (none is known: no recording or log shows an end met on either side). Right:
-#:   the furthest-left mark ever aimed (1409, the owner's mark 2, 19 Nov 2026) minus the
-#:   manufacturer's 320 mm measuring width, rounded outward to -1800: no sheet that lies inside
-#:   the measuring area needs a target beyond it. Left: VENDOR_APPROACH_X. Both are checked by
-#:   the line builders and the USB gate on every computed line.
+#: * TARGET_X_RIGHT / TARGET_X_LEFT: the right one was -1800 in the 4.3.53 rows branch (the
+#:   furthest-left mark ever aimed minus 320 mm); since the 4.3.53 fix round it is only the
+#:   protocol's number range (COORD_MIN, below). Left: VENDOR_APPROACH_X (physical). Both are
+#:   checked by the line builders and the USB gate on every computed line.
 #: Ground between the known ground and the backstop is NOT refused: a strip row that reaches
 #: into it is driven to first by two ordinary arrival-checked moves (its row start and end, the
 #: careful mechanism the front-zone rows already used), ONCE per table: the arrivals are learned
 #: and stored, and later rows and sittings run at full speed (job.TableJob._row_ends_known).
+#:
+#: 4.3.53 FIX ROUND (rows review SHOULD-4, inventory A1 / A3 / A9; the owner: "a place the user
+#: reached with the free arm by hand is a place the arm can be"): the right backstop of -1800
+#: (and the front one of 365 mm, below) refused real aims and rows on a table whose travel
+#: reaches that far, for a reason the owner rejected ("no recording shows the arm that far
+#: out"). Both are GONE AS REFUSALS. What stays is only a guard against PLAINLY CORRUPTED
+#: NUMBERS: a value no table of this kind can report or be sent at all. The table's X and Y
+#: travel in a signed 16-bit field of 0.1 mm units (four hex digits, two's complement:
+#: :func:`_s16`, :func:`_line`), so COORD_MIN / COORD_MAX are the protocol's own number range,
+#: not anything a recording happened to show. A computed target outside it cannot even be
+#: written into a line. The left side (2507, where the table's own m1 stops the arm) and the
+#: back strip stay: those have their physical reasons.
+COORD_MIN = -0x8000
+COORD_MAX = 0x7FFF
 VENDOR_ROW_START_X = -1439
 VENDOR_APPROACH_X = 2507
-TARGET_X_RIGHT = -1800
+TARGET_X_RIGHT = COORD_MIN
 TARGET_X_LEFT = VENDOR_APPROACH_X
 
 #: the arrival tolerance (units) every move is checked with
@@ -196,11 +208,13 @@ FRONTMOST_AIM_Y = 3109
 #: check below as *cap_y*), on the evidence that i1Profiler drives the opening to the very points
 #: the person aimed the sight at (17 Nov 2026, three sessions, all three marks, within 1-5 units).
 #: Without an alignment, the proven MEASURING_AREA only (DEFAULT_TARGET_FRONT_Y).
-#: FRONT_CAP_Y is now only an ABSOLUTE BACKSTOP against a corrupted target (365 mm from home,
-#: NOT a physical end: the i1iO's published measuring depth is 230 mm and no recording shows the
-#: opening beyond 285.5 mm); the line builders and the USB gate check it on every computed line.
-REACH_CEILING_Y = 3700
-FRONT_CAP_Y = REACH_CEILING_Y - MARGIN
+#: FRONT_CAP_Y was then an absolute backstop of 365 mm from home; since the 4.3.53 fix round it
+#: is only the protocol's number range (below); the line builders and the USB gate check it.
+#: 4.3.53 fix round (SHOULD-4 / A3): no longer 365 mm. Only the protocol's own number range
+#: (COORD_MAX), with room for the swept rectangle's arrival tolerance inside it. The real care
+#: at the front is the creep (5 mm steps, once per table: FIRST-TIME CARE), not a cap.
+REACH_CEILING_Y = COORD_MAX
+FRONT_CAP_Y = COORD_MAX - 2 * MARGIN
 DEFAULT_TARGET_FRONT_Y = MEASURING_AREA.ymax
 #: A swept rectangle may START where the arm reads after a clean arrival at the cap, within the
 #: arrival tolerance; never beyond this.
