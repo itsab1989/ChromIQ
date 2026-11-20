@@ -1548,3 +1548,72 @@ measurement has been completed this way?"*
   table known yet, shows the line. The table connected last is learned only from a sitting, so
   after switching to another table the line follows the old table until the first sitting on
   the new one (safety review S-7: acceptable). The app log has a line "table rows note retired" when it goes.
+
+### ⏳ Awaiting confirmation: rows wherever the aimed chart puts them, care once, and group I (2026-11-20, for 4.3.53)
+
+**Confirmed by:** *nobody yet.*
+
+The owner, 2026-11-20 (the sources of this section, his words):
+
+* *"so you tell me he can't do rows / strips now - only patch by patch? ... there is no physical
+  reason he should not be able to do it but you block him and make it take another turn of
+  fixes."*
+* *"you had the recordings from i1profiler and instead of using all of them and copy them you
+  were overly cautious and blocked things in our app that we now have to allow again ... i hope
+  you made or will make everything in a way that chromiq learns which movements are save at least
+  so that after the first carefull attempt everything runs as fast as it is supposed to. like in
+  i1profiler"*
+* *"for patch by patch you allowed this position because we considered the position where he
+  aimed the device as safe. so why not rows? and probably even a little wider than where he aimed
+  is safe as well. so if there are no crosshairs for aiming but patches only will be safe as well.
+  for both patch by patch and rows"*
+* *"and really make sure that enough area outside the aiming points becomes usable without an
+  artificial limitation. the device needs enough space on both ends of the patches. before and
+  after them without getting an error"*
+* *"for a new measurement calibrating should be a default except the user chooses himself to skip
+  the calibration which i think there is an option in measure tab manual module"*, and *"the
+  calibrated less than an hour ago thing is probably what the option in the measure tab is
+  supposed to do when turned on but it is off by default"*.
+
+What 4.3.53 does (driven on the simulated table only; never run on a real table):
+
+* **One reach rule for both ways of reading.** A target (a patch centre, or a row's run-up or
+  run-out end from the side file) is judged by the target area only. Its sides are no longer the
+  recorded extent (X -1384 / 1716, from where one recording read a free arm; it kept the owner's
+  sheet out of rows, whose run-out needed X -1443 while his arm had stood at -1546). They are an
+  absolute backstop against a corrupted number, X -1800 and X 2507, which is not an end of travel
+  (none is known). The aimed marks' rectangle refuses nothing any more: a chart aimed at its corner
+  patches reads its row ends and half of every edge patch outside the aimed points, as a chart with
+  crosses does. The back is the back strip's edge plus the 1 mm arrival tolerance (was 5 mm); the
+  back strip beside the white tile's holder stays the one physical exception. The front is the
+  aimed front or the plan's frontmost target, felt for with the creep once per table, as before.
+* **Run-up and run-out are the chart's own.** ChromIQ's chart gives every row 10 mm of blank run
+  beyond its end patches' edges (15 mm beyond the centres of 10 mm patches), in both directions;
+  i1Profiler's recorded rows ran 0.2 to 0.5 mm beyond the aimed points on its single-scan charts
+  (12, 14 and 17 Nov) and 10.1 to 10.6 mm on its dual rows on the owner's table (18 Nov). Nothing
+  shortens or caps the run.
+* **Known ground, and care only the first time.** Known ground is the vendor's own motor targets
+  (row starts to X -1439, the way out to X 2507) widened by what THIS table's opening has been read
+  at, free or under motor (the reach record, kept per table by its salted key, now used for the
+  sides). A strip row whose start or end lies beyond it is first driven to by one ordinary
+  arrival-checked move to each end (the mechanism front-zone rows already had); the arrivals are
+  learned and stored, so the next row and every later sitting on that table send exactly the
+  recorded row form (c4, m0 to the start, d1, p0, m2, a3, c3). Front-zone rows inside the front
+  this table's motors have confirmed no longer get those two moves at every sitting.
+* **The true reason when a row is still read patch by patch:** outside the part of the table
+  ChromIQ may send the arm to (M-I1IO-DRIVE-STRIP-OUTSIDE-AREA), not one straight run of at least
+  10 mm in the side file (M-I1IO-DRIVE-STRIP-NOT-POSSIBLE), or too long (M-I1IO-DRIVE-STRIP-TOO-LONG,
+  now only when no recorded speed keeps it within the readings). Until 4.3.52 all three said "too
+  long".
+* **Group I, nothing new sent to the table:** with the guidance off, no countdown before the
+  homing at the end of a page (the rows ran untouched); the countdowns after a sheet is laid and
+  after the aims stay (hands were just on the bed or the arm). On the table's tile, the tile
+  reading for the white-level check and the stored white is made with the calibration's own
+  reader, not a second one (the check is unchanged). The calibration itself stays at every new
+  measurement.
+* **"Skip initial calibration (-N)"** follows the hand path: the instrument is opened at rest
+  first, and calibrated only when it asks for it (no valid calibration, ArgyllCMS's own rule),
+  before the aims. With a valid calibration no new white is taken, so no white-level check runs.
+* **Not in this round** (written down for the owner): one reader for all rows of a page (tried,
+  changes the reader files the measurement is built from, left for its own round); the lamp wait
+  inside ArgyllCMS's i1Pro 2 code; i1Profiler's first-pass strip speeds; the back-strip way out.
