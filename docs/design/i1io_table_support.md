@@ -1276,11 +1276,14 @@ safeguard, or names its question, describes 4.3.49 and is superseded by this sec
   gone (the page names the move and its part of the table).
 * **The arm goes home as part of the ending.** After Save and stop, Discard and stop or an ending
   with nothing read, when the usual homing can run, ChromIQ starts it at once; its first page is
-  its hands-off GO (M-I1IO-DRIVE-HOME-AT-END: "Bring the arm home, my hands are away" / "Leave it
-  there"). Where it may start from is decided as before (back along the way the arm came first,
-  then the recorded homing; never a homing from where no recorded one starts). "Leave it there"
-  moves nothing; the last page then says how the arm comes home. A later START with the arm left
-  out reads where it is and moves nothing by itself.
+  its hands-off GO (M-I1IO-DRIVE-HOME-AT-END: "Not now" / "Bring the arm home, my hands are
+  away"). Where it may start from is decided as before (back along the way the arm came first,
+  then the recorded homing; never a homing from where no recorded one starts). "Not now" (the
+  fix round; it was "Leave it there") sends nothing and keeps the homing's question open while
+  the table window is open (M-I1IO-DRIVE-HOME-NOT-NOW); Close, End measurement or the window's
+  close end the connection, and the last page then says what is true for a table left in its
+  aiming mode (M-I1IO-DRIVE-LEFT-OUT). A later START with the arm left out reads where it is,
+  moves nothing, and says that the table is still in its aiming mode (M-I1IO-DRIVE-STILL-AIMING).
 * **The time window of a computed move** follows the straight-line distance (1102 real and
   recorded moves: 1.006 to 1.068 of it) and has no lower limit up to 10 units (every real move of
   0 to 3 units was answered in 0.016 s); the upper limit is unchanged in form.
@@ -1289,3 +1292,15 @@ safeguard, or names its question, describes 4.3.49 and is superseded by this sec
   patches, as in i1Profiler; the Measure tab's window for a table chart that cannot be driven no
   longer says its side file is missing when it is there; the dual scan's fill notes for a table
   chart say that the table reads the rows again.
+* **The 4.3.50 integration, after the re-review (2026-11-20).** Both homing pages say not to move
+  the arm while reaching the sheet: ChromIQ brings it home only from the place where it left it.
+  When the reading right before the homing of the ending differs from that place (the held arm
+  was moved), nothing follows the status and position questions, and the page says so
+  (M-I1IO-DRIVE-HOME-ARM-MOVED: the arm was moved, no movement was sent, the readings are as the
+  ending left them; Close leads to the page with the way on). The page for a table that answers
+  its first state question with an unknown value (for example 530000, most likely the aiming
+  mode left on) puts "Press End measurement" first, because until then ChromIQ holds the
+  connection and i1Profiler cannot find the table. No page promises that i1Profiler brings the
+  arm home from a place no recording shows: they say it "should", and to stay beside the table
+  with the power switch in reach. The consent page is asked again (version 3), because what has
+  and has not run on a real table changed.

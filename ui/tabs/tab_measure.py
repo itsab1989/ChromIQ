@@ -11558,6 +11558,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                                        f.get("leads")),
             base=M.slip_de_text(f.get("base")),
             best=M.slip_de_text(f.get("best")),
+            # 4.3.50 (re-review S2): the shift questions' ΔE00 sentence, only
+            # when the colours one place along are nearer as shown
+            numbers_line=M.shift_numbers_line(f.get("base"), f.get("best")),
             twice=str(f.get("twice") or "?"),
             # M-STRIP-REVERSED says how far the strip also slipped (review 36)
             shift_line=M.slip_shift_line(f.get("offset")),

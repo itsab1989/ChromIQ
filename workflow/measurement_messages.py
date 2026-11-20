@@ -11149,6 +11149,50 @@ def _slip_tail() -> str:
         "{stop}: stop measuring for now.")
 
 
+def _shift_tail() -> str:
+    """4.3.50 (re-review of the strip shift check, S1): the closing paragraphs
+    of the four shift-score questions. The same as `_slip_tail` without "so
+    this strip should be read again" and "(recommended)": these questions
+    also name a cause (an unprinted patch, a print far from its design) for
+    which Keep it is the right answer, so the window must not say both."""
+    return (
+        "Readings filed under the wrong patch would make the profile, or a "
+        "verification report, wrong for those colours. Nothing else is "
+        "affected: your other strips and everything read so far are saved.\n\n"
+        "{remeasure}: go back to strip {strip} and read it again. Put the "
+        "instrument down on the white paper before the first patch, and if it "
+        "gives a short beep when it is ready, wait for it. Then move in one "
+        "smooth movement at an even speed until it is on the white paper after "
+        "the last patch.\n"
+        "{keep}: keep this reading as it is.\n"
+        "{stop}: stop measuring for now.")
+
+
+#: {numbers_line} of M-STRIP-ENDS-SHIFTED-LATE / -EARLY (4.3.50, re-review S2):
+#: the score works in CIE76 and the window shows ΔE00, so in rare cases the
+#: colours one place along are not nearer in ΔE00. The sentence is then left
+#: out rather than say "by only" of a larger number.
+_SHIFT_NUMBERS = (
+    "On average they miss their own expected colours by {base} ΔE00, but "
+    "those colours by only {best} ΔE00. ")
+
+
+def shift_numbers_line(base, best) -> str:
+    """{numbers_line} of the two shift-score questions: the ΔE00 sentence,
+    ending in a space, only when *best* is smaller than *base* as shown (one
+    decimal); else ""."""
+    try:
+        b, s = round(float(base), 1), round(float(best), 1)
+    except (TypeError, ValueError):
+        return ""
+    if not s < b:
+        return ""
+    return tr(_SHIFT_NUMBERS).format(base=slip_de_text(base),
+                                     best=slip_de_text(best))
+
+
+
+
 M_STRIP_PART_SLIPPED_LATE = _m(
     "M-STRIP-PART-SLIPPED-LATE",
     "Part of strip {strip} was probably read one patch out of place",
@@ -11252,21 +11296,23 @@ M_STRIP_END_SLIPPED_EARLY = _m(
 M_STRIP_ENDS_SHIFTED_LATE = _m(
     "M-STRIP-ENDS-SHIFTED-LATE",
     "The start of strip {strip} was probably read one patch out of place",
-    "The first readings of strip {strip}, patches {first} to {last}, match "
-    "the colours one place earlier better than their own colours: for patch "
-    "{first} the white paper in front of the strip, and for each of the "
-    "others the patch just before it. On average they miss their own "
-    "expected colours by {base} ΔE00, but those colours by only {best} ΔE00. "
-    "ChromIQ compared only these readings, so it cannot say whether the rest "
-    "of the strip is in step.\n\n"
+    "Taken together, the first readings of strip {strip}, patches {first} to "
+    "{last}, match the colours one place earlier better than their own "
+    "colours. For patch {first}, the colour one place earlier is the white "
+    "paper in front of the strip; for each of the others, it is the patch "
+    "just before it. {numbers_line}ChromIQ compared only these readings, so "
+    "it cannot say whether the rest of the strip is in step.\n\n"
     "This usually happens when the instrument takes the white paper in front "
     "of the first patch for a patch of its own. The readings after it are "
     "then filed one place too far along, at least for a few patches.\n\n"
     "A print whose colours are far from the chart's design can look the "
     "same, for example a print much lighter than planned. If you read the "
     "strip again carefully and this question comes back, the print is the "
-    "likely cause: then keep the reading.\n\n"
-    + _slip_tail(),
+    "likely cause: then choose {keep}.\n\n"
+    "You can switch these questions off in Preferences ▸ Measurement: the "
+    "option is called “Warn me if a strip looks misaligned”. It also "
+    "switches off the other questions about misaligned strips.\n\n"
+    + _shift_tail(),
     approved=False)
 
 #: The mirror at the strip's last patches: the white paper after the strip,
@@ -11274,21 +11320,23 @@ M_STRIP_ENDS_SHIFTED_LATE = _m(
 M_STRIP_ENDS_SHIFTED_EARLY = _m(
     "M-STRIP-ENDS-SHIFTED-EARLY",
     "The end of strip {strip} was probably read one patch out of place",
-    "The last readings of strip {strip}, patches {first} to {last}, match the "
-    "colours one place later better than their own colours: for patch "
-    "{last} the white paper after the strip, and for each of the others the "
-    "patch just after it. On average they miss their own expected colours by "
-    "{base} ΔE00, but those colours by only {best} ΔE00. ChromIQ compared "
-    "only these readings, so it cannot say whether the rest of the strip is "
-    "in step.\n\n"
+    "Taken together, the last readings of strip {strip}, patches {first} to "
+    "{last}, match the colours one place later better than their own "
+    "colours. For patch {last}, the colour one place later is the white "
+    "paper after the strip; for each of the others, it is the patch just "
+    "after it. {numbers_line}ChromIQ compared only these readings, so it "
+    "cannot say whether the rest of the strip is in step.\n\n"
     "This usually happens when the instrument takes the white paper after "
     "the last patch for a patch of its own. The readings before it are then "
     "filed one place too early, at least for a few patches.\n\n"
     "A print whose colours are far from the chart's design can look the "
     "same, for example a print much lighter than planned. If you read the "
     "strip again carefully and this question comes back, the print is the "
-    "likely cause: then keep the reading.\n\n"
-    + _slip_tail(),
+    "likely cause: then choose {keep}.\n\n"
+    "You can switch these questions off in Preferences ▸ Measurement: the "
+    "option is called “Warn me if a strip looks misaligned”. It also "
+    "switches off the other questions about misaligned strips.\n\n"
+    + _shift_tail(),
     approved=False)
 
 #: The shift score's one-reading finding (k = 1): the first (or last)
@@ -11310,9 +11358,12 @@ M_STRIP_END_PAPER_LATE = _m(
     "ink ran out.\n\n"
     "Look at patch {first} on the printed chart. If it is white or very "
     "pale, the print is the cause: reading the strip again will not change "
-    "that, so keep the reading. If the patch printed well, read the strip "
-    "again.\n\n"
-    + _slip_tail(),
+    "that, so choose {keep}. If the patch printed well, choose "
+    "{remeasure}.\n\n"
+    "You can switch these questions off in Preferences ▸ Measurement: the "
+    "option is called “Warn me if a strip looks misaligned”. It also "
+    "switches off the other questions about misaligned strips.\n\n"
+    + _shift_tail(),
     approved=False)
 
 M_STRIP_END_PAPER_EARLY = _m(
@@ -11327,9 +11378,11 @@ M_STRIP_END_PAPER_EARLY = _m(
     "print, for example because a nozzle is blocked or an ink ran out.\n\n"
     "Look at patch {last} on the printed chart. If it is white or very pale, "
     "the print is the cause: reading the strip again will not change that, "
-    "so keep the reading. If the patch printed well, read the strip "
-    "again.\n\n"
-    + _slip_tail(),
+    "so choose {keep}. If the patch printed well, choose {remeasure}.\n\n"
+    "You can switch these questions off in Preferences ▸ Measurement: the "
+    "option is called “Warn me if a strip looks misaligned”. It also "
+    "switches off the other questions about misaligned strips.\n\n"
+    + _shift_tail(),
     approved=False)
 
 #: Two or three patches inside the strip, one patch late, where the patch
@@ -13233,6 +13286,9 @@ M_I1IO_DRIVE_HOME_AT_END = _m(
     "a new measurement on it until the arm is home. So press “Not now” only if you must reach "
     "the sheet first: nothing moves, and you can still bring the arm home from this window "
     "afterwards.\n\n"
+    "Please do not move the arm while you reach the sheet. ChromIQ brings the arm home only "
+    "from the place where it left it. If the arm has been moved, ChromIQ does not move it "
+    "any more.\n\n"
     "To stop the arm at once, switch the table off at its power switch.",
     approved=False)
 
@@ -13249,6 +13305,9 @@ M_I1IO_DRIVE_HOME_NOT_NOW = _m(
     "then press “Bring the arm home, my hands are away”. The arm moves at once.\n\n"
     "If you press Close, ChromIQ ends its connection to the table. After that, ChromIQ cannot "
     "bring the arm home.\n\n"
+    "Please do not move the arm while you reach the sheet. ChromIQ brings the arm home only "
+    "from the place where it left it. If the arm has been moved, ChromIQ does not move it "
+    "any more.\n\n"
     "To stop the arm at once, switch the table off at its power switch.",
     approved=False)
 
@@ -13294,6 +13353,22 @@ M_I1IO_DRIVE_STILL_AIMING = _m(
     "again.\n\n"
     "Please send us the diagnostics file of this measurement: {log}.",
     approved=False)
+
+#: 4.3.50 integration (table re-review of 20 Nov 2026, MUST-A): the homing of the ending found the
+#: held arm away from the place where ChromIQ left it (after "Not now" the person reached the
+#: sheet and moved it). Only s0 and p0 were sent. {what}: how the measurement ended.
+M_I1IO_DRIVE_HOME_ARM_MOVED = _m(
+    "M-I1IO-DRIVE-HOME-ARM-MOVED",
+    "The arm was moved, so it did not go home",
+    "{what}\n\n"
+    "Right before the homing, ChromIQ asked the table where the arm is. The arm was not at the "
+    "place where ChromIQ left it, so it was moved while it waited. ChromIQ brings the arm home "
+    "only from the place where it left it, so it sent no movement, and it sends nothing more to "
+    "the table.\n\n"
+    "Please press Close. The next page says how the arm can get home.\n\n"
+    "Please send us the diagnostics file of this measurement: {log}.",
+    approved=False)
+
 
 #: 4.3.50 fix round (MUST-1): ChromIQ stopped at the opening, before anything was read (never
 #: "your readings so far are kept" when there are none).
@@ -13658,7 +13733,8 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_HOME_AFTER_STOP, M_I1IO_DRIVE_HOME_AFTER_STOP_DONE,
     M_I1IO_DRIVE_END,
     M_I1IO_DRIVE_HOME_AT_END, M_I1IO_DRIVE_HOME_NOT_NOW, M_I1IO_DRIVE_LEFT_OUT,
-    M_I1IO_DRIVE_STILL_AIMING, M_I1IO_DRIVE_STOPPED_AT_OPENING, M_I1IO_DRIVE_DONE,
+    M_I1IO_DRIVE_STILL_AIMING, M_I1IO_DRIVE_STOPPED_AT_OPENING, M_I1IO_DRIVE_HOME_ARM_MOVED,
+    M_I1IO_DRIVE_DONE,
     M_I1IO_DRIVE_NOT_I1IO2, M_I1IO_DRIVE_NOT_I1PRO2,
     M_I1IO_DRIVE_BUSY, M_I1IO_DRIVE_I1PROFILER_OPEN,
     M_I1IO_DRIVE_USB_MISSING, M_I1IO_DRIVE_USB_NOT_ON_THIS_SYSTEM,

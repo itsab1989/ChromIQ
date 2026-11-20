@@ -171,6 +171,8 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-I1IO-DRIVE-LEFT-OUT",
     "M-I1IO-DRIVE-STILL-AIMING",
     "M-I1IO-DRIVE-STOPPED-AT-OPENING",
+    # 4.3.50 integration (table re-review, MUST-A): the held arm moved before the ending's homing
+    "M-I1IO-DRIVE-HOME-ARM-MOVED",
     "M-I1IO-DRIVE-DUAL-CONTINUE-FILL",
     "M-I1IO-DRIVE-DUAL-FILL-OFFER",
     "M-I1IO-NOT-YET-SIDE-FILE",

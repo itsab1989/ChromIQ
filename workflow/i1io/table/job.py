@@ -369,6 +369,8 @@ _DOUBT_IDS = (
     # 4.3.47: the freed arm shifted further than settling explains (RELEASE_SETTLE_UNITS)
     ("the free arm at the alignment start", "free_arm_moved_at_the_alignment_start"),
     ("a scan move may be pending", "strip_move_may_be_pending"),
+    # 4.3.50 (table re-review, MUST-A): the held arm read elsewhere right before a homing
+    ("before the homing the held arm reads", "arm_moved_before_homing"),
 )
 
 
@@ -2678,7 +2680,10 @@ class TableJob:
         last = d.position_now
         got = d.position()
         if last is not None and not _near(got, last) and d.arm_free is False:
-            raise d._doubt(f"before the homing the arm reads {got}, not {last}")
+            # 4.3.50 (table re-review, MUST-A): its own id, so the page says what is true (the
+            # held arm was moved while it waited; nothing that moves was sent)
+            raise d._doubt(f"before the homing the held arm reads {got}, not {last}, where "
+                           f"ChromIQ left it")
         if where is None and d.arm_free is False and not homing_starts_here(got, False):
             way = self._way_back(got)
             if way:

@@ -46,8 +46,9 @@ from core.i18n import tr
 log = logging.getLogger(__name__)
 
 #: the version of M-I1IO-DRIVE-CONSENT's text; a changed text raises it and asks again (2: the
-#: volunteer's results of 17 Nov 2026 in "What has been tried")
-CONSENT_VERSION = 2
+#: volunteer's results of 17 Nov 2026 in "What has been tried"; 3: 4.3.50, the first real page,
+#: the first row from the free arm, the homing at the ending, no mark-3 check)
+CONSENT_VERSION = 3
 CONSENT_KEY = "i1io_table_consent_given"
 ASK_KEY = "i1io_table_ask_after_each_step"
 #: where the i1Pro 2 is calibrated: the table's tile unless the person chose the own tile in
@@ -774,15 +775,23 @@ def table_state_text(a0) -> str:
     seen = (" " + tr("This answer may mean that the table is still in its aiming mode, from an "
                      "earlier measurement that ended with the arm out over the table.")
             if moved else "")
-    return first + seen + " " + tr(
-        "What you can do: if the arm is at its resting place, switch the table off at its power "
-        "switch, wait a few seconds, switch it on again and press START MEASUREMENT. When the "
-        "table then reports that it was just switched on, ChromIQ offers the start-up "
-        "i1Profiler uses for that. If the arm is out over the table, or the table still answers "
-        "this way, open i1Profiler 3.8.6 or older once and let it find the table, and stay "
-        "beside the table with its power switch in reach. ChromIQ does not start a table that "
-        "was just switched on with the arm out over the table, because that has never been "
-        "recorded.")
+    # 4.3.50 (table re-review, MUST-B): this page shows while the job still holds the table's
+    # connection, so End measurement comes first (i1Profiler cannot find the table before it)
+    return first + seen + "\n\n" + tr(
+        "What you can do:\n"
+        "1. Press End measurement. Until you do, ChromIQ still holds the table's connection, and "
+        "i1Profiler cannot find the table.\n"
+        "2. If the arm is at its resting place: switch the table off at its power switch, wait a "
+        "few seconds, switch it on again and press START MEASUREMENT. When the table then "
+        "reports that it was just switched on, ChromIQ offers the start-up i1Profiler uses for "
+        "that.\n"
+        "3. If the arm is out over the table, or the table still answers this way: stay beside "
+        "the table, with its power switch in reach. Open i1Profiler 3.8.6 or older once and let "
+        "it find the table. It should bring the arm home, but no recording shows how it does "
+        "that for a table in this state. When the arm is at its resting place, quit i1Profiler. "
+        "Then press START MEASUREMENT again.\n\n"
+        "ChromIQ does not start a table that was just switched on with the arm out over the "
+        "table, because that has never been recorded.")
 
 
 def reason_text(rid: str, detail: "dict | None" = None) -> str:
@@ -983,6 +992,10 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
         "movement_late_but_arrived": tr("A movement took longer or shorter than recorded."),
         "movement_early_but_arrived": tr("A movement took longer or shorter than recorded."),
         "arm_not_where_expected": tr("The arm did not report the place it was sent to."),
+        # 4.3.50 (table re-review, MUST-A): nothing was sent; the held arm was moved
+        "arm_moved_before_homing": tr(
+            "Right before the homing, the arm was not at the place where ChromIQ left it, so it "
+            "was moved while it waited. ChromIQ sent no movement."),
         "target_outside_area": tr("The place lies outside the area ChromIQ sends the arm to."),
         "target_off_sheet": tr("The place lies outside the three points of the sheet you "
                                "aimed at."),
@@ -1782,7 +1795,15 @@ class TableMeasureWindow(QFrame):
             self._place(self._answers, in_scroll, after=self._scroll)
             if fits:
                 self._scroll.setMinimumHeight(text_h)
-                h = fixed + text_h + ans_h + sp
+                # 4.3.50 integration: what the layout really gives the answers when the page
+                # fits (the scroll area takes any extra height, the answers keep their minimum,
+                # and the layout has two spacings, not three): the size hint here left an empty
+                # band of 31 px under a longer text (home_at_end, test_quiet_popups); the
+                # layout's own minimum below still keeps every button whole
+                ans_fit = max(alay.totalHeightForWidth(inner) if alay is not None
+                              and alay.hasHeightForWidth() else 0,
+                              self._answers.minimumSizeHint().height())
+                h = fixed + text_h + ans_fit
             else:
                 left = max_h - fixed - (0 if in_scroll else ans_h + sp)
                 self._scroll.setMinimumHeight(max(self._text.fontMetrics().lineSpacing() * 3,
@@ -3827,6 +3848,17 @@ class TableMeasureWindow(QFrame):
             self._after_stop_controls()
             self._show_note()
             return
+        j0 = self.job
+        if j0 is not None and j0.ended is not None and res.reason == "arm_moved_before_homing":
+            # 4.3.50 (table re-review, MUST-A): the homing of the ending found the held arm
+            # moved (after "Not now" the person reached the sheet): nothing was sent, the
+            # readings are as the ending left them; the done page after Close gives the way on
+            title, body = M.M_I1IO_DRIVE_HOME_ARM_MOVED.render(what=self._ended_what(),
+                                                               log=self._log_name)
+            self._show("stopped", title, body, self._way_on_buttons())
+            self._after_stop_controls()
+            self._show_note()
+            return
         opening = getattr(res, "step", "") == "open" and (
             self.job is None or self.job.accepted_in_this_session() == 0)
         d = getattr(res, "detail", None) or {}
@@ -3925,8 +3957,12 @@ class TableMeasureWindow(QFrame):
         else:
             lines.append(tr("Switch the table off with its power switch, leave it off for ten "
                             "seconds and switch it on again."))
-        lines.append(tr("Then open i1Profiler 3.8.6 or older once and let it find the table: it "
-                        "brings the arm home. Please do not press START MEASUREMENT again "
+        # 4.3.50 (table re-review, SHOULD-2): no recording shows i1Profiler's homing from the
+        # front of the table, so the page says "should", and to stay beside the table
+        lines.append(tr("Then stay beside the table, with its power switch in reach, and open "
+                        "i1Profiler 3.8.6 or older once and let it find the table. It should "
+                        "bring the arm home, but no recording shows it doing that from the "
+                        "front of the table. Please do not press START MEASUREMENT again "
                         "before i1Profiler has found the table."))
         out = tr("What to do now:") + "\n" + "\n".join(
             f"{k}. {ln}" for k, ln in enumerate(lines, 1))
@@ -4333,8 +4369,11 @@ class TableMeasureWindow(QFrame):
             elif st.mode_on:
                 way = M.M_I1IO_DRIVE_LEFT_OUT.render()[1]
             else:
-                way = tr("The arm was left out over the table. Open i1Profiler 3.8.6 or older "
-                         "once and let it find the table: it should bring the arm home.")
+                # 4.3.50 (table re-review, SHOULD-5): the same honesty as LEFT-OUT
+                way = tr("The arm was left out over the table. Stay beside the table, with its "
+                         "power switch in reach, and open i1Profiler 3.8.6 or older once and let "
+                         "it find the table. It should bring the arm home, but no recording "
+                         "shows it doing that from where the arm is now.")
             body = way + "\n\n" + body
         elif wb not in ("none", "home_offered"):
             msgs = {"switch_off_pending": M.M_I1IO_DRIVE_SWITCH_OFF,
