@@ -85,7 +85,7 @@ read ended at start-up and the user has to change a setting. The value is ours.
 | A patch was read and looks off | Patch by patch | Patch reading looks off |
 | A strip was accepted | Strip reading | Strip read OK |
 | A strip was accepted but read quickly | Strip reading | Slow down |
-| The first pass of a dual scan strip did not read (i1Pro 2, Beta) | Strip reading | Strip read failed |
+| The first pass of a dual scan strip did not read (i1Pro 2, Beta) *(awaiting confirmation, 4l)* | Strip reading | Strip read failed |
 | The measurement finished | Both | Measurement finished |
 | A profile finished building | — | Profile build finished |
 

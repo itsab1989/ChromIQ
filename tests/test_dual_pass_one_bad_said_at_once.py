@@ -87,6 +87,9 @@ def test_the_sound_is_in_the_help_table_and_the_specification():
            / "measurement_window_sounds.md").read_text(encoding="utf-8")
     sec = doc.split("## 4l.")[1].split("\n## ")[0]
     assert "Awaiting confirmation" in sec and "nobody yet" in sec
+    # review S6: the plain table of section 2 does not read as confirmed
+    line = next(ln for ln in doc.splitlines() if ln.startswith("| " + row[0][0]))
+    assert "*(awaiting confirmation, 4l)*" in line
 
 
 @pytest.mark.parametrize("code", ["de", "es", "fr", "it", "ja", "nl", "no",
