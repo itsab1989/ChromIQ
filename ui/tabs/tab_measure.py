@@ -3586,6 +3586,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # the other way, into the wrapper: see ui.widgets.add_log_row.
         lo_layout.setContentsMargins(16, 0, 16, 10)
         self._log = TailFollowLog(log_outer)
+        self._log.mirror_tab = "measure"   # A5: every panel line also in the app log
         self._log.setObjectName("log")
         self._log.setReadOnly(True)
         # Height in LINES, not pixels (Knut, beta.120: "only 6 lines of text
@@ -7620,7 +7621,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             win._on_problem()
 
     def _on_table_log_line(self, text: str) -> None:
-        self._log.appendPlainText(str(text))
+        # A5: the table window writes its pages, answers and results to the
+        # app log itself (A6); its panel lines are not written twice
+        self._log.append_logged_elsewhere(str(text))
         self._log.ensureCursorVisible()
 
     def _table_popup_area(self):
@@ -11781,7 +11784,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             wd.stop()
 
     def _on_log_line(self, line: str) -> None:
-        self._log.appendPlainText(line)
+        # logged just below, as it always was (A5: not twice)
+        self._log.append_logged_elsewhere(line)
         self._log.ensureCursorVisible()
         # MIRROR IT INTO THE APPLICATION LOG TOO.
         #
@@ -11799,7 +11803,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # was not — no panel line reached the file at all. Mirroring removes that
         # trap as well as the inconvenience.
         try:
-            log.info("%s", line.rstrip())
+            # A5 (4.3.50): in English where the catalogue knows the line
+            from core.question_log import english as _english
+            log.info("%s", _english(line.rstrip()))
         except Exception:      # noqa: BLE001 — logging must never break a read
             pass
         # chartread produced output → it is alive and processed (or never needed)

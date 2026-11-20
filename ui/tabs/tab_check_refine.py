@@ -753,6 +753,7 @@ class TabCheckRefine(QWidget):
 
         # ── Log (outside stack) ────────────────────────────────────────
         self._log = TailFollowLog(self)
+        self._log.mirror_tab = "check"   # A5: every panel line also in the app log
         self._log.setObjectName("log")
         self._log.setReadOnly(True)
         # Sized like every other log panel, and resizable with them (Basti:

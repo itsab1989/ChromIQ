@@ -982,6 +982,7 @@ class TabProfile(QWidget):
         cc.addLayout(btn_row)
 
         self._log = TailFollowLog(colprof_container)
+        self._log.mirror_tab = "profile"   # A5: every panel line also in the app log
         self._log.setObjectName("log")
         self._log.setReadOnly(True)
         # Nine lines of the font this really gets, measured after polish

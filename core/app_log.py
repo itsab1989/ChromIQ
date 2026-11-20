@@ -101,6 +101,7 @@ def text_line(tag: str, text: str, _level: int = logging.INFO, **kv) -> None:
         t = str(text).replace("\n", " | ").strip()
         if len(t) > MAX_LINE:
             t = t[:MAX_LINE] + "...(cut)"
+        kv = {k: v for k, v in kv.items() if v is not None}
         head = f"{tag}: {pairs(**kv)}" if kv else f"{tag}:"
         log.log(_level, "%s text=%s", head, t)
     except Exception:      # noqa: BLE001

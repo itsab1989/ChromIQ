@@ -69,7 +69,8 @@ def english(text: str) -> str:
 
 
 def _plain(s: str) -> str:
-    return html.unescape(_TAGS.sub(" ", str(s or ""))).replace(" ", " ")
+    t = html.unescape(_TAGS.sub(" ", str(s or ""))).replace("\u2029", " ")
+    return re.sub(r"[ \t]{2,}", " ", t)
 
 
 def _texts_of(win) -> "list[str]":
@@ -210,3 +211,41 @@ def auto_answered(question_id: str, answer: str, **kv) -> None:
     """A question nobody saw: answered by ChromIQ itself (the table's unguided
     mode, a "don't ask again"), so the log says it was automatic."""
     line("question answer", id=question_id, answer=answer, by="automatic", **kv)
+
+
+#: A5: at most this many panel lines per tab in one minute reach the app log (a
+#: tool's verbose output must not rotate the log away); the rest are counted
+PANEL_LINES_PER_MINUTE = 300
+_PANEL_COUNT: "dict[str, list]" = {}
+
+
+def panel_line(tab: str, text: str, is_html: bool = False) -> None:
+    """A5: one line of a tab's on-screen log, for the app log, in English where
+    the catalogue knows it and with the §M id where it is a rendered message.
+    Never raises."""
+    try:
+        t = _plain(text) if is_html else str(text or "")
+        t = t.strip()
+        if not t:
+            return
+        now = time.monotonic()
+        rec = _PANEL_COUNT.setdefault(tab, [now, 0, 0])
+        if now - rec[0] > 60.0:
+            if rec[2]:
+                line("panel", tab=tab, not_mirrored=rec[2], why="more_than_per_minute",
+                     limit=PANEL_LINES_PER_MINUTE)
+            rec[:] = [now, 0, 0]
+        rec[1] += 1
+        if rec[1] > PANEL_LINES_PER_MINUTE:
+            rec[2] += 1
+            return
+        mid = ""
+        for k, (title, body, _t) in reversed(list(_RENDERED.items())):
+            pt, pb = _plain(title).strip(), _plain(body).strip()[:60]
+            if (pb and pb in t) or (pt and t.startswith(pt)):
+                mid = k
+                break
+        from core.app_log import text_line
+        text_line("panel", english(t), tab=tab, id=mid or None)
+    except Exception:      # noqa: BLE001
+        pass

@@ -773,9 +773,33 @@ class TailFollowLog(QPlainTextEdit):
     it. Nothing here needs to hear from the scroll bar; it only ever asks.
     """
 
+    #: A5 (4.3.50): the tab whose panel this is ("measure", "chart", ...). Set,
+    #: every appended line also goes to the app log as ``panel: tab=... text=...``
+    #: (in English where the catalogue knows the text, with the §M id where the
+    #: line is a rendered message). "" = not mirrored.
+    mirror_tab: str = ""
+    #: True while a caller appends a line it has logged itself (no doubling)
+    _mirror_skip: bool = False
+
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._following_tail = True
+
+    def append_logged_elsewhere(self, text: str) -> None:
+        """Append a line the caller already wrote to the app log itself."""
+        self._mirror_skip = True
+        try:
+            self.appendPlainText(text)
+        finally:
+            self._mirror_skip = False
+
+    def _mirror(self, text: str, is_html: bool = False) -> None:
+        if self.mirror_tab and not self._mirror_skip:
+            try:
+                from core.question_log import panel_line
+                panel_line(self.mirror_tab, text, is_html=is_html)
+            except Exception:      # noqa: BLE001 - a log line never breaks a panel
+                pass
 
     # -- the question -----------------------------------------------------
     def is_at_bottom(self) -> bool:
@@ -810,9 +834,11 @@ class TailFollowLog(QPlainTextEdit):
     # -- the ways text arrives --------------------------------------------
     def appendPlainText(self, text: str) -> None:          # noqa: N802
         self._append_through(super().appendPlainText, text)
+        self._mirror(text)
 
     def appendHtml(self, html: str) -> None:               # noqa: N802
         self._append_through(super().appendHtml, html)
+        self._mirror(html, is_html=True)
 
     def insertPlainText(self, text: str) -> None:          # noqa: N802
         self._append_through(super().insertPlainText, text)
