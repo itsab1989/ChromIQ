@@ -34,6 +34,7 @@ import json
 import logging
 import sys
 import re
+import threading
 import time
 from pathlib import Path
 
@@ -1356,21 +1357,99 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
 # ---- the worker -------------------------------------------------------------------------------
 
 class _Signals(QObject):
-    """Lives in the GUI thread; a job call's result reaches the window through it (queued)."""
+    """A job call's result and the job's progress reach the window through it (queued).
+    Review 2, M-1: it has NO Qt parent. It belongs to a :class:`_JobRelay`, which keeps it
+    alive for as long as anything on the job's thread can still reach it, so an emit from
+    that thread never writes into an object the window took with it when it was deleted."""
 
     done = pyqtSignal(int, object)
     #: the job's display-only progress, emitted from the job's thread
     progress = pyqtSignal(dict)
 
 
+#: relays that are open, or detached and waiting for the pool to be idle (GUI thread only)
+_RELAYS: "list[_JobRelay]" = []
+#: how often, and how many times, a detached relay looks for an idle pool before its
+#: signals object is let go (after that it is simply kept: a few bytes, never a crash)
+RELAY_REAP_MS = 100
+RELAY_REAP_TRIES = 600
+
+
+class _JobRelay:
+    """THE ONLY WAY BACK FROM THE JOB'S THREAD TO THE WINDOW (review 2, M-1).
+
+    The job is handed :meth:`progress` (a plain Python callable), never a bound emit of an
+    object the window owns: a stored ``pyqtBoundSignal.emit`` keeps a raw pointer to its
+    QObject, and when the window (its parent) was deleted before the job's thread called it,
+    the job wrote through a dead pointer (SIGSEGV). Here the signals object is parentless
+    and held by this relay, which the module keeps until the pool is idle; each call looks at
+    an "open" flag under a lock and emits through the signals object, whose connections to
+    the window are queued, so nothing on the job's thread ever touches a Qt object of the
+    window. :meth:`detach` (the window finishing, or being destroyed) closes the flag: after
+    it returns no emit is running and none follows."""
+
+    def __init__(self) -> None:
+        self.signals = _Signals()
+        self._lock = threading.Lock()
+        self._open = True
+        self._tries = 0
+        #: the job this relay was handed to (its on_progress is cleared on detach)
+        self.job = None
+        _RELAYS.append(self)
+
+    @property
+    def is_open(self) -> bool:
+        return self._open
+
+    def progress(self, ev: dict) -> None:
+        """Called on the job's thread (and sometimes on the GUI thread): queued, never direct."""
+        with self._lock:
+            if not self._open:
+                return
+            self.signals.progress.emit(ev)
+
+    def done(self, token: int, res) -> None:
+        with self._lock:
+            if not self._open:
+                return
+            self.signals.done.emit(token, res)
+
+    def detach(self, *_args) -> None:
+        """GUI thread: nothing reaches the window through this relay any more. Idempotent;
+        also the window's ``destroyed`` slot (a bound method of a plain object, no lambda)."""
+        with self._lock:
+            was_open, self._open = self._open, False
+        j = self.job
+        if j is not None and getattr(j, "on_progress", None) == self.progress:
+            try:
+                j.on_progress = None
+            except Exception:      # noqa: BLE001 - a job without the attribute: nothing held
+                pass
+        self.job = None
+        if was_open:
+            self._reap()
+
+    def _reap(self) -> None:
+        """Lets the signals object go only when no job call can still run (the pool idle),
+        on the GUI thread; until then, and if the pool never gets idle, it is kept."""
+        if self._open or self not in _RELAYS:
+            return
+        if _pool().activeThreadCount() == 0:
+            _RELAYS.remove(self)
+            return
+        self._tries += 1
+        if self._tries <= RELAY_REAP_TRIES:
+            QTimer.singleShot(RELAY_REAP_MS, self._reap)
+
+
 class _JobCall(QRunnable):
     """One job call, run in the window's own one-thread pool (so calls never overlap and the
     GUI thread is never blocked). The result, or the exception it raised, goes back through
-    *signals*; a window closed meanwhile gets nothing."""
+    the window's *relay*; a window finished or deleted meanwhile gets nothing."""
 
-    def __init__(self, token: int, fn, signals: _Signals) -> None:
+    def __init__(self, token: int, fn, relay: "_JobRelay") -> None:
         super().__init__()
-        self.token, self.fn, self.signals = token, fn, signals
+        self.token, self.fn, self.relay = token, fn, relay
         self.setAutoDelete(True)
 
     def run(self) -> None:
@@ -1380,7 +1459,7 @@ class _JobCall(QRunnable):
             log.exception("i1iO table job call failed")
             res = exc
         try:
-            self.signals.done.emit(self.token, res)
+            self.relay.done(self.token, res)
         except RuntimeError:              # the window is gone
             pass
 
@@ -1394,6 +1473,59 @@ def _pool() -> QThreadPool:
         _POOL = QThreadPool()
         _POOL.setMaxThreadCount(1)
     return _POOL
+
+
+#: panels finished and waiting for the pool to be idle before they are deleted (GUI thread)
+_RETIRING: "list[_Retire]" = []
+#: how often, and for how long, a finished panel waits for an idle pool (100 ms x 100 = 10 s);
+#: after that it is kept (hidden, its relay detached) rather than deleted under a running call
+RETIRE_POLL_MS = 100
+RETIRE_TRIES = 100
+
+
+class _Retire:
+    """Deletes a finished panel only when no job call runs (review 2, M-1, belt and braces):
+    the usual case (the pool idle) deletes it at once, exactly as before; otherwise it looks
+    again every RETIRE_POLL_MS on the GUI thread and never blocks it."""
+
+    def __init__(self, win) -> None:
+        self.win, self.tries = win, 0
+        _RETIRING.append(self)
+
+    def step(self) -> None:
+        from PyQt6 import sip
+        win = self.win
+        if win is None or sip.isdeleted(win):
+            self._drop()
+            return
+        if _pool().activeThreadCount() == 0:
+            win.deleteLater()
+            self._drop()
+            return
+        self.tries += 1
+        if self.tries <= RETIRE_TRIES:
+            QTimer.singleShot(RETIRE_POLL_MS, self.step)
+            return
+        log.warning("i1iO table: a job call still runs %d ms after the panel finished; the "
+                    "panel is kept (hidden) rather than deleted under it",
+                    RETIRE_POLL_MS * RETIRE_TRIES)
+        self._drop()
+
+    def _drop(self) -> None:
+        self.win = None
+        if self in _RETIRING:
+            _RETIRING.remove(self)
+
+
+def retire_window(win) -> None:
+    """The tab's way to delete a finished table panel (never ``deleteLater`` directly)."""
+    try:
+        relay = getattr(win, "_relay", None)
+        if relay is not None:
+            relay.detach()
+    except Exception:      # noqa: BLE001 - the deletion below decides
+        pass
+    _Retire(win).step()
 
 
 class _StatusLine(QLabel):
@@ -1622,7 +1754,10 @@ class TableMeasureWindow(QFrame):
         #: 4.3.52: every countdown second the window was told about (tests, the driver)
         self.countdowns_seen: "list[int]" = []
         self._build()
-        self._signals = _Signals(self)
+        # review 2, M-1: the job reaches the window only through this relay (see _JobRelay)
+        self._relay = _JobRelay()
+        self._signals = self._relay.signals
+        self.destroyed.connect(self._relay.detach)
         self._signals.done.connect(self._on_done, Qt.ConnectionType.QueuedConnection)
         self._signals.progress.connect(self._relay_progress, Qt.ConnectionType.QueuedConnection)
 
@@ -2876,7 +3011,7 @@ class TableMeasureWindow(QFrame):
         if self._popups:
             # condition 3: never a job call (and so never a move) while a pop-up is open
             self._hide_popup()
-        _pool().start(_JobCall(self._token, fn, self._signals))
+        _pool().start(_JobCall(self._token, fn, self._relay))
 
     def _show_working(self, status: str = "") -> None:
         """While a job call runs: no answer buttons (an answer given is not shown as open),
@@ -3052,7 +3187,9 @@ class TableMeasureWindow(QFrame):
         # the i1Pro 2 dual scan (Preferences > Beta): decided at START, None = off
         self.job.dual = self._dual
         # the preview follows the job (display only; emitted from the job's thread)
-        self.job.on_progress = self._signals.progress.emit
+        # review 2, M-1: a plain callable of the relay, never a stored bound emit
+        self.job.on_progress = self._relay.progress
+        self._relay.job = self.job
         try:
             log_path = self._run.i1io_table_log(self._stamp)
             self._log_name = tr("{path}, in this run's folder").format(
@@ -4849,6 +4986,9 @@ class TableMeasureWindow(QFrame):
         self._finished = True
         self._hide_popup()
         self.progress.emit({"event": "end"})
+        # review 2, M-1: the panel is finished (and the tab deletes it): nothing on the job's
+        # thread reaches it any more (no call is running: every path here checks _busy)
+        self._relay.detach()
         self.setVisible(False)
         self.finished_with.emit("quit" if self._quit_wanted else why)
 
@@ -5091,14 +5231,16 @@ class _ReadRow:
     """The job call that reads one row again (Keep measuring), bound (no lambda)."""
 
     def __init__(self, win: TableMeasureWindow, row: int) -> None:
-        self.win, self.row = win, row
+        # review 2, M-1: the job is taken here, on the GUI thread; fire() runs on the job's
+        # thread and touches nothing of the window
+        self.win, self.row, self.job = win, row, win.job
 
     def prepare(self) -> None:
         if self.win._again_rows and self.win._again_rows[0] == self.row:
             self.win._again_rows.pop(0)
 
     def fire(self):
-        return self.win.job.read_row(self.row)
+        return self.job.read_row(self.row)
 
 
 class _PageDone:
@@ -5106,13 +5248,14 @@ class _PageDone:
     page (the job's calls, run in the worker)."""
 
     def __init__(self, win: TableMeasureWindow, home: bool) -> None:
-        self.win, self.home = win, home
+        # review 2, M-1: the job is taken on the GUI thread (fire() runs on the job's thread)
+        self.win, self.home, self.job = win, home, win.job
 
     def prepare(self) -> None:
-        self.win._page_done = self.win.job.page + 1
+        self.win._page_done = self.job.page + 1
 
     def fire(self):
-        return self.win.job.home() if self.home else self.win.job.next_page()
+        return self.job.home() if self.home else self.job.next_page()
 
 
 class _Answer:

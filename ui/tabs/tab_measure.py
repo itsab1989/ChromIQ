@@ -8073,7 +8073,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         win, self._table_window = self._table_window, None
         if win is not None:
             self._stack.removeWidget(win)
-            win.deleteLater()
+            # review 2, M-1: deleted only when no job call runs any more (at once when idle)
+            from ui.i1io_table_window import retire_window
+            retire_window(win)
         if getattr(self, "_table_quiet", False):
             self._table_quiet = False
             self._table_quiet_room(False)
