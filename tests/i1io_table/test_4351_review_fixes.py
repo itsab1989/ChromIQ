@@ -83,3 +83,43 @@ def test_the_window_says_the_truth_after_a_homing_that_stops_short(
             p.idle()
             break
     assert not [ln for ln in sim.sim.received[m:] if ln[1:3] in MOVES]
+
+
+# ---- SHOULD-1: the edges of the home line, pinned (plants P1b, P2b and P8 of the review) -------
+#: (place, the form) right at and right beyond each edge: X 1090..1115, Y up to 815
+EDGES = [((1089, 400), None), ((1090, 400), "start"), ((1115, 400), "start"),
+         ((1116, 400), None), ((1089, 810), None), ((1090, 810), "start"),
+         ((1115, 810), "start"), ((1116, 810), None), ((1102, 815), "start"),
+         ((1102, 816), None), ((1090, 815), "start"), ((1115, 816), None)]
+
+
+@pytest.mark.parametrize("pos,form", EDGES, ids=[f"{p[0]}-{p[1]}" for p, _f in EDGES])
+def test_the_home_line_ends_exactly_where_it_says(pos, form):
+    assert J.start_homing_form(pos) == form
+
+
+@pytest.mark.parametrize("pos,form", [((1089, 810), None), ((1090, 810), "start"),
+                                      ((1115, 600), "start"), ((1116, 600), None)])
+def test_the_edges_decide_at_a_real_start(tmp_path, pos, form):
+    job, sim, p, r = _found(tmp_path, "cal", pos)
+    want = J.WayBack.HOME_AFTER_STOP if form else J.WayBack.OPEN_I1PROFILER_ONCE
+    assert r.way_back == want, (pos, r.reason)
+    n = len(sim.received)
+    res = p.drive(job.home_after_stop())
+    if form is None:
+        assert res.kind == J.Kind.REFUSED and sim.received[n:] == []
+    else:
+        assert res.ok and sim.received[n:] == F1_PLUS
+
+
+def test_the_line_is_checked_again_right_before_the_homing(tmp_path):
+    """Found on the line at its edge (1115, 600); the reading right before i1 says (1119, 600):
+    within the 5-unit "arm moved" compare, but off the line. Refused; nothing after s0 p0."""
+    job, sim, p, r = _found(tmp_path, "cal", (1115, 600))
+    assert r.way_back == J.WayBack.HOME_AFTER_STOP
+    sim.pos = [1119.0, 600.0]
+    n = len(sim.received)
+    res = p.drive(job.home_after_stop())
+    assert not res.ok and res.reason == "homing_not_from_here", (res.kind, res.reason)
+    assert sim.received[n:] == [";s022", ";p025"]
+
