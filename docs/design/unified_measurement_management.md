@@ -10122,7 +10122,7 @@ alone.
 
 > **Dual scan: not used for this chart**
 >
-> {why}
+> {why} It is measured as without the dual scan.
 
 ### M-DUAL-NO-ENGINE · PROPOSED · the X-Rite i1Pro 2 dual scan (Preferences > Beta), Measure, 2026-11-20
 

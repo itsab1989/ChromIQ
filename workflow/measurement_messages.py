@@ -12280,7 +12280,7 @@ M_DUAL_NOT_I1PRO2 = _m(
 M_DUAL_NOT_THIS_CHART = _m(
     'M-DUAL-NOT-THIS-CHART',
     'Dual scan: not used for this chart',
-    '{why}',
+    '{why} It is measured as without the dual scan.',
     approved=False)
 
 M_DUAL_NO_ENGINE = _m(
