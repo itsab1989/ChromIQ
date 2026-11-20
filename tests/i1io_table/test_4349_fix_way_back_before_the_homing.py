@@ -8,8 +8,9 @@ recorded form (m0 at 300, each arrival read): the last such place first, then ba
 recent one a homing may start from. A move back that does not arrive is a doubt: nothing more is
 sent, and the page says to switch the table off or open i1Profiler once.
 
-The reviewer's case: his exact aims (19 Nov 2026, round 1), a simulated front end at Y 3230
-(invented: no recording shows the real end); the creep stops at (x, 3230), "about N mm short".
+The reviewer's case: his exact aims (19 Nov 2026, round 1), a simulated front end at Y 3140
+(invented: no recording shows the real end; 4.3.50: in front of the frontmost patch row, 3158,
+since the careful steps no longer go to the marks); the creep stops at (x, 3140).
 """
 from __future__ import annotations
 
@@ -23,7 +24,7 @@ from workflow.i1io.table import geometry as geo
 from workflow.i1io.table import job as J
 
 
-def _stalled(tmp_path, aims=CROSSES_1, front_end=3230):
+def _stalled(tmp_path, aims=CROSSES_1, front_end=3140):
     out, job, sim, p = _through_first_row(tmp_path, H.demo_sheet(), aims, front_end=front_end)
     step, kind, reason, detail = out[-1]
     assert (step, kind, reason) == ("creep", J.Kind.REFUSED, "creep_step_did_not_arrive"), out
@@ -39,7 +40,7 @@ def _lines(sim, since):
 def test_bring_the_arm_home_after_the_creep_met_the_front_end_arrives_at_rest(tmp_path, aims):
     job, sim, p, detail = _stalled(tmp_path, aims)
     stall = (sim.pos[0], sim.pos[1])
-    assert stall[1] == pytest.approx(3230)
+    assert stall[1] == pytest.approx(3140)
     # the page offers the homing, and pressing it now works
     assert job.way_back() == J.WayBack.HOME_OFFERED
     n = len(sim.received)
@@ -66,7 +67,7 @@ def test_bring_the_arm_home_after_the_creep_met_the_front_end_arrives_at_rest(tm
     ys = [y for _x, y, _v in targets]
     assert ys == sorted(ys, reverse=True) and ys[0] < stall[1]
     assert J.homing_starts_here(targets[-1][:2], False)
-    assert not J.homing_starts_here(targets[0][:2], False)      # 3223 lies in front of 3114
+    assert not J.homing_starts_here(targets[0][:2], False)      # 3123 lies in front of 3114
     # the first move goes back to the last place the creep arrived at (5 mm steps from 2723)
     assert ys[0] == detail["front_y"]
     # the homing's i1 is sent from inside the region 4.3.48 homed from

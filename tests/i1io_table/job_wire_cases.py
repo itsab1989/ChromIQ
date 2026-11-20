@@ -7,6 +7,7 @@ from __future__ import annotations
 from tests.i1io_table import job_harness as H
 from tests.i1io_table import must1_wire as M1
 from tests.i1io_table import part_c_sim as csim
+from tests.i1io_table.tester_d2 import TesterD2Job
 from workflow.i1io.table import job as J
 
 ALIGN = ["open", "align", "check_move", "home"]
@@ -72,8 +73,9 @@ def job_lines(case: dict, ask_after_each_step: bool = True):
         sim.on_command = (lambda k, i=M1.job_index(case["cancel_at"], M1.EXTRA_IN_ALIGN_SITTING):
                           holder["job"].cancel()
                           if k == i else None)
+    # 4.3.50: tester 0.6.0's D2 on a test copy of the job (tester_d2: the app has none)
     job, sim, _t = H.make_job(sim=sim, sheet=sheet, aims=aims,
-                              ask_after_each_step=ask_after_each_step)
+                              ask_after_each_step=ask_after_each_step, job_class=TesterD2Job)
     holder["job"] = job
     sim.job = job          # 4.3.47 MUST-1: its own record of the extra readings
     person = H.Person(job, sim, case.get("script"))

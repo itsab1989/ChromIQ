@@ -17,7 +17,10 @@ rewritten for the app, with every reviewed safety setting carried over:
               distances, corner, area), which rows fit (``page_fit``), the front-zone decision
   creep       part C's DZ: feel forward into the front zone in steps of at most 5 mm; the
               furthest clean arrival is the confirmed-Y limit for the rest of the sitting
-  check_move  part C's D2: the one computed move to mark 3
+              (4.3.50: part C's D2, the check move to mark 3 and its question, is GONE: nobody
+              can see the opening under the instrument, i1Profiler has no such step, and the
+              first real page read every patch on centre; the first row's move follows the
+              aims, from the free arm, after its own hands-off GO, as i1Profiler's does)
   home        part C's F: the recorded end of a job from where the arm stands
   calibrate   (step 7) part C's C1, spot white only: the arm read at rest before and after, the
               reader consent before the first reader of the session, the place (the instrument's
@@ -91,8 +94,10 @@ class Confirm:
     SHEET_LAID = "sheet_laid"        # ASK_SHEET_LAID: the sheet lies as described, nothing else
     ARM_FELT = "arm_felt"            # ASK_OUT_TOUCH: the free arm at the alignment start
     AIMED = "aimed"                  # the sight sits on mark n (one per mark)
-    FRONT_CHOICE = "front_choice"    # back (lay it further back) or go on (feel forward)
-    FRONT_YES = "front_yes"          # FRONT_YES: go on needs its own yes
+    #: back (lay it further back) or go on (go forward carefully, my hands are away). 4.3.50:
+    #: ONE question (front_yes, its second question, is gone); "go on" is the hands-off
+    #: confirmation for the careful steps that follow
+    FRONT_CHOICE = "front_choice"
     FIRST_VISIT = "first_visit"      # a move into a part no recording drove the arm to
     MARKER = "pending_marker"        # a strip move may still wait: the table was switched off?
     READY_TO_OPEN = "ready_to_open"  # tester PRE_QUESTIONS: the arm at rest, the bed clear
@@ -116,7 +121,6 @@ CHOICES = {
     Confirm.ARM_FELT: ("free", "holds", "not sure", "skip"),
     Confirm.AIMED: ("aimed", "stop"),
     Confirm.FRONT_CHOICE: ("back", "go on"),
-    Confirm.FRONT_YES: ("yes", "no"),
     Confirm.FIRST_VISIT: ("yes", "no"),
     Confirm.MARKER: ("switched off and on", "stop"),
     # 4.3.48: "arm out": the person says the arm is NOT at its resting place (an earlier stop
@@ -181,7 +185,7 @@ BUTTON_IGNORED = "button_press_ignored"
 BUTTON_WAIT_HOLDS = "button_wait_still_holds_the_instrument"
 #: review 8, S-1: the steps that move the arm (the homing is the way back and never refused
 #: for a stop); a stop pressed between steps or at a question ends them before their next move
-MOVING_STEPS = ("park", "align", "creep", "check_move", "read_row", "start_up")
+MOVING_STEPS = ("park", "align", "creep", "read_row", "start_up")
 STOPPED_BEFORE_THE_NEXT_MOVE = "stopped_before_the_next_move"
 #: review 8, B-1: the refusal of every step but the homing once the session has ended (saved,
 #: discarded, or "nothing read"); the detail names how it ended
@@ -228,14 +232,18 @@ MAY_OFFER_DO_NOT_ASK_AGAIN = "may_offer_do_not_ask_again"
 #: first. The table module refuses a movement line while one is owed (a bug guard).
 HANDS_OFF_ANSWERS = frozenset({(Confirm.GO, "yes"), (Confirm.SHEET_LAID, "yes"),
                                (Confirm.FIRST_VISIT, "yes"), (Confirm.START_UP, "yes"),
-                               (Confirm.REPORT_AFTER_STEP, "as described")})
-#: the window's own questions whose answer is the hands-off confirmation (same rule)
-HANDS_OFF_WINDOW_ANSWERS = frozenset({("check_mark", "centred")})
+                               (Confirm.REPORT_AFTER_STEP, "as described"),
+                               # 4.3.50: "Go forward carefully, my hands are away" (its page
+                               # asks the hands away and names the careful steps that follow)
+                               (Confirm.FRONT_CHOICE, "go on")})
+#: the window's own questions whose answer is the hands-off confirmation (same rule). 4.3.50:
+#: none (the mark-3 check, the only one, is gone)
+HANDS_OFF_WINDOW_ANSWERS: "frozenset[tuple[str, str]]" = frozenset()
 #: every movement the guard refused (a bug in the job: the tests fail on any entry)
 HANDS_OFF_BREACHES: "list[str]" = []
 
 #: the tester's names for the answers in a result block (the analysis script reads them)
-BLOCK_LABEL = {Confirm.FRONT_CHOICE: "front part", Confirm.FRONT_YES: "front part, yes",
+BLOCK_LABEL = {Confirm.FRONT_CHOICE: "front part",
                Confirm.FIRST_VISIT: "first visit", Confirm.SHEET_LAID: "on the table"}
 
 
@@ -325,15 +333,14 @@ class PersonStopped(Exception):
 
 
 #: part C's per-stage runs, per page (the tester's max_runs per sitting, now per sheet laid)
-MAX_RUNS = {"park": 8, "d1": 5, "dz": 3, "d2": 3, "f": 8, "c1": 3, "c2": 3}
-#: the steps and the tester's stage key each writes its result block under
-STAGE_KEY = {"park": "park", "align": "d1", "creep": "dz", "check_move": "d2", "home": "f",
+MAX_RUNS = {"park": 8, "d1": 5, "dz": 3, "f": 8, "c1": 3, "c2": 3}
+#: the steps and the tester's stage key each writes its result block under (4.3.50: no "d2")
+STAGE_KEY = {"park": "park", "align": "d1", "creep": "dz", "home": "f",
              "home_after_stop": "f",
              "calibrate": "c1", "read_tile": "c2", "read_row": "row"}
 #: the step caps the tester used for its own stages (lines, movements)
 DZ_CAPS = cp.CREEP
 D1_CAPS = (8, 0)
-D2_CAPS = (6, 1)       # 4.3.47 MUST-1: +1, the arm read again after a first-visit question
 
 # The recorded part B steps part C uses, each allowed from the states part C leaves (C_HOME:
 # the homing only from "warm", "homed", "b_done": the needs-conditions before homing).
@@ -468,6 +475,18 @@ def homing_starts_here(p, arm_free, cap_y=None) -> bool:  # noqa: ARG001 - cap_y
     return HELD_HOMING_AREA.contains(p)
 
 
+def _homing_target(p) -> bool:
+    """4.3.50 (re-review 449, S-3): a place the way back may END at, for the homing to start
+    from: a held homing start (``homing_starts_here``), and in the front zone not beyond the
+    frontmost recorded aim itself (Y 3109): an arrival at 3112 may read 3117 when the arm gets
+    there, and the homing would then refuse with no further way."""
+    if not homing_starts_here(p, False):
+        return False
+    if geo.AREA_RAW.contains(p) or tbl.START_GUARD.contains(p):
+        return True
+    return p[1] <= geo.FRONTMOST_AIM_Y
+
+
 #: Where i1Profiler's homings of a HELD arm out on the table start, as 4.3.48 bounded them: the
 #: measuring area's raw box, its front extended to the frontmost recorded aim (Y 3109) plus the
 #: arrival tolerance (the simulator's own copy: part_c_sim.C_SWEEP_BOX).
@@ -553,7 +572,10 @@ def page_fit(sheet: dict, page: int, al: geo.Alignment) -> dict:
                 "right": area.xmin - min(p[0] for p in pts),
                 "back": area.ymin - min(p[1] for p in pts),
                 "front": max(p[1] for p in pts) - area.ymax}
-    inside = [p for p in spot_pts + run_pts + [tuple(r) for r in al.readings] if area.contains(p)]
+    # 4.3.50: the front need is what the PLAN reads (patch targets, strip runs): never the mark
+    # readings, whose check move is gone (on the first real page the marks made the careful
+    # steps go 9.5 mm further forward than the frontmost patch row needed)
+    inside = [p for p in spot_pts + run_pts if area.contains(p)]
     front_need = max((p[1] for p in inside), default=geo.MEASURING_AREA.ymax)
     front_need = front_need if front_need > geo.MEASURING_AREA.ymax else None
     front_spot = sum(1 for p in spot_pts if area.contains(p) and geo.in_front_zone(p))
@@ -586,6 +608,12 @@ CHART_HEAD = "i1Pro 2"
 class TableJob:
     """One START on the table. Steps are methods; each returns a StepResult. A step that needs
     a person's confirmation returns ``needs_confirmation``; :meth:`answer` continues it."""
+
+    #: the step tables, read through the instance (4.3.50: the wire-identity tests run a test
+    #: copy of tester 0.6.0's D2 on a subclass; the app's job has no such step)
+    STAGE_KEY = STAGE_KEY
+    MOVING_STEPS = MOVING_STEPS
+    MAX_RUNS = MAX_RUNS
 
     def __init__(self, sheet: dict, page: int = 0, *, run=None, stamp: "str | None" = None,
                  folder: "Path | None" = None, open_transport=None, preflight=None,
@@ -648,6 +676,9 @@ class TableJob:
         self.phase = "new"            # new, open, closed
         self.alignment: "geo.Alignment | None" = None
         self.front_need: "int | None" = None
+        #: 4.3.50: the alignment whose front question was answered "go on" (its creep asks no
+        #: GO and no first visit before its first step); None: none
+        self._front_agreed_for: "geo.Alignment | None" = None
         self.fit: "dict | None" = None
         self.driven: "list[tuple]" = []
         #: 4.3.49 fix round (safety review 449, MUST-1): the targets computed moves of this
@@ -661,6 +692,14 @@ class TableJob:
         self.runs: "dict[tuple[int, str], int]" = {}
         self.only_home = False
         self.creep_stopped = False
+        #: 4.3.50 (safety review 449, SHOULD-2): the creep step on its way (from, to), set
+        #: right before its m0 and cleared once its arrival was read; a stop of the table part
+        #: inside that step (a status, a refusal, no answer) carries it in its result, so the
+        #: page can say where the arm was and where it was sent
+        self._creep_step_now: "tuple | None" = None
+        #: ...and, once such a stop happened, the creep stop's facts (the window's own page,
+        #: and the done page's way home)
+        self.creep_doubt: "dict | None" = None
         #: B': every problem the person reported, never lost (kind, the step it came in, the
         #: lines sent by then)
         self.problems: "list[tuple[str, str | None, int]]" = []
@@ -1012,7 +1051,7 @@ class TableJob:
         # round B: Stop cancels the wait for the instrument's button (the question on screen
         # may still be answered in the panel; a press is no longer taken)
         self._press_cancel("stop pressed")
-        # review 9, M-1: in EVERY case, also while a step runs (a check move has no pause of
+        # review 9, M-1: in EVERY case, also while a step runs (a single move has no pause of
         # its own): the next movement after a stop, the homing included, asks the hands-off
         # GO again. A running step has passed its GO already; the rows set or clear it
         # themselves.
@@ -1020,7 +1059,7 @@ class TableJob:
 
     def stop_honoured_between_steps(self) -> None:
         """Final fix round: the window showed the person's Stop at once, because no step was
-        running or waiting (the mark-3 check, the next page's question): the stop has taken
+        running or waiting (the next page's question, say): the stop has taken
         effect there, so it does not stop the next step a second time. The next movement still
         asks the hands-off GO (stop_at_next_pause cleared it)."""
         if self._gen is None and self._pause_stop:
@@ -1030,7 +1069,7 @@ class TableJob:
 
     def _stale_stop(self, step: "str | None") -> bool:
         """A stop pressed between steps or at a question, still waiting (consumed here)."""
-        if self._pause_stop and step in MOVING_STEPS and not self.only_home:
+        if self._pause_stop and step in self.MOVING_STEPS and not self.only_home:
             self._pause_stop = False
             self.diag.log("ANSWER", f"{step}: the stop pressed before it is honoured before "
                                     f"the next move")
@@ -1106,6 +1145,11 @@ class TableJob:
                                  position_before=list(d.last_read) if d is not None and
                                  d.last_read is not None else None,
                                  arm_free=d.arm_free if d is not None else None)
+            if step == "creep" and self._creep_step_now is not None:
+                # 4.3.50 (safety review 449, SHOULD-2): the table part ended inside a 5 mm step
+                # towards the front (a status, a refusal, no answer): where the arm was before
+                # it, where it was sent, and how far back the sheet must lie to need no step
+                extra = dict(extra, **self._creep_doubt_detail(rid))
             res = self._result(step, Kind.STOPPED, rid, log_reason=str(exc), **extra)
         elif isinstance(exc, (Stopped, KeyboardInterrupt)):
             if d is not None:
@@ -1123,7 +1167,7 @@ class TableJob:
 
     # ---- result blocks (the tester's RESULT blocks, same keys) -------------------------------
     def _start_block(self, step: str) -> None:
-        key = STAGE_KEY.get(step)
+        key = self.STAGE_KEY.get(step)
         if key is None:
             self._block = None
             return
@@ -1404,40 +1448,36 @@ class TableJob:
         d = self._table
         if d.state == "cold":
             return "table_not_started"
-        key = STAGE_KEY[step]
+        key = self.STAGE_KEY[step]
         if self.instrument_out and step != "calibrate":
             return "instrument_not_in_the_arm"
         if self.report_due is not None and step != "home":
             return "report_due"
         if self.only_home and step != "home":
             return "only_the_homing_now"
-        if key in ("d1", "dz", "d2", "row") and not self.page_has_something_to_read():
+        if key in ("d1", "dz", "row") and not self.page_has_something_to_read():
             # review 8, M-3: resume / refinement: a page with nothing missing is never aligned
             # or read (the caps from the missing patches hold nothing for it); next_page()
             # goes past it
             return "nothing_missing_on_this_page"
         if key in ("c1", "c2", "row"):
             return self._reading_ready(step)
-        if self.runs.get((self.page, key), 0) >= MAX_RUNS[key]:
+        if self.runs.get((self.page, key), 0) >= self.MAX_RUNS[key]:
             return "ran_as_often_as_allowed"
         rest = self.at_rest() or self.unread_rest() or self.parked()
         if step == "park" and not rest:
             return "arm_not_at_rest"
         if step == "align" and not (rest or (d.arm_free is True and d.mode_on)):
             return "arm_not_at_rest_or_free_after_alignment"
-        if step in ("creep", "check_move"):
+        if step == "creep":
             if self.alignment is None:
                 return "needs_alignment"
             if not self.out_known() and d.arm_free is not True:
                 return "arm_not_out_on_the_sheet"
-        if step == "creep":
             if self.front_need is None:
                 return "sheet_does_not_reach_the_front_zone"
             if self.front_reached() >= self.front_need:
                 return "front_zone_confirmed_already"
-        if step == "check_move" and self.front_need is not None and \
-                self.front_reached() < self.alignment.readings[2][1]:
-            return "needs_creep_first"
         if step == "home" and not (self.out_known() or d.arm_free is True):
             return "arm_not_out_on_the_table"
         if step == "home" and d.arm_free is False and d.position_now is not None and \
@@ -1480,7 +1520,7 @@ class TableJob:
                     # is the stop's effect, so a stop pressed before it is used up here
                     self._pause_stop = False
             self._check_other_program()
-            key = STAGE_KEY[step]
+            key = self.STAGE_KEY[step]
             self.runs[(self.page, key)] = self.runs.get((self.page, key), 0) + 1
             self._start_block(step)
             try:
@@ -1512,9 +1552,6 @@ class TableJob:
 
     def creep(self) -> StepResult:
         return self._stage("creep", self._creep)
-
-    def check_move(self) -> StepResult:
-        return self._stage("check_move", self._check_move)
 
     def home(self) -> StepResult:
         return self._stage("home", self._home)
@@ -1774,7 +1811,7 @@ class TableJob:
 
     def person_answered(self, question_id: str, answer: str = "") -> None:
         """Final fix round, M-1: the person answered one of the WINDOW's own questions (the
-        mark-3 check, a "Go on", "Carry on", the problem page...). As after any of the job's
+        a "Go on", "Carry on", the problem page...). As after any of the job's
         questions, the next movement asks the hands-off GO first, unless the answer is itself
         that confirmation (``HANDS_OFF_WINDOW_ANSWERS``). Ignored while a step runs (its GO was
         given before it started; a page answered then is not a question at the table)."""
@@ -2145,9 +2182,12 @@ class TableJob:
             if _near(got, target):
                 self.driven.append((a, target))
                 self._arrived_at(target)
-                raise StageFailed("movement_late_but_arrived", took=round(exc.took, 3),
+                # 4.3.50: the id says which side of the window the move ended on
+                raise StageFailed("movement_early_but_arrived" if exc.took < exc.lo
+                                  else "movement_late_but_arrived", took=round(exc.took, 3),
                                   window=(round(exc.lo, 2), round(exc.hi, 2))) from None
-            raise d._doubt(f"{what}: after a slow move the arm reads {got}, not {target}")
+            raise d._doubt(f"{what}: after a move outside its time window the arm reads {got}, "
+                           f"not {target}")
         got = d.position()
         if not _near(got, target):
             # S-7 (the volunteer's table, 17 Nov 2026: i1Profiler's own arrivals on 48 patches
@@ -2275,6 +2315,7 @@ class TableJob:
         self._apply_reach()
         self.worked.discard("d1")
         self.worked.discard("d2")
+        self._front_agreed_for = None
 
     # ---- park: the recorded homing at rest -----------------------------------------------------
     def _park(self):
@@ -2337,8 +2378,9 @@ class TableJob:
         finally:
             self._press_stop()
         # the safety review's confirmation of step 6 (required): the person's hands were on the
-        # free arm for the aims, so the first motor move after them (the creep, the check move
-        # or the homing) waits for a hands-off GO again, in both modes (one more question a page)
+        # free arm for the aims, so the first motor move after them (the creep, the first row
+        # or the homing) waits for a hands-off GO again, in both modes (one more question a page;
+        # 4.3.50: for the creep, "Go forward carefully, my hands are away" is that GO)
         self._go_page = None
         d.exchange("status")
         for _ in range(4):
@@ -2382,13 +2424,17 @@ class TableJob:
                     "front_rows": fit["front_rows"],
                     "back_mm": int((need - geo.MEASURING_AREA.ymax) / 10.0) + 1})
                 if choice == "go on":
-                    yes = yield Ask(Confirm.FRONT_YES)
-                    if yes == "yes":
-                        self.front_need = int(need)
-                        self._block["data"]["front_need_y"] = self.front_need
-                        out["front_need_y"] = self.front_need
-                        kept = True
-                        return out
+                    # 4.3.50: ONE question. "Go forward carefully, my hands are away" is the
+                    # hands-off GO for the careful steps (HANDS_OFF_ANSWERS) and the person's
+                    # consent to the part of the table they go to: the creep of THIS alignment
+                    # asks neither GO nor first visit before its first move
+                    self.front_need = int(need)
+                    self._block["data"]["front_need_y"] = self.front_need
+                    out["front_need_y"] = self.front_need
+                    self._go_page = self.page
+                    self._front_agreed_for = al
+                    kept = True
+                    return out
             finally:
                 if not kept:
                     self.alignment = None
@@ -2411,9 +2457,25 @@ class TableJob:
             a = self._still(a)
         y0 = self.front_reached()
         start = (x, min(y0, need))
-        ok = yield from self._confirm_new_part(a, start, (x, need), what="creep")
-        if not ok:
-            raise PersonStopped("first_visit_declined")
+        # 4.3.50 fix round (review SHOULD-4): the frontmost Y the arm is known to have reached
+        # before these steps (the recordings, this table's remembered reach, this sitting): a
+        # step that ends inside it cannot have met the end of the arm's travel
+        self._creep_known_front = max(geo.FRONTMOST_Y_REACHED, int(d.front_y or 0))
+        if self._front_agreed_for is al:
+            # 4.3.50: the front question named this move (forward, carefully, to the sheet's
+            # front) and its answer was the hands-off confirmation: its part of the table counts
+            # as confirmed, exactly as a first-visit "yes" would make it (widened by 1 mm)
+            for p, q in ((tuple(a), start), (start, (x, need))):
+                self.driven.append(((min(p[0], q[0]) - 10, min(p[1], q[1]) - 10),
+                                    (max(p[0], q[0]) + 10, max(p[1], q[1]) + 10)))
+            self._block["data"]["first_visit_by_the_front_answer"] = True
+        else:
+            # (review SHOULD-6: not reached today, since only the front answer "go on" sets the
+            # front need and it also sets _front_agreed_for; kept as the safe default for any
+            # later path into the creep, which then asks the first-visit question as before)
+            ok = yield from self._confirm_new_part(a, start, (x, need), what="creep")
+            if not ok:
+                raise PersonStopped("first_visit_declined")
         yield from self._move_to(start, "the move to the front edge of the confirmed part")
         n = 0
         while self.front_reached() < need:
@@ -2426,17 +2488,20 @@ class TableJob:
                              need))
             win = geo.move_window(here, target)
             d.creep = True
+            self._creep_step_now = (tuple(here), tuple(target))
             try:
                 d.c_exchange(geo.m0_line(*target), 0, window=win, timeout=win[1] + 4.0,
                              late_is_doubt=False)
             except tbl.MoveOutside as exc:
                 d.creep = False
+                self._creep_step_now = None
                 got = d.position()
                 self._creep_failed(target, got, "step_outside_time_window",
                                    took=round(exc.took, 3))
             finally:
                 d.creep = False
             got = d.position()
+            self._creep_step_now = None
             if not _near(got, target):
                 self._creep_failed(target, got, "step_did_not_arrive")
             d.front_y = max(d.front_y or 0, target[1])
@@ -2450,6 +2515,32 @@ class TableJob:
                 self._pause_stop = False
                 raise PersonStopped("stopped_at_a_creep_pause", front_y=d.front_y)
         return {"front_y": d.front_y}
+
+    def _creep_doubt_detail(self, rid: str) -> dict:
+        """4.3.50: the facts of a creep step the table part ended in (nothing more is sent):
+        the reading before the step, its target, the confirmed front, and the whole mm by which
+        the sheet must lie further back so that no step beyond the confirmed front is needed.
+        Kept in :attr:`creep_doubt` for the pages that follow (the done page's way home)."""
+        before, target = self._creep_step_now
+        self._creep_step_now = None
+        need = self.front_need
+        reached = self.front_reached()
+        back = (geo.reach_advice_mm(min(int(need), self._cap()), reached)
+                if need is not None and reached is not None else None)
+        known = getattr(self, "_creep_known_front", None)
+        out = {"creep_from": list(before), "creep_to": list(target), "front_y": reached,
+               "need_y": need, "back_mm": back, "creep_stop": rid,
+               # 4.3.50 fix round (review SHOULD-4): only a step beyond the ground the arm is
+               # known to have reached may be put down to the end of its travel
+               "beyond_known_front": bool(known is None or target[1] > known)}
+        self.creep_doubt = dict(out)
+        self._block_note("creep_stopped_at", {"target": list(target), "read": None, "why": rid})
+        self._reach_note("creep_stopped", target=list(target), read=None, why=rid, need_y=need)
+        return out
+
+    def _block_note(self, key: str, value) -> None:
+        if self._block is not None:
+            self._block["data"][key] = value
 
     def _creep_failed(self, target, got, why: str, **more) -> None:
         self._table.outside_at = got
@@ -2467,18 +2558,6 @@ class TableJob:
                          read=list(got) if got is not None else None, why=why, need_y=need)
         raise StageFailed(f"creep_{why}", target=target, read=got,
                           front_y=self.front_reached(), need_y=need, short_mm=short, **more)
-
-    # ---- check_move: part C's D2 -----------------------------------------------------------------
-    def _check_move(self):
-        d = self._table
-        al = self.alignment
-        self._step("d2", *D2_CAPS)
-        target = al.readings[2]
-        a = d.position()
-        if d.arm_free:
-            self._still(a)
-        got = yield from self._move_to(target, "the move to mark 3")
-        return {"target": target, "read": got}
 
     # ---- home: part C's F ----------------------------------------------------------------------
     def _home(self):
@@ -2523,8 +2602,15 @@ class TableJob:
         i = len(pts) - 1
         cur = pts[i]
         if not _near(here, cur):
+            # 4.3.50 (re-review 449, S-2): the first leg is "back along the way" by
+            # construction: at most one creep step (plus the arrival tolerance) on each axis, as
+            # after a creep step that met the end, or over ground already driven
+            if (abs(here[0] - cur[0]) > geo.CREEP_STEP + geo.ARRIVAL_SLACK
+                    or abs(here[1] - cur[1]) > geo.CREEP_STEP + geo.ARRIVAL_SLACK) \
+                    and not self._seg_visited(here, cur):
+                return None
             way.append(cur)
-        while not homing_starts_here(cur, False):
+        while not _homing_target(cur):
             if i == 0 or len(way) >= cp.WAY_BACK_MOVES_MAX:
                 return None
             # the most recent earlier arrival that is a homing start, over driven ground
@@ -2532,7 +2618,7 @@ class TableJob:
             nxt = None
             seen = 0
             for j in range(i - 1, -1, -1):
-                if homing_starts_here(pts[j], False):
+                if _homing_target(pts[j]):
                     seen += 1
                     if self._seg_visited(cur, pts[j]):
                         nxt = j
@@ -2583,7 +2669,9 @@ class TableJob:
 
     def _end_of_job(self, where=None) -> None:
         """*where* (the homing after a stop only): a further check of the fresh reading, on top of
-        ``homing_starts_here`` (HOME_AFTER_STOP_AREA)."""
+        ``homing_starts_here`` (HOME_AFTER_STOP_AREA). The way back (``_way_back``) is taken
+        ONLY by the usual homing (*where* None) of a held arm: never by the homing after a stop,
+        which may send only HOME's own lines (``Table.reopen_for_homing``)."""
         d = self._table
         self._step(f"{self._block['stage']}_end", *cp.HOME)
         d.exchange("status")
@@ -2689,18 +2777,25 @@ class TableJob:
             facts = classify(base, self._chart_ti2)
             unread = unread_locations(base, self._chart_ti2)
             asked = self._requested[0]
-            if facts.state is Ti3State.COMPLETE and asked:
+            fill = self._m0_only_to_fill(base)
+            if fill:
+                # 4.3.50 (Basti's rule of 19 Nov 2026, as by hand): Continue Measurement with the
+                # dual scan also reads again the patches of the run's dual measurement that are
+                # M0 only (their rows' second pass failed or was not made), so that they get
+                # M1 and M2; the measurement stays the base, their new readings replace theirs
+                detail["fill_m0_only"] = len(fill)
+            if facts.state is Ti3State.COMPLETE and (asked or fill):
                 # open point a: a refinement re-reads the patches asked for (the strips the
                 # quality check named) on the complete measurement, which stays the base
-                self._requested = (set(asked), base)
+                self._requested = (set(asked or ()) | fill, base)
                 self._apply_locs()
                 detail["refine"] = len(self.only_locs)
             elif facts.state is not Ti3State.PARTIAL or not unread:
                 return self._result("options", Kind.REFUSED, "nothing_to_resume",
                                     state=facts.state.value, **detail)
             else:
-                self._requested = (set(unread) if asked is None else asked & set(unread),
-                                   base)
+                self._requested = ((set(unread) if asked is None else asked & set(unread))
+                                   | fill, base)
                 self._apply_locs()
                 detail["resume_unread"] = len(self.only_locs)
         clash = self._fields_clash(rep.options)
@@ -2735,6 +2830,22 @@ class TableJob:
         if not rep.ok:
             return self._result("options", Kind.REFUSED, "option_refused", **detail)
         return self._result("options", Kind.OK, "", **detail)
+
+    def _m0_only_to_fill(self, base: Path) -> "set[str]":
+        """4.3.50: with the dual scan on, the read patches of the run's DUAL measurement *base*
+        that are M0 only (``i1pro3_conditions.m0_only_locs``: not in its partial pair, or every
+        read patch when it has no pair); empty otherwise (the dual scan off, a single-scan base,
+        an average: never completed by Continue, as by hand)."""
+        if self.dual is None:
+            return set()
+        try:
+            import workflow.i1pro3_conditions as ic
+            import workflow.dual_scan.storage as S
+            if not S.read_dual_record(base).dual:
+                return set()
+            return set(ic.m0_only_locs(base))
+        except Exception:      # noqa: BLE001 - unreadable: nothing promised, nothing added
+            return set()
 
     def _dual_refusal(self, opts: "sp.ReadOptions") -> "str | None":
         """The dual scan on the table (2026-11-18): an option or a measurement it cannot go on
@@ -3493,6 +3604,13 @@ class TableJob:
             ask = Confirm.ROW_FAILED_STRIP if plan.kind == "strip" else Confirm.ROW_FAILED
             ans = yield Ask(ask, {
                 "row": plan.index + 1, "page": self.page + 1, "why": rec["why"],
+                # 4.3.50: the row's M0 readings are kept (its M1 / M2 are not): a dual row
+                # whose second pass failed, or a dual row read patch by patch whose reader
+                # wrote no M1 / M2
+                "m0_kept": bool(self.dual is not None and rec["accepted"]
+                                and not rec.get("conditions")
+                                and (rec.get("m0_only") or rec["why"]
+                                     == "dual_conditions_missing")),
                 "loc": rec.get("failed_loc"), "read": len(rec["accepted"]),
                 "patches": len(plan.patches), "kind": plan.kind,
                 "again_allowed": self._again_refused() is None
@@ -3922,6 +4040,7 @@ class TableJob:
                             for q in lamp.patches], lamp.aperture_mm, dual=True)
         uv = sp.uv_pass_of(lamp)
         scan = None
+        results: dict = {}
         self._progress(event="row_start", row=plan.index + 1, kind="strip",
                        locs=[p.loc for p in plan.patches], dual=True)
         try:
@@ -3968,7 +4087,6 @@ class TableJob:
                 rec["front_row_ends_confirmed"] = True
             if self._hands_off_due:
                 raise _RowFailed("strip_move_refused_here", "")
-            results = {}
             for which, pplan in (("lamp", lamp), ("uv", uv)):
                 if which == "uv":
                     # between the two passes: a stop or a problem reported during the lamp
@@ -4100,6 +4218,13 @@ class TableJob:
             rec["status"] = "read"
             self._progress(event="row_end", row=plan.index + 1, status="read")
         except _RowFailed as f:
+            # 4.3.50 (Basti's rule of 19 Nov 2026, as by hand): the lamp pass ran to its end and
+            # only the second pass (UV) failed or was refused: the row keeps its lamp pass as
+            # M0 only (its M1 / M2 are missing; every other row keeps its own). The row still
+            # counts as failed, so the person is asked as before and may read it again
+            if f.reason != "lamp_pass_timing_off" and getattr(results.get("lamp"), "kind",
+                                                               None) == "done":
+                self._keep_lamp_pass(rec, plan, lamp, folder, name, f.reason)
             self._progress(event="row_end", row=plan.index + 1, status="failed", loc=f.loc)
             rec.update(status="failed", why=f.reason, failed_loc=f.loc or None)
         except PersonStopped as exc:
@@ -4116,9 +4241,51 @@ class TableJob:
             self._block["data"].setdefault("rows", []).append(
                 {k: rec[k] for k in ("page", "row", "attempt", "status", "why", "reader_ti3")}
                 | {"read": len(rec["accepted"]), "failed": 0, "kind": "strip", "dual": True,
+                   "m0_only": bool(rec.get("m0_only")),
                    "notes": [n for v in (rec.get("scan") or {}).values()
                              for n in v.get("notes", [])]})
         return rec
+
+    def _keep_lamp_pass(self, rec: dict, plan, lamp, folder: Path, name: str,
+                        why: str) -> bool:
+        """4.3.50: a dual row whose second pass failed after a complete lamp pass keeps the lamp
+        pass as M0 only, when it can be cut cleanly on its own (``dual_rows.cut_lamp_only``),
+        its own timing is not refused and every patch is plausible. Writes the row's M0 file
+        (no M1 / M2 files: ``rec["conditions"]`` None) and its accepted readings; nothing is
+        sent. False (and nothing kept) otherwise: the row stays unread, as before."""
+        try:
+            wl, lrows = sc.read_spec_csv(str(folder / f"{lamp.name}.spec.csv"))
+        except (OSError, ValueError):
+            return False
+        cut = dl.cut_lamp_only(lamp, lrows)
+        cut.wavelengths = list(wl)
+        timing = dl.lamp_timing(lamp, lrows, wl)
+        _write_json(folder / f"{name}.lamp_only_cut.json",
+                    {"ok": cut.ok, "reason": cut.reason, "info": cut.info, "timing": timing,
+                     "second_pass": why})
+        if not cut.ok or timing.get("lamp_refuse"):
+            self.diag.log("DATA", f"{name}: the lamp pass is not kept on its own "
+                                  f"({cut.reason or 'lamp_pass_timing_off'})")
+            return False
+        xyz0 = stp._xyz(cut.lamp, cut.wavelengths)
+        for xyz in xyz0:
+            if sp.plausible(xyz) or not all(math.isfinite(v) for v in xyz):
+                return False
+        white = dl.white_for_place(self.cal_place)
+        row_file = f"{name}.strip{stp.ROW_FILE_SUFFIX}"
+        c0 = dl.condition_cut(lamp, cut, cut.lamp)
+        stp.write_row_file(str(folder / row_file), c0, self.options_report.options)
+        dl.add_keywords(str(folder / row_file), dl.dual_keywords(self.dual, white))
+        rec["reader_ti3"] = row_file
+        rec["conditions"] = None
+        rec["accepted"] = stp.accepted_entries(c0, row_file)
+        rec["m0_only"] = why
+        for a in rec["accepted"]:
+            self._progress(event="patch_read", row=plan.index + 1, loc=a["loc"],
+                           xyz=list(a["xyz"]))
+        self.diag.log("DATA", f"{name}: the second pass could not be used ({why}); the lamp "
+                              f"pass is kept as M0 only ({len(rec['accepted'])} patches)")
+        return True
 
     def _between_patches(self) -> None:
         self._soft_stop()
@@ -4254,83 +4421,172 @@ class TableJob:
         return self._result("measurement", kind, a.reason, measurement=a.as_dict(), **extra)
 
     def _dual_measurement(self, a) -> dict:
-        """The dual scan (2026-11-18): M1 and M2 of the assembled measurement, assembled from
-        the same row records (each patch from its M0 row) and named by the main file's readings
-        as the i1Pro 3 Beta's files are (``conditions/<hash>-M1.ti3``, CHROMIQ_CONDITION_OF,
-        MEASUREMENT_CONDITION). Refused (said, logged, M0 stays) when any patch lacks them."""
+        """The dual scan: M1 and M2 of the assembled measurement, each patch from the SAME
+        reading as its M0 row (``measurement._assemble_condition``), named by the main file's
+        readings as the i1Pro 3 Beta's files are (``conditions/<hash>-M1.ti3``,
+        CHROMIQ_CONDITION_OF, MEASUREMENT_CONDITION).
+
+        4.3.50 (Basti's rule of 19 Nov 2026, as by hand since 4.3.49): M1 and M2 are kept PER
+        ROW. A patch whose reading has no M1 / M2 (a row whose second pass failed or was
+        refused, a base patch that was M0 only) is M0 only; every other patch keeps its M1 / M2.
+        When every read patch has both: the complete pair (as before). When some have: the
+        PARTIAL pair (``<hash>-M1.partial.ti3`` / ``-M2.partial.ti3``, the hand path's own
+        names and rule: only the patches that have all three, in the main file's order), which
+        Build Profile never offers and Continue Measurement completes. When none has: no pair
+        (a dual measurement whose read patches are all M0 only)."""
         from core.file_manager import Run
         import workflow.i1pro3_conditions as ic
         from workflow.measurement_condition import record_condition
         main = Path(a.path)
         self.dual_conditions_refused = None
         self._dual_files = {}
+        self._dual_m0_only = []
+        self._dual_pair = "none"
         made = {}
+        m0_only: "set[str]" = set()
         for cond in dl.CONDITIONS:
             tmp = main.with_name(f"{main.stem}.{cond}.assembled.ti3")
             c = ms.assemble(self._session_dirs(), self._chart_ti2, tmp, base_ti3=self._base(),
                             cond=cond)
-            if c.state != a.state or c.read != a.read or set(c.unread) != set(a.unread):
-                self.dual_conditions_refused = c.reason or "dual_rows_without_m1_m2"
+            if c.state == "refused":
+                self.dual_conditions_refused = c.reason or "dual_conditions_refused"
                 self.diag.log("DATA", f"M1 and M2 are not written for this measurement: "
                                       f"{cond} {c.state} {c.reason} " + json.dumps(c.detail))
-                return {"conditions": None, "why": self.dual_conditions_refused}
-            made[cond] = tmp
+                return {"conditions": None, "why": self.dual_conditions_refused,
+                        "m0_only": None, "pair": "none"}
+            m0_only |= set(c.detail.get("m0_only") or ())
+            made[cond] = tmp if c.state in ("complete", "partial") else None
+        main_locs = ic._locs_of(main)
+        have = [loc for loc in main_locs if loc not in m0_only]
+        self._dual_m0_only = sorted(set(main_locs) & m0_only)
         record_condition(main, "M0")
         key = ic.data_block_hash(main)
-        for cond, tmp in made.items():
-            dest = Run.for_dir(main.parent).condition_ti3(cond, measurement=main)
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            os.replace(tmp, dest)
-            record_condition(dest, cond)
-            ic._set_condition_of(dest, key)
-            self._dual_files[cond] = dest
-        self.diag.log("DATA", "M1 and M2 written beside the measurement (dual scan, a first "
-                              f"try): {', '.join(p.name for p in self._dual_files.values())}")
-        return {"conditions": {k: v.name for k, v in self._dual_files.items()}, "why": ""}
+        if have:
+            partial = bool(self._dual_m0_only)
+            for cond, tmp in made.items():
+                full = Run.for_dir(main.parent).condition_ti3(cond, measurement=main)
+                dest = (full.with_name(full.name[:-len(".ti3")] + ic.PARTIAL_SUFFIX)
+                        if partial else full)
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                if partial:
+                    # only the patches that have BOTH (a patch with one of them only is M0
+                    # only: it has no reading with all three)
+                    ms.keep_only(tmp, have, dest)
+                    tmp.unlink()
+                else:
+                    os.replace(tmp, dest)
+                record_condition(dest, cond)
+                ic._set_condition_of(dest, key)
+                self._dual_files[cond] = dest
+            self._dual_pair = "partial" if partial else "complete"
+        else:
+            for tmp in made.values():
+                if tmp is not None and tmp.is_file():
+                    tmp.unlink()
+        self.diag.log("DATA", f"M1 and M2 beside the measurement (dual scan, a first try): "
+                              f"{self._dual_pair} pair"
+                              + (f", {', '.join(p.name for p in self._dual_files.values())}"
+                                 if self._dual_files else "")
+                              + (f"; M0 only: {len(self._dual_m0_only)} patches"
+                                 if self._dual_m0_only else ""))
+        return {"conditions": ({k: v.name for k, v in self._dual_files.items()}
+                               if self._dual_pair == "complete" else None),
+                "why": "" if self._dual_pair == "complete" else "rows_with_m0_only",
+                "m0_only": list(self._dual_m0_only), "pair": self._dual_pair,
+                "partial": ({k: v.name for k, v in self._dual_files.items()}
+                            if self._dual_pair == "partial" else None)}
+
+    def _dual_rows_m0_only(self) -> "list[str]":
+        """The rows (``p<page>_row<n>``) of the sheet with a patch that is M0 only in the
+        assembled measurement."""
+        m0 = set(getattr(self, "_dual_m0_only", []) or [])
+        out = []
+        for pg, page in enumerate(self.sheet["pages"]):
+            for k, st in enumerate(page["strips"]):
+                if {q["loc"] for q in st["patches"]} & m0:
+                    out.append(f"p{pg + 1}_row{k + 1}")
+        return out
 
     def _file_dual_conditions(self, dest: Path) -> dict:
         """After the person's Save: M1 / M2 into the run beside its measurement (named by the
-        same readings), and the dual scan's pass record (``Run.dual_pass_record``) with the
-        person's choice, so Build Profile starts at it exactly as after a hand dual scan."""
+        same readings: the complete pair, or 4.3.50 the partial pair, exactly as the hand path
+        leaves them), and the dual scan's pass record (``Run.dual_pass_record``) with the
+        person's choice, so Build Profile starts at it exactly as after a hand dual scan: a row
+        with both passes is "both", a row read with M0 only is "lamp only" (its second pass
+        due), a row not read is missing."""
         import shutil
         import workflow.i1pro3_conditions as ic
         from workflow.dual_scan.record import PassRecord
-        out = {"conditions": None, "why": self.dual_conditions_refused or ""}
+        out = {"conditions": None, "why": self.dual_conditions_refused or "",
+               "m0_only": list(getattr(self, "_dual_m0_only", []) or []), "partial": None}
         files = getattr(self, "_dual_files", {}) or {}
+        pair = getattr(self, "_dual_pair", "none")
         filed = {}
-        if not self.dual_conditions_refused and len(files) == len(dl.CONDITIONS):
+        if not self.dual_conditions_refused and pair != "none" \
+                and len(files) == len(dl.CONDITIONS):
             for cond, src in files.items():
                 to = self.run.condition_ti3(cond)
                 if to is None:
                     break
+                if pair == "partial":
+                    to = ic.partial_sibling_path(dest, cond)
+                    if to is None:
+                        break
                 to.parent.mkdir(parents=True, exist_ok=True)
                 tmp = to.with_name(to.name + ".table-part")
                 shutil.copyfile(str(src), str(tmp))
                 os.replace(tmp, to)
                 filed[cond] = to
-            if not all(ic.condition_file(dest, c) is not None for c in dl.CONDITIONS):
+                # the other kind of pair under the SAME readings' name is never this filing's
+                # (readings that came out byte for byte as before): as the hand path's engine
+                # does, it goes, so that a complete pair never stands beside a partial one
+                other = (ic.partial_sibling_path(dest, cond) if pair == "complete"
+                         else ic.sibling_path(dest, cond))
+                key = ic.data_block_hash(dest)
+                if other is not None and other != to and other.is_file() and key and \
+                        ic._written_by_us(other, key):
+                    other.unlink()
+            if pair == "complete":
+                ok = all(ic.condition_file(dest, c) is not None for c in dl.CONDITIONS)
+            else:
+                ok = len(filed) == len(dl.CONDITIONS) and all(
+                    ic.sibling_in_step(dest, f) for f in filed.values())
+            if not ok:
                 filed = {}
                 out["why"] = "conditions_not_in_step"
+        if not filed:
+            # no pair filed for these readings: none of an earlier filing under the same name
+            # may stand in for it (readings that came out byte for byte as before)
+            key = ic.data_block_hash(dest)
+            for cond in dl.CONDITIONS:
+                for other in (ic.sibling_path(dest, cond), ic.partial_sibling_path(dest, cond)):
+                    if other is not None and other.is_file() and key and \
+                            ic._written_by_us(other, key):
+                        other.unlink()
         strips = [f"p{pg + 1}_row{k + 1}" for pg, page in enumerate(self.sheet["pages"])
                   for k in range(len(page["strips"]))]
         rec = PassRecord(strips, chosen=self.dual.chosen)
         have = set(self._assembly.unread)
-        if filed:
-            for pg, page in enumerate(self.sheet["pages"]):
-                for k, st in enumerate(page["strips"]):
-                    locs = {q["loc"] for q in st["patches"]}
-                    if not (locs & have):
-                        rec.helper_strip(f"p{pg + 1}_row{k + 1}", True)
-        else:
-            for pg, page in enumerate(self.sheet["pages"]):
-                for k, st in enumerate(page["strips"]):
-                    locs = {q["loc"] for q in st["patches"]}
-                    if not (locs & have):
-                        rec.helper_lamp_only(f"p{pg + 1}_row{k + 1}",
-                                             "uv_pass_missing")
+        # rows whose patches have their M1 / M2 in the filed pair: both passes; every other
+        # read row (no pair filed at all: every read row) is M0 only, its second pass due
+        m0_rows = set(self._dual_rows_m0_only()) if filed else set(strips)
+        for pg, page in enumerate(self.sheet["pages"]):
+            for k, st in enumerate(page["strips"]):
+                label = f"p{pg + 1}_row{k + 1}"
+                locs = {q["loc"] for q in st["patches"]}
+                if locs & have:
+                    continue
+                if label in m0_rows:
+                    rec.helper_lamp_only(label, "uv_pass_missing")
+                else:
+                    rec.helper_strip(label, True)
         from core.file_manager import Run
         rec.save(Run.dual_pass_record(dest))
-        out["conditions"] = {k: v.name for k, v in filed.items()} if filed else None
+        if filed and pair == "complete":
+            out["conditions"] = {k: v.name for k, v in filed.items()}
+        elif filed:
+            out["partial"] = {k: v.name for k, v in filed.items()}
+            out["why"] = out["why"] or "rows_with_m0_only"
         self.diag.log("DATA", "dual scan filed: " + json.dumps(out))
         return out
 
@@ -4785,6 +5041,13 @@ class TableJob:
         # fix round 10 (B-1): the session ended through close(): its write-ahead markers are
         # acknowledged (a strip move that may still wait has its own marker above)
         self._acknowledge_in_use_markers()
+        if d is not None and d.mode_on:
+            # 4.3.50 fix round (MUST-1; the start-up analysis of 19 Nov 2026, 5.1): f0 is sent
+            # only after a homing (the only place it is recorded), so the table stays in its
+            # aiming mode, and a new START meets it there (f4 01, most likely a0 530000)
+            self.diag.log("INFO", "the table is left in its aiming mode: f1 was sent and no f0 "
+                                  "(f0 is sent only after a homing); a new START cannot run "
+                                  f"until the arm is home (arm last read {d.position_now})")
         if d is not None:
             self.diag.log("INFO", f"result: table {d.state or 'not asked'}; "
                                   f"{d.lines_sent} lines sent, {d.motions_sent} movements; "

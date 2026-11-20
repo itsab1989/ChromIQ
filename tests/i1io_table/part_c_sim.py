@@ -61,12 +61,28 @@ C_CREEP = 50
 SIGHT_OFFSET = (-106, -323)
 READING_S = 0.005004
 #: 4.3.49 ("learn this table's reach once"): the simulated table's PHYSICAL front end: the
-#: opening cannot be pushed by hand nor driven by its motors beyond this Y. INVENTED (no
-#: recording shows the real end; the frontmost opening ever read is 2855). The simulator's own
+#: opening cannot be pushed by hand nor driven by its motors beyond this Y. The simulator's own
 #: rule for targets is then physical: a computed target within 5 mm of this end (or beyond it)
-#: is a violation (the program only ever learns an end the opening has reached, minus 5 mm).
-FRONT_END_Y = 3400
+#: is booked in ``end_targets`` (the program only ever learns an end the opening has reached).
+#: 4.3.50: ASSUMED, and moved from 3400 (invented in 4.3.49) to 3450. On 19 Nov 2026 a real
+#: i1iO 2 took the opening to Y 3370 under motor (13 steps of 5 mm from 2723, every one arrived
+#: within 3 units, no status, no sign of an end): with 3400 that real target would have been
+#: booked as one 5 mm from the end. Where the real end lies is still NOT known (beyond 3371);
+#: 3450 puts it past the real arrival and its 5 mm margin. Tests that want an end met pass
+#: ``front_end=`` (3400, 3230, 3180 ...) themselves.
+FRONT_END_Y = 3450
 FRONT_END_MARGIN = 50
+FRONT_END_WHY = ("ASSUMED: the real arm reached Y 3370 under motor without meeting an end "
+                 "(19 Nov 2026); the real end is somewhere beyond, not known")
+#: 4.3.50: the real table answers a computed move of 0 to 3 units (its larger axis) at once:
+#: 0.015-0.016 s from the line to the done answer, in 24 of 24 real and recorded cases
+#: (tests/i1io_table/data/real_table_moves.json); 4 units and more take their travel time.
+REAL_AT_ONCE_UNITS = 3
+REAL_AT_ONCE_S = 0.016
+#: 4.3.50: where the real arm rests after a homing: Y 28 (11 s after the start-up's homing), 30
+#: (after the homing before the alignment), 32 (after the start-up) on 19 Nov 2026; 35 on
+#: 18 Nov. The simulated homing ends at one of these (it then relaxes as REAL_REST_RELAX says).
+REAL_REST_AFTER_HOMING_Y = (28, 29, 30, 31, 32)
 
 #: 4.3.47 fix2: the volunteer's real table, where real data exists (``real_table=True``, the
 #: default). i1Profiler's arrivals after its 48 spot moves on his table (17 Nov, REC3, next p0
@@ -373,9 +389,16 @@ class CSimTable(SimTable):
             return 0, "", 0.016
         if cid == "m0" and line not in SPOT_XY and line not in (M1498, M2507):
             x, y = _s16(a[0:4]), _s16(a[4:8])
-            d = max(abs(x - self.pos[0]), abs(y - self.pos[1]))
-            t = max(0.015, 2 * math.sqrt(d / 2000.0)) + 0.012
+            # 4.3.50: the straight line (the real table, 19 Nov 2026: a diagonal of 2598 x 1778
+            # units took 2.528 s; the larger axis alone predicts 0.25 s less), and a move of up
+            # to 3 units answered at once (REAL_AT_ONCE_S)
+            if max(abs(x - self.pos[0]), abs(y - self.pos[1])) <= REAL_AT_ONCE_UNITS:
+                t = REAL_AT_ONCE_S
+            else:
+                d = math.hypot(x - self.pos[0], y - self.pos[1])
+                t = max(0.015, 2 * math.sqrt(d / 2000.0)) + 0.012
             self.motions += 1
+            target_y = y
             off = self.c_faults.get("arrival_off", 0)
             if kind == "blocked":
                 x, y = x + 300, y
@@ -390,13 +413,19 @@ class CSimTable(SimTable):
             self.pos = [cx, cy]
             x, y = cx - off, cy
             self.free_arm = False
-            self.front_seen = max(self.front_seen, float(y))
+            # 4.3.50: the frontmost place the motors brought the arm to is the TARGET it arrived
+            # at within the arrival tolerance (as the job counts it), not the arrival drawn a
+            # few units short: the job's next 5 mm step goes from that target (found by the
+            # replay of the real page, whose steps a short draw would have refused)
+            self.front_seen = max(self.front_seen, float(y),
+                                  float(target_y) if abs(cy - target_y) <= 5 else float(y))
             return 0, "", t
         if cid == "i1":
             self.motions += 1
             start = (self.pos[0], self.pos[1])
             free = self.free_arm
-            self.pos = [1102.0, float(self._rng.choice((0, 1, 2)))]
+            self.pos = [1102.0, float(self._rng.choice(REAL_REST_AFTER_HOMING_Y)
+                                      if self.real_table else self._rng.choice((0, 1, 2)))]
             self.free_arm = False
             if self.real_table:
                 # the arm at rest, not driven, relaxes a little later (REAL_REST_RELAX)

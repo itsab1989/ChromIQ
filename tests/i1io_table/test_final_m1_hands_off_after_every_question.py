@@ -20,6 +20,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.i1io_table import tester_d2 as D2
 from tests.i1io_table import job_harness as H
 from tests.i1io_table import part_c_sim as csim
 from tests.i1io_table import reader_sim as RS
@@ -95,7 +96,6 @@ def _sc_whole(tmp_path, asking):
     job, sim, helper, run, p = job_for(tmp_path, asking=asking)
     tl = _Timeline(job, sim)
     ready_to_read(job, p)
-    assert p.drive(job.check_move()).ok
     read_page(job, p)
     _end_and_home(job, p)
     return tl
@@ -108,7 +108,7 @@ def _sc_cold(tmp_path, asking):
                                                 ask_after_each_step=asking)
     p = H.Person(job, sim)
     tl = _Timeline(job, sim)
-    for s in ("open", "start_up", "calibrate", "align", "check_move"):
+    for s in ("open", "start_up", "calibrate", "align"):
         assert p.drive(getattr(job, s)()).ok, s
     read_page(job, p)
     _end_and_home(job, p)
@@ -120,7 +120,6 @@ def _sc_own_tile(tmp_path, asking):
                                        script={J.Confirm.CAL_PLACE: "own tile"})
     tl = _Timeline(job, sim)
     ready_to_read(job, p)
-    assert p.drive(job.check_move()).ok
     read_page(job, p)
     _end_and_home(job, p)
     return tl
@@ -132,7 +131,7 @@ def _sc_consent_in_a_row(tmp_path, asking):
     job, sim, helper, run, p = job_for(tmp_path, asking=asking)
     assert job.set_options(["-v", "-c", "1", "-p", "-N", "chart"]).ok
     tl = _Timeline(job, sim)
-    for s in ("open", "align", "check_move"):
+    for s in ("open", "align"):
         assert p.drive(getattr(job, s)()).ok, s
     p.drive(job.read_row())
     asked = [c for _s, c, *_r in p.asked]
@@ -148,7 +147,6 @@ def _sc_failed_rows(tmp_path, asking):
                                        script={J.Confirm.ROW_FAILED: "again"})
     tl = _Timeline(job, sim)
     ready_to_read(job, p)
-    assert p.drive(job.check_move()).ok
     p.script[J.Confirm.ROW_FAILED] = "again"
     p.drive(job.read_row())
     p.script[J.Confirm.ROW_FAILED] = "skip"
@@ -166,7 +164,7 @@ def _sc_strip(tmp_path, asking):
     assert job.set_options(["-v", "-c", "1", "chart"]).ok
     p = H.Person(job, sim, {J.Confirm.ROW_FAILED_STRIP: "patch by patch"})
     tl = _Timeline(job, sim)
-    for s in ("open", "calibrate", "align", "check_move"):
+    for s in ("open", "calibrate", "align"):
         assert p.drive(getattr(job, s)()).ok, s
     for _ in range(2):
         p.drive(job.read_row())
@@ -179,7 +177,7 @@ def _sc_front(tmp_path, asking):
     job, sim, _t = H.make_job(sheet=sheet, aims=pts, ask_after_each_step=asking)
     p = H.Person(job, sim, {J.Confirm.FRONT_CHOICE: "go on"})
     tl = _Timeline(job, sim)
-    for s in ("open", "align", "creep", "check_move", "home"):
+    for s in ("open", "align", "creep", "home"):     # 4.3.50: no check move
         assert p.drive(getattr(job, s)()).ok, s
     job.close()
     return tl
@@ -189,7 +187,6 @@ def _sc_keep_measuring(tmp_path, asking):
     job, sim, helper, run, p = job_for(tmp_path, asking=asking)
     tl = _Timeline(job, sim)
     ready_to_read(job, p)
-    assert p.drive(job.check_move()).ok
     assert p.drive(job.read_row()).ok
     r = job.end()
     assert r.confirm == J.Confirm.END
@@ -200,14 +197,13 @@ def _sc_keep_measuring(tmp_path, asking):
 
 
 def _sc_window_questions(tmp_path, asking):
-    """The panel's own questions, as the panel tells the job about them: the mark-3 check's
-    "centred" (a hands-off answer) and a "Go on" (not one)."""
+    """The panel's own questions, as the panel tells the job about them: a "Go on" (never a
+    hands-off answer; 4.3.50: the mark-3 check's "centred", the only window answer that was one,
+    is gone)."""
     job, sim, helper, run, p = job_for(tmp_path, asking=asking)
     tl = _Timeline(job, sim)
     ready_to_read(job, p)
-    assert p.drive(job.check_move()).ok
     job.person_answered("stored_white_refused", "_next")
-    job.person_answered("check_mark", "centred")
     assert p.drive(job.read_row()).ok
     job.person_answered("next_page", "_next")          # any page of the panel's own
     r = p.drive(job.read_row())
@@ -240,7 +236,7 @@ def test_the_walk_reaches_every_question_the_job_can_ask(tmp_path):
     # the marker question is asked before the USB is opened and is followed by READY_TO_OPEN
     # (test_the_marker_question_is_followed_by_ready_to_open_before_anything_moves)
     assert every <= seen | {J.Confirm.END}, sorted(every - seen)
-    assert J.Confirm.REPORT_AFTER_STEP in seen and "check_mark" in seen
+    assert J.Confirm.REPORT_AFTER_STEP in seen and J.Confirm.FRONT_CHOICE in seen
 
 
 def test_the_marker_question_is_followed_by_ready_to_open_before_anything_moves(tmp_path):
@@ -272,7 +268,6 @@ def test_a_movement_after_a_question_without_the_confirmation_is_refused_by_the_
     monkeypatch.setattr(J.TableJob, "_hands_off", no_go)
     job, sim, helper, run, p = job_for(tmp_path)
     ready_to_read(job, p)
-    assert p.drive(job.check_move()).ok
 
     def owed(ev):
         if ev.get("event") == "patch_next":
@@ -311,15 +306,18 @@ def test_every_hands_off_answer_page_says_take_your_hands_away_and_what_moves():
         (J.Confirm.FIRST_VISIT, "yes"): M.M_I1IO_DRIVE_FIRST_VISIT.render()[1],
         (J.Confirm.START_UP, "yes"): M.M_I1IO_DRIVE_START_UP.render()[1],
         (J.Confirm.GO, "yes"): M.M_I1IO_DRIVE_GO.render()[1],
-        ("check_mark", "centred"): M.M_I1IO_DRIVE_CHECK_MARK.render()[1],
+        # 4.3.50: the one front question's "Go forward carefully, my hands are away"
+        (J.Confirm.FRONT_CHOICE, "go on"): M.M_I1IO_DRIVE_FRONT.render(back_mm=7)[1],
     }
     for (kind, value), body in pages.items():
         assert HANDS in body, kind
         if kind != J.Confirm.GO:
-            label = (W.choice_label(kind, value) if kind != "check_mark"
-                     else "Yes, it is centred, my hands are away")
+            label = W.choice_label(kind, value)
             assert f"“{label}”" in body, (kind, label)
             assert "at once" in body, kind
+    # the GO of the ending's homing has its own page (4.3.50), with its own button
+    end = M.M_I1IO_DRIVE_HOME_AT_END.render(what="Saved.")[1]
+    assert HANDS in end and "“Bring the arm home, my hands are away”" in end and "at once" in end
     assert set(pages) | {(J.Confirm.REPORT_AFTER_STEP, "as described")} == \
         J.HANDS_OFF_ANSWERS | J.HANDS_OFF_WINDOW_ANSWERS
 
@@ -346,7 +344,9 @@ PANEL_HANDS_OFF = {("go", "Go"),
                    ("first_visit", "Make this move, my hands are away"),
                    ("start_up", "Start the table, my hands are away"),
                    ("report_after_step", "As described, my hands are away"),
-                   ("check_mark", "Yes, it is centred, my hands are away")}
+                   # 4.3.50: the front question, and the homing that is part of the ending
+                   ("front_choice", "Go forward carefully, my hands are away"),
+                   ("home_at_end", "Bring the arm home, my hands are away")}
 
 
 def _panel_walk(qtbot, monkeypatch, tmp_path, settings, asking, script=None, sim=None,
@@ -399,7 +399,7 @@ def test_the_panel_whole_measurement_cold_table(qtbot, monkeypatch, tmp_path, se
                              sim=WindowSim(cold=True),
                              presentation=presentation)
     assert bad == [], pages
-    assert "start_up" in pages and "sheet_laid" in pages and "check_mark" in pages
+    assert "start_up" in pages and "sheet_laid" in pages and "home_at_end" in pages
     assert pages.index("sheet_laid") < pages.index("aimed")
     # no GO before the sheet is laid: the sheet-laid answer is the confirmation
     i = pages.index("sheet_laid")
@@ -462,12 +462,15 @@ def test_the_panel_stored_white_refused_and_own_tile(qtbot, monkeypatch, tmp_pat
 
 
 @MODES
-def test_the_panel_stop_at_the_mark_3_check_and_carry_on(qtbot, monkeypatch, tmp_path, settings,
-                                                         asking, presentation):
+def test_the_panel_stop_at_the_first_rows_go_and_carry_on(qtbot, monkeypatch, tmp_path, settings,
+                                                          asking, presentation):
+    # 4.3.50: the mark-3 check is gone; the page before the first row's move is its GO
     def before(win, sim, p):
-        p.drive_until("check_mark")
-        win._on_stop()                       # the footer's Stop, with the check on screen
-        assert p.page() == "stopped_by_you"
+        p.drive_until("rows")
+        win._on_stop()                       # the footer's Stop, with the GO on screen
+        n = _motions(sim.sim)
+        p.press("Go")                        # the stop is honoured at the answer: no move
+        assert p.page() == "stopped_by_you" and _motions(sim.sim) == n
     bad, pages = _panel_walk(qtbot, monkeypatch, tmp_path, settings, asking, before=before,
                              presentation=presentation)
     assert bad == [], pages

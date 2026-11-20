@@ -695,7 +695,9 @@ class FakeHelperProc:
             if self.dual:
                 lines = _dual_head(lines, self.dual_args)
             path.write_text("\n".join(lines), encoding="ascii")
-            if self.dual:
+            if self.dual and self.index not in self.helper.faults.get("no_conditions_at", ()):
+                # 4.3.50 test fault "no_conditions_at": {reader index, ...}: that reader writes
+                # its row file but no M1 / M2 (as a helper whose conditions ended)
                 self._save_conditions(path, lines)
         if event:
             self._emit({"event": "saved", "path": str(path), "read_patches": len(self.read)})
@@ -789,7 +791,7 @@ def make_run(tmp_path: Path, sheet: dict, name: str = "Table-Target"):
 def make_reading_job(tmp_path, sheet=None, aims=None, faults=None, run=True, stamp=STAMP,
                      instrument=None, helper_check=None, ask_after_each_step=True, sim=None,
                      app_marker_place=None, press=False, latency_guard=None, reach_store=None,
-                     **simkw):
+                     job_class=None, **simkw):
     """A table job with the simulated table AND the simulated helper behind the app's reader.
     *press*: round B's button wait is offered (the simulated helper's FakePressProc).
     Returns (job, sim, helper, run)."""
@@ -812,7 +814,7 @@ def make_reading_job(tmp_path, sheet=None, aims=None, faults=None, run=True, sta
     else:
         r = None
     transport = ss.SimTransport(sim)
-    job = J.TableJob(sheet, run=r, stamp=stamp if r is not None else None,
+    job = (job_class or J.TableJob)(sheet, run=r, stamp=stamp if r is not None else None,
                      folder=None if r is not None else Path(tmp_path) / "session",
                      open_transport=lambda: transport,
                      preflight=lambda: H.OK_PREFLIGHT, other_program=lambda: False,

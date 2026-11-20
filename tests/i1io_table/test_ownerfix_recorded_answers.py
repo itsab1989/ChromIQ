@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import pytest
 
+from tests.i1io_table import tester_d2 as D2
 from tests.i1io_table.test_job_reading import read_page, small_sheet
 from tests.i1io_table.test_roundB_strip import _job, _ready
 from workflow.i1io.table import job as J
@@ -279,7 +280,7 @@ def test_an_arrival_off_by_six_is_read_once_more_before_any_doubt(tmp_path, offs
         assert p.drive(getattr(job, s)()).ok
     _offset_arrivals(sim, offsets)
     n = len(sim.received)
-    r = p.drive(job.check_move())
+    r = p.drive(D2.check_move(job))
     assert r.ok is ok, (r.kind, r.reason)
     log = "\n".join(job.diag.lines)
     assert ("read again once" in log) is reread

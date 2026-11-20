@@ -47,8 +47,8 @@ def test_b1_quit_asks_the_tables_ending_and_quits_only_after_the_job_let_go(
     reasons = []
     win.finished_with.connect(reasons.append)
     p = _person(win, sim, qtbot)
-    p.drive_until("check_mark")
-    p.press("Yes, it is centred, my hands are away")
+    p.drive_until("rows")
+    p.press("Go")
     p.drive_until("end_of_session")
     p.press("Keep measuring")                            # nothing missing: asked again
     p.drive_until("end_of_session")
@@ -62,8 +62,8 @@ def test_b1_quit_asks_the_tables_ending_and_quits_only_after_the_job_let_go(
     assert "quit" in win._status.text().lower()
     p.press("Save and stop")
     assert classify(run.measurement_ti3, run.chart_ti2).state is Ti3State.COMPLETE
-    assert p.page() == "home_offered" and moves(sim) == n
-    p.press("Leave it there")
+    assert p.page() == "home_at_end" and moves(sim) == n
+    p.leave_it_there()
     p.idle()
     job = sim.jobs[0]
     assert job.phase == "closed"                                  # close() ran: USB let go
@@ -86,8 +86,8 @@ def test_b1_keep_measuring_at_the_quit_cancels_the_quit(tab, beta, tmp_path, mon
     reasons = []
     win.finished_with.connect(reasons.append)
     p = _person(win, sim, qtbot)
-    p.drive_until("check_mark")
-    p.press("Yes, it is centred, my hands are away")
+    p.drive_until("rows")
+    p.press("Go")
     p.drive_until("end_of_session")
     p.press("Keep measuring")
     p.drive_until("end_of_session")
@@ -117,8 +117,8 @@ def test_b1_quit_with_nothing_read_ends_and_quits(tab, beta, tmp_path, monkeypat
 
 def _into_a_running_row(win, sim, p, qtbot, delay):
     """From the check-mark question to a row being read with a slowed transport."""
-    p.drive_until("check_mark")
-    p.press("Yes, it is centred, my hands are away")
+    p.drive_until("rows")
+    p.press("Go")
     sim.transport.delay_s = delay
     for _ in range(4):
         page = p.page()
@@ -144,10 +144,10 @@ def test_b1_quit_while_a_row_runs_stops_at_the_next_pause_then_asks(
     sim.transport.delay_s = 0.0
     n = moves(sim)
     page = p.page()
-    if page not in ("end_of_session", "home_offered", "done"):
+    if page not in ("end_of_session", "home_offered", "home_at_end", "done"):
         p.answer_page(page)                              # a question shown: withdrawn first
         page = p.page()
-    assert page in ("end_of_session", "home_offered", "done"), page
+    assert page in ("end_of_session", "home_offered", "home_at_end", "done"), page
     assert moves(sim) == n and sim.jobs[0].stop_pressed
 
 
@@ -157,7 +157,7 @@ def test_b1_a_session_the_app_never_closed_asks_switched_off_and_on_at_the_next_
     "switched off and on" before anything is sent, with the words for this case."""
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
                                                     asking=False)
-    p.drive_until("check_mark")
+    p.drive_until("rows")
     win._finished = True                                 # killed: no ending, no close()
     win.close()
     marker = run.i1io_table_session_dir(RS.STAMP) / "TABLE_IN_USE.json"
@@ -416,7 +416,8 @@ def test_m3_the_tabs_own_controls_make_room_and_come_back(tab, beta, tmp_path, m
     win._on_end_pressed()
     p.idle()
     while p.page() != "done":
-        p.answer_page(p.page()) if p.page() != "home_offered" else p.press("Leave it there")
+        p.answer_page(p.page()) if p.page() not in ("home_offered", "home_at_end") \
+            else p.leave_it_there()
     p.press("Close")
     assert (tab._left_buttons.isVisible(), tab._calm_outer.isVisible()) == before
 
@@ -508,7 +509,7 @@ def test_s1_esc_at_the_go_question_moves_nothing(qtbot, monkeypatch, tmp_path, s
     qtbot.waitUntil(lambda: QApplication.activeWindow() is win, timeout=3000)
     QTest.keyClick(QApplication.focusWidget() or win, Qt.Key.Key_Escape)
     p.idle()
-    assert moves(sim) == n and p.page() in ("home_offered", "done", "end_of_session")
+    assert moves(sim) == n and p.page() in ("home_offered", "home_at_end", "done", "end_of_session")
 
 
 # ---- S-2: the replace archive only at Save -------------------------------------------------------
@@ -580,7 +581,7 @@ def test_s2_a_failed_save_after_the_archive_puts_the_measurement_back(
     if p.page() == "end_of_session":
         p.press("Discard and stop")
     while p.page() != "done":
-        p.press("Leave it there")
+        p.leave_it_there()
     p.press("Close")
     assert run.measurement_ti3.read_bytes() == keep      # put back where it was
 
@@ -698,7 +699,7 @@ def test_s4_patch_next_comes_after_the_stop_check(tmp_path):
                 "patches"][1]["loc"]:
             job.stop_at_next_pause()
     job.on_progress = hook
-    for step in ("calibrate", "align", "check_move", "read_row"):
+    for step in ("calibrate", "align", "read_row"):
         res = p.drive(getattr(job, step)())
         if not res.ok:
             break
@@ -832,7 +833,7 @@ def test_end_after_a_first_row_that_failed_can_end(qtbot, monkeypatch, tmp_path,
     n = moves(sim)
     win._end_btn.click()
     p.idle()
-    assert p.page() in ("home_offered", "done"), (p.page(), win._text.text()[:120])
+    assert p.page() in ("home_offered", "home_at_end", "done"), (p.page(), win._text.text()[:120])
     assert "cannot be kept" in win._text.text() and moves(sim) == n
     assert not run.measurement_ti3.exists()
 

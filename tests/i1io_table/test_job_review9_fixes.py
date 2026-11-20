@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import pytest
 
+from tests.i1io_table import tester_d2 as D2
 from tests.i1io_table import job_harness as H
 from tests.i1io_table import reader_sim as RS
 from tests.i1io_table.test_job_ending import SECOND, _end, job_on, project
@@ -58,7 +59,7 @@ def test_r9_b1_no_answer_of_any_kind_moves_after_an_ending(tmp_path, asking, how
             r = job.answer(kind, c)
             assert r.kind == J.Kind.REFUSED, (kind, c, r.reason)
     for call in (lambda: job.read_row(2), lambda: job.read_row(1), job.align, job.creep,
-                 job.check_move, job.park, job.start_up, job.next_page, job.calibrate,
+                 job.park, job.start_up, job.next_page, job.calibrate,
                  job.read_tile, job.open, job.end):
         r = call()
         assert r.kind == J.Kind.REFUSED and job._gen is None, r.reason
@@ -173,7 +174,7 @@ def test_r9_s1_a_stop_pressed_during_the_check_move_then_the_homing_asks_go(tmp_
     p = H.Person(job, sim)
     ready_to_read(job, p, steps=("open", "calibrate", "align"))
     undo = _stop_during_next_move(job)
-    r = p.drive(job.check_move())
+    r = p.drive(D2.check_move(job))
     undo()
     assert job._pause_stop, "the stop was pressed during the move"
     n = len(moves(sim.received))
@@ -214,7 +215,7 @@ def test_r9_s1_a_stop_at_the_front_choice_leaves_no_half_alignment():
     assert r.reason == J.STOPPED_BEFORE_THE_NEXT_MOVE, r.reason
     p.on_ask = None
     n = len(moves(sim.received))
-    cm = p.drive(job.check_move())
+    cm = p.drive(D2.check_move(job))
     after = len(moves(sim.received)) - n
     assert job.alignment is None or job.front_need is not None, (
         "alignment kept, front need dropped; check_move then:", cm.kind, cm.reason, after)
@@ -381,7 +382,7 @@ def test_r9_m1_a_problem_reported_while_a_move_runs_then_the_homing_asks_go(tmp_
             job.report_problem(J.PROBLEM_SOMETHING_WRONG)
         return real(line, *a, **k)
     t.c_exchange = c_exchange
-    p.drive(job.check_move())
+    p.drive(D2.check_move(job))
     t.c_exchange = real
     n = len(moves(sim.received))
     h = job.home()

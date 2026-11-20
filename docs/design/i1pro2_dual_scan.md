@@ -684,3 +684,39 @@ ending, as listed. Tests: `tests/test_conditions_kept_4349.py`; the paths: work 
   when every read has its complete pair, so a read with partial files gives the average none, as
   before); a measurement made with the Beta off and continued with it on (still the main
   condition only, `why: "resume"`).
+
+### 13. On the i1iO 2 table too: M1 and M2 are kept per row (2026-11-19, for 4.3.50)
+
+**Confirmed by:** *nobody yet.* Built on Sebastian's ruling of 2026-11-19 (section 12), brought
+to the table, which until 4.3.49 kept M1 / M2 only when every patch had them and otherwise none
+(section 10, "Files"; 4.3.49's known issue). Tested against the simulated table and helper, and
+driven on screen against them; never on a real table. Tests:
+`tests/i1io_table/test_4350_dual_m1_m2_per_row.py`. Nothing new is sent to the table or the
+instrument: no helper change, no new line, no new order (the rows are read exactly as before).
+
+* **A row whose second pass failed or was refused keeps M0 only.** When the lamp pass of a dual
+  row ran to its end and only the UV pass could not be used (it could not be started, did not
+  belong to the row, lay off the patches, or the helper could not work out M1 / M2 from it), the
+  lamp pass is cut on its own, by position, with the dual row's own windows and checks (the
+  widest clean edge leaving every patch its readings, one colour per window, plausible values,
+  the lamp pass's own timing check; `dual_rows.cut_lamp_only`). If that cut holds, the row keeps
+  it as its M0 readings and has no M1 / M2; if not, the row stays unread, as before. Patch by
+  patch, a row whose reading program wrote no M1 / M2 keeps its M0 readings likewise. In both
+  cases the row still counts as failed, so the person is asked as before (read it again, patch
+  by patch, skip, end), on a page that says the row keeps M0 only (M-I1IO-DRIVE-ROW-M0-ONLY-STRIP,
+  M-I1IO-DRIVE-ROW-M0-ONLY). A Stop pressed between the passes is the person's choice, not a
+  failure: that row's values are still not used (unchanged).
+* **The files, as by hand (section 12).** Each patch's M1 / M2 come from the same reading as its
+  M0 (the reading that M0 assembly takes, `measurement.m0_sources`; the base's complete pair, else
+  its partial pair, for a patch from the run's earlier measurement). Every read patch has them:
+  the complete pair `conditions/<hash>-Mx.ti3`, as before. Some have: the partial pair
+  `conditions/<hash>-Mx.partial.ti3` with only the patches that have all three, in the main
+  file's order (Build Profile never offers it and says which strips have M0 only). None has: no
+  pair (every read patch M0 only, as a hand dual scan whose M1 / M2 never started). The pass
+  record names a row with M0 only "lamp pass good, second pass due".
+* **Completed by reading again.** Reading the row again in the same sitting takes M0, M1 and M2
+  from the new reading together. **Continue Measurement** with the dual scan on (Refine / resume
+  ticked) also reads again every patch of the run's dual measurement that has M0 only, together
+  with the patches still missing; with the dual scan off it never does (and a single-scan
+  session never continues a dual measurement, as before). An average is never completed (as by
+  hand).

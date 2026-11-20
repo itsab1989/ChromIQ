@@ -73,5 +73,6 @@ def test_with_a_readable_side_file_the_aiming_paragraph_stays(
                                                  encoding="utf-8")
     measure_tab.set_ti1_path(ti2.with_suffix(".ti1"))
     title, body = _shown(measure_tab, monkeypatch)
-    assert body.startswith(M.M_I1IO_NOT_YET.render()[1] + "\n\n")
+    # 4.3.50: the file IS there, so the window says so (never "has no such file")
+    assert body.startswith(M.M_I1IO_NOT_YET_SIDE_FILE.render()[1] + "\n\n")
     assert "Good to know for later" in body

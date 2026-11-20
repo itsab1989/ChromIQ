@@ -176,6 +176,50 @@ def cut_dual(lamp, uv, lamp_rows, uv_rows, edges=None) -> DualCut:
     return DualCut(True, "", L, U, info=info)
 
 
+def cut_lamp_only(lamp, lamp_rows, edges=None) -> DualCut:
+    """4.3.50 (Basti's rule of 19 Nov 2026, as by hand): the LAMP pass of a dual row alone, cut
+    into the row's patches by position, for a row whose second pass (UV) failed or was refused:
+    the row then keeps M0 only. The same windows, edges and checks as :func:`cut_dual`'s lamp
+    half (the widest clean edge that leaves every patch ``scan.DUAL_MIN_READINGS``, one colour
+    per window, finite values); refused (nothing guessed) otherwise. ``uv`` stays empty."""
+    if len(lamp_rows) < lamp.N:
+        return DualCut(False, "strip_fewer_readings_than_planned",
+                       info={"lamp": len(lamp_rows), "planned": lamp.N})
+    counts: "list[int]" = []
+    wl_: list = []
+    edge = None
+    for edge in (edges or sc.DUAL_EDGES_MM):
+        wl_ = sc.windows(lamp, sc.MOTION_START_AFTER_LAMP_S, len(lamp_rows), edge_mm=edge)
+        counts = [i1 - i0 for i0, i1 in wl_]
+        if min(counts, default=0) >= sc.DUAL_MIN_READINGS:
+            break
+    info = {"lamp_windows": wl_, "lamp_readings_per_patch": counts, "edge_mm": edge,
+            "lamp_motion_start_s": sc.MOTION_START_AFTER_LAMP_S, "lamp_only": True}
+    if min(counts, default=0) < sc.DUAL_MIN_READINGS:
+        return DualCut(False, "strip_patch_too_few_readings", info=info)
+    L = [_mean(lamp_rows[i0:i1]) for i0, i1 in wl_]
+    uni = [max((abs(a - b) for r in lamp_rows[i0:i1] for a, b in zip(r, v)), default=0.0)
+           for (i0, i1), v in zip(wl_, L)]
+    info["uniformity"] = [round(u, 5) for u in uni]
+    if max(uni, default=0.0) > sp.STRIP_UNIFORMITY_MAX:
+        bad = [q.loc for q, u in zip(lamp.patches, uni) if u > sp.STRIP_UNIFORMITY_MAX]
+        return DualCut(False, "strip_patch_not_on_one_colour", info=dict(info, patches=bad))
+    if not all(math.isfinite(v) for row in L for v in row):
+        return DualCut(False, "strip_patch_implausible", info=info)
+    return DualCut(True, "", L, [], info=info)
+
+
+def lamp_timing(lamp, lamp_rows, wavelengths=None) -> dict:
+    """4.3.50: the lamp pass's own timing verdict (:func:`uv_timing_fit`'s lamp half), for a
+    lamp pass kept without its UV pass."""
+    if not lamp.patches or not lamp_rows:
+        return {"lamp": None, "lamp_checked": False, "lamp_refuse": False,
+                "lamp_why": "no readings"}
+    sl = _band_means(lamp_rows, wavelengths, (380.0, 730.0))
+    lf = _layout_fit(lamp, sl, sc.FIRST_READING_AFTER_LAMP_S, sc.MOTION_START_AFTER_LAMP_S)
+    return dict({"lamp": lf}, **_judge_lamp(lf))
+
+
 # ---- the UV pass's timing (safety review of 2026-11-19, SHOULD-2) --------------------------------
 #
 # A UV pass whose motion started 2 to 4 readings (1.3 to 2.6 mm) away from where the cut assumes

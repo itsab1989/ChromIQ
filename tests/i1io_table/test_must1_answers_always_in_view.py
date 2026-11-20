@@ -187,7 +187,7 @@ def test_a_real_session_shows_an_answer_on_every_page(tab, beta, tmp_path, monke
     p.press("Save and stop")
     p.drive_until("done")
     check(p.page())
-    assert {"sheet_laid", "aimed", "check_mark", "problem", "end_of_session",
+    assert {"sheet_laid", "aimed", "go", "problem", "end_of_session",
             "done"} <= set(seen), " ".join(seen)
     assert {"row_failed", "row_failed_strip"} & set(seen), seen
     assert not bad, (size, language, win.size(), bad)

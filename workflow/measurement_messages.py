@@ -642,6 +642,60 @@ M_I1IO_NOT_YET_BY_HAND = _m(
     "hand.",
     approved=False)
 
+#: 4.3.50: the same two windows when the chart's side file IS beside it and
+#: readable, but START still did not hand the chart to the table (the
+#: chart lies outside a project's run, calibration or verification folder,
+#: or its side file names another table or instrument): the first
+#: paragraph of M-I1IO-NOT-YET said "This chart has no such file beside it,
+#: or ChromIQ cannot read it", which is not true then. The rest is the same.
+_I1IO_SIDE_FILE_NOT_USED = (
+    "This chart was made for the X-Rite i1iO scanning table, and the small "
+    "file ChromIQ guides the arm by is beside it: the file with the chart's "
+    "name and the ending “.i1io.json”. Even so, ChromIQ cannot drive the "
+    "table with this chart here. It drives the table only for a chart that "
+    "lies in a project, in the folder of a profile run, of its calibration "
+    "or of a verification, and that was made for an i1iO 2 with an i1Pro 2. "
+    "This chart was probably copied to another folder, or it was made for "
+    "another table or instrument. Nothing is wrong with the patches "
+    "themselves.")
+M_I1IO_NOT_YET_SIDE_FILE = _m(
+    "M-I1IO-NOT-YET-SIDE-FILE",
+    "The i1iO table cannot measure this chart",
+    _I1IO_SIDE_FILE_NOT_USED + "\n\n"
+    "To measure these patches with the table, make the chart for the table "
+    "again in ChromIQ. On the Create Chart tab, choose “i1iO 2 + i1Pro 2” "
+    "as the instrument. To keep the patches of this chart, press “Load "
+    "patch set” at the top of that tab and choose this chart's patch set, "
+    "the file with the chart's name and the ending “.ti1”: ChromIQ lays "
+    "these patches out again for the table. For new patches, press "
+    "Generate Chart instead. Then print the new chart on the Print Chart "
+    "tab and press Start Measurement on this tab: the table measures "
+    "it.\n\n"
+    "You can also measure the patches by hand, without the table: the i1Pro "
+    "2 from the table's arm measures by hand too, and ChromIQ reads it that "
+    "way. Make the chart in the same way, but choose “i1Pro / i1Pro 2 / "
+    "i1Pro 3” as the instrument, then print it and measure it by hand on this "
+    "tab. This sheet itself is laid out for the table, so ChromIQ does not "
+    "read it by hand.",
+    approved=False)
+
+M_I1IO_NOT_YET_SIDE_FILE_BY_HAND = _m(
+    "M-I1IO-NOT-YET-SIDE-FILE-BY-HAND",
+    "The i1iO table cannot measure this chart",
+    _I1IO_SIDE_FILE_NOT_USED + "\n\n"
+    "To measure it with the table, make this chart again in ChromIQ. On "
+    "the Create Chart tab, choose “i1iO 2 + i1Pro 2” as the instrument for "
+    "this chart and create it again. Then print it on the Print Chart tab "
+    "and press Start Measurement on this tab: the table measures it.\n\n"
+    "You can also measure it by hand, without the table: the i1Pro 2 from "
+    "the table's arm measures by hand too, and ChromIQ reads it that way. "
+    "On the Create Chart tab, choose “i1Pro / i1Pro 2 / i1Pro 3” as the "
+    "instrument for this chart and create it again. Then print it on the "
+    "Print Chart tab as usual and measure it by hand on this tab. This "
+    "sheet itself is laid out for the table, so ChromIQ does not read it by "
+    "hand.",
+    approved=False)
+
 #: What to aim at on an i1iO chart, by what the chart records
 #: (`workflow.i1io.chart.aim_details`, 2026-11-13: the owner's "Aiming
 #: crosses" option). Appended as their last paragraph to M-I1IO-NOT-YET and
@@ -12073,6 +12127,19 @@ M_DUAL_CONTINUE_FILL = _m(
     "passes. Then the whole measurement has M1 and M2.",
     approved=False)
 
+#: 4.3.50: the same note for a chart the i1iO table reads (the table reads
+#: the rows itself; "takes you back to strip A" is the hand path's wording).
+#: {rows}: "row A" / "rows A, C" (the letters printed beside the rows).
+M_I1IO_DRIVE_DUAL_CONTINUE_FILL = _m(
+    "M-I1IO-DRIVE-DUAL-CONTINUE-FILL",
+    "Dual scan: Continue Measurement also reads {rows} again",
+    "M1 and M2 are missing from {rows} of this measurement, read with M0 "
+    "only. The other rows keep their M1 and M2. Continue Measurement "
+    "starts with a calibration, and then the table reads the rows not read "
+    "yet and {rows} again, each with both passes. Then the whole "
+    "measurement has M1 and M2.",
+    approved=False)
+
 #: 4.3.49: before START, the same measurement while "Refine / resume" is
 #: not ticked: how to complete it instead of measuring everything again.
 M_DUAL_FILL_OFFER = _m(
@@ -12083,6 +12150,18 @@ M_DUAL_FILL_OFFER = _m(
     "the measurement, tick “{resume}” and press “{start}”: ChromIQ takes "
     "you back to {strips} for a new reading with both passes. Starting "
     "without the tick measures the whole chart again as a new measurement.",
+    approved=False)
+
+#: 4.3.50: ...and its table variant while "Refine / resume" is not ticked.
+M_I1IO_DRIVE_DUAL_FILL_OFFER = _m(
+    "M-I1IO-DRIVE-DUAL-FILL-OFFER",
+    "Dual scan: M1 and M2 are missing from {rows}",
+    "In the measurement of this chart, M1 and M2 are missing from {rows}, "
+    "read with M0 only. The other rows keep their M1 and M2. To complete "
+    "the measurement, tick “{resume}” and press “{start}”: the table then "
+    "reads {rows} again with both passes, together with any rows not read "
+    "yet. Starting without the tick measures the whole chart again as a new "
+    "measurement.",
     approved=False)
 
 #: 4.3.49 review SHOULD-1: the same two notes for a dual measurement with NO
@@ -12317,12 +12396,16 @@ M_I1IO_DRIVE_CONSENT = _m(
     "What has been tried on a real table so far. One i1iO 2 with an i1Pro 2, "
     "on a Mac, with ChromIQ's separate tester program: the table's own homing "
     "and the moves over the empty table, as i1Profiler makes them, the "
-    "start-up of a table that had just been switched on (once), the "
+    "start-up of a table that had just been switched on, the "
     "calibration on the instrument's own white tile and on the table's tile, "
-    "and one reading of the table's tile all worked. The moves ChromIQ works "
-    "out itself for your sheet (aiming, the rows, feeling its way to the "
-    "front) and reading the patches of a sheet have not been tried on a real "
-    "table yet. On Windows and on Linux, nothing has been tried at all: it "
+    "and one reading of the table's tile all worked. With ChromIQ itself, a "
+    "whole page of 528 patches was then read patch by patch on a real i1iO 2, "
+    "on a Mac: the aiming, the slow steps towards the front and every row "
+    "worked. Not tried "
+    "on a real table yet: reading in rows (strips), the dual scan, a second "
+    "page, bringing the arm home from the front of the table, and what "
+    "happens at the end of the arm's travel. On Windows and on Linux, nothing "
+    "has been tried at all: it "
     "may not work there, and if it does not, ChromIQ stops and tells you what "
     "it found.\n\n"
     "Keep your hands away from the arm while it moves. Nothing may lie on the "
@@ -12662,35 +12745,70 @@ M_I1IO_DRIVE_ROW_FAILED_STRIP = _m(
     "  •  End this step.",
     approved=False)
 
-M_I1IO_DRIVE_FRONT = _m(
-    "M-I1IO-DRIVE-FRONT",
-    "Part of this sheet lies further forward than usual",
-    "Part of this sheet lies further towards the front of the table than the arm has "
-    "gone before, in our recordings and on this table. To get there, ChromIQ feels its way "
-    "forward in small steps of 5 mm and checks after each step that the arm arrived.\n\n"
-    "The cross hairs sit about 3 cm in front of the measuring opening, so the front of this "
-    "sheet may lie beyond where the arm can take the opening. Then the arm reaches the end of "
-    "its travel during one of these small steps and stops there. ChromIQ notices that the step "
-    "did not arrive, moves the arm no further forward and offers to bring it home. If you hear "
-    "the motor keep running after that, switch the table off at its power switch.\n\n"
-    "Or lay the sheet about {back_mm} mm further back and aim at it again: "
-    "then the arm does not need to go there at all.",
+#: 4.3.50 (Basti's rule of 19 Nov 2026, as by hand): a dual row whose first pass (the lamp) was
+#: read and kept while its second pass (the UV light) could not be used: the row has M0 only,
+#: every other row keeps its M1 and M2. {why} the second pass's reason as a clause
+M_I1IO_DRIVE_ROW_M0_ONLY_STRIP = _m(
+    "M-I1IO-DRIVE-ROW-M0-ONLY-STRIP",
+    "Row {row} has M0 only for now",
+    "The arm is held where the strip move ended. Before it moves again, ChromIQ asks you to "
+    "take your hands away from the table and the arm.\n\n"
+    "The first pass of row {row} on page {page}, with the lamp, was read and is kept, so this "
+    "row has its M0 values. Its second pass, with the UV light, could not be used: {why}. So "
+    "this row has no M1 and M2 yet; every other row keeps its own. What would you like to "
+    "do?\n"
+    "  •  Read it again as a strip, with both passes.\n"
+    "  •  Read it patch by patch: slower, and the careful way.\n"
+    "  •  Skip this row: it keeps M0 only. Continue Measurement, with the dual scan still "
+    "switched on, reads it again later with both passes.\n"
+    "  •  End this step.",
     approved=False)
 
-M_I1IO_DRIVE_FRONT_YES = _m(
-    "M-I1IO-DRIVE-FRONT-YES",
-    "Feel the way forward?",
-    "The arm then moves forward in steps of 5 mm, with a short pause after "
-    "each step. Press Stop during a pause to end it there.\n\n"
-    "To stop the arm at once, switch the table off at its power switch.",
+#: ...the same for a row read patch by patch whose reading program wrote no M1 and M2
+M_I1IO_DRIVE_ROW_M0_ONLY = _m(
+    "M-I1IO-DRIVE-ROW-M0-ONLY",
+    "Row {row} has M0 only for now",
+    "Row {row} of page {page} was read, and its M0 values are kept, but the reading program did "
+    "not write its M1 and M2 values. So this row has no M1 and M2 yet; every other row keeps "
+    "its own.\n\n"
+    "\u2022  Read it again: ChromIQ first asks you to take your hands away, then reads the row "
+    "again with the UV light too. At most two rows of a page are read again.\n"
+    "\u2022  Skip it: the row keeps M0 only. Continue Measurement, with the dual scan still "
+    "switched on, reads it again later.\n"
+    "\u2022  End this step: nothing more is read now, and nothing moves until you choose what "
+    "happens next.",
+    approved=False)
+
+M_I1IO_DRIVE_FRONT = _m(
+    "M-I1IO-DRIVE-FRONT",
+    "The arm has not been this far forward on this table yet",
+    "This is not an error. Part of your sheet lies closer to you than ChromIQ has moved the arm "
+    "on this table so far. So this first time, ChromIQ moves the arm there slowly, 5 mm at a "
+    "time, and checks every step. ChromIQ remembers how far the arm went. Next time it does not "
+    "ask again, unless a sheet lies even closer to you.\n\n"
+    "\u2022  Go forward carefully, my hands are away: the arm moves towards you slowly, and "
+    "then it reads the rows. Before the first row, ChromIQ may ask you once more to take your "
+    "hands away.\n"
+    "\u2022  I will move the sheet: nothing moves. ChromIQ tells you how far to move the sheet "
+    "away from you, and then you aim at it again.\n\n"
+    "Please take your hands away from the table and the arm before you press “Go forward "
+    "carefully, my hands are away”. The arm starts at once, or right after ChromIQ's question "
+    "about the last step if it asks one. First it moves at normal speed to the place where the "
+    "slow steps start, inside the part of the table it has already reached. Usually this first "
+    "move goes away from you. You can press Stop between two slow steps: the arm then goes no "
+    "further forward.\n\n"
+    "If the arm cannot go further, it stops. ChromIQ then moves it no further forward, offers "
+    "to bring it home and tells you how far to move the sheet. If the table reports an error or "
+    "does not answer, ChromIQ sends nothing more and tells you what to do. To stop the arm at "
+    "once at any time, switch the table off at its power switch.",
     approved=False)
 
 M_I1IO_DRIVE_FIRST_VISIT = _m(
     "M-I1IO-DRIVE-FIRST-VISIT",
     "A move to a part of the table not driven before",
-    "The next move takes the arm to a part of the table where no recording "
-    "of i1Profiler has taken it. It stays inside the area ChromIQ allows, "
-    "and it is a first try.\n\n"
+    "The next move takes the arm to a part of the table where ChromIQ has not "
+    "driven it before in this measurement. It stays inside the area ChromIQ "
+    "allows.\n\n"
     "To make this move, please take your hands away from the table and the "
     "arm, and then press “Make this move, my hands are away”: the arm makes "
     "it at once. If you say No, nothing moves and this step ends.",
@@ -12757,36 +12875,6 @@ M_I1IO_DRIVE_CAL_RESEAT = _m(
     "The calibration is done. Please put the i1Pro 2 back into the arm's "
     "holder, seated as before, with its cable free so that it cannot catch.\n\n"
     "The arm does not move until you press Seated.",
-    approved=False)
-
-M_I1IO_DRIVE_CHECK_MARK = _m(
-    "M-I1IO-DRIVE-CHECK-MARK",
-    "Is the opening on mark 3?",
-    "The arm has moved to where ChromIQ works out that mark 3 is. Please look "
-    "at the instrument's round opening: is it centred on mark 3?\n\n"
-    "If it is centred, please take your hands away from the table and the "
-    "arm, and then press “Yes, it is centred, my hands are away”: the arm "
-    "starts reading the rows at once. If it is not, nothing is read: the arm "
-    "only goes home, and you can lay the sheet and aim again.\n\n"
-    "On a real table, i1Profiler sends the opening exactly to the points you "
-    "aim at, and ChromIQ works out its moves the same way. ChromIQ's own moves "
-    "over a sheet have not run on a real table yet, so your look here is the "
-    "check that they land where they should.",
-    approved=False)
-
-M_I1IO_DRIVE_CHECK_MARK_PATCH = _m(
-    "M-I1IO-DRIVE-CHECK-MARK-PATCH",
-    "Is the opening on the centre of patch {patch}?",
-    "The arm has moved to where ChromIQ works out that the centre of patch {patch}, the one at "
-    "the bottom right, is. Please look at the instrument's round opening: does it sit on the "
-    "centre of that patch?\n\n"
-    "If it does, please take your hands away from the table and the arm, and then press "
-    "“Yes, it is centred, my hands are away”: the arm starts reading the rows at once. If it "
-    "does not, nothing is read: the arm only goes home, and you can lay the sheet and aim "
-    "again.\n\n"
-    "This chart has no aiming crosses, and a patch's centre is harder to hit by eye than a "
-    "cross, so this look is what catches an aim that was a little off. ChromIQ's own moves "
-    "over a sheet have not run on a real table yet either.",
     approved=False)
 
 M_I1IO_DRIVE_ROW_FAILED = _m(
@@ -12869,6 +12957,24 @@ M_I1IO_DRIVE_FRONT_END = _m(
     "M-I1IO-DRIVE-FRONT-END",
     "The arm stopped short of the front of this sheet",
     "{why}\n\nThe true state of the table and the arm is shown on the Measure tab.",
+    approved=False)
+
+#: 4.3.50 (safety review 449, SHOULD-2): the table answered one of the creep's 5 mm steps with
+#: a status, refused it, or did not answer it. {what} the case (one sentence each, the window's
+#: front_stop_what), {before} / {target} the reading before the step and its target, {way} the
+#: numbered way on (the power switch, End measurement, ten seconds off, i1Profiler once),
+#: {back_mm} how far further back the sheet needs no step beyond the confirmed front, {log} the
+#: diagnostics file
+M_I1IO_DRIVE_FRONT_STOPPED = _m(
+    "M-I1IO-DRIVE-FRONT-STOPPED",
+    "The table stopped during a small step towards the front",
+    "{what} ChromIQ sends nothing more to the table in this measurement.\n\n"
+    "Before this step the arm stood at {before}. The step was to take it 5 mm further towards "
+    "you, to {target}. The table has not reported where the arm stands now.\n\n"
+    "{way}\n\n"
+    "To measure this sheet, lay it about {back_mm} mm further towards the back of the table "
+    "(away from you) and start the measurement again. Please send us the diagnostics file of "
+    "this measurement: {log}.",
     approved=False)
 
 M_I1IO_DRIVE_HOME_OFFERED = _m(
@@ -13013,10 +13119,97 @@ M_I1IO_DRIVE_END = _m(
     "M-I1IO-DRIVE-END",
     "The arm while you choose",
     "The arm stays where it is while you choose; nothing moves while this "
-    "question is shown. After Save and stop or Discard and stop, ChromIQ offers to "
-    "bring the arm home and asks you to take your hands away first. Keep "
-    "measuring reads the rows that are still missing, after the same "
-    "question.",
+    "question is shown. After Save and stop or Discard and stop, ChromIQ then "
+    "brings the arm home if it can, and asks you to take your hands away "
+    "first. Keep measuring reads the rows that are still missing, after the "
+    "same question.",
+    approved=False)
+
+#: 4.3.50 (the first real page, 19 Nov 2026: the homing OFFERED after Save was not taken, and
+#: the arm stayed out over the sheet): after an ending (saved, discarded, nothing read) the arm
+#: is brought home as part of the ending, behind its hands-off GO, whose page this is. {what}:
+#: how the measurement ended (the done page's own sentence).
+M_I1IO_DRIVE_HOME_AT_END = _m(
+    "M-I1IO-DRIVE-HOME-AT-END",
+    "The arm now goes back to its resting place",
+    "{what} The arm is still out over the table, so ChromIQ now moves it to its resting place. "
+    "If needed, it first moves the arm a little back along the way it came.\n\n"
+    "Please take your hands away from the table and the arm, then press “Bring the arm home, "
+    "my hands are away”: the arm moves at once.\n\n"
+    "If the arm does not go home now, the table stays in its aiming mode. ChromIQ cannot start "
+    "a new measurement on it until the arm is home. So press “Not now” only if you must reach "
+    "the sheet first: nothing moves, and you can still bring the arm home from this window "
+    "afterwards.\n\n"
+    "To stop the arm at once, switch the table off at its power switch.",
+    approved=False)
+
+#: 4.3.50 fix round (the review of 20 Nov 2026, MUST-1: "Leave it there" left the table in a
+#: state ChromIQ then refused to start from): after "Not now" on M-I1IO-DRIVE-HOME-AT-END the
+#: homing's hands-off question stays open, so the way home stays here while this window is open.
+M_I1IO_DRIVE_HOME_NOT_NOW = _m(
+    "M-I1IO-DRIVE-HOME-NOT-NOW",
+    "The arm has not gone home yet",
+    "Nothing has moved. The arm stays out over the table, and the table stays in its aiming "
+    "mode. ChromIQ cannot start a new measurement on this table until the arm is home.\n\n"
+    "ChromIQ can bring the arm home only from this window, because only this measurement knows "
+    "the way the arm came. When you are ready, take your hands away from the table and the arm, "
+    "then press “Bring the arm home, my hands are away”. The arm moves at once.\n\n"
+    "If you press Close, ChromIQ ends its connection to the table. After that, ChromIQ cannot "
+    "bring the arm home.\n\n"
+    "To stop the arm at once, switch the table off at its power switch.",
+    approved=False)
+
+#: 4.3.50 fix round (MUST-1): the last page after the measurement ended with the arm held out
+#: over the table and the table still in its aiming mode (f1 sent, no f0: f0 is recorded only
+#: after a homing). What is recorded: i1Profiler's own homing from a held arm in front of
+#: Y 3114 is not; a just switched-on table is started (i0) only with the arm at rest.
+M_I1IO_DRIVE_LEFT_OUT = _m(
+    "M-I1IO-DRIVE-LEFT-OUT",
+    "The arm was left out over the table",
+    "The arm was left out over the table, and the table is still in its aiming mode. ChromIQ "
+    "cannot start a new measurement on this table until the arm is home again. ChromIQ cannot "
+    "bring it home from a new measurement either: only the measurement that took the arm there "
+    "knows the way back.\n\n"
+    "What you can do:\n"
+    "1. Stay beside the table, with its power switch in reach. Open i1Profiler 3.8.6 or older "
+    "once and let it find the table. It should bring the arm home, but no recording shows it "
+    "doing that from where the arm is now.\n"
+    "2. When the arm is at its resting place, quit i1Profiler. Then press START MEASUREMENT in "
+    "ChromIQ again.\n\n"
+    "If you switch the table off and on instead: ChromIQ starts a table that was just switched "
+    "on only when the arm is at its resting place, and it asks you about that first. How the "
+    "table starts with the arm out over the table has never been recorded, so ChromIQ does not "
+    "try it.",
+    approved=False)
+
+#: 4.3.50 fix round (MUST-1): at a START the table reports (f4 answers 01 at the opening) that it
+#: is still in its aiming mode; ChromIQ sent nothing that moves and read nothing.
+M_I1IO_DRIVE_STILL_AIMING = _m(
+    "M-I1IO-DRIVE-STILL-AIMING",
+    "The table is still in its aiming mode",
+    "The table reports that it is still in its aiming mode, the mode in which you aim at the "
+    "marks by hand. Most likely an earlier measurement ended with the arm out over the table, "
+    "before the arm was brought home. ChromIQ cannot start a new measurement on a table in this "
+    "mode, so it has sent nothing that could move the arm. Nothing was read.\n\n"
+    "What you can do:\n"
+    "1. Press End measurement. Until you do, ChromIQ still holds the table's connection, and "
+    "i1Profiler cannot find the table.\n"
+    "2. Stay beside the table, with its power switch in reach. Open i1Profiler 3.8.6 or older "
+    "once and let it find the table. It should bring the arm home, but no recording shows how "
+    "it does that for a table in this mode.\n"
+    "3. When the arm is at its resting place, quit i1Profiler. Then press START MEASUREMENT "
+    "again.\n\n"
+    "Please send us the diagnostics file of this measurement: {log}.",
+    approved=False)
+
+#: 4.3.50 fix round (MUST-1): ChromIQ stopped at the opening, before anything was read (never
+#: "your readings so far are kept" when there are none).
+M_I1IO_DRIVE_STOPPED_AT_OPENING = _m(
+    "M-I1IO-DRIVE-STOPPED-AT-OPENING",
+    "ChromIQ has stopped at the start",
+    "ChromIQ has stopped right after it connected to the table, and sends nothing more in this "
+    "measurement. Nothing was read in it, so there is nothing to save.\n\n"
+    "Please send us the diagnostics file of this measurement: {log}.",
     approved=False)
 
 M_I1IO_DRIVE_DONE = _m(
@@ -13352,25 +13545,28 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_OPTIONS_FIELDS, M_I1IO_DRIVE_MARKER, M_I1IO_DRIVE_START_UP,
     M_I1IO_DRIVE_GO, M_I1IO_DRIVE_SHEET_LAID, M_I1IO_DRIVE_ARM_FELT,
     M_I1IO_DRIVE_AIM, M_I1IO_DRIVE_AIM_BUTTON, M_I1IO_DRIVE_AIM_PATCH,
-    M_I1IO_DRIVE_AIM_BUTTON_PATCH, M_I1IO_DRIVE_CHECK_MARK_PATCH, M_I1IO_DRIVE_STRIP_OPTION,
+    M_I1IO_DRIVE_AIM_BUTTON_PATCH, M_I1IO_DRIVE_STRIP_OPTION,
     M_I1IO_DRIVE_STRIP_FIRST_TRY, M_I1IO_DRIVE_STRIP_TOO_LONG, M_I1IO_DRIVE_STRIP_DEFAULT_OFFER,
     M_I1IO_DRIVE_DUAL_ROWS, M_I1IO_DRIVE_DUAL_SPOT, M_I1IO_DRIVE_DUAL_PATCHES_TOO_SHORT,
     M_I1IO_DRIVE_ROW_FAILED_STRIP, M_I1IO_DRIVE_FRONT,
-    M_I1IO_DRIVE_FRONT_YES,
     M_I1IO_DRIVE_FIRST_VISIT, M_I1IO_DRIVE_READER_CONSENT,
     M_I1IO_DRIVE_READER_CONSENT_MAC, M_I1IO_DRIVE_CAL_PLACE, M_I1IO_DRIVE_STORED_WHITE_REFUSED,
     M_I1IO_DRIVE_CAL_OWN_TILE, M_I1IO_DRIVE_CAL_RESEAT,
-    M_I1IO_DRIVE_CHECK_MARK, M_I1IO_DRIVE_ROW_FAILED,
+    M_I1IO_DRIVE_ROW_FAILED,
     M_I1IO_DRIVE_ROW_NOT_AGAIN, M_I1IO_DRIVE_REPORT, M_I1IO_DRIVE_PROBLEM,
     M_I1IO_DRIVE_NOTE, M_I1IO_DRIVE_NEXT_PAGE, M_I1IO_DRIVE_STOPPED_BY_YOU,
-    M_I1IO_DRIVE_REFUSED, M_I1IO_DRIVE_FRONT_END, M_I1IO_DRIVE_HOME_OFFERED,
+    M_I1IO_DRIVE_REFUSED, M_I1IO_DRIVE_FRONT_END, M_I1IO_DRIVE_FRONT_STOPPED,
+    M_I1IO_DRIVE_ROW_M0_ONLY_STRIP, M_I1IO_DRIVE_ROW_M0_ONLY,
+    M_I1IO_DRIVE_HOME_OFFERED,
     M_I1IO_DRIVE_SWITCH_OFF,
     M_I1IO_DRIVE_STOPPED, M_I1IO_DRIVE_LINK_LOST,
     M_I1IO_DRIVE_LINK_LOST_SWITCH_OFF, M_I1IO_DRIVE_COLD,
     M_I1IO_DRIVE_COLD_WAY_OUT, M_I1IO_DRIVE_FREE_LEFT, M_I1IO_DRIVE_STOPPED_END_FIRST,
     M_I1IO_DRIVE_HOME_AFTER_STOP, M_I1IO_DRIVE_HOME_AFTER_STOP_DONE,
     M_I1IO_DRIVE_END,
-    M_I1IO_DRIVE_DONE, M_I1IO_DRIVE_NOT_I1IO2, M_I1IO_DRIVE_NOT_I1PRO2,
+    M_I1IO_DRIVE_HOME_AT_END, M_I1IO_DRIVE_HOME_NOT_NOW, M_I1IO_DRIVE_LEFT_OUT,
+    M_I1IO_DRIVE_STILL_AIMING, M_I1IO_DRIVE_STOPPED_AT_OPENING, M_I1IO_DRIVE_DONE,
+    M_I1IO_DRIVE_NOT_I1IO2, M_I1IO_DRIVE_NOT_I1PRO2,
     M_I1IO_DRIVE_BUSY, M_I1IO_DRIVE_I1PROFILER_OPEN,
     M_I1IO_DRIVE_USB_MISSING, M_I1IO_DRIVE_USB_NOT_ON_THIS_SYSTEM,
     M_I1IO_DRIVE_USB_WINDOWS_DRIVER, M_I1IO_DRIVE_TABLE_DRIVER, M_I1IO_DRIVE_I1PRO2_DRIVER,
@@ -13429,7 +13625,8 @@ CATALOGUE = {m.id: m for m in (
     M_DUAL_CONTINUE_M0, M_DUAL_NOCAL_REFUSED, M_DUAL_PASS_ONE_NO_CAL,
     M_DUAL_CAL_AGAIN, M_DUAL_PASS_HELD, M_DUAL_HIGHRES_REFUSED,
     M_DUAL_PASS_ONE_NO_CAL_KEPT,
-    M_DUAL_CONTINUE_FILL, M_DUAL_FILL_OFFER, M_COND_CONTINUE_FILL,
+    M_DUAL_CONTINUE_FILL, M_DUAL_FILL_OFFER, M_I1IO_DRIVE_DUAL_CONTINUE_FILL,
+    M_I1IO_DRIVE_DUAL_FILL_OFFER, M_COND_CONTINUE_FILL,
     M_DUAL_CONTINUE_FILL_ALL, M_DUAL_FILL_OFFER_ALL,
     M_DUAL_FILL_NOT_NOW, M_COND_FILL_NOT_NOW,
     M_DUAL_ENDED_KEPT,
@@ -13576,7 +13773,8 @@ CATALOGUE = {m.id: m for m in (
     M_CR30_HOW_TO_MEASURE, M_CR30_READ_FAILED,
     M_CR30_LEARN_TILE, M_CR30_TRIGGER_NOT_ARMED,
     M_INSTRUMENT_BUSY,
-    M_I1IO_NOT_YET, M_I1IO_NOT_YET_BY_HAND, M_I1IO_SUPPORT_OFF,
+    M_I1IO_NOT_YET, M_I1IO_NOT_YET_BY_HAND, M_I1IO_NOT_YET_SIDE_FILE,
+    M_I1IO_NOT_YET_SIDE_FILE_BY_HAND, M_I1IO_SUPPORT_OFF,
     M_I1IO_MEASURE_CHART, M_I1IO_MEASURE_CHART_PARTS,
     M_I1IO_MEASURE_CHART_OTHER_WAY, M_IMPORT_I1IO_REASONS,
     M_IMPORT_I1IO_CANNOT_CHECK, M_IMPORT_I1IO_CANNOT_CHECK_PARTS,

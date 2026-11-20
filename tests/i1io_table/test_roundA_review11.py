@@ -47,9 +47,9 @@ def _answer_windows(monkeypatch, seen=None, accept=False):
 def _finish(p, after_save=True):
     p.drive_until("end_of_session")
     p.press("Save and stop")
-    p.drive_until(("home_offered", "done"))
-    if p.page() == "home_offered":
-        p.press("Leave it there")
+    p.drive_until(("home_offered", "home_at_end", "done"))
+    if p.page() in ("home_offered", "home_at_end"):
+        p.leave_it_there()
     p.press("Close")
 
 
@@ -66,15 +66,11 @@ def test_m1_quit_while_homing_after_save_quits_without_an_error_page(
     p = _person(win, sim, qtbot)
     p.drive_until("end_of_session")
     p.press("Save and stop")
-    p.drive_until("home_offered")
+    # 4.3.50: the homing is part of the ending; its hands-off GO is the page after Save
+    p.drive_until("home_at_end")
     sim.transport.delay_s = 0.05
-    [b for b in win._buttons if b.text() == "Bring the arm home"][0].click()
+    [b for b in win._buttons if b.text() == "Bring the arm home, my hands are away"][0].click()
     qtbot.wait(30)
-    for _ in range(3):
-        if win._busy:
-            break
-        [b for b in win._buttons if b.text() == "Go"][0].click()
-        qtbot.wait(30)
     assert win._busy
     assert tab.confirm_quit_during_measurement() is False
     sim.transport.delay_s = 0.0
@@ -361,7 +357,7 @@ def test_note_esc_in_the_note_field_does_not_ask_the_ending(
     from PyQt6.QtCore import Qt
     from PyQt6.QtWidgets import QApplication
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings)
-    p.drive_until("check_mark")
+    p.drive_until("rows")
     win._show_note()
 
     # The person's Esc can only reach the window while it is the active window with the
@@ -566,8 +562,8 @@ def test_a_quit_during_a_table_verification_files_it_without_windows(
         if tab._table_window is None:
             break
         pg = p.page()
-        if pg == "home_offered":
-            p.press("Leave it there")
+        if pg in ("home_offered", "home_at_end"):
+            p.leave_it_there()
         elif pg == "done":
             p.press("Close")
     qtbot.waitUntil(lambda: bool(run.verifications()), timeout=5000)

@@ -7,7 +7,7 @@ The same content the tester program's results zip gave the analysis script
 RESULT; the table's clock in front of every table line), one RESULT block per step as JSON in the
 log AND as ``<stage>-<n>/result.json``, the alignment as ``d1-<n>/alignment.json``, and
 ``summary.json`` with every block. The stage keys are the tester's where the job's step is the
-tester's stage (``d1`` the alignment, ``dz`` the creep, ``d2`` the check move, ``f`` the homing);
+tester's stage (``d1`` the alignment, ``dz`` the creep, ``d2`` the check move (until 4.3.49), ``f`` the homing);
 the park is ``park``.
 
 4.3.48 (safety review 448, SHOULD-3): a row's result block carries ``data["second_moves"]``, one

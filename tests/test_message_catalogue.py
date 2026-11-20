@@ -137,7 +137,6 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-I1IO-DRIVE-ARM-FELT",
     "M-I1IO-DRIVE-AIM",
     "M-I1IO-DRIVE-FRONT",
-    "M-I1IO-DRIVE-FRONT-YES",
     "M-I1IO-DRIVE-FIRST-VISIT",
     "M-I1IO-DRIVE-READER-CONSENT",
     "M-I1IO-DRIVE-READER-CONSENT-MAC",
@@ -150,7 +149,6 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-I1IO-DRIVE-WHITE-BASE-OWN",
     "M-I1IO-DRIVE-CAL-OWN-TILE",
     "M-I1IO-DRIVE-CAL-RESEAT",
-    "M-I1IO-DRIVE-CHECK-MARK",
     "M-I1IO-DRIVE-ROW-FAILED",
     "M-I1IO-DRIVE-ROW-NOT-AGAIN",
     "M-I1IO-DRIVE-REPORT",
@@ -161,6 +159,22 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-I1IO-DRIVE-REFUSED",
     # 4.3.49 fix round (safety review 449, SHOULD-3): the page after the creep met the front end
     "M-I1IO-DRIVE-FRONT-END",
+    # 4.3.50 (safety review 449, SHOULD-2): a creep step answered with an error, refused, or
+    # not answered
+    "M-I1IO-DRIVE-FRONT-STOPPED",
+    # 4.3.50 b: the homing that is part of the ending, the table's own dual fill notes, the
+    # table chart window when its side file is there
+    "M-I1IO-DRIVE-HOME-AT-END",
+    # 4.3.50 fix round (independent review of 20 Nov 2026, MUST-1): "Not now" keeps the way home
+    # open; the last page and the next START's page say what is true about an arm left out
+    "M-I1IO-DRIVE-HOME-NOT-NOW",
+    "M-I1IO-DRIVE-LEFT-OUT",
+    "M-I1IO-DRIVE-STILL-AIMING",
+    "M-I1IO-DRIVE-STOPPED-AT-OPENING",
+    "M-I1IO-DRIVE-DUAL-CONTINUE-FILL",
+    "M-I1IO-DRIVE-DUAL-FILL-OFFER",
+    "M-I1IO-NOT-YET-SIDE-FILE",
+    "M-I1IO-NOT-YET-SIDE-FILE-BY-HAND",
     "M-I1IO-DRIVE-HOME-OFFERED",
     "M-I1IO-DRIVE-SWITCH-OFF",
     "M-I1IO-DRIVE-STOPPED",
@@ -210,10 +224,12 @@ AWAITING_APPROVAL: "set[str]" = {
     # 2026-11-18, final fix round: a chart without aiming crosses (the owner)
     "M-I1IO-DRIVE-AIM-PATCH",
     "M-I1IO-DRIVE-AIM-BUTTON-PATCH",
-    "M-I1IO-DRIVE-CHECK-MARK-PATCH",
     # 2026-11-18, final fix round: the offer to make strips the table's default (the owner)
     "M-I1IO-DRIVE-STRIP-DEFAULT-OFFER",
     "M-I1IO-DRIVE-ROW-FAILED-STRIP",
+    # 4.3.50: a dual row on the table with M0 only (its second pass failed), as by hand
+    "M-I1IO-DRIVE-ROW-M0-ONLY-STRIP",
+    "M-I1IO-DRIVE-ROW-M0-ONLY",
     "M-I1IO-DRIVE-REFINE-NOT-ON-CHART",
     "M-I1IO-DRIVE-EARLIER-ELSEWHERE",  # review 12 of the i1iO table drive (2026-11-17)
     "M-I1IO-DRIVE-RESUME",

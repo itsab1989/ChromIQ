@@ -71,7 +71,7 @@ def test_a_failed_row_and_the_problem_page(qtbot, monkeypatch, tmp_path, setting
             p.press("Cancel")
             sim.helper.faults = {}
     seen = _walk(win, p, qtbot, on_page=on_page)
-    assert {"prepare", "sheet_laid", "aimed", "check_mark", "row_failed"} <= set(seen)
+    assert {"prepare", "sheet_laid", "aimed", "go", "row_failed"} <= set(seen)
 
 
 @pytest.mark.parametrize("size", SIZES, ids=lambda s: f"{s[0]}x{s[1]}")
@@ -96,7 +96,7 @@ def test_the_aiming_pages_with_the_instruments_button(qtbot, monkeypatch, tmp_pa
     def on_page(page):
         if page == "aimed":
             texts.append(win._text.text())
-    _walk(win, p, qtbot, until="check_mark", on_page=on_page)
+    _walk(win, p, qtbot, until="go", on_page=on_page)
     assert len(texts) == 3 and all("button on the i1Pro 2" in x for x in texts)
 
 
@@ -139,8 +139,8 @@ def test_an_ended_session_with_the_arm_left_out_says_only_the_way_home(qtbot, mo
                                                     asking=False)
     p.drive_until("end_of_session")
     p.press("Save and stop")
-    assert p.page() == "home_offered"
-    p.press("Leave it there")
+    assert p.page() == "home_at_end"
+    p.leave_it_there()
     assert p.page() == "done"
     text = win._text.text()
     assert "The arm was left out over the table" in text and "saved into the run" in text

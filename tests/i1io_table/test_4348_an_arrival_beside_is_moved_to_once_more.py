@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import pytest
 
+from tests.i1io_table import tester_d2 as D2
 from tests.i1io_table.test_4347_fix2_arrivals_and_aiming_again import _arrive_beside
 from tests.i1io_table.test_job_reading import job_for
 from workflow.i1io.table import caps as cp
@@ -212,11 +213,12 @@ def test_planted_a_retry_that_ignores_the_stop_is_caught(tmp_path, monkeypatch):
 
 
 def test_strip_rows_creep_and_the_check_move_never_move_again(tmp_path):
-    """Only patch rows retry: the check move to mark 3 keeps 4.3.47's clean failure."""
+    """Only patch rows retry: any other computed move keeps 4.3.47's clean failure (4.3.50: the
+    tests' copy of 4.3.49's check move stands for such a move here, tester_d2)."""
     job, sim, p, seen = _ready(tmp_path)
     _land_beside(sim, (1,), 0, 8)
     n = len(sim.received)
-    r = p.drive(job.check_move())
+    r = p.drive(D2.check_move(job))
     assert r.kind == J.Kind.REFUSED and r.reason == "arrived_beside_the_target", r.reason
     assert len([ln for ln in sim.received[n:] if _computed_m0(ln)]) == 1
     assert job.beside_retries == []

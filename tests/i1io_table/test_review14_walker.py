@@ -20,14 +20,16 @@ from workflow.i1io.table import session_table as tbl
 #: the answers whose page asks for the hands to be taken away (from the texts, review 14)
 MY_HANDS_OFF = {("go", "yes"), ("sheet_laid", "yes"), ("first_visit", "yes"),
                 ("start_up", "yes"), ("report_after_step", "as described"),
-                ("check_mark", "centred")}
+                # 4.3.50: "Go forward carefully, my hands are away" (M-I1IO-DRIVE-FRONT); the
+                # mark-3 check and its "centred" are gone
+                ("front_choice", "go on")}
 
 MOTION = {ln.decode("ascii").rstrip("\r") for ln in tbl.MOTION_LINES}
 
 WINDOW_PAGES = ["stopped_by_you", "refused", "stopped", "after_problem", "home_offered",
                 "next_page", "problem", "stored_white_refused", "ending_closed"]
 
-STEPS = ["open", "calibrate", "align", "creep", "check_move", "read_row", "read_row",
+STEPS = ["open", "calibrate", "align", "creep", "read_row", "read_row",
          "read_row", "home", "park", "next_page", "end", "save", "read_tile", "start_up"]
 
 
@@ -37,7 +39,7 @@ def _is_move(ln: str) -> bool:
 
 
 class Walk:
-    CANON = ["calibrate", "align", "check_move", "read_row", "read_row", "read_row", "read_row",
+    CANON = ["calibrate", "align", "read_row", "read_row", "read_row", "read_row",
              "read_row", "read_row", "end", "save", "home"]
 
     def __init__(self, job, sim, rnd, forward=0.85):
@@ -123,9 +125,6 @@ class Walk:
                 job.stop_at_next_pause()
                 if rnd.random() < 0.5:
                     job.stop_honoured_between_steps()
-            if res is not None and getattr(res, "step", "") == "check_move" and res.ok:
-                job.person_answered("check_mark", "centred" if rnd.random() < 0.8
-                                    else "not centred")
             if rnd.random() < 0.75:
                 step = self.CANON[self.k % len(self.CANON)]
             else:

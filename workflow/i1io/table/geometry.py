@@ -28,8 +28,9 @@ TWO FRAMES, ONE OF THEM FOR PLACES. The table answers two position questions:
   the grid through the three p1 readings within 1 unit; the values computed from its raw readings
   at those places agree with its own saved files to 0.09 dE00 on average (scan) and 0.07 (spot)
   with the table's stored tile values. No offset between a p1 reading and a target exists
-  anywhere in this package. (A row driven by ChromIQ has not run on a real table yet; the check
-  move's question at mark 3 is the live safeguard for that path.)
+  anywhere in this package. (4.3.50: a page driven by ChromIQ HAS run on a real table, 19 Nov
+  2026: 528 patches read patch by patch, every arrival within 4 units, no sign of a reading off
+  its patch; the check move to mark 3 and its question, the safeguard until then, are gone.)
 
 So a p1 reading says where a mark lies; it is NOT a place the opening has been. Turning aims into
 targets needs no conversion (i1Profiler's own model, checked against its recorded moves:
@@ -308,10 +309,16 @@ ACCEL = 2000.0          # units/s^2 (every recorded m0: SEQUENCE.md section 10)
 
 
 def predicted_move_time(a, b, speed: int = 300) -> float:
-    """Per axis, the slower axis wins: a triangle at 2000 units/s^2 up to 10 x V units/s.
+    """A triangle at 2000 units/s^2 up to 10 x V units/s along the STRAIGHT LINE from a to b.
     Checked against the recordings: 87 units 0.417 (0.431), 1023 units 1.43 (1.456), 1498 units
-    1.73 (1.727), 1250 units 1.58 (1.599)."""
-    d = max(abs(b[0] - a[0]), abs(b[1] - a[1]))
+    1.73 (1.727), 1250 units 1.58 (1.599).
+
+    4.3.50 (the first complete page on a real i1iO 2, 19 Nov 2026): the straight line, not the
+    larger axis as until 4.3.49. Over the 985 real and recorded moves longer than 60 units
+    (tests/i1io_table/data/real_table_moves.json) took / predicted is 1.006-1.068 on the straight
+    line and 1.006-1.186 on the larger axis; the real page's diagonal to its first row (2598 x
+    1778 units) took 2.528 s, 2.509 s on the straight line, 2.279 s on the larger axis."""
+    d = math.hypot(b[0] - a[0], b[1] - a[1])
     vmax = 10.0 * speed
     ta = vmax / ACCEL
     if d <= vmax * ta:
@@ -321,10 +328,24 @@ def predicted_move_time(a, b, speed: int = 300) -> float:
     return max(t, 0.015)
 
 
+#: 4.3.50: a computed move this short (on its larger axis, table units) has NO lower time limit.
+#: The real table answers a move of 0 to 3 units at once (0.015-0.016 s, 24 of 24 real and
+#: recorded cases, among them the real page's 3-unit move of 19 Nov 2026), and whether it does so
+#: for the same target sent again from a few units short is not recorded. 10 units = every
+#: arrival miss the job tolerates or moves to once more (ARRIVAL_BESIDE_UNITS): a move this short
+#: that did not happen leaves the arm at most 1 mm off, which the arrival check reads anyway.
+SMALL_MOVE_UNITS = 10
+
+
 def move_window(a, b, speed: int = 300) -> "tuple[float, float]":
-    """The time window a computed m0 must finish in (recorded moves fit the prediction within 3 %)."""
+    """The time window a computed m0 must finish in. Upper limit 1.35 t + 0.35 s, at least 0.7 s
+    (catches a move that does not finish). Lower limit 0.75 t - 0.05 s (catches a done answer far
+    sooner than any movement takes), none for a move of up to SMALL_MOVE_UNITS. Every one of the
+    1102 real and recorded moves of real_table_moves.json lies inside its window."""
     t = predicted_move_time(a, b, speed)
-    return (max(0.0, 0.75 * t - 0.05), max(0.7, 1.35 * t + 0.35))
+    small = max(abs(b[0] - a[0]), abs(b[1] - a[1])) <= SMALL_MOVE_UNITS
+    lo = 0.0 if small else max(0.0, 0.75 * t - 0.05)
+    return (lo, max(0.7, 1.35 * t + 0.35))
 
 
 # ---- the lines -------------------------------------------------------------------------------
@@ -548,8 +569,8 @@ def _mm_up(units: float) -> int:
 
 def sheet_move_advice(readings) -> dict:
     """How far the sheet would have to lie further back / front / left / right (whole mm, 0 =
-    not that way) so that all three aims lie inside CAP_AREA, the target area (mark 3 is the
-    check move's target, and the corner patches lie just inside the marks). Words for the
+    not that way) so that all three aims lie inside CAP_AREA, the target area (the corner patches lie just
+    inside the marks; the aims are kept inside it although no move goes to them since 4.3.50). Words for the
     person only; :func:`fit_alignment` and the job's checks decide."""
     pts = [tuple(map(float, p)) for p in readings]
     return {"back_mm": _mm_up(max(p[1] for p in pts) - CAP_AREA.ymax),
