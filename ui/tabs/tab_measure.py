@@ -5992,6 +5992,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             instr = read_target_instrument(chart)
             randomized = is_randomized(chart)
         self._detected_instrument    = instr
+        # 4.3.53 (the tester Nelson): the chart's own instrument, kept apart from
+        # _detected_instrument (which the instrument's report replaces)
+        self._chart_named_instrument = instr
         self._detected_disable_bidir = disable_bidir_for_instrument(instr)
         self._detected_force_bidir   = force_bidir_for_instrument(instr)
         self._detected_randomized    = randomized
@@ -6222,13 +6225,75 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return "force"
         return fallback
 
+    def _measuring_instrument(self) -> "tuple[str | None, str]":
+        """4.3.53 (the tester Nelson, 20 Nov 2026): the instrument THIS measurement is made
+        with, as far as the tab knows it before the reader opens: (name, where it came from).
+        The model the instrument reported in this session, else the one this app run has
+        seen, else (with the i1Pro 2 dual scan on) the instrument the dual scan is set for;
+        (None, "") when nothing is known yet."""
+        name = getattr(self, "_reported_instrument", None)
+        if name:
+            return str(name), "reported_by_the_instrument"
+        name = getattr(self, "_dual_last_model", None)
+        if name:
+            return str(name), "seen_in_this_app_run"
+        try:
+            from workflow.dual_scan import session as _D
+            if _D.switched_on(self._settings):
+                name = self._settings.get("dual_scan_instrument_name", "") or ""
+                if name:
+                    return str(name), "the_dual_scan_setting"
+        except Exception:      # noqa: BLE001 - nothing known then
+            pass
+        return None, ""
+
+    def _bidir_auto_decision(self) -> "tuple[str, str | None, str]":
+        """(value, instrument, where it came from) the Auto toggle resolves.
+
+        Until 4.3.53 Auto decided from the chart's TARGET_INSTRUMENT only, so a chart that
+        names no instrument (or another one) read on an i1 Pro lost -b: on a fixed-order
+        chart the strips were then accepted in one direction only (the tester Nelson's
+        report). Now: a chart naming an i1 Pro forces both directions as before; otherwise
+        the instrument this measurement is made with decides, exactly as it would for a
+        chart naming it (an i1 Pro reads either direction, inst2_bidi_scan). Nothing here
+        ever chooses -B, and an explicit choice with Auto off is never changed."""
+        from ui.ti2_loader import force_bidir_for_instrument
+        chart = getattr(self, "_chart_named_instrument", None)
+        if self._detected_disable_bidir:
+            return "disable", chart, "chart"
+        if self._detected_force_bidir:
+            return "force", chart, "chart"
+        name, source = self._measuring_instrument()
+        if name and force_bidir_for_instrument(name):
+            return "force", name, source
+        return "default", chart or name, "chart" if chart else (source or "nothing_known")
+
     def _detected_bidir_value(self) -> str:
         """The combo value the Auto toggle resolves for the loaded chart."""
-        if self._detected_disable_bidir:
-            return "disable"
-        if self._detected_force_bidir:
-            return "force"
-        return "default"
+        return self._bidir_auto_decision()[0]
+
+    def _log_bidir_decision(self, params) -> None:
+        """4.3.53: at measurement start, which instrument Auto decided from and whether a
+        strip is accepted in both directions (a tester's app log then settles a report like
+        the one of 20 Nov 2026). Never raises."""
+        try:
+            mode = self._current_mode()
+            auto_cb, combo = self._bidir_widgets(mode)
+            both = bool(params.force_bidir or (not params.disable_bidir
+                                               and self._detected_randomized))
+            if auto_cb.isChecked():
+                value, name, source = self._bidir_auto_decision()
+                log.info("strip recognition: Auto -> %s, decided from %s (%s); the chart "
+                         "names %s; both directions accepted: %s",
+                         value, name or "no instrument", source,
+                         getattr(self, "_chart_named_instrument", None) or "no instrument",
+                         "yes" if both else "no")
+            else:
+                log.info("strip recognition: your choice %s (Auto off); both directions "
+                         "accepted: %s", combo.currentData() or "default",
+                         "yes" if both else "no")
+        except Exception:      # noqa: BLE001 - a log line only
+            pass
 
     def _set_bidir_value(self, combo: "QComboBox", value: str) -> None:
         """Select the combo entry for a strip-recognition value, without firing
@@ -26014,8 +26079,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
 
     def _collect_params(self) -> MeasureParams:
         if self._current_mode() == "guided":
-            return self._apply_engine_params(self._collect_guided())
-        return self._apply_engine_params(self._collect_manual())
+            p = self._apply_engine_params(self._collect_guided())
+        else:
+            p = self._apply_engine_params(self._collect_manual())
+        self._log_bidir_decision(p)       # 4.3.53: what Auto decided, at every Start
+        return p
 
     # ------------------------------------------------------------------
     # Settings
