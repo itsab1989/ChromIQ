@@ -3769,16 +3769,6 @@ class WelcomeDialog(QDialog):
             lambda v: self._settings.set("show_welcome_dialog", bool(v))
         )
         _left_l.addWidget(self._show_cb)
-        # A9 (4.3.50): the log a tester is asked to send, one press away. The
-        # help card's error text points here ("Help → Show the log file").
-        self._log_btn = QPushButton(tr("Show the log file"), _left)
-        self._log_btn.setObjectName("help_show_log_file")
-        self._log_btn.setToolTip(tr(
-            "Opens the folder with ChromIQ's log file (chromiq.log) and selects "
-            "it. When you report a problem, please attach this file: it tells "
-            "us what ChromIQ did and what went wrong."))
-        self._log_btn.clicked.connect(self._show_log_file)
-        _left_l.addWidget(self._log_btn)
         _left_l.addStretch(1)
         # Quiet support link — the classic tucked-away spot: only people who
         # open the help find it, so it never feels pushy (Basti). Opens the
@@ -3828,6 +3818,23 @@ class WelcomeDialog(QDialog):
         self._back_btn.clicked.connect(lambda: self._stack.setCurrentIndex(0))
         self._back_btn.setVisible(False)
         _right_l.addWidget(self._back_btn)
+        # A9 (4.3.50): the log a tester is asked to send, one press away. The
+        # help card's error text points here ("Help → Show the log file").
+        # 4.3.51 (the owner, 2026-11-20: "the show the log file button in the
+        # help window should be on the left next to the close button ... close
+        # stays where it is"): in Close's row, directly on its left; Close keeps
+        # its place at the right end. Never a default button: Enter and Esc
+        # behave as before.
+        self._log_btn = QPushButton(tr("Show the log file"), _right)
+        self._log_btn.setObjectName("help_show_log_file")
+        self._log_btn.setAutoDefault(False)
+        self._log_btn.setDefault(False)
+        self._log_btn.setToolTip(tr(
+            "Opens the folder with ChromIQ's log file (chromiq.log) and selects "
+            "it. When you report a problem, please attach this file: it tells "
+            "us what ChromIQ did and what went wrong."))
+        self._log_btn.clicked.connect(self._show_log_file)
+        _right_l.addWidget(self._log_btn)
         self._close_btn = QPushButton(tr("Close"), _right)
         self._close_btn.clicked.connect(self.accept)
         _right_l.addWidget(self._close_btn)
@@ -3837,6 +3844,7 @@ class WelcomeDialog(QDialog):
         for _w in (_left, _mid, _right):
             footer.addWidget(_w, 1)      # equal thirds → true centre line
         outer.addLayout(footer)
+        self._footer_layout = footer
         self._balance_footer()
 
     def _balance_footer(self) -> None:
@@ -3874,7 +3882,14 @@ class WelcomeDialog(QDialog):
             # …and the window has to be able to HOLD all three, or the layout is
             # back to choosing a victim. `setMinimumWidth` only ever raises the
             # floor here, so a card that already needs a wider window keeps it.
-            want = 2 * side + mid + 48
+            # 4.3.51: the window's real margins and the footer's two gaps (it
+            # said 48, about 20 px short: at the minimum width Close ran past
+            # the window's right margin, photographed 2026-11-20)
+            outer = self.layout()
+            m = outer.contentsMargins() if outer is not None else None
+            gaps = 2 * max(0, self._footer_layout.spacing()) \
+                if getattr(self, "_footer_layout", None) is not None else 0
+            want = 2 * side + mid + gaps + ((m.left() + m.right()) if m is not None else 48)
             if self.minimumWidth() < want:
                 self.setMinimumWidth(want)
         except Exception:      # noqa: BLE001 — sizing must never raise
@@ -3884,6 +3899,20 @@ class WelcomeDialog(QDialog):
         self._back_btn.setVisible(index == 1)
         self._print_btn.setVisible(index == 1)
         self._pdf_btn.setVisible(index == 1)
+        # 4.3.51: the log button beside Close on the menu page. On a card the
+        # row already holds Save as PDF, Print and Back; with the log button
+        # too, the centred footer would need the window about 350 px (English)
+        # to 460 px (German) wider than a laptop screen allows. Back leads to it.
+        self._log_btn.setVisible(index == 0)
+        self._balance_footer()
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        """4.3.51: balance the footer again once the window's style has been
+        applied: measured before that (in __init__), the buttons' widths come
+        out smaller than they are drawn, and at the window's minimum width the
+        right cell ran past the window's margin (Close touched the window's
+        right edge, photographed 2026-11-20)."""
+        super().showEvent(event)
         self._balance_footer()
 
     def _save_current_card_pdf(self) -> None:
