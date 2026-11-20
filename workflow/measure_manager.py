@@ -4034,6 +4034,16 @@ class MeasureManager(QObject):
             # (the i1Pro 3's own "instrument_green2"/"instrument_red2" of "as
             # in ChromIQ 4.3.33" too) only goes to the app log.
             log.info("instrument lights: sent %s", sent)
+            if sent == "blue":
+                # 4.3.52: i1Profiler's blue between the two passes of a dual
+                # scan (the left LED pulsing), sent after pass 1's data
+                from core.app_log import line as _applog
+                _applog("lights", sent="blue", meaning="second_pass_due",
+                        quiet_ms=self._lights_quiet_ms)
+                on_line(tr(
+                    "[Engine] Instrument lights (beta): blue. The second pass "
+                    "of this strip is due."))
+                return
             if sent == "green2":
                 on_line(tr(
                     "[Engine] Instrument lights (beta): green twice. ChromIQ "
@@ -4043,6 +4053,14 @@ class MeasureManager(QObject):
                     "[Engine] Instrument lights (beta): red twice. ChromIQ did "
                     "not accept this reading as it is: please look at the "
                     "screen, and read it again if ChromIQ asks you to."))
+            return
+        if ev.get("second_pass") == "skipped":
+            # 4.3.52: the blue was not sent: the return pass began (or was
+            # left) before it was due, or the driver refused it. App log only.
+            from core.app_log import line as _applog
+            _applog("lights", second_pass="skipped", why=ev.get("why"))
+            log.info("i1Pro 2 lights: the blue before the second pass was not "
+                     "sent (%s)", ev.get("why"))
             return
         state = ev.get("state")
         if state == "unknown":

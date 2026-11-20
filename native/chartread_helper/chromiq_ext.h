@@ -75,6 +75,8 @@ void i1pro2_cq_lights_result(void *pp, int good);
 extern void (*i1pro2_cq_lights_sent)(int seq);
 extern void (*i1pro2_cq_lights_held)(int ms);	/* 4.3.37: a trigger waited for the quiet time */
 extern void (*i1pro2_cq_lights_hold_poll)(void);	/* 4.3.37: asked during that wait */
+extern int i1pro2_cq_lights_quiet_ms;	/* 4.3.52: the user's quiet time, ms; -1 = 2100 */
+int i1pro2_cq_lights_second_pass(void *pp);	/* 4.3.52: the dual scan's blue; 1 = sent */
 void cq_lights_take_pending(void);	/* carries out a pending lights off / exit */
 /* ...and the i1Pro 3's (i1pro3_imp.c), the same prototypes as i1pro3_imp.h. */
 int i1pro3_cq_lights_begin(void *pp);
@@ -150,7 +152,7 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src);
  *
  * ⚠ BUMP THIS IN THE SAME COMMIT AS ANY CHANGE TO THE HELPER, and rebuild and
  * commit native/chromiq-chartread. The test tells you the expected value. */
-#define CQ_HELPER_BUILD "chromiq-chartread 2026-11-19d legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures+exit-guard+save-after-close+i1pro2-lights+i1pro3-lights+i1pro3-lights-choices+ruler-check+usb-step-detail+i1pro2-beta-paused+i1pro2-lights-quiet+resume-spectral-check+hold-interruptible+i1pro2-ruler-back+own-row-direction+turn-round+filter-event+i1pro3-conditions+conditions-commit-last+margin-tolerance+ruler-trigger-wait+margin-one-way+margin-accounted+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule+i1pro2-dual-device+i1pro2-dual-safety+i1io-table-dual+i1io-table-dual-fix2+i1io-table-dual-calreset+i1pro2-dual-gaps+conditions-kept"
+#define CQ_HELPER_BUILD "chromiq-chartread 2026-11-20a legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures+exit-guard+save-after-close+i1pro2-lights+i1pro3-lights+i1pro3-lights-choices+ruler-check+usb-step-detail+i1pro2-beta-paused+i1pro2-lights-quiet+resume-spectral-check+hold-interruptible+i1pro2-ruler-back+own-row-direction+turn-round+filter-event+i1pro3-conditions+conditions-commit-last+margin-tolerance+ruler-trigger-wait+margin-one-way+margin-accounted+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule+i1pro2-dual-device+i1pro2-dual-safety+i1io-table-dual+i1io-table-dual-fix2+i1io-table-dual-calreset+i1pro2-dual-gaps+conditions-kept+lights-quiet+i1pro2-dual-blue"
 const char *cq_helper_build_string(void);
 
 

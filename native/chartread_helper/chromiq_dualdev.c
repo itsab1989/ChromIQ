@@ -372,6 +372,9 @@ static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, 
 	 * passes are read again) */
 	cq_emit_raw("{\"event\":\"dual_pass\",\"strip\":\"%s\",\"pass\":\"uv\",\"of\":2,"
 	            "\"lamp_ok\":%s}", sb, lamp_ok ? "true" : "false");
+	/* 4.3.52: the blue "second pass due" (lights Beta, result signals, an
+	 * i1Pro 2): due a moment after pass 1, sent from the wait below */
+	cq_lights_second_pass_due();
 	/* 4.3.49: a calibration asked for during this wait runs at the next
 	 * strip prompt (never over the open ruler stream), and a command that
 	 * would leave the wait (a jump, a move) is held: the wait goes on */
@@ -391,6 +394,7 @@ static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, 
 		            : held == 'b' || held == 'B' ? "back" : "forward");
 	}
 	i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_OFF);	/* the UV switch off on every way out */
+	cq_lights_second_pass_over();	/* 4.3.52: a blue not sent by now is skipped */
 	free(v2);
 	(void)i1pro2_cq_dual_take_uv(it, &u);
 	got_r = i1pro2_cq_ruler_take(it, &r);

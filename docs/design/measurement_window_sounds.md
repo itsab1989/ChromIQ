@@ -379,7 +379,9 @@ asked to be told at once. The Measure tab now plays **Strip read failed** once, 
 pass is asked for, and the status line headline says "pass 1 did not read" (M-DUAL-PASS-TWO-UNREAD).
 After the second pass, "Strip read failed" opens as before, with its own sound. A first pass that
 read plays nothing at that moment. Nothing is sent to the instrument's lights for this:
-i1Profiler too shows red only after the return pass (recording of 2026-11-17).
+i1Profiler too shows red only after the return pass (recording of 2026-11-17). (Since 4.3.52, with
+the lights Beta's result signals, the blue "second pass due" comes after every first pass, read or
+not, as recorded; it has no sound of its own: docs/design/i1pro2_dual_scan.md section 14.)
 
 ## 5. Related documents
 

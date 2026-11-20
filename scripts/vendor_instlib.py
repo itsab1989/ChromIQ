@@ -1900,6 +1900,137 @@ I1PRO_IMP_C_DUAL = [
      "/* unless ChromIQ's helper switches the dual scan on. */\n#include \"cq_i1pro2_dual.h\"\n"),
 ]
 # ---- END i1Pro 2 DUAL SCAN ----
+# ---- ChromIQ 4.3.52: the i1Pro 2 lights in a dual scan (Preferences > Beta) ----
+# The owner, 2026-11-20: "yes build the blue light" and "could we allow the user to set
+# the timing himself". Listed here pair by pair, so that each changed line of the lights
+# block is in one place (the safety review reads this list), and folded into the lights
+# patches below (as the dual scan's hooks are); undoing them gives 4.3.51's block back:
+# (1) BLUE, the dual scan's "second pass due",
+# i1Profiler's own 702 bytes (cq_i1pro2_programs.h), sent only by
+# i1pro2_cq_lights_second_pass, which the helper calls only in the return pass's wait of a
+# dual scan with the lights' result signals; (2) i1pro2_cq_lights_quiet_ms, the user's quiet
+# time (-1 = CQ_LIGHTS_QUIET_MS, 2100, as before). With neither asked for, the driver does
+# exactly what 4.3.51's did (tests/test_i1pro2_dual_blue_and_quiet_time.py, against 4.3.51's
+# driver on the fake USB layer).
+I1PRO_IMP_C_LIGHTS_452 = [
+    (" *   GREEN2    after a strip or patch it accepted (Windows);\n"
+     " *   RED2      after a strip it refused (Windows).\n"
+     " * PULSE, GREEN2 and RED2 are in cq_i1pro2_programs.h, pinned by sha256.\n"
+     " * Argyll's own i1pro2_indLEDoff bytes were never seen on the wire and are not\n",
+     " *   GREEN2    after a strip or patch it accepted (Windows);\n"
+     " *   RED2      after a strip it refused (Windows);\n"
+     " *   BLUE      left side only, between the two passes of a dual scan, after\n"
+     " *             pass 1's data and before the return pass (4.3.52; Windows,\n"
+     " *             23 writes in 6 sessions, all the same 702 bytes).\n"
+     " * PULSE, GREEN2, RED2 and BLUE are in cq_i1pro2_programs.h, pinned by sha256.\n"
+     " * Argyll's own i1pro2_indLEDoff bytes were never seen on the wire and are not\n"),
+    (" *                again; without, nothing;\n"
+     " *   every trigger waits until CQ_LIGHTS_QUIET_MS after the END of the last\n"
+     " *                light write (RULE B): a plain wait, no byte is added.\n"
+     " * left_on has no effect on the i1Pro 2 since 4.3.37 (nothing is sent around\n",
+     " *                again; without, nothing;\n"
+     " *   dual scan    with result signals, BLUE in the return pass's wait, before\n"
+     " *                its button press (4.3.52, ..._second_pass), as recorded;\n"
+     " *   every trigger waits until CQ_LIGHTS_QUIET_MS (or the user's quiet time,\n"
+     " *                4.3.52) after the END of the last light write (RULE B): a\n"
+     " *                plain wait, no byte is added.\n"
+     " * left_on has no effect on the i1Pro 2 since 4.3.37 (nothing is sent around\n"),
+    ("#define CQ_LIGHTS_RED2     6\n"
+     "\n",
+     "#define CQ_LIGHTS_RED2     6\n"
+     "#define CQ_LIGHTS_BLUE     7\t/* 4.3.52: dual scan, \"the second pass is due\" */\n"
+     "\n"),
+    (" * END of the last light write. A tester's i1Pro 2 lost the strip's first\n"
+     " * reading about 2 times in 3 when a light write ended 10-25 ms before the\n"
+     " * trigger, and never without one (0 of 79); his log has no success below\n"
+     " * about 1.6 s with this driver. i1Profiler's own hand-held gaps of 0.70 and\n"
+     " * 1.33 s worked (2 samples). Conservative, and the ONE place it is set. */\n"
+     "#define CQ_LIGHTS_QUIET_MS   2100\n",
+     " * END of the last light write. A tester's i1Pro 2 lost the strip's first\n"
+     " * reading about 2 times in 3 when a light write ended 1-25 ms before the\n"
+     " * trigger, and never without one (0 of 79). Nothing between that and 2.1 s\n"
+     " * was ever measured with this driver; i1Profiler's own gaps were 8-12 ms\n"
+     " * before a calibration and 0.37-1.39 s before a hand-held pass, all worked\n"
+     " * (study of 2026-11-20). Conservative: the default, and the ONE place it is\n"
+     " * set; since 4.3.52 the user may choose another (i1pro2_cq_lights_quiet_ms). */\n"
+     "#define CQ_LIGHTS_QUIET_MS   2100\n"),
+    ("#define CQ_LIGHTS_QUIET_MS   2100\n"
+     "/* PULSE, GREEN2 and RED2 were recorded on an i1Pro 2 with firmware 634 (as\n",
+     "#define CQ_LIGHTS_QUIET_MS   2100\n"
+     "#define CQ_LIGHTS_QUIET_MAX_MS 10000\t/* the largest the helper accepts */\n"
+     "/* PULSE, GREEN2 and RED2 were recorded on an i1Pro 2 with firmware 634 (as\n"),
+    ("\n"
+     "/* Set by ChromIQ's helper: asked every few ms while a trigger is held for the\n",
+     "\n"
+     "/* 4.3.52 (Preferences > Beta, under the lights option; the owner, 2026-11-20:\n"
+     " * \"could we allow the user to set the timing himself\"): the quiet time the\n"
+     " * user chose, in ms, 0 to CQ_LIGHTS_QUIET_MAX_MS, set by ChromIQ's helper\n"
+     " * from --lights-quiet-ms. -1, the default and always when the user did not\n"
+     " * set one, = CQ_LIGHTS_QUIET_MS. It changes how long a trigger waits, never\n"
+     " * what is sent. */\n"
+     "int i1pro2_cq_lights_quiet_ms = -1;\n"
+     "\n"
+     "/* Set by ChromIQ's helper: asked every few ms while a trigger is held for the\n"),
+    ("\t\tseq = cq_lights_seq_red2;     size = (int)sizeof(cq_lights_seq_red2);\n"
+     "\t} else {\n",
+     "\t\tseq = cq_lights_seq_red2;     size = (int)sizeof(cq_lights_seq_red2);\n"
+     "\t} else if (which == CQ_LIGHTS_BLUE) {\n"
+     "\t\tseq = cq_lights_seq_blue;     size = (int)sizeof(cq_lights_seq_blue);\n"
+     "\t} else {\n"),
+    ("\tint quiet = i1pro2_cq_lights_quiet_ms_for_test > 0\n"
+     "\t          ? i1pro2_cq_lights_quiet_ms_for_test : CQ_LIGHTS_QUIET_MS;\n"
+     "\tint since, waited = 0;\n",
+     "\tint quiet = i1pro2_cq_lights_quiet_ms_for_test > 0\n"
+     "\t          ? i1pro2_cq_lights_quiet_ms_for_test\n"
+     "\t          : (i1pro2_cq_lights_quiet_ms >= 0 && i1pro2_cq_lights_quiet_ms <= CQ_LIGHTS_QUIET_MAX_MS)\n"
+     "\t          ? i1pro2_cq_lights_quiet_ms : CQ_LIGHTS_QUIET_MS;\n"
+     "\tint since, waited = 0;\n"),
+    ("\tcq_lights_send(p, good ? CQ_LIGHTS_GREEN2 : CQ_LIGHTS_RED2, CQ_LIGHTS_TOUT);\n"
+     "}\n",
+     "\tcq_lights_send(p, good ? CQ_LIGHTS_GREEN2 : CQ_LIGHTS_RED2, CQ_LIGHTS_TOUT);\n"
+     "}\n"
+     "\n"
+     "/* 4.3.52 (Preferences > Beta; the owner, 2026-11-20: \"yes build the blue\n"
+     " * light\"): i1Profiler's blue between the two passes of a dual scan, \"the\n"
+     " * second pass is due\". i1Profiler sent it after pass 1's data was in and\n"
+     " * before the button press for the return pass, while the instrument waited\n"
+     " * for that press (17 of 17 recorded blues; 0.53-0.97 s after pass 1's data).\n"
+     " * ChromIQ's helper calls this from the armed wait of the return pass, and\n"
+     " * only in a dual scan with result signals. Sent only when all of these hold,\n"
+     " * otherwise NOTHING is sent and 0 is returned (skipped, never later):\n"
+     " *  - the lights are in use on this i1Pro 2, with result signals (GREEN2 or\n"
+     " *    RED2 follows the return pass and replaces the blue, as recorded);\n"
+     " *  - the return pass is armed and due: the dual phase is the UV pass and its\n"
+     " *    ruler stream runs (the recorded moment; never in any other reading);\n"
+     " *  - inside that reading's wait (cq_lights_reading), no trigger pending, and\n"
+     " *    the button not pressed yet (RULE A: nothing between the press and the\n"
+     " *    data). A press during the transfer is caught by RULE B: the trigger\n"
+     " *    then waits for the quiet time, as after every light write;\n"
+     " *  - the blue is not already showing: once per return pass, as recorded.\n"
+     " * Returns 1 when the blue went out. */\n"
+     "#include \"cq_dual.h\"\n"
+     "int i1pro2_cq_lights_second_pass(void *pp) {\n"
+     "\ti1pro *p = (i1pro *)pp;\n"
+     "\ti1proimp *m = cq_lights_m(p);\n"
+     "\tif (m == NULL || !m->cq_lights_signals || !m->cq_lights_reading\n"
+     "\t || cq_lights_trigger_pending(m) || cq_lights_pressed(m)\n"
+     "\t || i1pro2_cq_dual_phase(pp) != CQ_DUAL_PHASE_UV\n"
+     "\t || !i1pro2_cq_dual_uv_pass_ready(pp)\n"
+     "\t || (m->cq_lights == CQ_LIGHTS_LIT && m->cq_lights_prog == CQ_LIGHTS_BLUE))\n"
+     "\t\treturn 0;\n"
+     "\tcq_lights_send(p, CQ_LIGHTS_BLUE, CQ_LIGHTS_TOUT);\n"
+     "\treturn m->cq_lights == CQ_LIGHTS_LIT && m->cq_lights_prog == CQ_LIGHTS_BLUE;\n"
+     "}\n"),
+]
+I1PRO_IMP_H_LIGHTS_452 = [
+    ("extern int i1pro2_cq_lights_quiet_ms_for_test;\t/* fake-USB tests only; 0 = 2100 ms */\n"
+     "extern void (*i1pro2_cq_lights_hold_poll)(void);\t/* asked during a hold (4.3.37) */\n",
+     "extern int i1pro2_cq_lights_quiet_ms_for_test;\t/* fake-USB tests only; 0 = 2100 ms */\n"
+     "extern int i1pro2_cq_lights_quiet_ms;\t/* the user's quiet time, ms (4.3.52); -1 = 2100 ms */\n"
+     "int i1pro2_cq_lights_second_pass(void *pp);\t/* dual scan: the blue before the return pass (4.3.52); 1 = sent */\n"
+     "extern void (*i1pro2_cq_lights_hold_poll)(void);\t/* asked during a hold (4.3.37) */\n"),
+]
+# ---- END 4.3.52 ----
 PATCHES = {
     "rspl1.c": [(RSPL1_UPSTREAM, RSPL1_PATCHED)],
     "conv.c": CONV_PATCHES,
@@ -1937,6 +2068,12 @@ PATCHES["i1pro_imp.h"] = _fold_dual(I1PRO_IMP_H_LIGHTS + I1PRO_IMP_H_RULER + I1P
                                     I1PRO_IMP_H_DUAL)
 PATCHES["i1pro_imp.c"] = _fold_dual(I1PRO_IMP_C_LIGHTS + I1PRO_IMP_C_RULER + I1PRO_IMP_C_TOL
                                     + I1PRO_IMP_C_TSCAN, I1PRO_IMP_C_DUAL)
+# 4.3.52: the lights in a dual scan (see the list above). Every pair changes text an
+# earlier patch added (the lights block, its prototypes), so each is folded into that
+# patch's replacement, as the dual scan's hooks are: every recorded patch is still found
+# once in the tree, and undoing them in reverse order still gives ArgyllCMS's own file.
+PATCHES["i1pro_imp.c"] = _fold_dual(PATCHES["i1pro_imp.c"], I1PRO_IMP_C_LIGHTS_452)
+PATCHES["i1pro_imp.h"] = _fold_dual(PATCHES["i1pro_imp.h"], I1PRO_IMP_H_LIGHTS_452)
 
 # (source-relative, dest-name) — dest flat like the instlib zip
 FILES = []
@@ -2083,6 +2220,16 @@ prov.write_text(
     "  after the END of the last light write, a plain wait. No new byte; the\n"
     "  same six recorded sequences; WHITE now only at open. Not yet confirmed\n"
     "  on a real i1Pro 2.\n"
+    "  **Since ChromIQ 4.3.52 (both Beta):** the user may set the quiet time\n"
+    "  (`--lights-quiet-ms`, 0 to 10000 ms, into `i1pro2_cq_lights_quiet_ms`;\n"
+    "  without it 2100 ms as before); it changes only how long a trigger\n"
+    "  waits. And in an i1Pro 2 dual scan with result signals the driver can\n"
+    "  send a seventh recorded sequence, BLUE (702 bytes, the left blue light\n"
+    "  pulsing, sha256 `f848b4e7f588...`, the same in all 23 writes of 6\n"
+    "  i1Profiler 3.8.6 sessions), once per strip, in the return pass's wait\n"
+    "  before its button press, as i1Profiler does (`i1pro2_cq_lights_second_pass`);\n"
+    "  skipped, never sent later, once that button was pressed. No new request.\n"
+    "  These changes are listed one by one in `I1PRO_IMP_C_LIGHTS_452`.\n"
     "- **`i1pro3_imp.c`, `i1pro3_imp.h`, `i1pro3.c`: the same Beta for the\n"
     "  i1Pro 3** (2026-11-13). Its own request and format (0x29, LE32 length,\n"
     "  bytes on bulk endpoint 0x02, Argyll's `i1pro3_indLEDseq`). Exactly four\n"

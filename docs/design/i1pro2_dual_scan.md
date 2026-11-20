@@ -735,6 +735,37 @@ screen against the simulated helper; never on a real instrument. Tests:
 `tests/test_i1pro2_dual_blue_and_quiet_time.py`. Study: ChromIQ-work
 `2026-11-20_pulse452b/quiet_study.txt`.
 
+* **The blue.** With the lights Beta on ("X-Rite i1Pro 2 and i1Pro 3: show the instrument's state
+  with its lights", with "Ready light and result signals") AND the dual scan on, an i1Pro 2 gets
+  i1Profiler's own blue after the first pass of a strip by hand: the left LED pulsing blue
+  (0.63 s per pulse) until the next light command; byte for byte the 702 bytes all 23 recorded
+  writes of 6 i1Profiler 3.8.6 sessions sent (request 0xD6, then bulk 0x03), the only blue form
+  ever recorded. It is sent 0.55 s after pass 1's data is in (recorded: 0.53 to 0.67 s at normal
+  speed, 0.81 to 0.97 s in the slow steps; 0.55 s is the early end, which leaves the most time
+  before the person presses), from the wait for the return pass's button press, with no arming
+  command added or moved; also after a first pass ArgyllCMS did not recognise (as recorded:
+  i1Profiler shows blue there too and red only after the return pass). Green or red follows the
+  return pass as before and replaces it.
+* **What it means, in the texts.** "The second pass of this strip is due". Never a direction:
+  the recorded blue is always on the left, and ChromIQ lets the return pass be read either way.
+  The Measure log says "blue. The second pass of this strip is due."; the app log says
+  `lights: sent=blue meaning=second_pass_due quiet_ms=...`.
+* **Never late, never twice.** If the button is pressed before the blue is due (faster than any
+  recorded case: i1Profiler's presses came 0.33 to 1.35 s after it), the blue is skipped for that
+  strip, never sent during or after the trigger (app log `lights: second_pass=skipped
+  why=early`). The driver refuses it outside the return pass's wait, in a lamp pass, in a single
+  scan, once the button was pressed, while a trigger is pending, without result signals, and a
+  second time in one wait. With "Ready light only" nothing would replace the blue after the
+  return pass, so it is not sent then.
+* **Not held back by the quiet time.** The blue follows i1Profiler's timing. The return pass's
+  trigger then waits, as after every light change, until the quiet time after the blue has
+  passed (below); with the default 2.1 s and i1Profiler's 0.4 to 1.4 s from blue to press, that
+  is 0.7 to 1.7 s of keeping still after the press, said once per sitting in the Measure log.
+* **Off means off.** With the lights Beta or the dual scan off, nothing new is sent and the
+  driver's path is 4.3.51's: proved request for request on the fake USB layer against 4.3.51's
+  driver. The change is in ChromIQ's copy of ArgyllCMS's instrument code (the lights block of
+  `native/instlib/i1pro_imp.c`, re-applied by `scripts/vendor_instlib.py`); the option's help
+  says so.
 * **The quiet time as a setting.** Preferences > Beta, under the lights option and greyed while
   it is off: "i1Pro 2, wait after a light change", 0 to 10 s, default **2.1 s** (4.3.37's value;
   the study found i1Profiler waiting 0.37 s at the least and about 0.46 s as a rule before a

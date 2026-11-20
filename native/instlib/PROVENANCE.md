@@ -77,6 +77,16 @@ stops if one no longer applies.
   after the END of the last light write, a plain wait. No new byte; the
   same six recorded sequences; WHITE now only at open. Not yet confirmed
   on a real i1Pro 2.
+  **Since ChromIQ 4.3.52 (both Beta):** the user may set the quiet time
+  (`--lights-quiet-ms`, 0 to 10000 ms, into `i1pro2_cq_lights_quiet_ms`;
+  without it 2100 ms as before); it changes only how long a trigger
+  waits. And in an i1Pro 2 dual scan with result signals the driver can
+  send a seventh recorded sequence, BLUE (702 bytes, the left blue light
+  pulsing, sha256 `f848b4e7f588...`, the same in all 23 writes of 6
+  i1Profiler 3.8.6 sessions), once per strip, in the return pass's wait
+  before its button press, as i1Profiler does (`i1pro2_cq_lights_second_pass`);
+  skipped, never sent later, once that button was pressed. No new request.
+  These changes are listed one by one in `I1PRO_IMP_C_LIGHTS_452`.
 - **`i1pro3_imp.c`, `i1pro3_imp.h`, `i1pro3.c`: the same Beta for the
   i1Pro 3** (2026-11-13). Its own request and format (0x29, LE32 length,
   bytes on bulk endpoint 0x02, Argyll's `i1pro3_indLEDseq`). Exactly four
@@ -191,8 +201,8 @@ stops if one no longer applies.
 | `rspl1.c` | `5c7b0509abf97f44…` | `d53a8d37b30b6e14…` |
 | `conv.c` | `c6b04014888cb6f4…` | `1b88327ee6e6d9df…` |
 | `i1pro.c` | `ac75b6e3f47537b8…` | `833d46b27134f93e…` |
-| `i1pro_imp.h` | `c37813e4b43a9bff…` | `81624521811bea08…` |
-| `i1pro_imp.c` | `8b8516cdd89e21de…` | `94b93fd79e6d59d3…` |
+| `i1pro_imp.h` | `c37813e4b43a9bff…` | `01a052025646d97d…` |
+| `i1pro_imp.c` | `8b8516cdd89e21de…` | `2104668615663e3c…` |
 | `i1pro3.c` | `9c4b1ac9f8af507a…` | `347235c6d10f9677…` |
 | `i1pro3_imp.h` | `190cceb46fe8bc33…` | `ef7245eb1a92eb5e…` |
 | `i1pro3_imp.c` | `42c684afa3bbb15d…` | `d78f1a6596886bf6…` |
