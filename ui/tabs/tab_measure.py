@@ -12581,8 +12581,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if not kind:
             return text
         link = tr("Don't show this again")
-        return ('<span>{}</span>&nbsp;&nbsp;&nbsp;<a href="dual-hide:{}" '
-                'style="font-weight: normal;">{}</a>').format(
+        # the link never breaks in two: where the line is too long it goes whole to a
+        # second line (photographed 2026-11-20: "Don't show this / again")
+        return ('<span>{}</span>&nbsp;&nbsp;&nbsp;<span style="white-space: nowrap;">'
+                '<a href="dual-hide:{}" style="font-weight: normal;">{}</a></span>').format(
                     html.escape(text, quote=False), html.escape(kind, quote=True),
                     html.escape(link, quote=False))
 
