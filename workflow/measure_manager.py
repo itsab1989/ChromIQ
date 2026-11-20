@@ -4719,6 +4719,12 @@ class MeasureManager(QObject):
                     # the saving is known (before the strip's verdict)
                     for _ln in _summ.get("log_lines") or ():
                         on_line(" " + _ln)
+            # A3 (4.3.50): the strip's line BEFORE the tab's windows open
+            # (they run inside this emit), so it precedes their answers
+            self._log_strip_read(ev, _s, _patches, _net0, _part, _twice,
+                                 bool((ev.get("ruler") or {}).get("ask")
+                                      or (ev.get("ruler") or {}).get("ask_direction")),
+                                 None)
             self.strip_measured.emit(ev)
             if _part is not None:
                 # One question, worded for what was found: part of the strip,
@@ -4741,8 +4747,6 @@ class MeasureManager(QObject):
             else:
                 on_line(f" Strip read OK — {ev.get('strip', '?')} "
                         f"(worst patch ΔE {ev.get('worst_de', 0):.1f})")
-            self._log_strip_read(ev, _s, _patches, _net0, _part, _twice,
-                                 _asked, _answer)
             if self._guided_state == "waiting":
                 self._advance_guided_strip(on_line)
 

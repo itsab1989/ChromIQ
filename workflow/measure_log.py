@@ -39,7 +39,7 @@ def chart_summary(ti2_path) -> dict:
         if p.is_file():
             with open(p, "r", encoding="utf-8", errors="replace") as fh:
                 for n, raw in enumerate(fh):
-                    if raw.startswith("BEGIN_DATA") or n > 400:
+                    if raw.strip() == "BEGIN_DATA" or n > 400:
                         break
                     parts = raw.strip().split(None, 1)
                     if len(parts) == 2 and parts[0] in _TI2_KEYS:
@@ -98,7 +98,8 @@ def log_start(params, *, reader: str, helper_build: str = "", ruler: bool = Fals
             mode += "+xy_tables"
         if getattr(params, "external_values", False):
             mode += "+external_values"
-        line("measure start", reader=reader, helper_build=helper_build or "-",
+        from workflow.ti3_provenance import short_build
+        line("measure start", reader=reader, helper_build=short_build(helper_build) or "-",
              instrument_port=params.instrument, chart=cs.get("chart"),
              chart_instrument=cs.get("chart_instrument"), patches=cs.get("patches"),
              pages=cs.get("pages"), strips=cs.get("strips"),

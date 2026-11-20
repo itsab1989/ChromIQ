@@ -118,16 +118,20 @@ def tools_line(argyll_dir: str) -> str:
         version = text.split(",")[0] if text and not text.startswith("installed") else "-"
     except Exception:      # noqa: BLE001
         pass
-    build, helper = "-", "-"
+    build, helper, caps = "-", "-", ""
     try:
         from workflow.chartread_engine import helper_build, helper_path
         hp = helper_path()
         helper = str(hp)
-        build = helper_build(hp) or "-"
+        from workflow.ti3_provenance import short_build
+        full = helper_build(hp) or ""
+        build = short_build(full) or "-"
+        caps = full.split("+", 1)[1] if "+" in full else ""
     except Exception:      # noqa: BLE001
         helper = "not present"
     return (f"session: tools argyll={version} argyll_dir={argyll_dir or '-'} "
-            f"argyll_found_by={show(source)} helper_build={show(build)} helper={helper}")
+            f"argyll_found_by={show(source)} helper_build={show(build)} helper={helper}"
+            + (f" helper_caps={caps}" if caps else ""))
 
 
 def write_session_header(settings, *, tools_in_background: bool = True) -> None:

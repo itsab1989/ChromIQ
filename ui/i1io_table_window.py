@@ -4731,7 +4731,7 @@ def _applog_table_result(win, res) -> None:
                                          for p in job.alignment.readings)
             except Exception:      # noqa: BLE001
                 pass
-        level = logging.INFO if res.kind in ("ok", "needs") else logging.WARNING
+        level = logging.INFO if res.kind in ("ok", "needs", "needs_confirmation") else logging.WARNING
         kv = dict(step=res.step, kind=res.kind, reason=res.reason or None,
                   confirm=res.confirm, way_back=res.way_back,
                   page=(job.page + 1) if job is not None else None,

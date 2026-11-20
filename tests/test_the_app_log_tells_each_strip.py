@@ -112,7 +112,8 @@ def test_the_measurement_start_line_says_what_is_in_effect(caplog, tmp_path):
     from workflow.measure_log import log_start
     ti2 = tmp_path / "T.ti2"
     ti2.write_text('CTI2\nTARGET_INSTRUMENT "X-Rite i1Pro 2"\nSTEPS_IN_PASS "18"\n'
-                   'PASSES_IN_STRIPS2 "18,18,3"\nNUMBER_OF_SETS 702\nBEGIN_DATA\n',
+                   'PASSES_IN_STRIPS2 "18,18,3"\nNUMBER_OF_FIELDS 2\nBEGIN_DATA_FORMAT\n'
+                   'SAMPLE_ID SAMPLE_LOC\nEND_DATA_FORMAT\nNUMBER_OF_SETS 702\nBEGIN_DATA\n',
                    encoding="utf-8")
     p = MeasureParams(ti1_path=tmp_path / "T.ti1", high_res=True, extra_args="-F M1",
                       engine_safenet=True)
