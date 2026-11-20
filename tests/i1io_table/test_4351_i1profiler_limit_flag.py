@@ -47,6 +47,7 @@ NOT_FLAGGED = {
     "M-I1IO-DRIVE-NOT-I1IO2": "the table here is not an i1iO 2: the notice may be false",
     "M-I1IO-DRIVE-CONSENT": "states the limit itself",
     "M-I1IO-DRIVE-ARM-WAY-OUT": "states the limit itself",
+    "M-I1IO-DRIVE-ARM-WAY-OUT-ENDED": "states the limit itself (4.3.52, the done page)",
     "M-I1IO-DRIVE-I1PROFILER-LIMIT": "is the notice",
 }
 

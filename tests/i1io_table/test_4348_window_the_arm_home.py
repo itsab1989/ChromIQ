@@ -65,7 +65,8 @@ def test_start_with_the_arm_out_brings_it_home_and_goes_on(qtbot, monkeypatch, t
     _press_arm_out(win, p)
     assert p.page() == "home_at_start", win.pages_shown[-3:]
     text = win._text.text()
-    assert tr("The arm is not at its resting place. ChromIQ brings it there now.") in text
+    # 4.3.52 review 2, S-2: the page waits for the answer, so "can", not "now"
+    assert tr("The arm is not at its resting place. ChromIQ can bring it there.") in text
     assert "i1Profiler" not in text and "record" not in text
     assert p.labels() == ["Not now", "Bring the arm home, my hands are away"]
     assert sim.sim.received[11:] == [";p025"]            # read once, nothing moved

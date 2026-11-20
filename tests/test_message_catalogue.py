@@ -185,6 +185,8 @@ AWAITING_APPROVAL: "set[str]" = {
     # 2026-11-20, 4.3.51, the owner's decision: when it does not work
     "M-I1IO-DRIVE-HOME-TRY-FAILED",
     "M-I1IO-DRIVE-ARM-WAY-OUT", "M-I1IO-DRIVE-I1PROFILER-LIMIT",
+    # 2026-11-20, 4.3.52 review 2 (S-1): the done page's way home, power switch first
+    "M-I1IO-DRIVE-ARM-WAY-OUT-ENDED",
     "M-I1IO-DRIVE-DUAL-CONTINUE-FILL",
     "M-I1IO-DRIVE-DUAL-FILL-OFFER",
     "M-I1IO-NOT-YET-SIDE-FILE",

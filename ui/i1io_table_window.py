@@ -4863,11 +4863,9 @@ class TableMeasureWindow(QFrame):
             elif st.mode_on:
                 way = M.M_I1IO_DRIVE_LEFT_OUT.render()[1]
             else:
-                # 4.3.50 (table re-review, SHOULD-5): the same honesty as LEFT-OUT
-                way = _old_i1p(tr("The arm stayed extended over the table. Stay beside the table, with its "
-                         "power switch in reach, and open i1Profiler 3.8.6 or older once and let "
-                         "it find the table. It should bring the arm home, but no recording "
-                         "shows it doing that from where the arm is now."))
+                # 4.3.52 (review 2, S-1): the way the stop page gave (ARM-WAY-OUT), without its
+                # End measurement step: the power switch first, i1Profiler last with its limit
+                way = M.M_I1IO_DRIVE_ARM_WAY_OUT_ENDED.render()[1]
             body = way + "\n\n" + body
         elif wb not in ("none", "home_offered"):
             msgs = {"switch_off_pending": M.M_I1IO_DRIVE_SWITCH_OFF,
