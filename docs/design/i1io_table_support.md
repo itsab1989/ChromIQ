@@ -1465,9 +1465,18 @@ nothing of it has run on a real table.
   measurement; not between rows. Nothing is sent during it (the table is only listened to); Stop
   ends it before any line (`stopped_before_the_next_move`), the power switch as always. It is
   what satisfies the hands-off guard: without it a movement after a question is refused. The
-  panel shows it as a page (M-I1IO-DRIVE-COUNTDOWN) with Stop below; in the pop-up presentation
-  no pop-up opens while a job call runs, so the Measure tab's notice area shows it, with the tab's
-  own Stop.
+  panel shows it as a page (M-I1IO-DRIVE-COUNTDOWN) with Stop below. In the pop-up presentation
+  (fix round, safety review S-1: a strip under the preview was easy to miss while the person
+  stands at the table) it opens as its own pop-up, its title large, with ONE button, Stop (no
+  answer, no End measurement, which is ignored while the job runs), and its first paragraph also
+  in the Measure tab's notice area. It is the one pop-up open during a job call (conditions 2 and
+  3 as refined here): it asks nothing, and the job tells its end one slice (0.1 s) before the arm
+  moves, so it is closed before the first line. As it opens it plays "Instrument error" (W-1;
+  through the person's sound settings, so silent with "Play sounds during measurement" off: W-3),
+  Knut's "attention" sound (`measurement_window_sounds.md` §4b); later seconds play nothing.
+  THE SOUND IS OURS, awaiting confirmation (`POPUP_SOUND["countdown"]`). Its second paragraph is
+  the first page's instructions, which cost no click there: "Please check: only your sheet lies
+  on the table, and the arm's height is set for this paper." (S-2).
 * **The consent page, version 4.** DECIDED BY US, NOT BY THE OWNER: its text gains
   M-I1IO-DRIVE-CONSENT-GUIDANCE (the reader's facts, the guidance and its countdown, "Please stay
   beside the table", the alarm sentence), so every user of the table Beta sees the page once more

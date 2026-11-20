@@ -10734,15 +10734,17 @@ alone.
 
 *Revised 2026-11-17 (owner-results round: the volunteer's two sessions and one recording of 17 Nov 2026 on a real i1iO 2): i1Profiler found the instrument and the table normally afterwards on that Mac.*
 
-### M-I1IO-DRIVE-COUNTDOWN · PROPOSED · with "Guided, step by step measurement" off, before the arm moves, in place of the hands-off question, Measure (the i1iO table window, or the Measure tab's notice area in the pop-up presentation)
+### M-I1IO-DRIVE-COUNTDOWN · PROPOSED · with "Guided, step by step measurement" off, before the arm moves, in place of the hands-off question, Measure (the i1iO table window; in the pop-up presentation its own pop-up, with the first paragraph also in the Measure tab's notice area)
 
-*New 2026-11-20 for 4.3.52. The countdown is DECIDED BY US, NOT BY THE OWNER (he said "without interruptions"); job.UNGUIDED_COUNTDOWN_S (3 s) sets it, 0 removes it. The number counts down; Stop keeps the arm where it is (nothing is sent during it). No answer. Shown in betas as a proposed text (Knut, 2026-10-14); approved afterwards.*
+*Revised 2026-11-20 (fix round, safety review S-1 / S-2): in the pop-up presentation it opens as a large pop-up with one button, Stop, and plays "Instrument error" as it opens (awaiting confirmation, i1io_table_support.md); the second paragraph brings the first page's instructions, which the guidance off does not show as a page. New 2026-11-20 for 4.3.52. The countdown is DECIDED BY US, NOT BY THE OWNER (he said "without interruptions"); job.UNGUIDED_COUNTDOWN_S (3 s) sets it, 0 removes it. The number counts down; Stop keeps the arm where it is (nothing is sent during it). No answer. Shown in betas as a proposed text (Knut, 2026-10-14); approved afterwards.*
 
 > **The arm is about to move**
 >
 > The arm moves in {n} seconds. Please keep your hands away from the table and the arm. To keep the arm where it is, press Stop.
+>
+> Please check: only your sheet lies on the table, and the arm's height is set for this paper.
 
-With {n} = 1: "The arm moves in 1 second. Please keep your hands away from the table and the arm. To keep the arm where it is, press Stop."
+With {n} = 1: "The arm moves in 1 second. Please keep your hands away from the table and the arm. To keep the arm where it is, press Stop." and the same second paragraph.
 
 ### M-I1IO-DRIVE-START-UP-ARM · PROPOSED · with "Guided, step by step measurement" off, a table that was just switched on: the one arm question (the owner, W9), Measure (the i1iO table window)
 

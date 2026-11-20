@@ -1155,6 +1155,7 @@ class TableJob:
             left_shown = math.ceil(seconds)
             self._progress(event="countdown", left=left_shown, seconds=seconds, step=step)
             end = d.t.now() + seconds
+            ended_said = False
             while True:
                 if self._pause_stop:
                     self._pause_stop = False
@@ -1165,12 +1166,19 @@ class TableJob:
                 left = end - d.t.now()
                 if left <= 0:
                     break
+                if not ended_said and left <= COUNTDOWN_SLICE_S + 1e-9:
+                    # fix round, S-1: the end is told one slice BEFORE the arm moves, so the
+                    # window closes the countdown's pop-up before the first line (nothing
+                    # moves while a pop-up is open); a Stop in this last slice still ends it
+                    ended_said = True
+                    self._progress(event="countdown_end", stopped=False)
                 d.c_wait(min(COUNTDOWN_SLICE_S, left))
                 n = math.ceil(max(0.0, end - d.t.now()))
-                if n != left_shown and n > 0:
+                if n != left_shown and n > 0 and not ended_said:
                     left_shown = n
                     self._progress(event="countdown", left=n, seconds=seconds, step=step)
-            self._progress(event="countdown_end", stopped=False)
+            if not ended_said:
+                self._progress(event="countdown_end", stopped=False)
         entry["result"] = "done"
         self._mark_answered()
         self._hands_off_due = False

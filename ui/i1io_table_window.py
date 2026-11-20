@@ -113,6 +113,10 @@ POPUP_SOUND = {
     "usb_missing": "INSTRUMENT_ERROR", "stored_white_refused": "INSTRUMENT_ERROR",
     "white_later_refused": "INSTRUMENT_ERROR",
     "pending_marker": "INSTRUMENT_ERROR",
+    # fix round, S-1 (awaiting confirmation): the countdown before the arm moves with the
+    # guidance off, as its pop-up opens (W-1), through the person's sound settings: Knut's
+    # "attention" sound (measurement_window_sounds.md §4b)
+    "countdown": "INSTRUMENT_ERROR",
 }
 
 
@@ -1473,10 +1477,16 @@ class TablePopup(QDialog):
         self.end_btn.setObjectName("i1io_table_popup_end")
         self.close_btn = QPushButton(tr("Close"), self.foot)
         self.close_btn.setObjectName("i1io_table_popup_close")
+        #: fix round, S-1: the countdown page's only button (the tab's Stop is behind the modal
+        #: pop-up): stops before the arm moves, as the tab's Stop does
+        self.stop_btn = QPushButton(tr("Stop"), self.foot)
+        self.stop_btn.setObjectName("i1io_table_popup_stop")
+        self.stop_btn.setMinimumHeight(46)
         self.foot.addButton(self.problem_btn, QDialogButtonBox.ButtonRole.HelpRole)
         self.foot.addButton(self.end_btn, QDialogButtonBox.ButtonRole.DestructiveRole)
         self.foot.addButton(self.close_btn, QDialogButtonBox.ButtonRole.RejectRole)
-        for b in (self.problem_btn, self.end_btn, self.close_btn):
+        self.foot.addButton(self.stop_btn, QDialogButtonBox.ButtonRole.DestructiveRole)
+        for b in (self.problem_btn, self.end_btn, self.close_btn, self.stop_btn):
             # the height the application's button style gives (a fixed 32 px, as the hand
             # path's horizontal rows set, was overridden by the style's own minimum and the
             # last button of a stacked box was cut: measured on screen)
@@ -1487,6 +1497,7 @@ class TablePopup(QDialog):
         self.problem_btn.clicked.connect(win._on_problem)
         self.end_btn.clicked.connect(win._on_end_pressed)
         self.close_btn.clicked.connect(win._on_close_pressed)
+        self.stop_btn.clicked.connect(win._on_stop)
         lay.addWidget(self.foot)
         #: where the window last put the pop-up (a later difference is the person's move)
         self.placed_at = None
@@ -1987,6 +1998,9 @@ class TableMeasureWindow(QFrame):
             self._popup.end_btn.setStyleSheet(qss)
         mark_destructive(self._popup.end_btn)
 
+    #: fix round, S-1: the countdown's title, large
+    COUNTDOWN_TITLE_QSS = "QLabel { font-size: 22pt; font-weight: 600; }"
+
     #: review 14, S-1: a hands-off answer in its first moment: shown, but not yet pressable
     NOT_READY_QSS = ("\nQPushButton:disabled { background: transparent; color: #8a8a8a;"
                      " border: 1px dashed #8a8a8a; }")
@@ -2047,13 +2061,18 @@ class TableMeasureWindow(QFrame):
                  (pop.close_btn, self._close_btn))
         # the ending itself offers no End measurement (it IS the ending)
         on_ending = getattr(self, "_page_id", "") in ("end_of_session", "done")
+        counting = getattr(self, "_page_id", "") == "countdown"
+        pop.stop_btn.setVisible(counting)
+        if counting:
+            pop.stop_btn.setStyleSheet(getattr(self, "_stop_qss", "") or stop_button_qss(
+                "QPushButton#i1io_table_popup_stop"))
         for mine, theirs in pairs:
             mine.setVisible(not theirs.isHidden() and mine.text() not in labels
-                            and not (on_ending and mine is pop.end_btn)
+                            and not ((on_ending or counting) and mine is pop.end_btn)
                             and not (getattr(self, "_page_id", "") == "problem"
                                      and mine is pop.problem_btn))
             mine.setEnabled(theirs.isEnabled())
-        pop.foot.setVisible(any(not b.isHidden() for b, _t in pairs))
+        pop.foot.setVisible(counting or any(not b.isHidden() for b, _t in pairs))
 
     def _present_popup(self, page_id: str, title: str) -> None:
         """Open (or refresh) the pop-up for the page just built: only when an answer is
@@ -2061,8 +2080,10 @@ class TableMeasureWindow(QFrame):
         pop = self._popup
         if pop is None:
             return
-        if self._busy:
-            # never over a running step (condition 3); the step's result builds the next page
+        if self._busy and page_id != "countdown":
+            # never over a running step (condition 3); the step's result builds the next page.
+            # The one exception is the countdown (fix round, S-1): it asks nothing, only Stop,
+            # and it is closed one slice before the arm moves (job._countdown)
             log.warning("i1iO table: a page was built while a step runs; no pop-up for %s",
                         page_id)
             return
@@ -2581,6 +2602,8 @@ class TableMeasureWindow(QFrame):
             # decides (needs_old_i1profiler), never the wording (re-review S1, S2)
             text = text + "\n\n" + _M.M_I1IO_DRIVE_I1PROFILER_LIMIT.render()[1]
         self._title.setText(title)
+        # fix round, S-1: the countdown is shown large (both presentations)
+        self._title.setStyleSheet(self.COUNTDOWN_TITLE_QSS if page_id == "countdown" else "")
         self._text.setText(text)
         self._scroll.verticalScrollBar().setValue(0)
         made_ticks = []
@@ -2862,6 +2885,7 @@ class TableMeasureWindow(QFrame):
         self._buttons = []
         self._tick_widgets = []
         self._page_id = "working"
+        self._title.setStyleSheet("")
         self._title.setText(status or tr("The table is working"))
         QTimer.singleShot(0, self._fit_text)
         self._text.setText(tr("Please keep your hands away from the table and the arm while it "
@@ -4896,9 +4920,13 @@ class TableMeasureWindow(QFrame):
     # ---- 4.3.52: the countdown (guidance off) ----------------------------------------------
     def _countdown_event(self, ev: dict) -> None:
         """The job counts down before the arm moves (it sends nothing meanwhile): the panel
-        shows the countdown page with its Stop below; in the pop-up presentation no pop-up opens
-        while a job call runs (condition 2), so the Measure tab's notice area shows it, with
-        the tab's own Stop beside it. Display only; never raises."""
+        shows the countdown page with its Stop below. In the pop-up presentation (fix round,
+        safety review S-1: a strip under the preview is easy to miss while the person stands at
+        the table) the countdown opens as the table's own pop-up page, large, with ONE button,
+        Stop, and its sound (POPUP_SOUND, through the person's sound settings); the notice
+        area shows it too. It is the one pop-up open during a job call: it asks nothing, and the
+        job tells its end one slice before the arm moves, so it is closed before the first
+        line. Display only; never raises."""
         try:
             kind = ev.get("event")
             if kind not in ("countdown", "countdown_end"):
@@ -4910,19 +4938,21 @@ class TableMeasureWindow(QFrame):
                 first = not getattr(self, "_counting", False)
                 self._counting = True
                 self.countdowns_seen.append(n)
-                if first and self._popups:
-                    # (the panel's page writes its own line)
-                    _applog_table_page(self, "countdown", title, [])
                 if self._popups:
-                    self.notice.emit(body)
+                    self.notice.emit(body.split("\n\n")[0])
                     if first:
                         self._say(body)
+                        self._show("countdown", title, body)
+                    elif getattr(self, "_page_id", "") == "countdown":
+                        self._text.setText(body)
                 else:
                     self._show("countdown", title, body)
                     self._status.setText(tr("Stop below keeps the arm where it is."))
                 return
             self._counting = False
             if self._popups:
+                if getattr(self, "_page_id", "") == "countdown":
+                    self._show_working()          # closes the pop-up (condition 2)
                 if self._guidance_off_now():
                     self.notice.emit(self.guidance_notice_text())
                 elif self.job is not None and getattr(self.job, "turned_guided", None):

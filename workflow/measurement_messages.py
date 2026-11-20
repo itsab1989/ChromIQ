@@ -13032,10 +13032,14 @@ M_I1IO_DRIVE_COUNTDOWN = _m(
     "M-I1IO-DRIVE-COUNTDOWN",
     "The arm is about to move",
     "The arm moves in {n} seconds. Please keep your hands away from the table and the "
-    "arm. To keep the arm where it is, press Stop.",
+    "arm. To keep the arm where it is, press Stop.\n\n"
+    "Please check: only your sheet lies on the table, and the arm's height is set for this "
+    "paper.",
     body_one=(
         "The arm moves in 1 second. Please keep your hands away from the table and the "
-        "arm. To keep the arm where it is, press Stop."),
+        "arm. To keep the arm where it is, press Stop.\n\n"
+        "Please check: only your sheet lies on the table, and the arm's height is set for "
+        "this paper."),
     count_key="n", approved=False)
 
 M_I1IO_DRIVE_START_UP_ARM = _m(
