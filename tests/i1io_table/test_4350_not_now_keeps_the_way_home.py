@@ -158,6 +158,10 @@ def test_a_new_start_after_not_now_and_close_says_its_real_cause_and_moves_nothi
     assert win._title.text() == tr(title)
     text = win._text.text()
     assert "still in its aiming mode" in text and "Nothing was read" in text
+    # found on screen: the job holds the table until End measurement, so the page says so first
+    # (i1Profiler cannot find the table before that) and never that the connection has ended
+    assert "1. Press End measurement" in text and "ended its connection" not in text
+    assert tr("End measurement") in p.labels() and sim.jobs[-1].phase == "open"
     for wrong in ("you can still save them", "stopped while the arm was free",
                   "it brings the arm home", "Your readings so far are kept"):
         assert wrong not in text, wrong

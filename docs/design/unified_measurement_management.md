@@ -10984,10 +10984,11 @@ alone.
 > The table reports that it is still in its aiming mode, the mode in which you aim at the marks by hand. Most likely an earlier measurement ended with the arm out over the table, before the arm was brought home. ChromIQ cannot start a new measurement on a table in this mode, so it has sent nothing that could move the arm. Nothing was read.
 >
 > What you can do:
-> 1. Stay beside the table, with its power switch in reach. Open i1Profiler 3.8.6 or older once and let it find the table. It should bring the arm home, but no recording shows how it does that for a table in this mode.
-> 2. When the arm is at its resting place, quit i1Profiler. Then press START MEASUREMENT again.
+> 1. Press End measurement. Until you do, ChromIQ still holds the table's connection, and i1Profiler cannot find the table.
+> 2. Stay beside the table, with its power switch in reach. Open i1Profiler 3.8.6 or older once and let it find the table. It should bring the arm home, but no recording shows how it does that for a table in this mode.
+> 3. When the arm is at its resting place, quit i1Profiler. Then press START MEASUREMENT again.
 >
-> ChromIQ has ended its connection to the table. Please send us the diagnostics file of this measurement: {log}.
+> Please send us the diagnostics file of this measurement: {log}.
 
 ### M-I1IO-DRIVE-STOPPED-AT-OPENING · PROPOSED · ChromIQ stopped at the opening, before anything was read, Measure (the i1iO table window)
 

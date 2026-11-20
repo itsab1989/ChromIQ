@@ -13192,13 +13192,14 @@ M_I1IO_DRIVE_STILL_AIMING = _m(
     "before the arm was brought home. ChromIQ cannot start a new measurement on a table in this "
     "mode, so it has sent nothing that could move the arm. Nothing was read.\n\n"
     "What you can do:\n"
-    "1. Stay beside the table, with its power switch in reach. Open i1Profiler 3.8.6 or older "
+    "1. Press End measurement. Until you do, ChromIQ still holds the table's connection, and "
+    "i1Profiler cannot find the table.\n"
+    "2. Stay beside the table, with its power switch in reach. Open i1Profiler 3.8.6 or older "
     "once and let it find the table. It should bring the arm home, but no recording shows how "
     "it does that for a table in this mode.\n"
-    "2. When the arm is at its resting place, quit i1Profiler. Then press START MEASUREMENT "
+    "3. When the arm is at its resting place, quit i1Profiler. Then press START MEASUREMENT "
     "again.\n\n"
-    "ChromIQ has ended its connection to the table. Please send us the diagnostics file of this "
-    "measurement: {log}.",
+    "Please send us the diagnostics file of this measurement: {log}.",
     approved=False)
 
 #: 4.3.50 fix round (MUST-1): ChromIQ stopped at the opening, before anything was read (never
