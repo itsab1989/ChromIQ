@@ -998,6 +998,9 @@ class MeasureManager(QObject):
         #: the chart in THIS session: every "all done" after it is the engine
         #: re-arming a strip of a finished chart, not news (4.3.5 beta 4).
         self._completion_shown = False
+        #: A3 (4.3.50): the app log's one line per strip (attempts, seconds)
+        from workflow.measure_log import StripLog
+        self._strip_log = StripLog()
         self._read_order = []
         self._loc_strip = {}
         self._padding_locs = set()
@@ -1310,6 +1313,7 @@ class MeasureManager(QObject):
             eargs += list(params.gesture_args or [])
             eargs += args
             log.info("chromiq-chartread: %s  [cwd=%s]", " ".join(eargs), cwd)
+            self._log_measure_start(params, eargs)
             self._runner.run(
                 str(params.engine_helper),
                 eargs,
@@ -1320,7 +1324,97 @@ class MeasureManager(QObject):
             )
             return
 
+        self._log_measure_start(params, None)
         self._launch_stock(args, cwd, on_line, _on_finish)
+
+    def _log_strip_read(self, ev, strip, patches, net0, part, twice, asked,
+                        answer) -> None:
+        """A3 (4.3.50): the app log's line for an accepted strip: every check's
+        verdict with its score and limit. Never raises."""
+        try:
+            sl = getattr(self, "_strip_log", None)
+            if sl is None:
+                return
+            from workflow import slipped_strip as _ss
+            from workflow import strip_read_twice as _rt
+            checks: dict = {"mode": "strip", "worst_de": ev.get("worst_de"),
+                            "patches": len(patches) if isinstance(patches, list) else patches,
+                            "reversed": bool(ev.get("reversed")) or None}
+            try:
+                net = int(net0 or 0)
+            except (TypeError, ValueError):
+                net = 0
+            checks["engine_net"] = ("misaligned" if net else
+                                    "ok" if self._safenet_on else "off")
+            if net:
+                checks["engine_net_offset"] = net
+            if part is not None:
+                finder = (f"shift_score_{part.get('kind')}_{part.get('shift_k')}"
+                          if part.get("shift_k") else
+                          "reversed" if part.get("reversed") else "slipped_run")
+                checks["slip"] = "found"
+                checks["slip_finder"] = finder
+                checks["slip_patches"] = f"{part.get('first')}-{part.get('last')}"
+                checks["slip_offset"] = part.get("offset")
+                checks["slip_de00_as_read"] = part.get("base")
+                checks["slip_de00_shifted"] = part.get("best")
+                checks["slip_limits_de76"] = f"trigger>{_ss.TRIGGER_DE},fit<{_ss.GOOD_DE}"
+            else:
+                checks["slip"] = "ok" if self._safenet_on else "off"
+            if twice is not None:
+                checks["read_twice"] = f"like_{twice.like}"
+                checks["read_twice_median_de76"] = twice.median_de76
+                checks["read_twice_limit_de76"] = _rt.THRESHOLD_DE76
+            else:
+                checks["read_twice"] = "ok"
+            r = ev.get("ruler") if isinstance(ev.get("ruler"), dict) else None
+            if r is not None:
+                checks["ruler"] = ("asks_not_covered" if r.get("ask") else
+                                   "asks_direction" if r.get("ask_direction") else
+                                   "ok" if r.get("usable") else "not_usable")
+                checks["ruler_coverage_steps"] = r.get("coverage_steps")
+                checks["ruler_span_steps"] = r.get("span_steps")
+                checks["ruler_travel_mm"] = r.get("travel_mm")
+                if answer:
+                    checks["ruler_answer"] = answer
+            if asked and answer == "reread":
+                result = "reread"
+            elif net or part is not None or twice is not None or asked:
+                result = "asked"
+            else:
+                result = "kept"
+            sl.decided(strip or "?", result, **checks)
+        except Exception:      # noqa: BLE001
+            log.debug("strip line not written", exc_info=True)
+
+    def _log_measure_start(self, params, eargs) -> None:
+        """A2 (4.3.50): the one app-log line with what is in effect for this
+        measurement. Reads only what the start already decided and the
+        helper's build from the cache (never starts the helper). Never raises."""
+        try:
+            from workflow.measure_log import log_start
+            if eargs is None:
+                log_start(params, reader="stock")
+                return
+            from workflow.chartread_engine import helper_build_cached
+            if params.engine_dual_args:
+                dual = "on" if self._dual_requested else "off(helper_cannot_or_no_condition_dir)"
+            else:
+                dual = "off"
+            log_start(params, reader="engine",
+                      helper_build=helper_build_cached(params.engine_helper),
+                      ruler=getattr(self, "_ruler", None) is not None, dual=dual,
+                      lights=bool(self._lights_option),
+                      conditions=("on" if "--condition-dir" in eargs else
+                                  "off" if params.engine_condition_dir is None else
+                                  "off(helper_cannot)"))
+            if "--condition-dir" in eargs:
+                from core.app_log import line
+                line("conditions start", folder=str(params.engine_condition_dir),
+                     dual_scan=self._dual_requested,
+                     dual_args=" ".join(params.engine_dual_args or ()) or None)
+        except Exception:      # noqa: BLE001
+            log.debug("measure start line not written", exc_info=True)
 
     def _refuse_system_port(self, tool: "str | Path", args: list[str],
                             on_finish: Callable[[int], None]) -> bool:
@@ -3326,6 +3420,10 @@ class MeasureManager(QObject):
         anything. ``r`` means "any other key" at the prompt and is inert at the
         menu, so it is safe whichever one is listening.
         """
+        if getattr(self, "_strip_log", None) is not None:
+            self._strip_log.decided(getattr(self, "_dual_strip_now", "") or "?",
+                                    "skipped", by="person",
+                                    mode="patch" if self._spot_mode else "strip")
         if self._engine_active and self._spot_mode:
             if self._at_retry_prompt:
                 self._pending_post_retry_key = "f"
@@ -4225,6 +4323,9 @@ class MeasureManager(QObject):
                 self._dual_strip_now = str(ev.get("strip") or "")
             elif kind == "spot_ready":
                 self._dual_strip_now = ""
+        if kind in ("strip_ready", "spot_ready") and getattr(self, "_strip_log", None) is not None \
+                and self._strip_log.clock is None:
+            self._strip_log.ready()
 
         if kind == "session_start":
             self.gestures_active = False
@@ -4447,6 +4548,14 @@ class MeasureManager(QObject):
             self._dual_pass_due = ""
             log.info("engine: dual scan pass result %s", ev)
             self.dual_pass_result.emit(dict(ev))
+            try:
+                self._strip_log.dual[str(ev.get("strip") or "?").strip()] = {
+                    "ok": ev.get("ok"), "why": ev.get("why") or None,
+                    "pairing": ev.get("pairing") or None,
+                    "uv_readings": ev.get("uv_readings"),
+                    "fewest_per_patch": ev.get("fewest_per_patch")}
+            except Exception:      # noqa: BLE001
+                pass
 
         elif kind in ("ruler", "ruler_strip"):
             # The ruler check (Preferences > Beta, 2026-11-14): lines for the
@@ -4550,6 +4659,7 @@ class MeasureManager(QObject):
             # Before the emit, so the judge already knows this reading must
             # not confirm anything (#210), exactly as for a strip the engine's
             # own net flagged.
+            _net0 = ev.get("misaligned")
             _part = self._check_part_of_strip_slipped(ev, _patches)
             _twice = self._check_read_twice(_s, _patches)
             # The i1Pro 2's result signals: a strip ChromIQ is about to ask
@@ -4608,6 +4718,8 @@ class MeasureManager(QObject):
             else:
                 on_line(f" Strip read OK — {ev.get('strip', '?')} "
                         f"(worst patch ΔE {ev.get('worst_de', 0):.1f})")
+            self._log_strip_read(ev, _s, _patches, _net0, _part, _twice,
+                                 _asked, _answer)
             if self._guided_state == "waiting":
                 self._advance_guided_strip(on_line)
 
@@ -4805,12 +4917,16 @@ class MeasureManager(QObject):
             # The engine opened the device and reports what it actually is.
             self._engine_model = str(ev.get("model") or "")  # R4
             self.instrument_detected.emit(str(ev.get("model") or ""))
+            from core.app_log import flat, line
+            line("measure instrument", **flat({k: v for k, v in ev.items() if k != "event"}))
 
         elif kind == "filter":
             # R4 (4.3.39): the filter the i1Pro family's driver reads through
             # (a physical UV-cut filter, or its mode's), for the measurement
             # condition this session records when no -F was chosen.
             self.engine_filter = str(ev.get("filter") or "") or None
+            from core.app_log import line
+            line("measure filter", filter=self.engine_filter)
             _rs = getattr(self, "_ruler", None)
             if _rs is not None:
                 from workflow.measurement_condition import default_condition
@@ -4918,6 +5034,13 @@ class MeasureManager(QObject):
                                       str(ev.get("expected", "?")).upper())
             else:
                 self.unexpected_response.emit(f"{ev.get('worst_de', 0):.2f}")
+            if getattr(self, "_strip_log", None) is not None:
+                self._strip_log.decided(
+                    str(ev.get("strip") or ev.get("read") or
+                        getattr(self, "_dual_strip_now", "") or "?"),
+                    "asked", warning=ev.get("kind") or "inconsistent",
+                    worst_de=ev.get("worst_de"), read=ev.get("read"),
+                    expected=ev.get("expected"))
 
         elif kind == "strip_interrupted":
             # THE GIVE-UP PROMPT, ARRIVING AS AN EVENT — and three different
@@ -4974,6 +5097,9 @@ class MeasureManager(QObject):
             # Nobody was waiting for this one, so it is the reader telling us
             # the user interrupted a strip themselves — that has its own window.
             self.strip_interrupted.emit()
+            if getattr(self, "_strip_log", None) is not None:
+                self._strip_log.decided(getattr(self, "_dual_strip_now", "") or "?",
+                                        "interrupted")
 
         elif kind == "strip_misaligned":            # #50 safety net (on by default)
             self.strip_misaligned.emit(
@@ -5020,6 +5146,11 @@ class MeasureManager(QObject):
                 self.misread_button_retry = bool(ev.get("button_retry"))
                 self.strip_error.emit(detail or "misread")
                 self.misread_button_retry = False
+                if getattr(self, "_strip_log", None) is not None:
+                    self._strip_log.decided(
+                        getattr(self, "_dual_strip_now", "") or str(ev.get("strip") or "?"),
+                        "refused", reason="misread", detail=detail or None,
+                        mode="patch" if self._spot_mode else "strip")
             elif ekind == "patch_not_found":
                 # A goto the engine could not make. During guided refinement
                 # patch by patch, leave that patch out instead of asking for

@@ -114,6 +114,17 @@ def helper_caps(helper: "Path | None" = None) -> frozenset:
 _BUILD_CACHE: dict = {}
 
 
+def helper_build_cached(helper: "Path | None" = None) -> str:
+    """The helper's build string ONLY if an earlier --caps call already learnt
+    it ("" otherwise): never starts the helper (4.3.50, for the app log's
+    measurement-start line on the GUI thread). Never raises."""
+    try:
+        p = Path(helper) if helper is not None else helper_path()
+        return _BUILD_CACHE.get((str(p), p.stat().st_mtime_ns), "")
+    except Exception:      # noqa: BLE001
+        return ""
+
+
 def helper_build(helper: "Path | None" = None) -> str:
     """The helper's build string ("" when it cannot say)."""
     helper_caps(helper)
