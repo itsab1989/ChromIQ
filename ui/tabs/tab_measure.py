@@ -9770,6 +9770,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 self, "_fd9_worker_running"):
             return
         if _fd9_ask(self, "_is_fd9_target"):
+            # A2/A8 (4.3.50): FD-9 is contributor code; its start and the
+            # chart are logged from here, outside it (its own evidence
+            # folder fd9-sessions/ beside the chart stays as it is)
+            from core.app_log import line as _line
+            _line("measure start", reader="fd9", chart=str(getattr(
+                self, "_ti1_path", "") or "") or None, run_kind="fd9")
             self._start_fd9_measurement()
             return
         # An i1iO 2 + i1Pro 2 chart of a profile run with i1iO support on
@@ -11292,6 +11298,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         the work away without a word. Both now ask the same question.
         """
         if _fd9_ask(self, "_fd9_engaged"):
+            from core.app_log import line as _line
+            _line("measure stop", reader="fd9", by="person")
             self._stop_fd9_measurement()
             return
         win = getattr(self, "_table_window", None)

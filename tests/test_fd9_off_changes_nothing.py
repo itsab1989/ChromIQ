@@ -248,6 +248,8 @@ FD9_OWN = ("workflow/fd9/", "ui/fd9_measurement.py", "vendor/")
 HOOKED_FILES = {
     "core/file_manager.py",          # .fd9.json companion; Run.fd9_sessions_dir
     "core/settings.py",              # the switch and the FD-9 keys' defaults
+    "core/beta_registry.py",         # 4.3.50 A1: the app log's header names the switch
+    "core/session_header.py",        # 4.3.50 A1: ...and whether this session runs it
     "data/patch_db.py",              # the label; filtered by the switch
     "main.py",                       # latches the switch
     "ui/dialogs/layout_options_panel.py",

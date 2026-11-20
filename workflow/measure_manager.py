@@ -1070,6 +1070,7 @@ class MeasureManager(QObject):
         self._dual_refused = ""
         #: the engine was given the i1Pro 2 dual scan's arguments
         self._dual_requested = False
+        self._applog_conditions = False
         self._user_quit = False
         self._reset_requested_calibration()
         # The user can raise this for an ageing instrument (Settings → Beta);
@@ -1086,6 +1087,7 @@ class MeasureManager(QObject):
         def _on_finish(code: int) -> None:
             self._lights_session_ended(code)
             self._ruler_session_ended(on_line)
+            self._log_measure_end(params, code)
             relaunch = getattr(self, "_relaunch", None)
             if relaunch is not None:
                 # the instrument reported another model than START assumed
@@ -1387,6 +1389,20 @@ class MeasureManager(QObject):
         except Exception:      # noqa: BLE001
             log.debug("strip line not written", exc_info=True)
 
+    def _log_measure_end(self, params, code) -> None:
+        """A7 + A8 (4.3.50): the measurement's files and, with M0/M1/M2 kept,
+        the strips that have all three; read on a background thread."""
+        try:
+            from workflow.measure_log import log_measurement_end
+            sl = getattr(self, "_strip_log", None)
+            log_measurement_end(
+                Path(params.ti1_path).with_suffix(".ti3"), code=code,
+                conditions=bool(getattr(self, "_applog_conditions", False)),
+                dual=bool(getattr(self, "_dual_requested", False)),
+                strips_logged=sl.lines if sl is not None else 0)
+        except Exception:      # noqa: BLE001
+            log.debug("measure end line not written", exc_info=True)
+
     def _log_measure_start(self, params, eargs) -> None:
         """A2 (4.3.50): the one app-log line with what is in effect for this
         measurement. Reads only what the start already decided and the
@@ -1408,6 +1424,7 @@ class MeasureManager(QObject):
                       conditions=("on" if "--condition-dir" in eargs else
                                   "off" if params.engine_condition_dir is None else
                                   "off(helper_cannot)"))
+            self._applog_conditions = "--condition-dir" in eargs
             if "--condition-dir" in eargs:
                 from core.app_log import line
                 line("conditions start", folder=str(params.engine_condition_dir),
@@ -4521,6 +4538,9 @@ class MeasureManager(QObject):
             # follows it.
             log.info("engine: dual calibration %s", ev)
             self._dual_cal_ok = bool(ev.get("ok"))
+            from core.app_log import flat, line
+            line("dual calibration", **{k: v for k, v in flat(ev).items()
+                                        if k != "event"})
             self.dual_calibration.emit(dict(ev))
 
         elif kind == "dual_pass":

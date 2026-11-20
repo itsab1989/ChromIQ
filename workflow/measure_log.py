@@ -154,3 +154,64 @@ class StripLog:
 def written(what: str, path, **kv) -> None:
     """A8: where a file was written (the filter shortens the path)."""
     line("file written", what=what, path=str(path), **kv)
+
+
+def log_measurement_end(main_ti3, *, code, conditions: bool, dual: bool,
+                        strips_logged: int = 0, in_thread: bool = True) -> None:
+    """A7 + A8: at a measurement's end, where its files are and, with the M0/M1/M2
+    Beta or the dual scan, how many strips have all three conditions and which
+    have M0 only. The files are read on a background thread (the GUI thread
+    did no such reading before). Never raises."""
+    def work():
+        try:
+            main = Path(main_ti3)
+            exists = main.is_file()
+            line("measure end", exit=code, strips_logged=strips_logged,
+                 measurement=str(main) if exists else None,
+                 measurement_bytes=main.stat().st_size if exists else None)
+            if exists:
+                written("measurement", main)
+            if not (conditions or dual) or not exists:
+                return
+            from workflow import i1pro3_conditions as C
+            files, partial = {}, []
+            for cond in ("M0", "M1", "M2"):
+                f = C.condition_file(main, cond)
+                if f is None:
+                    pf = C.partial_sibling_path(main, cond)
+                    if pf is not None and Path(pf).is_file():
+                        f = pf
+                        partial.append(cond)
+                files[cond] = f
+                if f is not None and f != main:
+                    written(f"condition {cond}" + (" (partial record)" if cond in partial
+                                                   else ""), f)
+            all_strips = C.strips_of(C._locs_of(main))
+            m0_only = C.strips_of(C.m0_only_locs(main))
+            three = files.get("M1") is not None and files.get("M2") is not None
+            line("conditions end", main_condition=C.file_condition(main) or None,
+                 files=",".join(c for c, f in files.items() if f is not None) or None,
+                 partial=",".join(partial) or None,
+                 strips=len(all_strips),
+                 strips_all_three=(len(all_strips) - len(m0_only)) if three else 0,
+                 m0_only=" ".join(m0_only) if m0_only else None,
+                 dual_scan=dual)
+            if dual:
+                try:
+                    from core.file_manager import Run
+                    rec = Run.for_dir(main.parent).dual_pass_record(main)
+                    if rec is not None and Path(rec).is_file():
+                        written("dual pass record", rec)
+                except Exception:      # noqa: BLE001
+                    pass
+        except Exception:      # noqa: BLE001
+            pass
+    try:
+        if in_thread:
+            import threading
+            threading.Thread(target=work, name="chromiq-measure-end-log",
+                             daemon=True).start()
+        else:
+            work()
+    except Exception:      # noqa: BLE001
+        pass

@@ -156,6 +156,8 @@ class RulerSession:
                 self.diag.doc["margin_tolerance"] = str(
                     ev.get("margin_tolerance") or "not asked")
                 self.diag.write()
+                from workflow.measure_log import written as _written
+                _written("ruler diagnostics", path)   # A8 (4.3.50)
             except Exception:      # noqa: BLE001 - never stop a measurement
                 log.warning("ruler: no diagnostics file", exc_info=True)
                 self.diag = None
