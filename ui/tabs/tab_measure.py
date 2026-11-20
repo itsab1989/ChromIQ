@@ -12583,7 +12583,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         link = tr("Don't show this again")
         return ('<span>{}</span>&nbsp;&nbsp;&nbsp;<a href="dual-hide:{}" '
                 'style="font-weight: normal;">{}</a>').format(
-                    html.escape(text), html.escape(kind, quote=True), html.escape(link))
+                    html.escape(text, quote=False), html.escape(kind, quote=True),
+                    html.escape(link, quote=False))
 
     def _dual_status_style(self, on: bool) -> None:
         """The pass line is the instruction of the moment: as readable as

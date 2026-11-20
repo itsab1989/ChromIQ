@@ -3960,6 +3960,10 @@ class SettingsDialog(QDialog):
         self._dual_mode_combo.setSizeAdjustPolicy(
             _QCBm.SizeAdjustPolicy.AdjustToContents)
         self._dual_mode_combo.setToolTip(tr("When the dual scan runs"))
+        # the row keeps the checkbox's and the (i)'s height: the Beta page must not
+        # grow (the owner, 2026-11-20); the box takes the row's height
+        from PyQt6.QtWidgets import QSizePolicy as _QSPm
+        self._dual_mode_combo.setSizePolicy(_QSPm.Policy.Fixed, _QSPm.Policy.Ignored)
         _dualrow = QHBoxLayout()
         _dualrow.setContentsMargins(24, 0, 0, 0)
         _dualrow.addWidget(self._i1pro2_dual_check)

@@ -271,7 +271,15 @@ def test_m1_and_m2_that_ended_are_completed_by_continue(qapp, tmp_path):
     from ui.tabs.tab_measure import TabMeasure
     fill = M.M_DUAL_CONTINUE_FILL.render(strips="strip A")
     fake = SimpleNamespace(_dual_plan_now=lambda: plan,
-                           _fill_note_text=lambda: fill)
+                           _fill_note_text=lambda: fill,
+                           # 4.3.54: the note goes through _dual_note_now
+                           _settings=_on(), _engine_selected=lambda: True,
+                           _ti1_path=main, _start_button_name=lambda: "START",
+                           _chart_is_cr30=lambda: False,
+                           _chart_is_an_i1io_chart=lambda: False,
+                           _dual_notes_hidden=lambda: set())
+    fake._dual_note_plan = lambda: TabMeasure._dual_note_plan(fake)
+    fake._dual_note_now = lambda: TabMeasure._dual_note_now(fake)
     assert TabMeasure._dual_before_start_text(fake) == fill
 
 
