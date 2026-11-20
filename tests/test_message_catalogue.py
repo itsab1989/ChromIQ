@@ -165,6 +165,12 @@ AWAITING_APPROVAL: "set[str]" = {
     # 4.3.50 b: the homing that is part of the ending, the table's own dual fill notes, the
     # table chart window when its side file is there
     "M-I1IO-DRIVE-HOME-AT-END",
+    # 4.3.50 fix round (independent review of 20 Nov 2026, MUST-1): "Not now" keeps the way home
+    # open; the last page and the next START's page say what is true about an arm left out
+    "M-I1IO-DRIVE-HOME-NOT-NOW",
+    "M-I1IO-DRIVE-LEFT-OUT",
+    "M-I1IO-DRIVE-STILL-AIMING",
+    "M-I1IO-DRIVE-STOPPED-AT-OPENING",
     "M-I1IO-DRIVE-DUAL-CONTINUE-FILL",
     "M-I1IO-DRIVE-DUAL-FILL-OFFER",
     "M-I1IO-NOT-YET-SIDE-FILE",
