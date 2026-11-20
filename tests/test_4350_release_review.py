@@ -72,14 +72,7 @@ def test_the_entry_names_things_as_the_app_shows_them():
         assert s in text, s
 
 
-def test_the_version_is_4350_everywhere():
-    from core.version import APP_VERSION
-    assert APP_VERSION == "4.3.50"
-    assert "badge/version-4.3.50-" in (ROOT / "README.md").read_text(encoding="utf-8")
-    assert '"softwareVersion": "4.3.50"' in (ROOT / "docs/index.html").read_text(
-        encoding="utf-8")
-    certs = json.loads((ROOT / "data/preset_certificates.json").read_text(encoding="utf-8"))
-    assert certs["code_version"].startswith("4.3.50/")
+# The version pin moved to tests/test_4351_release_review.py with the 4.3.51 bump.
 
 
 def test_readme_and_site_no_longer_say_no_chart_was_read_on_a_real_table():

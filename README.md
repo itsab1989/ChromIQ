@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-4.3.50-7c5cff">
+  <img alt="Version" src="https://img.shields.io/badge/version-4.3.51-7c5cff">
   <img alt="Downloads" src="https://img.shields.io/endpoint?url=https://itsab1989.github.io/github-traffic-downloads-dashboard/assets/badges/itsab1989_ChromIQ-downloads.json">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2a9d8f">
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-blue">
@@ -676,6 +676,13 @@ ways:
 >   goes forward, and with the dual scan the table keeps M1 and M2 for every
 >   row that has them. Bringing the arm home from the front of the table, and
 >   the way back before it, have still run only on a simulated table.
+> - New in 4.3.51: when a measurement starts and the arm is not at its
+>   resting place, where the table reports the arm decides what ChromIQ
+>   offers. From the line straight in front of the resting place, it offers
+>   the homing i1Profiler was recorded sending there; over the rest of the
+>   measuring area and the front of the table, it offers to try its homing and
+>   says that it is a try. Elsewhere it moves nothing. None of this has run on
+>   a real table yet, so please keep the power switch in reach.
 > - The option is off by default, and with it off nothing changes.
 
 Why it may be worth it all the same: X-Rite has ended support for these
