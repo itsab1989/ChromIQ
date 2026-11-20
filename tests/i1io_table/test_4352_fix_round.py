@@ -225,11 +225,34 @@ def test_must1_a_problem_or_a_fault_turns_the_rest_guided_too(tmp_path, trouble)
         job._fault_seen = "read_row: table_answered_a_status"
     else:
         job.stopped_by_person = True
+    seen = []
+    job.on_progress = seen.append
     assert job.guided_now is True
-    assert job.turned_guided
+    # review 2, S-4: reading the guidance records and emits nothing (the transition is made
+    # where the job sets the flag; here the test set it by hand)
+    assert seen == [] and job.turned_guided is None
     # every kind is asked now: nothing answered by the setting, no countdown
     for kind in list(J.BY_SETTING) + [C.GO]:
         assert job._without_the_person(J.Ask(kind, {"step": "read_row"})) is None, kind
+
+
+def test_s4_every_place_that_sets_a_turns_guided_flag_turns_the_sitting_guided():
+    """Review 2, S-4: guided_now has no side effect, so each place in the job that sets one of
+    TURNS_GUIDED calls _turn_guided itself (within a few lines; a site inside a
+    problem report is covered by the report's own call just above)."""
+    import inspect
+    import re
+    lines = inspect.getsource(J).splitlines()
+    pat = re.compile(r"self\.(stop_pressed|stopped_by_person|only_home|creep_stopped)\s*=\s*True"
+                     r"|self\.problems\.append|self\._fault_seen\s*=")
+    found = 0
+    for i, line in enumerate(lines):
+        if pat.search(line):
+            found += 1
+            near = "\n".join(lines[max(0, i - 8):i + 5])
+            ok = "_turn_guided(" in near or "_from_exception" in near
+            assert ok, f"line {i + 1}: {line.strip()} sets a flag without _turn_guided"
+    assert found >= 8, found
 
 
 def test_must1_turns_guided_names_every_flag_the_job_keeps():

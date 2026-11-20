@@ -1006,14 +1006,14 @@ class TableJob:
         stands in for a question. A Stop is the moment the person may have a hand in the
         table, so nothing after it may go on by itself (a homing after a Stop is asked, and
         the sheet laid after it too, so the arm never drives out again on its own). The
-        policy lives here, in the job; the window only shows it."""
+        policy lives here, in the job; the window only shows it.
+
+        Review 2, S-4: READING IT CHANGES NOTHING (it is read from both threads). The
+        transition is made, recorded and told (:meth:`_turn_guided`) where a TURNS_GUIDED flag
+        is set; a flag set any other way still makes the answer True here."""
         if self.guided:
             return True
-        if self.turned_guided is None:
-            why = self._trouble_why()
-            if why is not None:
-                self._turn_guided(why)
-        return self.turned_guided is not None
+        return self.turned_guided is not None or self._trouble_why() is not None
 
     def _turn_guided(self, why: str) -> None:
         """Records once that the rest of this sitting is guided, and why (the session log, the
