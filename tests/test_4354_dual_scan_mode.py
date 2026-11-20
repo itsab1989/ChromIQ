@@ -288,3 +288,49 @@ def test_a_mode_already_stored_is_never_overwritten_by_the_step(tmp_path, monkey
     s = AS()
     s.migrate()
     assert D.mode(s) == D.MODE_M1_M2
+
+
+# ------------------------------------------------------------------ the helper's command line
+
+def _argv(tmp_path, monkeypatch, plan, extra):
+    """The whole command line the chart-reading engine is started with, from START's
+    parameters after `_apply_dual_scan` (the real MeasureManager builds it)."""
+    from tests.test_i1pro3_conditions_beta_option import _Runner
+    from ui.tabs.tab_measure import TabMeasure
+    from workflow import chartread_engine
+    from workflow.measure_manager import MeasureManager, MeasureParams
+    monkeypatch.setattr(chartread_engine, "helper_caps", lambda helper=None: frozenset(CAPS))
+    monkeypatch.setattr(MeasureManager, "_refuse_system_port", lambda self, *a, **k: False)
+    fake = _tab_fake(tmp_path, plan)
+    p = MeasureParams(ti1_path=fake._ti1_path, engine_helper=tmp_path / "chromiq-chartread",
+                      engine_condition_dir=fake._ti1_path.parent / "conditions",
+                      extra_args=extra)
+    TabMeasure._apply_dual_scan(fake, p)
+    runner = _Runner()
+    MeasureManager(runner).start(p, lambda _l: None, lambda _c: None)
+    return runner.calls[-1][1]
+
+
+@pytest.mark.parametrize("extra", ["", "-T 0.7", "-F n -T 0.7"])
+def test_on_the_wire_m0_chosen_is_the_measurement_with_the_dual_scan_off(
+        tmp_path, monkeypatch, extra):
+    """The helper is the only thing that talks to the instrument, and what it sends follows
+    from its command line alone (the driver's dual hooks are no-ops without --dual-*:
+    tests/test_i1pro2_dual_scan_device.py, 'a single scan sends exactly what it sent before').
+    "-F n" with the dual scan OFF goes to ArgyllCMS, which refuses it for an i1Pro 2 before a
+    reading: there the only difference is that the measurement now starts."""
+    b = _argv(tmp_path, monkeypatch, D.plan_for(_on(D.MODE_M1_M2), CAPS, None, "n" if "-F" in extra
+                                                else None), extra)
+    off = _argv(tmp_path, monkeypatch, D.Plan(False, why_not="off"), extra.replace("-F n ", ""))
+    assert b == off
+    assert not any(a.startswith("--dual") for a in b) and "-F" not in b
+
+
+@pytest.mark.parametrize("code", ["5", "u"])
+def test_on_the_wire_m1_or_m2_chosen_is_todays_dual_scan(tmp_path, monkeypatch, code):
+    b = _argv(tmp_path, monkeypatch, D.plan_for(_on(D.MODE_M1_M2), CAPS, None, code),
+              f"-F {code} -T 0.7")
+    a = _argv(tmp_path, monkeypatch, D.plan_for(_on(D.MODE_ALWAYS), CAPS, None, code),
+              f"-F {code} -T 0.7")
+    # 4.3.53 had no mode: its plan is "always"'s (test_always_is_4353_argument_for_argument)
+    assert b == a and "--dual-scale" in b and "-F" not in b
