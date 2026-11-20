@@ -1503,6 +1503,8 @@ def finalize_converted_ti3(ti3_path: str | Path,
     if condition:
         from workflow.measurement_condition import record_condition
         record_condition(ti3_path, condition)
+    from workflow.ti3_provenance import stamp
+    stamp(ti3_path)                         # A10 (4.3.50): the ChromIQ that converted it
     return instrument, date
 
 

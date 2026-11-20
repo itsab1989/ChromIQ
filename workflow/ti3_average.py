@@ -118,4 +118,6 @@ def average_scanner_ti3(inputs: list[str | Path], output: str | Path,
     out_lines = base_lines[:db + 1] + out_rows + base_lines[de:]
     out = Path(output)
     out.write_text("\n".join(out_lines) + "\n", encoding="utf-8")
+    from workflow.ti3_provenance import stamp
+    stamp(out)                              # A10 (4.3.50)
     return out

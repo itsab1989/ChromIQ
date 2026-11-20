@@ -704,6 +704,8 @@ def average_conditions(result: "str | Path", reads: "list[Path]",
                 continue
             from workflow.measurement_condition import record_condition
             record_condition(tmp, cond)
+            from workflow.ti3_provenance import stamp
+            stamp(tmp)                      # A10 (4.3.50)
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(tmp), str(dst))
             out[cond] = ""

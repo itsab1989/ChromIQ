@@ -490,6 +490,10 @@ def settle_combined_xyz_method(result: Path, inputs) -> None:
                      "ways, so it names no method", Path(result).name)
     except Exception:      # noqa: BLE001 — never fail an average over this
         log.debug("XYZ method of %s not settled", result, exc_info=True)
+    # A10 (4.3.50): the ChromIQ that wrote the combined file (the helper's
+    # build, copied by `average` from the first input's header, stays)
+    from workflow.ti3_provenance import stamp
+    stamp(result)
 
 
 def settle_combined_condition(result: Path, check: ConditionCheck, *,

@@ -19606,6 +19606,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # The measurement condition (-F) goes into the file this session
         # wrote, BEFORE the yellow memory below takes the file's checksum.
         self._record_measurement_condition_at_end()
+        # A10 (4.3.50): who wrote it (ChromIQ's version and the helper's
+        # build), into the same header, under the same guard
+        self._stamp_provenance_at_end()
         # THE YELLOW MEMORY, STAMPED FOR THE FINAL FILE (#182 K4). Now, before
         # anything paints from the file, and only for a .ti3 this session
         # actually wrote: a measurement put back from old/ (nothing was read)
@@ -24355,6 +24358,36 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                          cond, code, ti3.name)
         except Exception:      # noqa: BLE001 — never block a session's end
             log.debug("measurement condition not recorded", exc_info=True)
+
+    def _stamp_provenance_at_end(self) -> None:
+        """A10 (4.3.50): ``CHROMIQ_VERSION`` and ``CHROMIQ_HELPER_BUILD`` into
+        the ``.ti3`` this session wrote and its condition files (complete or
+        partial record): only a file newer than it was at Start, and only its
+        header (`workflow.ti3_provenance`). Never raises."""
+        ti1 = getattr(self, "_ti1_path", None)
+        if not ti1:
+            return
+        try:
+            from workflow import ti3_provenance as tp
+            ti3 = Path(ti1).with_suffix(".ti3")
+            if not ti3.is_file():
+                return
+            before = getattr(self, "_ti3_mtime_before", None)
+            if before is not None and ti3.stat().st_mtime <= before:
+                return
+            if _cgats_has_no_readings(ti3):
+                return
+            build = getattr(self._manager, "applog_helper_build", None)
+            tp.stamp(ti3, build)
+            from workflow import i1pro3_conditions as _c
+            for cond in ("M0", "M1", "M2"):
+                for f in (_c.condition_file(ti3, cond),
+                          _c.partial_sibling_path(ti3, cond)):
+                    if f is not None and Path(f) != ti3 and Path(f).is_file() and (
+                            before is None or Path(f).stat().st_mtime > before):
+                        tp.stamp(f, build)
+        except Exception:      # noqa: BLE001 — never block a session's end
+            log.debug("provenance not stamped", exc_info=True)
 
     def _settle_engine_autosave_at_end(self) -> None:
         """M3 review: at a session's end, a kept save that is the newest copy

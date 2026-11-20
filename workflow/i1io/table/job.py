@@ -4465,6 +4465,7 @@ class TableJob:
         have = [loc for loc in main_locs if loc not in m0_only]
         self._dual_m0_only = sorted(set(main_locs) & m0_only)
         record_condition(main, "M0")
+        _stamp_provenance(main)             # A10 (4.3.50), header only
         key = ic.data_block_hash(main)
         if have:
             partial = bool(self._dual_m0_only)
@@ -4482,6 +4483,7 @@ class TableJob:
                     os.replace(tmp, dest)
                 record_condition(dest, cond)
                 ic._set_condition_of(dest, key)
+                _stamp_provenance(dest)     # A10 (4.3.50)
                 self._dual_files[cond] = dest
             self._dual_pair = "partial" if partial else "complete"
         else:
@@ -4787,6 +4789,8 @@ class TableJob:
                                   f"({type(exc).__name__})")
         self.ended = "saved"
         restored = bool(outcome is not None and outcome.restored)
+        if not restored:
+            _stamp_provenance(dest)         # A10 (4.3.50), header only
         dual_filed = None
         if self.dual is not None and not restored:
             try:
@@ -5281,3 +5285,14 @@ def _default_helper_check() -> "str | None":
     if not os.access(path, os.X_OK):
         return "helper_not_runnable"
     return None
+
+
+def _stamp_provenance(path) -> None:
+    """A10 (4.3.50): CHROMIQ_VERSION and the helper's build into a measurement the job
+    wrote (header only; after the table's work, never on the wire). Never raises."""
+    try:
+        from workflow.chartread_engine import helper_build_cached
+        from workflow.ti3_provenance import stamp
+        stamp(path, helper_build_cached() or None)
+    except Exception:      # noqa: BLE001
+        pass

@@ -1410,9 +1410,12 @@ class MeasureManager(QObject):
         try:
             from workflow.measure_log import log_start
             if eargs is None:
+                #: A10: who reads, for the .ti3's CHROMIQ_HELPER_BUILD
+                self.applog_helper_build = "stock chartread"
                 log_start(params, reader="stock")
                 return
             from workflow.chartread_engine import helper_build_cached
+            self.applog_helper_build = helper_build_cached(params.engine_helper) or None
             if params.engine_dual_args:
                 dual = "on" if self._dual_requested else "off(helper_cannot_or_no_condition_dir)"
             else:
