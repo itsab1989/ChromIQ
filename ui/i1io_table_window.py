@@ -134,7 +134,7 @@ HANDS_OFF_LABELS = (
 #: REVIEW 14, S-3: the pages after whose answer the arm moves at once; as a pop-up each carries
 #: the one-line switch-off sentence itself (the tab's line stands behind the pop-up)
 MOVES_AT_ONCE_PAGES = ("go", "start_up", "sheet_laid", "first_visit", "report_after_step",
-                       "home_at_end", "home_not_now")
+                       "home_at_end", "home_not_now", "home_at_start")
 #: REVIEW 14, M-1: the ways back that mean a move may still be waiting, or a movement (or the
 #: start-up) was never reported as finished: "Switch the table off now" is the first thing shown,
 #: and no later page hides or contradicts it
@@ -1074,9 +1074,13 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
             "recording shows at this point. ChromIQ cannot tell whether the motors hold the "
             "arm, so it sends nothing more to the table."),
         "moved_in_this_sitting": tr(
-            "The arm has already moved in this measurement. ChromIQ brings the arm home after a "
-            "stop only when it found the arm out at the start, before anything moved, so it "
-            "sends nothing more to the table now."),
+            "The table reported a movement as finished, but the arm was not where that movement "
+            "should have taken it. ChromIQ cannot tell why, so it sends nothing more to the "
+            "table."),
+        # 4.3.52: the one place ChromIQ does not bring a held arm home from (job.in_back_strip)
+        "arm_in_the_back_strip": tr(
+            "The arm is at the back of the table, beside the holder of the white tile. ChromIQ "
+            "does not move it from there."),
         "arm_out_start_up_not_recorded": tr(
             "You said the arm is out over the table. The table has just been switched on, and "
             "its start-up has never been recorded with the arm out over the table, so ChromIQ "
@@ -2463,6 +2467,8 @@ class TableMeasureWindow(QFrame):
         "calibration_own_tile", "calibration_reseated", "row_failed", "row_failed_strip",
         # 4.3.50: the homing of the ending (and its question still open after "Not now")
         "home_at_end", "home_not_now",
+        # 4.3.52: the START rule's one question (the arm not at its resting place)
+        "home_at_start",
     )
     #: the pages whose answers stand in one row when they fit (review 12, S-3: the ending)
     ONE_ROW_ANSWER_PAGES = ("end_of_session",)
@@ -3346,9 +3352,10 @@ class TableMeasureWindow(QFrame):
 
     def _after_ok(self, res) -> None:
         step = res.step
-        if step == "open" and res.detail.get("arm_out") and res.detail.get("table") == "cold":
-            # 4.3.48: the start-up of a just-switched-on table was recorded only with the arm at
-            # rest; with the arm out ChromIQ sends nothing and leaves it to i1Profiler
+        if step == "open" and res.detail.get("arm_out") and res.detail.get("table") == "cold" \
+                and _start_up_asks_about_the_arm():
+            # 4.3.48-4.3.52 (4.3.52: only with job.START_UP_ASKS_ABOUT_THE_ARM on): with the arm
+            # out ChromIQ sent nothing to a just-switched-on table
             self._show_arm_out_cold()
             return
         if step == "open" and res.detail.get("table") == "cold":
@@ -3569,7 +3576,18 @@ class TableMeasureWindow(QFrame):
             self._status.setText(tr("ChromIQ waits for your answer. Nothing moves until you "
                                     "answer."))
             return
-        if kind == "start_up" and self._guidance_off_now():
+        if kind == "go" and d.get("step") == "home_at_start":
+            # 4.3.52, THE START RULE (the owner, 2026-11-20): the arm is not at its resting
+            # place; ChromIQ brings it there now, from wherever it is, after this one question
+            title, body = M.M_I1IO_DRIVE_HOME_AT_START.render()
+            self._pending_kind = kind
+            self._show("home_at_start", title, body,
+                       [(tr("Not now"), self._answer_slot("back")),
+                        (tr("Bring the arm home, my hands are away"), self._answer_slot("yes"))])
+            self._status.setText(tr("ChromIQ waits for your answer. Nothing moves until you "
+                                    "answer."))
+            return
+        if kind == "start_up" and self._guidance_off_now() and _start_up_asks_about_the_arm():
             # 4.3.52 (the owner, W9): with the guidance off, the ONE arm question after the
             # table was switched on (M-I1IO-DRIVE-START-UP-ARM); "Yes" is followed by the
             # countdown, "No" sends nothing (the 4.3.48 refusal)
@@ -4027,29 +4045,24 @@ class TableMeasureWindow(QFrame):
                             "it back where it was.")
         buttons = self._way_on_buttons() if after is None else None
         j = self.job
-        if res.reason == "arm_not_at_rest" and after is None and j is not None and \
-                j._nothing_moved_yet() and j.ended is None:
-            # 4.3.51, ONE START rule: the arm found away from its resting place at a START,
-            # by whichever step read it first: the table's state and the arm's place decide
-            # what is offered (job.start_homing_form), never the answer to the ready question
-            if j.way_back() == "home_after_stop":
-                msg = M.M_I1IO_DRIVE_ARM_OUT_AT_START
-                if self._start_form() == "end_of_job":
-                    # the re-review (S4): no recording from there at a start; the page says so
-                    msg = M.M_I1IO_DRIVE_ARM_OUT_AT_START_AREA
-                if self._start_form() == "try":
-                    # the owner's decision of 2026-11-20: a try, and the page says so
-                    msg = M.M_I1IO_DRIVE_ARM_OUT_TRY
-                # the offer first, as the pop-up places its confirming answer (review of
-                # 4.3.51, SHOULD-2: the panel showed them the other way round)
-                buttons = [(tr("Bring the arm home"), self._on_home_after_stop),
-                           (tr("End measurement"), self._on_end_pressed)]
-            else:
-                msg = M.M_I1IO_DRIVE_ARM_OUT_NOT_HERE
-                buttons = [(tr("End measurement"), self._on_end_pressed)]
-            title, body = msg.render(**_fill(msg, where=self._where(),
-                                             way=M.M_I1IO_DRIVE_ARM_WAY_OUT.render()[1]))
-            self._show("refused", title, body, buttons)
+        if res.reason in ("arm_not_at_rest", "person_chose_back", "arm_in_the_back_strip") \
+                and after is None and j is not None and j.ended is None and \
+                j.way_back() == "home_after_stop":
+            # 4.3.52, THE START RULE: the arm away from its resting place, the homing not taken
+            # yet ("Not now"): the same short page, and the homing from wherever the arm is
+            title, body = M.M_I1IO_DRIVE_HOME_AFTER_STOP.render(
+                **_fill(M.M_I1IO_DRIVE_HOME_AFTER_STOP, where=self._where(),
+                        log=self._log_name))
+            self._show("refused", title, body,
+                       [(tr("Bring the arm home"), self._on_home_after_stop),
+                        (tr("End measurement"), self._on_end_pressed)])
+            return
+        if res.reason in ("arm_not_at_rest", "arm_in_the_back_strip") and after is None and \
+                j is not None and j.ended is None and _J_in_back_strip(j.state().position_now):
+            # 4.3.52: the one place ChromIQ does not bring a held arm home from (physical)
+            title, body = M.M_I1IO_DRIVE_ARM_OUT_BACK.render(
+                way=M.M_I1IO_DRIVE_ARM_WAY_OUT.render()[1])
+            self._show("refused", title, body, [(tr("End measurement"), self._on_end_pressed)])
             return
         if res.reason == "arm_not_at_rest" and after is None:
             # 4.3.48: the arm found out at a START (or before a calibration): plainly what
@@ -4133,10 +4146,11 @@ class TableMeasureWindow(QFrame):
                 "home_offered": M.M_I1IO_DRIVE_HOME_OFFERED,
                 "home_after_stop": M.M_I1IO_DRIVE_HOME_AFTER_STOP}
         msg = msgs.get(wb)
-        if wb == "home_after_stop" and self._start_form() == "try":
-            msg = M.M_I1IO_DRIVE_ARM_OUT_TRY
         self._says_switch_off = wb in SWITCH_OFF_WAYS
-        if getattr(res, "step", "") == "home_after_stop" and wb not in SWITCH_OFF_WAYS \
+        j_failed = self.job is not None and getattr(self.job, "start_homing_failed", False) \
+            and self.job.ended is None
+        if (getattr(res, "step", "") == "home_after_stop" or j_failed) \
+                and wb not in SWITCH_OFF_WAYS \
                 and not str(wb).startswith("link_lost") and res.reason not in (
                     "stopped_by_person", "cancelled_by_person", "person_chose_back"):
             # 4.3.51, the owner's decision of 2026-11-20: ONE page when the homing at a START
@@ -4151,6 +4165,17 @@ class TableMeasureWindow(QFrame):
             title, body = M.M_I1IO_DRIVE_HOME_TRY_FAILED.render(
                 why=why, where=where,
                 way=M.M_I1IO_DRIVE_ARM_WAY_OUT.render()[1], log=self._log_name)
+            self._show("stopped", title, body, self._way_on_buttons())
+            self._after_stop_controls()
+            self._show_note()
+            return
+        jb = self.job
+        if wb == "open_i1profiler_once" and jb is not None and jb.ended is None and \
+                jb.phase == "open" and jb.state().arm_free is False and \
+                _J_in_back_strip(jb.state().position_now):
+            # 4.3.52: the one place ChromIQ does not bring a held arm home from (physical)
+            title, body = M.M_I1IO_DRIVE_ARM_OUT_BACK.render(
+                way=M.M_I1IO_DRIVE_ARM_WAY_OUT.render()[1])
             self._show("stopped", title, body, self._way_on_buttons())
             self._after_stop_controls()
             self._show_note()
@@ -4212,19 +4237,18 @@ class TableMeasureWindow(QFrame):
             if wb in SWITCH_OFF_WAYS:
                 # review 14, M-1: "Switch the table off now" first, then why
                 body = body + "\n\n" + reason_text(res.reason, res.detail)
+            elif wb == "home_after_stop":
+                # 4.3.52: the page itself says where the arm is and what ChromIQ can do (short)
+                pass
             else:
                 why = reason_text(res.reason, res.detail)
-                if wb == "home_after_stop":
-                    # 4.3.48: the place check right before a homing, in plain words
-                    why = tr("Right before its usual homing, ChromIQ read the arm away from its "
-                             "resting place, out over the table, where it did not expect it.")
                 if wb == "open_i1profiler_once" and j is not None and j.phase == "open":
                     # 4.3.48: why ChromIQ does not bring the arm home itself this time
                     why += " " + tr("ChromIQ brings the arm home itself only after a stop at "
-                                    "which the table answered every line as recorded and "
-                                    "nothing had moved yet in this measurement, and only from "
-                                    "a place where a recorded homing starts. This stop is not "
-                                    "one of those, so please use the way below.")
+                                    "which the table answered every line as recorded, the "
+                                    "motors hold the arm, and the arm was not found away from where a "
+                                    "movement of the table should have taken it. This stop is "
+                                    "not one of those, so please use the way below.")
                 body = why + "\n\n" + body
             if getattr(res, "step", "") == "home_after_stop":
                 body = tr("ChromIQ could not bring the arm home.") + " " + body
@@ -4487,15 +4511,6 @@ class TableMeasureWindow(QFrame):
         if self.job is None or self._busy:
             return
         self._call(self.job.home_after_stop, status=tr("Bringing the arm home..."))
-
-    def _start_form(self) -> "str | None":
-        """The START rule's form for where the arm was last read (job.start_homing_form)."""
-        from workflow.i1io.table import job as _J
-        j = self.job
-        try:
-            return _J.start_homing_form(j.state().position_now) if j is not None else None
-        except Exception:      # noqa: BLE001 - a page never fails on this
-            return None
 
     def _show_home_after_stop_done(self) -> None:
         from workflow import measurement_messages as M
@@ -4936,6 +4951,11 @@ class TableMeasureWindow(QFrame):
             if kind == "countdown":
                 n = int(ev.get("left") or 0)
                 title, body = M.M_I1IO_DRIVE_COUNTDOWN.render(n=n)
+                if ev.get("for_step") == "home_at_start":
+                    # 4.3.52: the START rule's homing with the guidance off: what moves, first
+                    title = M.M_I1IO_DRIVE_HOME_AT_START.render()[0]
+                    body = M.M_I1IO_DRIVE_HOME_AT_START.render()[1].split("\n\n")[0] + \
+                        "\n\n" + body
                 first = not getattr(self, "_counting", False)
                 self._counting = True
                 self.countdowns_seen.append(n)
@@ -5129,6 +5149,22 @@ def _refused(M, why: str) -> "tuple[str, str]":
 #: the refusals that become the offer to open the Instrument drivers window (never on ARM)
 _DRIVER_OFFERS = ("driver_not_installed_for_table", "driver_not_installed_for_instrument",
                   "driver_file_missing_for_table")
+
+
+def _start_up_asks_about_the_arm() -> bool:
+    """job.START_UP_ASKS_ABOUT_THE_ARM (4.3.52: False; True brings back the arm question after
+    power-on and its refusal)."""
+    from workflow.i1io.table import job as _J
+    return bool(getattr(_J, "START_UP_ASKS_ABOUT_THE_ARM", False))
+
+
+def _J_in_back_strip(p) -> bool:
+    """job.in_back_strip, never raising (a page never fails on it)."""
+    try:
+        from workflow.i1io.table import job as _J
+        return _J.in_back_strip(p)
+    except Exception:      # noqa: BLE001
+        return False
 
 
 def _fill(msg, **kw) -> dict:

@@ -7,6 +7,12 @@
   and shows "The arm is at its resting place".
 * Where no recorded homing starts, or after any other stop, the old advice stays (i1Profiler, the
   power switch) and no such button is shown.
+
+4.3.52 (the owner's ruling of 2026-11-20, test_4352_start_rule_by_state.py): at a START the arm is
+brought home from wherever a held arm stands, after ONE short question (M-I1IO-DRIVE-HOME-AT-
+START), with i1Profiler's start homing, and the measurement goes on; the one place nothing is
+offered is the back strip beside the white tile's holder. A just-switched-on table gets its
+start-up whatever the person answered about the arm.
 """
 from __future__ import annotations
 
@@ -17,8 +23,10 @@ from tests.i1io_table.test_window import ARGS, open_window, settings  # noqa: F4
 from tests.i1io_table.window_sim import WindowSim
 
 OUT_HELD = [0.0, 1600.0]
-ALIGN_START = [2507.0, 1429.0]
-HOMING = [";s022", ";p025", ";i12b", ";s022", ";f02f", ";f42b", ";f42b", ";p025"]
+BACK_STRIP = [1058.0, 317.0]
+#: the START rule's homing (i1Profiler's start homing + the reading at rest)
+HOMING = [";s022", ";p025", ";i12b", ";s022", ";p025"]
+MOVES = ("m0", "m1", "m2", "i1", "i0")
 
 
 def _ready_page(qtbot, monkeypatch, tmp_path, settings, pos, asking=True, **simkw):
@@ -55,64 +63,61 @@ def test_start_with_the_arm_out_brings_it_home_and_goes_on(qtbot, monkeypatch, t
                                                           settings, asking):
     win, sim, p = _ready_page(qtbot, monkeypatch, tmp_path, settings, OUT_HELD, asking=asking)
     _press_arm_out(win, p)
-    assert p.page() == "refused", win.pages_shown[-3:]
+    assert p.page() == "home_at_start", win.pages_shown[-3:]
     text = win._text.text()
-    assert tr("The arm is not at its resting place.") in text
-    # 4.3.51: the START rule's page (M-I1IO-DRIVE-ARM-OUT-AT-START), End measurement beside it
-    assert "ChromIQ can bring it home from there" in text and "i1Profiler 3.8.6 or older" in text
-    assert p.labels() == ["Bring the arm home", "End measurement"]   # no "Carry on" here
+    assert tr("The arm is not at its resting place. ChromIQ brings it there now.") in text
+    assert "i1Profiler" not in text and "record" not in text
+    assert p.labels() == ["Not now", "Bring the arm home, my hands are away"]
     assert sim.sim.received[11:] == [";p025"]            # read once, nothing moved
-    p.press("Bring the arm home")
-    assert p.page() == "go"
     n = len(sim.sim.received)
-    p.press("Go")
+    p.press("Bring the arm home, my hands are away")
     p.idle()
-    assert sim.sim.received[n:n + 8] == HOMING
-    # 4.3.51: the page says so, and Go on goes on with the calibration, as at a usual start
-    assert p.page() == "home_after_stop_done" and p.labels() == ["Go on"]
-    p.press("Go on")
-    p.idle()
+    assert sim.sim.received[n:n + 5] == HOMING
     assert p.page() not in ("refused", "stopped"), win.pages_shown[-3:]
     assert sim.sim.violations == []
 
 
-def test_start_with_the_arm_out_at_the_alignment_start_keeps_the_old_advice(
-        qtbot, monkeypatch, tmp_path, settings):
-    win, sim, p = _ready_page(qtbot, monkeypatch, tmp_path, settings, ALIGN_START)
+def test_start_with_the_arm_out_in_the_back_strip_says_why(qtbot, monkeypatch, tmp_path,
+                                                           settings):
+    win, sim, p = _ready_page(qtbot, monkeypatch, tmp_path, settings, BACK_STRIP)
     _press_arm_out(win, p)
     text = win._text.text()
-    # 4.3.51: M-I1IO-DRIVE-ARM-OUT-NOT-HERE (why, and what works)
-    assert "ChromIQ does not bring it home from there" in text
+    assert "beside the holder of the white tile" in text
     assert "i1Profiler 3.8.6 or older" in text and "power switch" in text
-    assert "Bring the arm home" not in p.labels()
     assert p.labels() == ["End measurement"]
-    assert not [ln for ln in sim.sim.received if ln[1:3] in ("m0", "m1", "m2", "i1", "i0")]
+    assert not [ln for ln in sim.sim.received if ln[1:3] in MOVES]
 
 
-def test_start_with_the_arm_out_on_a_cold_table_sends_no_start_up(qtbot, monkeypatch, tmp_path,
-                                                                  settings):
+def test_start_with_the_arm_out_on_a_cold_table_starts_it(qtbot, monkeypatch, tmp_path,
+                                                          settings):
     win, sim, p = _ready_page(qtbot, monkeypatch, tmp_path, settings, OUT_HELD, cold=True)
     _press_arm_out(win, p)
-    assert p.page() == "refused"
-    assert "never been recorded with the arm out over the table" in win._text.text()
-    assert p.labels() == ["Close"]
+    assert p.page() == "start_up", win.pages_shown[-3:]
     assert ";i02c" not in sim.sim.received
+    p.press(p.labels()[-1] if "Start the table, my hands are away" not in p.labels()
+            else "Start the table, my hands are away")
+    p.idle()
+    assert ";i02c" in sim.sim.received
 
 
 def _stopped_at_the_homing(qtbot, monkeypatch, tmp_path, settings, pos):
     sim = WindowSim(pos=list(pos))
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
                                                     sim=sim, args=ARGS + ["-N"])
-    assert p.drive_until(("stopped",)) == "stopped", win.pages_shown[-4:]
+    page = p.drive_until(("stopped", "home_at_start"))
+    if page == "home_at_start":
+        p.press("Not now")                              # the person wants to wait
+        p.idle()
+    assert p.page() == "stopped", win.pages_shown[-4:]
     return win, sim, p
 
 
 def test_the_stopped_page_offers_the_homing_after_a_place_check(qtbot, monkeypatch, tmp_path,
                                                                 settings):
     win, sim, p = _stopped_at_the_homing(qtbot, monkeypatch, tmp_path, settings, OUT_HELD)
-    assert win._title.text() == tr("ChromIQ has stopped, and can bring the arm home")
+    assert win._title.text() == tr("The arm is not at its resting place")
     text = win._text.text()
-    assert "press End measurement, then open i1Profiler 3.8.6 or older once" in text
+    assert "ChromIQ can bring it home: press Bring the arm home." in text
     assert "power switch" in text and "—" not in text
     assert p.labels() == ["Bring the arm home", "End measurement"]
     p.press("Bring the arm home")
@@ -122,15 +127,14 @@ def test_the_stopped_page_offers_the_homing_after_a_place_check(qtbot, monkeypat
     assert p.page() == "home_after_stop_done", win.pages_shown[-3:]
     assert sim.sim.received[n:] == HOMING
     assert win._title.text() == tr("The arm is at its resting place")
-    assert p.labels() == ["End measurement"]
-    p.press("End measurement")
-    assert sim.sim.received[n:] == HOMING                 # nothing more was sent
+    # 4.3.52: the table is a started table at rest again: the measurement goes on
+    assert p.labels() == ["Go on"]
 
 
-def test_the_stopped_page_at_the_alignment_start_has_no_homing(qtbot, monkeypatch, tmp_path,
-                                                               settings):
-    win, sim, p = _stopped_at_the_homing(qtbot, monkeypatch, tmp_path, settings, ALIGN_START)
+def test_the_stopped_page_in_the_back_strip_has_no_homing(qtbot, monkeypatch, tmp_path,
+                                                          settings):
+    win, sim, p = _stopped_at_the_homing(qtbot, monkeypatch, tmp_path, settings, BACK_STRIP)
     assert "Bring the arm home" not in p.labels()
     text = win._text.text()
-    assert "This stop is not one of those" in text
-    assert "open i1Profiler 3.8.6 or older once" in text
+    assert "beside the holder of the white tile" in text
+    assert "open i1Profiler once" in text

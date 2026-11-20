@@ -1125,6 +1125,11 @@ class Table:
         # ---- 4.3.48 ----
         #: after reopen_for_homing: only the homing's own lines may be written
         self.homing_only = False
+        #: 4.3.52: the start-up's own reading before its homing found the arm away from rest
+        #: (the job then brings it home with the START rule's homing)
+        self.cold_stopped_at_place = False
+        #: 4.3.52: the first reading after a movement (set by position())
+        self.read_is_arrival = False
         #: (lines, movements) that homing adds to the caps, once
         self.homing_allowance = (0, 0)
 
@@ -1146,6 +1151,20 @@ class Table:
         self.closed_reason = None
         self.homing_only = True
         self.homing_allowance = (int(allowance[0]), int(allowance[1]))
+
+    def reopen_after_homing(self) -> None:
+        """4.3.52: the START rule's homing (opened by reopen_for_homing after a place check)
+        ended with the arm read at its resting place, held, the aiming mode off: the table is
+        a started table at rest, as at any START, and the measurement goes on. Only right after
+        such a homing (the job's caller checks the reading); the homing's allowance stays on
+        top of the caps."""
+        if not self.homing_only or self.closed_reason is not None or self.motion_unconfirmed \
+                or self.link_lost_at is not None or self.position_now is None \
+                or not REST_GUARD.contains(self.position_now):
+            raise Doubt("the measurement asked to go on after a homing out of order (a bug)")
+        self.homing_only = False
+        self.log("STOP", "the arm is at its resting place after the homing at the start: "
+                         "sending is open again for the measurement")
 
     # ---- logging and stopping ------------------------------------------------------
     def log(self, kind: str, text: str) -> None:
@@ -1575,6 +1594,9 @@ class Table:
         #: 4.3.47 MUST-1: the line number this reading came with (the job compares it with the
         #: last question and the last release of the arm before a computed move)
         self.read_at_line = self.lines_sent
+        #: 4.3.52: True when this reading is the first one after a movement (its arrival); the
+        #: job never offers its START homing on the arrival of its own movement
+        self.read_is_arrival = bool(self.arrival_unknown)
         if getattr(self, "first_read", None) is None:
             #: 4.3.51: the first place this sitting read, and how many movements came before
             #: it (the job's record of the START; nothing depends on it)

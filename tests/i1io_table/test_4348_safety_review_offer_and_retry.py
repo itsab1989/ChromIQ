@@ -115,7 +115,10 @@ def test_no_offer_when_the_arm_reads_out_after_a_homing_of_this_sitting(tmp_path
     assert sim.received[n:] == []
 
 
-def test_the_job_refuses_the_start_up_after_arm_out(tmp_path):
+def test_the_job_refuses_the_start_up_after_arm_out(tmp_path, monkeypatch):
+    """4.3.52: only with job.START_UP_ASKS_ABOUT_THE_ARM on (the owner's ruling made the
+    start-up the table's own, wherever the arm is: test_4352_start_rule_by_state.py)."""
+    monkeypatch.setattr(J, "START_UP_ASKS_ABOUT_THE_ARM", True)
     job, sim, helper, run, p = job_for(tmp_path, {J.Confirm.READY_TO_OPEN: "arm out"},
                                        real_table=False)
     sim.cold = True

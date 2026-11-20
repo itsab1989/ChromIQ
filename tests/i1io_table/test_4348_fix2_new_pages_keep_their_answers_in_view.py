@@ -47,6 +47,12 @@ def test_the_arm_out_start_keeps_its_answers_in_view(tab, beta, tmp_path, monkey
     win._tick_widgets[1].setChecked(True)
     check()
     p.press("The arm is out")
+    # 4.3.52: the START rule's one question (M-I1IO-DRIVE-HOME-AT-START), then after "Not now"
+    # the page that offers the homing, then its hands-off GO
+    assert p.page() == "home_at_start"
+    check()
+    p.press("Not now")
+    p.idle()
     assert p.page() == "refused"
     check()
     p.press("Bring the arm home")

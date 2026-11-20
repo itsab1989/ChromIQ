@@ -167,11 +167,12 @@ def test_the_way_back_and_the_reach_hold_without_the_check_move(tmp_path):
         r = p.drive(job.read_row())
         assert r.ok, (r.reason, r.detail)
         rows.append(r)
-    # the arm stands at the end of the frontmost row, in front of every recorded homing start
-    assert not J.homing_starts_here(job.state().position_now, False)
+    # the arm stands at the end of the frontmost row, in front of every recorded homing start;
+    # 4.3.52: the homing goes straight home from there (no way back first)
+    assert job.state().position_now[1] > 3114
     r = p.drive(job.home())
     assert r.ok, (r.reason, r.detail, sim.violations)
-    assert job.at_rest() and job.way_back_moves and sim.violations == []
+    assert job.at_rest() and job.way_back_moves == [] and sim.violations == []
     # the remembered reach learned the frontmost target the motors arrived at (the careful
     # steps' last one, or a row further forward), never a mark
     assert job.reach.motor_front_y is not None and job.reach.motor_front_y >= need - 5

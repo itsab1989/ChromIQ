@@ -102,8 +102,27 @@ def test_t1_warm_table_the_only_question_is_aiming(qtbot, monkeypatch, tmp_path,
     assert not win._tick_widgets
 
 
-def test_t1_cold_table_asks_the_arm_question_once(qtbot, monkeypatch, tmp_path, settings,
-                                                  asked):
+def test_t1_cold_table_asks_nothing_about_the_arm(qtbot, monkeypatch, tmp_path, settings,
+                                                 asked):
+    """4.3.52 (the owner's ruling of 2026-11-20): the start-up is sent wherever the arm is, so
+    the arm question after power-on is gone (job.START_UP_ASKS_ABOUT_THE_ARM brings it back,
+    test_t1_cold_table_asks_the_arm_question_once_with_the_constant); a countdown stands before
+    it, as before every first movement."""
+    sim = WindowSim(cold=True)
+    win, sim, run, p, saved, finished = _unguided(qtbot, monkeypatch, tmp_path, settings,
+                                                  sim=sim)
+    shown = _to_done(p)
+    assert set(asked) == {C.AIMED}, asked
+    assert "start_up_arm" not in shown
+    assert any(c["for"] is None or c["for"] == "start_up" or c["step"] == "start_up"
+               for c in sim.jobs[0].countdowns)
+    assert sim.jobs[0].ended == "saved" and sim.jobs[0].at_rest()
+    assert J.HANDS_OFF_BREACHES == [] and sim.sim.violations == []
+
+
+def test_t1_cold_table_asks_the_arm_question_once_with_the_constant(qtbot, monkeypatch,
+                                                                    tmp_path, settings, asked):
+    monkeypatch.setattr(J, "START_UP_ASKS_ABOUT_THE_ARM", True)
     sim = WindowSim(cold=True)
     win, sim, run, p, saved, finished = _unguided(qtbot, monkeypatch, tmp_path, settings,
                                                   sim=sim)
@@ -160,6 +179,8 @@ def test_t2_the_countdown_clears_the_guard_and_nothing_else(tmp_path):
 # ---- T3: a just-switched-on table, the arm answered "out" ---------------------------------------
 
 def test_t3_cold_table_arm_out_sends_no_movement(qtbot, monkeypatch, tmp_path, settings):
+    """Only with job.START_UP_ASKS_ABOUT_THE_ARM on (4.3.52: off; the start-up is sent)."""
+    monkeypatch.setattr(J, "START_UP_ASKS_ABOUT_THE_ARM", True)
     sim = WindowSim(cold=True)
     win, sim, run, p, saved, finished = _unguided(
         qtbot, monkeypatch, tmp_path, settings, sim=sim)

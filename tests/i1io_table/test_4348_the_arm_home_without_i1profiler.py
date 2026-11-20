@@ -24,6 +24,14 @@ So:
 * at a START the person may say "the arm is out": the job connects, reads where the arm is (one
   ``;p025``, the line a calibration's rest check sends first) and moves nothing; a held arm in
   the area is offered 4.3.47's homing (HOME_OFFERED), anything else the old advice.
+
+4.3.52 (the owner's ruling of 2026-11-20, test_4352_start_rule_by_state.py): the START rule's
+homing is i1Profiler's own start homing (s0 p0 i1 s0, plus the reading at rest) from wherever a
+held arm stands but the back strip, asked INSIDE the step that found the arm; after it the
+measurement goes on. The tests here keep 4.3.48's protections of the offer (the states, the
+reasons, the reopening for the homing's lines only) on the page that offers it when the person
+declined that question ("Not now"); the place they tested (the alignment start) is replaced by
+the back strip, the one place still refused.
 """
 from __future__ import annotations
 
@@ -36,8 +44,10 @@ from workflow.i1io.table import job as J
 from workflow.i1io.table import session_table as tbl
 
 OUT_HELD = [0.0, 1600.0]              # out over the bed, inside the measuring area
-ALIGN_START = [2507.0, 1429.0]        # where i1Profiler starts every alignment (no homing there)
-HOMING = [";s022", ";p025", ";i12b", ";s022", ";f02f", ";f42b", ";f42b", ";p025"]
+#: 4.3.52: the one place a held arm is not brought home from (job.in_back_strip)
+BACK_STRIP = [1058.0, 317.0]
+#: 4.3.52: the START rule's homing (i1Profiler's start homing + the reading at rest)
+HOMING = [";s022", ";p025", ";i12b", ";s022", ";p025"]
 MOVES = ("m0", "m1", "m2", "i1", "i0")
 
 
@@ -48,7 +58,10 @@ def _stopped_at_the_homing(tmp_path, pos, real_table=False, script=None, **kw):
     assert job.set_options(["-N"]).ok
     sim.pos = list(pos)
     assert p.drive(job.open()).ok
+    go = p.script[J.Confirm.GO]
+    p.script[J.Confirm.GO] = "back"           # 4.3.52: "Not now" on the START rule's question
     r = p.drive(job.align())
+    p.script[J.Confirm.GO] = go
     assert r.kind == J.Kind.STOPPED, (r.kind, r.reason)
     assert job._table.closed_reason.startswith("right before the homing: the arm reports")
     return job, sim, p, r
@@ -64,16 +77,16 @@ def test_a_stop_at_the_homings_place_check_offers_the_homing_and_it_runs(tmp_pat
     asked = len(p.asked)
     res = p.drive(job.home_after_stop())
     assert res.ok, (res.kind, res.reason, res.detail)
-    # the hands-off GO first, then exactly 4.3.47's homing lines, nothing else
+    # the hands-off GO first, then exactly the START homing's lines, nothing else
     assert [a[1] for a in p.asked[asked:]] == [J.Confirm.GO]
     assert sim.received[n:] == HOMING
     assert tbl.REST_GUARD.contains(job._table.position_now)
     assert res.way_back == J.WayBack.NONE
-    # and nothing more is ever sent in this measurement
-    assert job._table.closed_reason is not None
-    for step in ("park", "align", "home", "home_after_stop"):
-        assert getattr(job, step)().kind == J.Kind.REFUSED
-    assert sim.received[n:] == HOMING and sim.violations == []
+    # 4.3.52: and the measurement goes on (the table is a started table at rest); the offer is
+    # not made twice
+    assert job._table.closed_reason is None and res.detail["goes_on"] is True
+    assert job.home_after_stop().kind == J.Kind.REFUSED
+    assert p.drive(job.align()).ok and sim.violations == []
 
 
 def test_the_go_is_asked_before_any_line_and_back_sends_nothing(tmp_path):
@@ -105,12 +118,12 @@ def test_after_save_or_discard_the_ending_offers_it(tmp_path):
 
 
 # ---- not offered ------------------------------------------------------------------------------
-def test_not_where_no_recorded_homing_starts(tmp_path):
-    job, sim, p, r = _stopped_at_the_homing(tmp_path, ALIGN_START)
+def test_not_from_the_back_strip(tmp_path):
+    job, sim, p, r = _stopped_at_the_homing(tmp_path, BACK_STRIP)
     assert r.way_back == J.WayBack.OPEN_I1PROFILER_ONCE
     n = len(sim.received)
     res = job.home_after_stop()
-    assert res.reason == "homing_not_from_here" and sim.received[n:] == []
+    assert res.reason == "arm_in_the_back_strip" and sim.received[n:] == []
 
 
 @pytest.mark.parametrize("fault", ["garbled", "refuse", "no_answer", "unplug", "bad_checksum",
@@ -201,12 +214,11 @@ def test_planted_a_wider_offer_is_caught(tmp_path, monkeypatch, plant):
         # still refuses (no reading came with it), which is the second line of defence
         assert job._home_after_stop_why() in ("no_fresh_position_reading", "arm_not_held")
     elif plant == "any place":
-        monkeypatch.setattr(J, "homing_starts_here", lambda p, free, *cap: True)
-        monkeypatch.setattr(J, "HOME_AFTER_STOP_AREA", J.geo.Area(-9999, 9999, -9999, 9999))
-        job, sim, p, r = _stopped_at_the_homing(tmp_path, ALIGN_START)
+        job, sim, p, r = _stopped_at_the_homing(tmp_path, BACK_STRIP)
+        monkeypatch.setattr(J, "in_back_strip", lambda p: False)
         assert job._home_after_stop_why() is None          # the plant shows
         monkeypatch.undo()
-        assert job._home_after_stop_why() == "homing_not_from_here"
+        assert job._home_after_stop_why() == "arm_in_the_back_strip"
     else:
         job, sim, p, r = _stopped_at_the_homing(tmp_path, OUT_HELD)
         job._table.arm_free = True
@@ -214,42 +226,36 @@ def test_planted_a_wider_offer_is_caught(tmp_path, monkeypatch, plant):
 
 
 # ---- the START with the arm out -------------------------------------------------------------
-def test_start_with_the_arm_out_reads_it_and_offers_the_usual_homing(tmp_path):
+def test_start_with_the_arm_out_reads_it_and_brings_it_home(tmp_path):
     job, sim, helper, run, p = job_for(tmp_path, {J.Confirm.READY_TO_OPEN: "arm out"},
                                        real_table=True)
     sim.pos = list(OUT_HELD)
     r = p.drive(job.open())
     assert r.ok and r.detail.get("arm_out") is True
     assert len(sim.received) == 11                      # the opening only
-    r = p.drive(job.where_is_the_arm())
-    assert (r.kind, r.reason) == (J.Kind.REFUSED, "arm_not_at_rest")
-    assert sim.received[11:] == [";p025"]               # one reading, nothing moved
-    # 4.3.51, ONE START rule: the START's own homing (way back HOME_AFTER_STOP), whichever step
-    # read the arm; the usual homing is not offered at a START
-    assert r.way_back == J.WayBack.HOME_AFTER_STOP and r.state.sending_closed is False
-    n = len(sim.received)
-    assert job.home().kind == J.Kind.REFUSED and len(sim.received) == n
     asked = len(p.asked)
-    r = p.drive(job.home_after_stop())
-    assert r.ok, (r.kind, r.reason)
+    r = p.drive(job.where_is_the_arm())
+    assert r.ok and r.detail.get("brought_home") is True, (r.kind, r.reason)
+    # one reading, the hands-off question, then the START rule's homing; never the usual one
     assert [a[1] for a in p.asked[asked:]] == [J.Confirm.GO]
-    assert sim.received[12:] == HOMING
+    assert p.asked[asked][3] == 12, "nothing moved before the question"
+    assert sim.received[11:] == [";p025"] + HOMING
     # then the measurement goes on as usual
     for s in ("calibrate", "align"):
         assert p.drive(H.step(job, s)).ok, s
     assert sim.violations == []
 
 
-def test_start_with_the_arm_out_at_the_alignment_start_offers_nothing(tmp_path):
+def test_start_with_the_arm_out_in_the_back_strip_offers_nothing(tmp_path):
     job, sim, helper, run, p = job_for(tmp_path, {J.Confirm.READY_TO_OPEN: "arm out"},
                                        real_table=False)
-    sim.pos = list(ALIGN_START)
+    sim.pos = list(BACK_STRIP)
     assert p.drive(job.open()).ok
     r = p.drive(job.where_is_the_arm())
     assert r.reason == "arm_not_at_rest"
-    assert r.way_back == J.WayBack.OPEN_I1PROFILER_ONCE           # 4.3.47 offered it falsely
+    assert r.way_back == J.WayBack.OPEN_I1PROFILER_ONCE
     n = len(sim.received)
-    assert job.home().reason == "homing_not_from_here" and sim.received[n:] == []
+    assert job.home().reason == "arm_in_the_back_strip" and sim.received[n:] == []
 
 
 def test_start_with_the_arm_out_and_free_offers_nothing(tmp_path):
@@ -277,9 +283,10 @@ def test_start_with_the_arm_out_but_at_rest_goes_on_as_usual(tmp_path):
 
 def test_the_held_arm_out_of_the_area_is_never_offered_the_usual_homing(tmp_path):
     """4.3.47 offered HOME_OFFERED for a held arm at the alignment start, and the homing then
-    refused after sending s0 p0. Now the offer says what the homing would do."""
+    refused after sending s0 p0. Now the offer says what the homing would do (4.3.52: the
+    alignment start gets the START homing; the back strip is the place left)."""
     job, sim, helper, run, p = job_for(tmp_path, real_table=False)
-    sim.pos = list(ALIGN_START)
+    sim.pos = list(BACK_STRIP)
     assert p.drive(job.open()).ok
     r = p.drive(job.calibrate())
     assert r.reason == "arm_not_at_rest"

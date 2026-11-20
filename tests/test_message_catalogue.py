@@ -176,12 +176,14 @@ AWAITING_APPROVAL: "set[str]" = {
     # 2026-11-20, 4.3.52: the two sub-options of the i1iO Beta (guidance off, the log)
     "M-I1IO-DRIVE-COUNTDOWN", "M-I1IO-DRIVE-START-UP-ARM", "M-I1IO-DRIVE-CONSENT-GUIDANCE",
     "M-I1IO-GUIDED-HELP", "M-I1IO-LOG-HELP",
-    # 2026-11-20, 4.3.51: ONE rule at a START for an arm away from its resting place
-    "M-I1IO-DRIVE-ARM-OUT-AT-START", "M-I1IO-DRIVE-ARM-OUT-NOT-HERE",
-    "M-I1IO-DRIVE-ARM-OUT-AT-START-AREA",
+    # 2026-11-20, 4.3.51: ONE rule at a START for an arm away from its resting place (4.3.52:
+    # ARM-OUT-AT-START, -AT-START-AREA, -NOT-HERE and -TRY WITHDRAWN by the owner's ruling of
+    # 2026-11-20: the START rule by state, one page, HOME-AT-START; ARM-OUT-BACK for the back
+    # strip, the one place nothing is offered)
+    "M-I1IO-DRIVE-HOME-AT-START", "M-I1IO-DRIVE-ARM-OUT-BACK",
     "M-I1IO-DRIVE-HOME-AT-START-DONE",
-    # 2026-11-20, 4.3.51, the owner's decision: the try from over the bed
-    "M-I1IO-DRIVE-ARM-OUT-TRY", "M-I1IO-DRIVE-HOME-TRY-FAILED",
+    # 2026-11-20, 4.3.51, the owner's decision: when it does not work
+    "M-I1IO-DRIVE-HOME-TRY-FAILED",
     "M-I1IO-DRIVE-ARM-WAY-OUT", "M-I1IO-DRIVE-I1PROFILER-LIMIT",
     "M-I1IO-DRIVE-DUAL-CONTINUE-FILL",
     "M-I1IO-DRIVE-DUAL-FILL-OFFER",

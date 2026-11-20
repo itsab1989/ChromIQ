@@ -33,7 +33,9 @@ def test_s3_the_questions_answered_by_the_setting_are_exactly_these():
     assert J.BY_SETTING == {C.READY_TO_OPEN: "yes", C.SHEET_LAID: "yes",
                             C.FRONT_CHOICE: "go on", C.FIRST_VISIT: "yes",
                             C.READER_CONSENT: "yes", C.END: "save"}
-    assert J.COUNTDOWN_INSTEAD == frozenset({C.GO})
+    # 4.3.52 (the owner's ruling of 2026-11-20): the start-up of a just-switched-on table is
+    # sent wherever the arm is, so with the guidance off it comes after the countdown
+    assert J.COUNTDOWN_INSTEAD == frozenset({C.GO, C.START_UP})
     assert J.SKIPPED == frozenset({C.ARM_FELT, C.REPORT_AFTER_STEP})
     assert J.COUNTDOWN_AFTER == frozenset({C.SHEET_LAID, C.FRONT_CHOICE})
     assert J.TableJob.AUTO_KINDS == frozenset(J.BY_SETTING)
