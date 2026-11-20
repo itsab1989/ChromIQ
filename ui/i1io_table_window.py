@@ -1346,6 +1346,8 @@ class TablePopup(QDialog):
     def __init__(self, win: "TableMeasureWindow") -> None:
         super().__init__(win, Qt.WindowType.Dialog | Qt.WindowType.CustomizeWindowHint
                          | Qt.WindowType.WindowTitleHint | Qt.WindowType.WindowCloseButtonHint)
+        # A4 (4.3.50): the window logs this pop-up's page and answer itself
+        self._cq_question_skip = True
         self._win = win
         self.setObjectName("i1io_table_popup")
         self.setWindowModality(Qt.WindowModality.ApplicationModal)
@@ -2440,6 +2442,7 @@ class TableMeasureWindow(QFrame):
         self._clear_page()
         self.pages_shown.append(page_id)
         self._page_id = page_id
+        _applog_table_page(self, page_id, title, buttons)
         self._status.setText(self._quit_hint())
         # the note field stays while what it is about is on screen (a problem, a stop, a
         # failure); the next job call clears that
@@ -2472,6 +2475,10 @@ class TableMeasureWindow(QFrame):
         # plain object does not keep that object alive)
         self._slot_owners = [getattr(slot, "__self__", None) for _l, slot in buttons]
         for label, slot in buttons:
+            # A4 (4.3.50): the answer given, by page id and in English, in the app log
+            logged = _LoggedAnswer(self, page_id, label, slot)
+            self._slot_owners.append(logged)
+            slot = logged.fire
             b = QPushButton(label, self)
             b.setAutoDefault(False)
             b.setDefault(False)
@@ -2725,6 +2732,7 @@ class TableMeasureWindow(QFrame):
     def _on_done(self, token: int, res) -> None:
         if token != self._token:
             return
+        _applog_table_result(self, res)
         self._busy = False
         self._end_btn.setEnabled(True)
         self._close_btn.setEnabled(True)
@@ -2843,6 +2851,7 @@ class TableMeasureWindow(QFrame):
                 path=Path(log_path).relative_to(self._run.dir).as_posix())
         except Exception:      # noqa: BLE001
             self._log_name = ""
+        _applog_table_opened(self)
         from workflow.i1io.table import session_end as _se
         found = [e for e in self.job.earlier_sessions() if e.get("state") == "interrupted"]
         # review 12, M-2 / M-3: only a session read from this very chart, for this place (a
@@ -4540,6 +4549,7 @@ class TableMeasureWindow(QFrame):
     def _relay_progress(self, ev: dict) -> None:
         self._live_event(ev)
         self.progress.emit(dict(ev))
+        _applog_table_row(self, ev)
 
     def _aim_event(self, mark, patch=None) -> None:
         """Where the arm should point now (display only): mark *mark* of the job's page, or
@@ -4656,3 +4666,148 @@ def _fill(msg, **kw) -> dict:
     import re
     names = set(re.findall(r"\{(\w+)\}", msg.body + msg.title + (msg.body_one or "")))
     return {k: v for k, v in kw.items() if k in names}
+
+
+# ---- the app log (4.3.50, A4 / A6) ------------------------------------------------------------
+# A few lines per sitting in the app log; the wire traffic stays in the session folder
+# (i1io-table/<date-time>/), which the first line names. Every function here runs on the GUI
+# thread, AFTER a job call's result arrived or when a page is shown, never inside a move's timed
+# window, and never raises.
+_TABLE_RESULT_SKIP = ("state", "readings", "patches", "rows_data", "second_moves", "values")
+
+
+def _table_state_pairs(st) -> dict:
+    if st is None:
+        return {}
+    try:
+        p = st.position_now or st.last_read
+        return {"table": st.table, "position": (f"{int(p[0])},{int(p[1])}" if p else None),
+                "at_rest": st.at_rest, "arm_free": st.arm_free,
+                "movement_unfinished": st.movement_may_be_unfinished or None,
+                "link_lost": st.link_lost or None, "sending_closed": st.sending_closed or None,
+                "moves_sent": st.moves_sent, "only_homing": st.only_homing or None,
+                "stopped_by_person": st.stopped_by_person or None}
+    except Exception:      # noqa: BLE001
+        return {}
+
+
+def _applog_table_opened(win) -> None:
+    try:
+        from core.app_log import line
+        from workflow.i1io.table import job as J
+        folder = None
+        try:
+            folder = win._run.i1io_table_session_dir(win._stamp)
+        except Exception:      # noqa: BLE001
+            folder = None
+        job = win.job
+        line("table session", stamp=win._stamp, folder=str(folder) if folder else None,
+             job_version=getattr(J, "JOB_VERSION", None),
+             pages=job.pages_in_chart() if job is not None else None,
+             guided=bool(getattr(job, "ask_after_each_step", True)),
+             dual_scan=getattr(job, "dual", None) is not None,
+             stored_tile_white=bool(getattr(job, "stored_tile_white", False)),
+             popups=bool(getattr(win, "_popups", False)))
+    except Exception:      # noqa: BLE001
+        pass
+
+
+def _applog_table_result(win, res) -> None:
+    try:
+        from core.app_log import flat, line
+        if isinstance(res, BaseException):
+            line("table result", step=None, kind="error", error=type(res).__name__,
+                 _level=logging.WARNING)
+            return
+        if not hasattr(res, "step") or not hasattr(res, "kind"):
+            return
+        detail = {k: v for k, v in (getattr(res, "detail", None) or {}).items()
+                  if k not in _TABLE_RESULT_SKIP}
+        extra = {}
+        job = win.job
+        if res.step == "align" and job is not None and getattr(job, "alignment", None):
+            try:
+                extra["aims"] = ";".join(f"{int(p[0])},{int(p[1])}"
+                                         for p in job.alignment.readings)
+            except Exception:      # noqa: BLE001
+                pass
+        level = logging.INFO if res.kind in ("ok", "needs") else logging.WARNING
+        kv = dict(step=res.step, kind=res.kind, reason=res.reason or None,
+                  confirm=res.confirm, way_back=res.way_back,
+                  page=(job.page + 1) if job is not None else None,
+                  **extra, **_table_state_pairs(getattr(res, "state", None)),
+                  **flat(detail, depth=2))
+        line("table result", _level=level, **{k: v for k, v in kv.items() if v is not None})
+        if (res.kind == "ok" and job is not None and not getattr(job, "ask_after_each_step", True)
+                and res.step not in ("home", "note", "report", "options", "close", "end",
+                                     "save", "discard", "problem", None)):
+            from core.question_log import auto_answered
+            auto_answered("M-I1IO-DRIVE-AFTER-STEP", "not_asked", step=res.step,
+                          why="ask_after_each_step_off")
+        if res.step in ("close", "end", "save", "discard") and res.kind != "needs_confirmation":
+            kv = dict(step=res.step, kind=res.kind, reason=res.reason or None,
+                      ending=(getattr(res, "detail", None) or {}).get("ending"),
+                      **_table_state_pairs(getattr(res, "state", None)))
+            line("table session end", **{k: v for k, v in kv.items() if v is not None})
+    except Exception:      # noqa: BLE001
+        pass
+
+
+def _applog_table_row(win, ev) -> None:
+    """A3 for the table: one line per row as the job reports its end (the queued progress
+    signal, on the GUI thread; the job thread only emitted it, as before)."""
+    try:
+        kind = ev.get("event")
+        if kind not in ("row_start", "row_end", "strip_fallback"):
+            return
+        from workflow.measure_log import StripLog
+        sl = getattr(win, "_applog_rows", None)
+        if sl is None:
+            sl = win._applog_rows = StripLog()
+        rid = f"page{ev.get('page', '?')}-row{ev.get('row', '?')}"
+        if kind == "row_start":
+            sl.ready()
+            win._applog_row_kind = ev.get("kind")
+        elif kind == "strip_fallback":
+            win._applog_row_why = ev.get("why")
+        else:
+            st = ev.get("status")
+            sl.decided(rid, "kept" if st == "read" else str(st or "?"), path="table",
+                       read_as=getattr(win, "_applog_row_kind", None),
+                       patch_by_patch_because=getattr(win, "_applog_row_why", None),
+                       failed_at=ev.get("loc") if st != "read" else None)
+            win._applog_row_why = None
+    except Exception:      # noqa: BLE001
+        pass
+
+
+def _applog_table_page(win, page_id, title, buttons) -> None:
+    try:
+        from core.app_log import line
+        from core.question_log import english
+        win._applog_page_t0 = __import__("time").monotonic()
+        line("table page", id=page_id, title=english(title),
+             answers=[english(lb) for lb, _s in buttons][:6] or None,
+             popup=bool(getattr(win, "_popups", False)))
+    except Exception:      # noqa: BLE001
+        pass
+
+
+class _LoggedAnswer:
+    """An answer button of the table window: its answer goes to the app log, then it acts
+    (a plain object with a bound method, never a lambda)."""
+
+    def __init__(self, win, page_id: str, label: str, slot) -> None:
+        self.win, self.page_id, self.label, self.slot = win, page_id, label, slot
+
+    def fire(self, *_a):
+        try:
+            import time as _t
+            from core.question_log import answered, english
+            t0 = getattr(self.win, "_applog_page_t0", None)
+            answered(f"table:{self.page_id}", english(self.label),
+                     slot=getattr(self.slot, "__name__", None),
+                     open_s=round(_t.monotonic() - t0, 1) if t0 else None)
+        except Exception:      # noqa: BLE001
+            pass
+        return self.slot()
