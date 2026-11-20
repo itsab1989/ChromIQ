@@ -318,3 +318,16 @@ def test_the_serial_hash_is_keyed_with_the_salt_not_the_account(monkeypatch):
     lp.reset_for_tests(homes=["/Users/basti"], names=["basti"])
     assert lp.device_tag("1234567") != a
     lp.reset_for_tests()
+
+
+def test_the_table_reach_salt_never_reaches_the_log(caplog):
+    """S10 (found on screen): settings.set logged the reach record with %r,
+    salt and table keys in it; reach.py promises the salt never leaves the
+    settings file."""
+    from core.settings import AppSettings
+    rec = '{"salt": "b39d28f5aa11", "tables": {"f0874b8c203e1383": {"v": 2}}}'
+    with caplog.at_level(logging.DEBUG, logger="core.settings"):
+        AppSettings().set("i1io_table_reach", rec)
+    said = " ".join(r.getMessage() for r in caplog.records)
+    assert "b39d28f5" not in said and "f0874b8c" not in said
+    assert "i1io_table_reach" in said

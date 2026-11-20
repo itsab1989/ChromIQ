@@ -15,12 +15,17 @@ from core.beta_registry import show as _beta_show  # noqa: E402
 
 #: 4.3.50: settings whose VALUE never goes into the app log, because it names
 #: a device (the CR30's serial and internal id, the ids its tile signatures are
-#: filed under, its Bluetooth address). ``settings.set`` logs the key only.
+#: filed under, its Bluetooth address), the i1iO table's reach salt and the
+#: log filter's own salt. ``settings.set`` logs the key only.
 UNLOGGED_VALUE_KEYS: "frozenset[str]" = frozenset({
     "cr30_last_device_info",
     "cr30_tile_signatures",
     "cr30_ble_address",
     "log_privacy_salt",
+    # the i1iO table's reach record: its salt and the tables' salted keys;
+    # workflow/i1io/table/reach.py promises the salt never leaves the
+    # settings file (review of the app-log branch, S10)
+    "i1io_table_reach",
 })
 
 #: S5 (4.3.50): the app log's per-install salt (``core.log_privacy``)
