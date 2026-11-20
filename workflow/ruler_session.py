@@ -156,11 +156,17 @@ class RulerSession:
                 self.diag.doc["margin_tolerance"] = str(
                     ev.get("margin_tolerance") or "not asked")
                 self.diag.write()
-                from workflow.measure_log import written as _written
-                _written("ruler diagnostics", path)   # A8 (4.3.50)
             except Exception:      # noqa: BLE001 - never stop a measurement
                 log.warning("ruler: no diagnostics file", exc_info=True)
                 self.diag = None
+            if self.diag is not None:
+                # A8 (4.3.50): its own try (S1): a log line can never switch
+                # the diagnostics off
+                try:
+                    from workflow.measure_log import written as _written
+                    _written("ruler diagnostics", path)
+                except Exception:      # noqa: BLE001
+                    pass
         lines = [tr("Ruler (beta): the ruler check is on for this {instrument} "
                     "(firmware {firmware}). After each strip ChromIQ shows how "
                     "far, which way and how fast the instrument moved along the "

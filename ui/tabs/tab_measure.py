@@ -9773,9 +9773,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             # A2/A8 (4.3.50): FD-9 is contributor code; its start and the
             # chart are logged from here, outside it (its own evidence
             # folder fd9-sessions/ beside the chart stays as it is)
-            from core.app_log import line as _line
-            _line("measure start", reader="fd9", chart=str(getattr(
-                self, "_ti1_path", "") or "") or None, run_kind="fd9")
+            try:   # S1
+                from core.app_log import line as _line
+                _line("measure start", reader="fd9", chart=str(getattr(
+                    self, "_ti1_path", "") or "") or None, run_kind="fd9")
+            except Exception:      # noqa: BLE001
+                pass
             self._start_fd9_measurement()
             return
         # An i1iO 2 + i1Pro 2 chart of a profile run with i1iO support on
@@ -11298,8 +11301,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         the work away without a word. Both now ask the same question.
         """
         if _fd9_ask(self, "_fd9_engaged"):
-            from core.app_log import line as _line
-            _line("measure stop", reader="fd9", by="person")
+            try:   # S1
+                from core.app_log import line as _line
+                _line("measure stop", reader="fd9", by="person")
+            except Exception:      # noqa: BLE001
+                pass
             self._stop_fd9_measurement()
             return
         win = getattr(self, "_table_window", None)
@@ -11589,9 +11595,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                  choice[0])
         # A4 (4.3.50): the question by its catalogue id and the answer, by
         # name, in the app log (the window's own line has the button too)
-        from core.question_log import answered as _answered
-        _answered(message.id, choice[0], strip=strip,
-                  window="Strip may be misaligned")
+        try:   # S1: the answer is handled whatever the log line does
+            from core.question_log import answered as _answered
+            _answered(message.id, choice[0], strip=strip,
+                      window="Strip may be misaligned")
+        except Exception:      # noqa: BLE001
+            pass
         self._after_misaligned_strip_choice(choice[0], strip)
 
     def _misaligned_strip_buttons(self, dlg, layout, msg,

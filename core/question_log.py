@@ -27,7 +27,7 @@ import re
 import time
 from collections import OrderedDict
 
-from core.app_log import line
+from core.app_log import line, merged, never_raises
 
 _RENDERED: "OrderedDict[str, tuple[str, str, float]]" = OrderedDict()
 _MAX = 64
@@ -36,6 +36,7 @@ _REVERSE_FOR = None
 _TAGS = re.compile(r"<[^>]+>")
 
 
+@never_raises
 def note_rendered(msg_id: str, title: str, body: str) -> None:
     """A catalogue message was rendered (it is about to be shown, or logged)."""
     try:
@@ -87,6 +88,7 @@ def _texts_of(win) -> "list[str]":
     return [_plain(t) for t in out if t]
 
 
+@never_raises
 def message_id_of(win) -> str:
     """The catalogue id whose title (or the start of whose body) the window
     shows, newest first; else ""."""
@@ -114,6 +116,7 @@ def _is_question_window(win) -> bool:
         return False
 
 
+@never_raises
 def window_shown(win) -> None:
     """Called by the dialog filter on a dialog window's Show. Never raises."""
     try:
@@ -139,6 +142,7 @@ def window_shown(win) -> None:
         pass
 
 
+@never_raises
 def window_hidden(win) -> None:
     """Called by the dialog filter on a dialog window's Hide. Never raises."""
     try:
@@ -201,16 +205,19 @@ def _recorder_class():
 _RECORDER = None
 
 
-def answered(question_id: str, answer: str, **kv) -> None:
+@never_raises
+def answered(question_id: str, answer: str, /, **kv) -> None:
     """A question answered where the code knows the answer by name (a window
     whose buttons hand back a word, e.g. the misaligned strip's "keep")."""
-    line("question answer", id=question_id, answer=answer, **kv)
+    line("question answer", **merged({"id": question_id, "answer": answer}, kv))
 
 
-def auto_answered(question_id: str, answer: str, **kv) -> None:
+@never_raises
+def auto_answered(question_id: str, answer: str, /, **kv) -> None:
     """A question nobody saw: answered by ChromIQ itself (the table's unguided
     mode, a "don't ask again"), so the log says it was automatic."""
-    line("question answer", id=question_id, answer=answer, by="automatic", **kv)
+    line("question answer", **merged({"id": question_id, "answer": answer,
+                                      "by": "automatic"}, kv))
 
 
 #: A5: at most this many panel lines per tab in one minute reach the app log (a
@@ -219,6 +226,7 @@ PANEL_LINES_PER_MINUTE = 300
 _PANEL_COUNT: "dict[str, list]" = {}
 
 
+@never_raises
 def panel_line(tab: str, text: str, is_html: bool = False) -> None:
     """A5: one line of a tab's on-screen log, for the app log, in English where
     the catalogue knows it and with the §M id where it is a rendered message.

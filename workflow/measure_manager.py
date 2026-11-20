@@ -1389,6 +1389,15 @@ class MeasureManager(QObject):
         except Exception:      # noqa: BLE001
             log.debug("strip line not written", exc_info=True)
 
+    def _strip_decided(self, *args, **kwargs) -> None:
+        """S1 (4.3.50): the strip's app-log line; a fault in it can never
+        stand between an event and its handling (the line is written before
+        a command goes out on some paths)."""
+        try:
+            self._strip_log.decided(*args, **kwargs)
+        except Exception:      # noqa: BLE001
+            pass
+
     def _log_measure_end(self, params, code) -> None:
         """A7 + A8 (4.3.50): the measurement's files and, with M0/M1/M2 kept,
         the strips that have all three; read on a background thread."""
@@ -3441,7 +3450,7 @@ class MeasureManager(QObject):
         menu, so it is safe whichever one is listening.
         """
         if getattr(self, "_strip_log", None) is not None:
-            self._strip_log.decided(getattr(self, "_dual_strip_now", "") or "?",
+            self._strip_decided(getattr(self, "_dual_strip_now", "") or "?",
                                     "skipped", by="person",
                                     mode="patch" if self._spot_mode else "strip")
         if self._engine_active and self._spot_mode:
@@ -4345,7 +4354,10 @@ class MeasureManager(QObject):
                 self._dual_strip_now = ""
         if kind in ("strip_ready", "spot_ready") and getattr(self, "_strip_log", None) is not None \
                 and self._strip_log.clock is None:
-            self._strip_log.ready()
+            try:   # S1
+                self._strip_log.ready()
+            except Exception:      # noqa: BLE001
+                pass
 
         if kind == "session_start":
             self.gestures_active = False
@@ -4541,9 +4553,12 @@ class MeasureManager(QObject):
             # follows it.
             log.info("engine: dual calibration %s", ev)
             self._dual_cal_ok = bool(ev.get("ok"))
-            from core.app_log import flat, line
-            line("dual calibration", **{k: v for k, v in flat(ev).items()
-                                        if k != "event"})
+            try:   # S1: a log line never stands between an event and its handling
+                from core.app_log import flat, line
+                line("dual calibration", **{k: v for k, v in flat(ev).items()
+                                            if k != "event"})
+            except Exception:      # noqa: BLE001
+                pass
             self.dual_calibration.emit(dict(ev))
 
         elif kind == "dual_pass":
@@ -4944,16 +4959,23 @@ class MeasureManager(QObject):
             # The engine opened the device and reports what it actually is.
             self._engine_model = str(ev.get("model") or "")  # R4
             self.instrument_detected.emit(str(ev.get("model") or ""))
-            from core.app_log import flat, line
-            line("measure instrument", **flat({k: v for k, v in ev.items() if k != "event"}))
+            try:   # S1
+                from core.app_log import flat, line
+                line("measure instrument",
+                     **flat({k: v for k, v in ev.items() if k != "event"}))
+            except Exception:      # noqa: BLE001
+                pass
 
         elif kind == "filter":
             # R4 (4.3.39): the filter the i1Pro family's driver reads through
             # (a physical UV-cut filter, or its mode's), for the measurement
             # condition this session records when no -F was chosen.
             self.engine_filter = str(ev.get("filter") or "") or None
-            from core.app_log import line
-            line("measure filter", filter=self.engine_filter)
+            try:   # S1
+                from core.app_log import line
+                line("measure filter", filter=self.engine_filter)
+            except Exception:      # noqa: BLE001
+                pass
             _rs = getattr(self, "_ruler", None)
             if _rs is not None:
                 from workflow.measurement_condition import default_condition
@@ -5062,7 +5084,7 @@ class MeasureManager(QObject):
             else:
                 self.unexpected_response.emit(f"{ev.get('worst_de', 0):.2f}")
             if getattr(self, "_strip_log", None) is not None:
-                self._strip_log.decided(
+                self._strip_decided(
                     str(ev.get("strip") or ev.get("read") or
                         getattr(self, "_dual_strip_now", "") or "?"),
                     "asked", warning=ev.get("kind") or "inconsistent",
@@ -5125,7 +5147,7 @@ class MeasureManager(QObject):
             # the user interrupted a strip themselves — that has its own window.
             self.strip_interrupted.emit()
             if getattr(self, "_strip_log", None) is not None:
-                self._strip_log.decided(getattr(self, "_dual_strip_now", "") or "?",
+                self._strip_decided(getattr(self, "_dual_strip_now", "") or "?",
                                         "interrupted")
 
         elif kind == "strip_misaligned":            # #50 safety net (on by default)
@@ -5174,7 +5196,7 @@ class MeasureManager(QObject):
                 self.strip_error.emit(detail or "misread")
                 self.misread_button_retry = False
                 if getattr(self, "_strip_log", None) is not None:
-                    self._strip_log.decided(
+                    self._strip_decided(
                         getattr(self, "_dual_strip_now", "") or str(ev.get("strip") or "?"),
                         "refused", reason="misread", detail=detail or None,
                         mode="patch" if self._spot_mode else "strip")

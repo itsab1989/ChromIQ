@@ -22,13 +22,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from core.app_log import Clock, line
+from core.app_log import Clock, line, merged, never_raises
 
 #: which ti2 keywords the start line reads (the header ends at BEGIN_DATA)
 _TI2_KEYS = ("TARGET_INSTRUMENT", "STEPS_IN_PASS", "PASSES_IN_STRIPS2", "NUMBER_OF_SETS",
              "PAPER_SIZE", "ORIGINATOR")
 
 
+@never_raises
 def chart_summary(ti2_path) -> dict:
     """Pages, strips, patches per strip, patch size from a chart's .ti2 header and
     its ``.channels.json`` side file. Reads only the header lines. Never raises."""
@@ -85,6 +86,7 @@ def run_kind(ti1_path) -> str:
         return "?"
 
 
+@never_raises
 def log_start(params, *, reader: str, helper_build: str = "", ruler: bool = False,
               dual: str = "off", lights: bool = False, conditions: str = "off") -> None:
     """The one line at a measurement's start. Never raises."""
@@ -126,33 +128,38 @@ class StripLog:
         self.dual: "dict[str, dict]" = {}
         self.lines = 0
 
+    @never_raises
     def ready(self) -> None:
         self.clock = Clock()
 
     def _took(self):
         return self.clock.s() if self.clock is not None else None
 
-    def decided(self, strip: str, result: str, **checks) -> None:
+    @never_raises
+    def decided(self, strip: str, result: str, /, **checks) -> None:
         try:
             s = str(strip or "?").strip() or "?"
             self.attempts[s] = self.attempts.get(s, 0) + 1
             if s in self.dual:
                 checks.setdefault("dual_pass", self.dual.pop(s))
             from core.app_log import flat
-            line("strip", id=s, attempt=self.attempts[s], result=result,
-                 **{k: v for k, v in flat(checks, depth=2).items() if v is not None},
-                 took_s=self._took())
+            rest = {k: v for k, v in flat(checks, depth=2).items() if v is not None}
+            rest = merged(rest, {"took_s": self._took()})
+            line("strip", **merged({"id": s, "attempt": self.attempts[s],
+                                    "result": result}, rest))
             self.lines += 1
             self.clock = None
         except Exception:      # noqa: BLE001
             pass
 
 
-def written(what: str, path, **kv) -> None:
+@never_raises
+def written(what: str, path, /, **kv) -> None:
     """A8: where a file was written (the filter shortens the path)."""
-    line("file written", what=what, path=str(path), **kv)
+    line("file written", **merged({"what": what, "path": str(path)}, kv))
 
 
+@never_raises
 def log_measurement_end(main_ti3, *, code, conditions: bool, dual: bool,
                         strips_logged: int = 0, in_thread: bool = True) -> None:
     """A7 + A8: at a measurement's end, where its files are and, with the M0/M1/M2
