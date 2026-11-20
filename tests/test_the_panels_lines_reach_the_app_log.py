@@ -69,3 +69,27 @@ def test_every_tab_panel_is_mirrored_and_the_measure_lines_are_not_doubled():
     assert "append_logged_elsewhere(line)" in src and "log.info(" in src
     src = inspect.getsource(tab_measure.TabMeasure._on_table_log_line)
     assert "append_logged_elsewhere" in src
+
+
+def test_a_tool_line_the_runner_logged_is_not_mirrored_again(qapp, caplog):
+    """S6 (review of 20 Nov): Create Chart and Build Profile wrote every tool
+    line twice ("[argyll] Re-seeding" and "panel: tab=chart text=Re-seeding")."""
+    from core import argyll_runner as ar
+    w = TailFollowLog()
+    w.mirror_tab = "chart"
+    with caplog.at_level(logging.DEBUG):
+        for ln in ("Re-seeding", "Re-seeding", "Added 10/702"):
+            ar.log.debug("[argyll] %s", ln)
+            ar._note_tool_line(ln)
+        w.appendPlainText("Re-seeding")
+        w.appendPlainText("Re-seeding")
+        w.appendPlainText("Re-seeding")          # a third, the runner logged only two
+        w.appendPlainText("Arranging colour patches: 2%")   # the tab's own line
+    assert _panel(caplog) == ["panel: tab=chart text=Re-seeding",
+                              "panel: tab=chart text=Arranging colour patches: 2%"]
+
+
+def test_the_runner_notes_every_line_it_logs():
+    from core import argyll_runner as ar
+    src = inspect.getsource(ar)
+    assert src.count('log.debug("[argyll] %s", line)') == src.count("_note_tool_line(line)") == 3

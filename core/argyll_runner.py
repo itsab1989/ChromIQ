@@ -28,6 +28,16 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
+def _note_tool_line(line: str) -> None:
+    """S6 (4.3.50): this tool line is in the app log now ("[argyll] ..."), so
+    a tab's panel mirror does not write it again. Never raises."""
+    try:
+        from core.question_log import note_tool_line
+        note_tool_line(line)
+    except Exception:      # noqa: BLE001
+        pass
+
+
 # The serial-port exclusion (ARGYLL_EXCLUDE_SERIAL_SCAN) lives in
 # core/argyll_env.py, so that every launch path shares it; these names are
 # re-exported here for the callers and tests that have always imported them.
@@ -1108,6 +1118,7 @@ class ArgyllRunner(QObject):
         # first lines and a count (core/line_flood.py).
         for line in self._gated_lines(text):
             log.debug("[argyll] %s", line)
+            _note_tool_line(line)
             self.line_received.emit(line)
             # A SLOT MAY HAVE ENDED THE RUN. Some of these lines open a modal
             # window, which spins its own event loop — and the button in it can
@@ -1148,6 +1159,7 @@ class ArgyllRunner(QObject):
             return                  # the run ended: _on_finished flushed it
         for line in self._gate().idle():
             log.debug("[argyll] %s", line)
+            _note_tool_line(line)
             self.line_received.emit(line)
             if not self._process:
                 return
@@ -1211,6 +1223,7 @@ class ArgyllRunner(QObject):
                          for out in gate.feed(ln)]
             for line in lines + gate.flush():
                 log.debug("[argyll] %s", line)
+                _note_tool_line(line)
                 self.line_received.emit(line)
 
         # Capture per-run callbacks before they can be overwritten by a chained run()

@@ -220,6 +220,46 @@ def auto_answered(question_id: str, answer: str, /, **kv) -> None:
                                       "by": "automatic"}, kv))
 
 
+#: S6 (4.3.50): lines the Argyll runner has already written to the app log
+#: ("[argyll] ..."), so the panel mirror does not write them a second time
+#: when a tab shows them. A line is matched once, by its exact text.
+_TOOL_LINES: "dict[str, int]" = {}
+_TOOL_ORDER: "list[str]" = []
+_TOOL_MAX = 512
+
+
+@never_raises
+def note_tool_line(text: str) -> None:
+    """The runner logged this tool line itself. Never raises."""
+    t = str(text or "").strip()
+    if not t:
+        return
+    _TOOL_LINES[t] = _TOOL_LINES.get(t, 0) + 1
+    _TOOL_ORDER.append(t)
+    while len(_TOOL_ORDER) > _TOOL_MAX:
+        old = _TOOL_ORDER.pop(0)
+        n = _TOOL_LINES.get(old, 0) - 1
+        if n > 0:
+            _TOOL_LINES[old] = n
+        else:
+            _TOOL_LINES.pop(old, None)
+
+
+def _was_tool_line(t: str) -> bool:
+    n = _TOOL_LINES.get(t, 0)
+    if not n:
+        return False
+    if n > 1:
+        _TOOL_LINES[t] = n - 1
+    else:
+        _TOOL_LINES.pop(t, None)
+    try:
+        _TOOL_ORDER.remove(t)
+    except ValueError:
+        pass
+    return True
+
+
 #: A5: at most this many panel lines per tab in one minute reach the app log (a
 #: tool's verbose output must not rotate the log away); the rest are counted
 PANEL_LINES_PER_MINUTE = 300
@@ -236,6 +276,8 @@ def panel_line(tab: str, text: str, is_html: bool = False) -> None:
         t = t.strip()
         if not t:
             return
+        if not is_html and _was_tool_line(t):
+            return      # S6: the runner's "[argyll]" line already holds it
         now = time.monotonic()
         rec = _PANEL_COUNT.setdefault(tab, [now, 0, 0])
         if now - rec[0] > 60.0:
