@@ -11065,7 +11065,7 @@ alone.
 
 ### M-I1IO-DRIVE-ARM-WAY-OUT · PROPOSED · the way on when ChromIQ cannot bring the arm home at a START (its title is not shown), Measure (the i1iO table window)
 
-*New 2026-11-20 for 4.3.51 (the owner's decision above): the power switch first; i1Profiler only as a further option, with its version limit (i1Profiler 3.8.7 removed the i1iO 2; 3.8.6 is the last version that works with it, as Preferences > Beta says). Whether a switched-off table lets the arm move by hand is not known: the page says so. Shown in betas as a proposed text; approved afterwards.* **Confirmed by:** *nobody yet.*
+*New 2026-11-20 for 4.3.51 (the owner's decision above): the power switch first; i1Profiler only as a further option, with its version limit (i1Profiler 3.8.7 removed the i1iO 2; 3.8.6 is the last version that works with it, as Preferences > Beta says). Whether a switched-off table lets the arm move by hand is not known: the page says so. Revised the same day (the re-review, S3): step 5 says to switch the table on before opening i1Profiler, because step 2 switched it off. Shown in betas as a proposed text; approved afterwards.* **Confirmed by:** *nobody yet.*
 
 > **The arm is not at its resting place**
 >
@@ -11074,7 +11074,7 @@ alone.
 > 2. Switch the table off at its power switch.
 > 3. With the table switched off, try to push the arm gently by hand to its resting place, over the small white tile. We do not know yet whether the arm moves by hand while the table is off. If it does not move easily, stop and do not force it.
 > 4. When the arm is at its resting place, switch the table on and press START MEASUREMENT again.
-> 5. If the arm does not move by hand, i1Profiler 3.8.6 or older may bring it home: open it once and let it find the table. Stay beside the table with the power switch in reach, because no recording shows i1Profiler doing this from where the arm is now. i1Profiler 3.8.7 and newer no longer work with the i1iO 2, so you may not have a version that can do this.
+> 5. If the arm does not move by hand, i1Profiler 3.8.6 or older may bring it home: switch the table on, then open i1Profiler once and let it find the table. Stay beside the table with the power switch in reach, because no recording shows i1Profiler doing this from where the arm is now. i1Profiler 3.8.7 and newer no longer work with the i1iO 2, so you may not have a version that can do this.
 
 ### M-I1IO-DRIVE-I1PROFILER-LIMIT · PROPOSED · the paragraph the table window adds to each of its pages that names i1Profiler 3.8.6 (its title is not shown), Measure (the i1iO table window)
 

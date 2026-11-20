@@ -13378,8 +13378,8 @@ M_I1IO_DRIVE_ARM_WAY_OUT = _m(
     "white tile. We do not know yet whether the arm moves by hand while the table is off. If "
     "it does not move easily, stop and do not force it.\n4. When the arm is at its resting "
     "place, switch the table on and press START MEASUREMENT again.\n5. If the arm does not "
-    "move by hand, i1Profiler 3.8.6 or older may bring it home: open it once and let it find "
-    "the table. Stay beside the table with the power switch in reach, because no recording "
+    "move by hand, i1Profiler 3.8.6 or older may bring it home: switch the table on, then "
+    "open i1Profiler once and let it find the table. Stay beside the table with the power switch in reach, because no recording "
     "shows i1Profiler doing this from where the arm is now. i1Profiler 3.8.7 and newer no "
     "longer work with the i1iO 2, so you may not have a version that can do this.",
     approved=False)
