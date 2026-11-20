@@ -13056,7 +13056,9 @@ M_I1IO_DRIVE_START_UP_ARM = _m(
     "i1Profiler 3.8.6 or older once, let it find the table, quit it, and press START "
     "MEASUREMENT again.\n\n"
     "To stop the arm at once, switch the table off at its power switch.",
-    approved=False)
+    approved=False,
+    # 4.3.52 on 4.3.51: it sends the person to i1Profiler 3.8.6 or older, as START-UP does
+    needs_old_i1profiler=True)
 
 M_I1IO_DRIVE_CONSENT_GUIDANCE = _m(
     "M-I1IO-DRIVE-CONSENT-GUIDANCE",
