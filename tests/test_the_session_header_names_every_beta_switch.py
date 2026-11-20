@@ -84,3 +84,74 @@ def test_a_changed_beta_switch_is_logged_once(caplog, tmp_path, monkeypatch):
     msgs = [r.getMessage() for r in caplog.records if "option changed" in r.getMessage()]
     assert msgs == ["option changed: i1pro2_dual_scan_beta=on (was off)",
                     "option changed: i1io_table_ask_after_each_step=off (was on)"]
+
+
+def test_every_checkbox_on_the_beta_page_saves_a_key_the_header_names(qapp):
+    """S8 (review of 20 Nov): the source-reading check above misses a switch
+    saved through a helper method (``self._save_x(s)``, the pattern
+    ``_save_misread_table`` uses). This one asks the dialog itself: each
+    checkbox on the Beta page is toggled, the page is saved, and the key whose
+    value changed must be one the session header names."""
+    from PyQt6.QtWidgets import QCheckBox
+    from ui.dialogs import settings_dialog as sd
+
+    class _Recording(_FakeSettings):
+        def __init__(self):
+            super().__init__()
+            self.written = []
+
+        def set(self, key, value):
+            super().set(key, value)
+            self.written.append((key, value))
+
+        def __getattr__(self, _name):
+            return lambda *a, **k: None
+
+    s = _Recording()
+    dlg = sd.SettingsDialog(s, None)
+    try:
+        def save():
+            s.written = []
+            dlg._save_and_close()
+            return dict(s.written)
+        base = save()
+        boxes = dlg._beta_page.findChildren(QCheckBox)
+        assert len(boxes) >= 14
+        unnamed, silent = [], []
+        for box in boxes:
+            box.setChecked(not box.isChecked())
+            after = save()
+            box.setChecked(not box.isChecked())
+            save()
+            keys = [k for k in after if after.get(k) != base.get(k)]
+            if not keys:
+                silent.append(box.text()[:50])
+            unnamed += [k for k in keys if k not in br.LOGGED_KEYS]
+        assert not silent, f"a Beta checkbox whose state saves no key: {silent}"
+        assert not unnamed, f"Beta page keys missing from core/beta_registry.py: {unnamed}"
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_real_start_up_writes_the_header_once_after_the_latches():
+    """S9 (review of 20 Nov): shown on screen that main() writes the header
+    once; pinned here. Exactly one call in the whole program, in main(), after
+    the Beta latches (so it says what this session runs) and before the main
+    window is built (so it precedes every measurement)."""
+    import pathlib
+
+    import main as app_main
+    root = pathlib.Path(app_main.__file__).resolve().parent
+    calls = []
+    for sub in ("main.py", "core", "ui", "workflow"):
+        p = root / sub
+        for f in ([p] if p.is_file() else p.rglob("*.py")):
+            if f.name == "session_header.py":
+                continue
+            if "write_session_header(" in f.read_text(encoding="utf-8"):
+                calls.append(f.relative_to(root).as_posix())
+    assert calls == ["main.py"], calls
+    src = inspect.getsource(app_main.main)
+    assert src.count("write_session_header(settings)") == 1
+    assert src.index("_latch_page(settings)") < src.index("write_session_header(settings)")
+    assert src.index("write_session_header(settings)") < src.index("MainWindow(")
