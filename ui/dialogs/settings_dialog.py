@@ -4042,13 +4042,13 @@ class SettingsDialog(QDialog):
         # (safe-defaults-but-options-open: only the defaults are safe).
         from PyQt6.QtWidgets import QComboBox as _QCB, QLabel as _QL
         from workflow import measurement_messages as _MM
-        from ui.i1io_table_window import countdown_seconds as _cd_s
-        _gh_title, _gh_body = _MM.M_I1IO_GUIDED_HELP.render(
-            countdown=_MM.i1io_countdown_sentence(_cd_s() or 0))
+        _gh_title, _gh_body = _MM.M_I1IO_GUIDED_HELP.render(countdown="")
         self._i1io_ask_check = QCheckBox(tr("Guided, step by step measurement"), self)
         self._i1io_ask_check.setObjectName("i1io_guided_check")
-        self._i1io_ask_tip = TooltipButton(tr("Guided, step by step measurement"), _gh_body,
-                                           self, min_width=680)
+        # its body names the countdown, which lives in the table package: rendered when it is
+        # opened, so Preferences never loads the table's code (test_i1io_off_changes_nothing)
+        self._i1io_ask_tip = _GuidedHelpButton(tr("Guided, step by step measurement"),
+                                               _gh_body, self, min_width=680)
         _i1ioask = QHBoxLayout()
         _i1ioask.setContentsMargins(28, 0, 0, 0)
         _i1ioask.addWidget(self._i1io_ask_check)
@@ -4073,7 +4073,6 @@ class SettingsDialog(QDialog):
         self._i1io_cal_combo.addItem(tr("On the table's white tile (as i1Profiler does)"),
                                      "table tile")
         self._i1io_cal_combo.addItem(tr("On the i1Pro 2's own white tile"), "own tile")
-        self._i1io_cal_combo.setToolTip(i1io_cal_place_help())
         self._i1io_cal_label = _QL(tr("Calibrate the i1Pro 2 of a table measurement:"), self)
         _i1iocal = QHBoxLayout()
         _i1iocal.setContentsMargins(28, 0, 0, 0)
@@ -4090,7 +4089,6 @@ class SettingsDialog(QDialog):
         # scaled to the tile values stored in the table, as i1Profiler does
         self._i1io_stored_white_check = QCheckBox(
             tr("Use the table's stored white tile values (as i1Profiler does)"), self)
-        self._i1io_stored_white_check.setToolTip(i1io_stored_white_help())
         _i1iosw = QHBoxLayout()
         _i1iosw.setContentsMargins(28, 0, 0, 0)
         _i1iosw.addWidget(self._i1io_stored_white_check)
@@ -4104,7 +4102,6 @@ class SettingsDialog(QDialog):
         # "-p" default, the same value Save as Defaults keeps with a table chart loaded
         self._i1io_pbp_check = QCheckBox(
             tr("Table charts start with “Patch-by-patch mode (-p)” ticked"), self)
-        self._i1io_pbp_check.setToolTip(i1io_table_pbp_help())
         _i1iopbp = QHBoxLayout()
         _i1iopbp.setContentsMargins(28, 0, 0, 0)
         _i1iopbp.addWidget(self._i1io_pbp_check)
@@ -10609,6 +10606,16 @@ def page_pause_note_help() -> str:
 # a table", and "only commands whose meaning is known" stood in the risks; both
 # are replaced by the one sentence on the drive. The spec
 # `docs/design/i1io_table_support.md` ("The option") says the same.
+
+class _GuidedHelpButton(TooltipButton):
+    """4.3.52: M-I1IO-GUIDED-HELP with its countdown sentence filled when it is opened."""
+
+    def dialog_body(self) -> str:
+        from workflow import measurement_messages as M
+        from ui.i1io_table_window import countdown_seconds
+        return M.M_I1IO_GUIDED_HELP.render(
+            countdown=M.i1io_countdown_sentence(countdown_seconds() or 0))[1]
+
 
 def i1io_support_help() -> str:
     """The (i) of Preferences > Beta > "X-Rite i1iO support (beta)"."""

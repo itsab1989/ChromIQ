@@ -10583,7 +10583,7 @@
  "No, the arm is out over the table": "Nie, ramię jest wysunięte nad stół",
  "Let i1Profiler start it": "Niech uruchomi go i1Profiler",
  "Stop below keeps the arm where it is.": "Zatrzymaj poniżej zostawia ramię tam, gdzie jest.",
- "When ChromIQ asks you to switch the table off, it plays the “Instrument error” sound, if “Play sounds during measurement” is ticked on the Measure tab.": "Gdy ChromIQ prosi Cię o wyłączenie stołu, odtwarza dźwięk „Błąd przyrządu”, jeśli na karcie Pomiar zaznaczono „Odtwarzaj dźwięki podczas pomiaru”.",
+ "When ChromIQ asks you to switch the table off, it plays the “Instrument error” sound, if “Play sounds during measurement” is ticked on the Measure tab.": "Gdy ChromIQ prosi Cię o wyłączenie stołu, odtwarza dźwięk „Błąd przyrządu”, jeśli na karcie „Zmierz” zaznaczono „Odtwarzaj dźwięki podczas pomiaru”.",
  "When ChromIQ asks you to switch the table off, it plays a warning sound, even when sounds are switched off in ChromIQ. Please check that the sound of your computer is on.": "Gdy ChromIQ prosi Cię o wyłączenie stołu, odtwarza dźwięk ostrzegawczy, nawet gdy dźwięki są wyłączone w ChromIQ. Sprawdź, czy dźwięk w komputerze jest włączony.",
  "The arm moves in {n} seconds. Please keep your hands away from the table and the arm. To keep the arm where it is, press Stop.": "Ramię poruszy się za {n} s. Trzymaj ręce z dala od stołu i ramienia. Aby ramię zostało tam, gdzie jest, naciśnij Zatrzymaj.",
  "The arm moves in 1 second. Please keep your hands away from the table and the arm. To keep the arm where it is, press Stop.": "Ramię poruszy się za 1 sekundę. Trzymaj ręce z dala od stołu i ramienia. Aby ramię zostało tam, gdzie jest, naciśnij Zatrzymaj.",
