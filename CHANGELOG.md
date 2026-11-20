@@ -1,5 +1,38 @@
 # Changelog
 
+## v4.3.52
+
+**For owners of an X-Rite i1iO 2 table who try the beta option “X-Rite i1iO support”: when a measurement starts and the arm is not at its resting place, ChromIQ now brings it home from wherever it is, as i1Profiler does at its own start. ChromIQ asks once and moves nothing until you answer. With “Guided, step by step measurement” off, a short countdown comes instead of the question, and the measurement then goes on by itself. Two new sub-options of the beta option let you switch off the guidance and the table's detailed log. None of this has run on a real table yet: please read the known issues at the end. With the beta options off, ChromIQ measures as 4.3.51 did, and the charts it makes, your measurements and your profiles do not change.**
+
+### New
+
+Only with the beta option “X-Rite i1iO support” on:
+
+- **Two sub-options in Preferences > Beta, under “X-Rite i1iO support”: “Guided, step by step measurement” and “Keep the table's detailed log”.** Both are on by default and greyed while the beta option is off. With the guidance off, ChromIQ asks only what it cannot know: your aims, a row that could not be read, the end of a measurement that is not complete, and any page about a problem. Before each first movement it shows a countdown of 3 seconds, with a large Stop button and a sound. After a Stop, a problem or a fault, every question is asked again for the rest of that measurement. With the detailed log off, the session log keeps one short line per movement and writes everything once something stops or goes wrong.
+- **The first page's tick and the done page's offer change the same setting** as Preferences > Beta.
+
+### Changed
+
+Only with the beta option “X-Rite i1iO support” on:
+
+- **When a measurement starts and the arm is not at its resting place, ChromIQ brings it home from wherever it is.**
+  - The page “The arm is not at its resting place” says only that ChromIQ brings the arm home now, and asks you to take your hands away. Press “Bring the arm home, my hands are away”, or “Not now”: then nothing moves.
+  - ChromIQ sends the table's own homing, the same commands i1Profiler sends when it starts, and then checks that the arm is at its resting place. The measurement then goes on.
+  - The rules of 4.3.51 that depended on where the arm was (a narrow line in front of the resting place, an area about 12 to 25 cm out, a “try” over the rest of the table, and places where nothing moved) are gone. The table's own homing works from wherever the arm is, and i1Profiler uses it that way: it sends the same homing at its start with the arm at rest and with the arm far out, and decides nothing from where the arm is. One place is left: at the back of the table, beside the holder of the white tile, ChromIQ moves nothing and says what you can do.
+- **A table that was just switched on is started whatever you answered about the arm.** Its start-up is the table's own, so the question whether the arm is at its resting place no longer changes anything and is not asked. If the arm is still not at its resting place after the start-up, ChromIQ brings it home as above.
+- **“Bring the arm home” after a Stop or a problem goes straight home** from wherever the arm is, as i1Profiler ends a measurement. Before, ChromIQ first moved the arm back along the way it came when it was in front of the measuring area.
+- **When the homing does not bring the arm home**, ChromIQ sends nothing more, and the page “The arm did not get home” says what you can do, with the table's power switch first and i1Profiler last.
+- **The line under “Patch-by-patch mode (-p)” is shorter and goes by itself.** With rows (the box not ticked) it says that reading in rows has not been tried on a real table yet. Once a measurement in rows has been completed on the table connected last, it is no longer shown for that table.
+- **The consent page asks once more** (its version 4), with “Guided, step by step measurement” ticked, also if you had switched off the earlier question.
+
+### Known issues
+
+- **None of this has run on a real table with the arm out.** The homing from far out is the table's own and i1Profiler was recorded sending it from 76 mm out; ChromIQ has sent it only to a simulated table. Keep the power switch in reach.
+- **What a real table does when its homing starts at an end of the arm's travel is not known.** No recording shows it.
+- **A table that is still in its aiming mode** (for example after a measurement ended with the arm left out) is not moved: ChromIQ sends nothing that could move the arm, and the page “The table is still in its aiming mode” says what you can do. No recording shows i1Profiler finding a table in that mode.
+- **A table that was just switched on with the arm out:** no recording shows the table's start-up from there. If the arm is not near its resting place afterwards, ChromIQ brings it home as above; if that does not work, it stops.
+- The new and changed texts of this version are shown as proposed texts and may still be reworded.
+
 ## v4.3.51
 
 **For everyone updating from 4.3.50: “Show the log file” in the Help window now sits directly left of Close, on the Help window's first page, and a timer of the app log can no longer write a measurement's summary before the Measure tab has finished with its files. For owners of an X-Rite i1iO 2 table who try the beta option “X-Rite i1iO support”: when a measurement starts and the arm is not at its resting place, what ChromIQ does now depends only on where the table reports the arm, not on which button you pressed. On some places it offers a homing that was recorded from there; over the rest of the measuring area and the front of the table it offers to try one, and says that it is a try. None of this has run on a real table yet: please read the known issues at the end. i1Profiler 3.8.7 and newer no longer work with the i1iO 2, so ChromIQ's pages no longer treat i1Profiler as the main way out. With the beta options off, ChromIQ measures as 4.3.50 did, and the charts it makes, your measurements and your profiles do not change.**
