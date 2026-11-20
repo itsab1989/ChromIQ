@@ -12,6 +12,7 @@ Only with the beta option “X-Rite i1iO support” on:
 - **Pages that send you to i1Profiler now say that i1Profiler 3.8.7 and newer no longer work with the i1iO 2.** Only 3.8.6 or older can find the table, so you may not have a version that can help. Where ChromIQ cannot bring the arm home at a start, the page puts the table's power switch first.
 - **The front-zone page shows its two answers in the order it explains them**, also when the table's pages are shown in the Measure tab: first “Go forward carefully, my hands are away”, then “I will move the sheet”, as the pop-up windows already did.
 - **The app log says what each START found and offered**: the table's state, where the arm was read, what ChromIQ offered or why not, and your answers.
+- **“Show the log file” in the Help window now sits directly left of Close**, on the Help window's first page. On a help card it is no longer shown: press “← Back” to reach it. You also find the log file in Preferences, under Paths, at “Log file:”.
 
 ### Fixed
 

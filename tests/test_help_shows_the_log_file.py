@@ -54,7 +54,42 @@ def test_the_help_text_names_the_button_by_its_label():
     import inspect
     from ui.dialogs import welcome_dialog as wd
     src = inspect.getsource(wd)
-    assert "Help → Show the log file" in src and 'tr("Show the log file")' in src
+    assert "press “Show the " in src and 'tr("Show the log file")' in src
+    # 4.3.51 release (the re-review, S5): on a help card the button is hidden, so the card's
+    # print-failure text no longer says "Help → Show the log file"
+    assert "Help → Show the log file" not in src
+
+
+def test_the_print_failure_text_is_true_on_a_card_in_every_language(qapp, monkeypatch,
+                                                                     tmp_path):
+    """4.3.51 release (the re-review, S5): the card's print-failure text sends the person to the
+    Help window's first page, where the button is shown (directly left of Close), and to
+    Preferences → Paths, "Log file:", which always works; in every language, with the labels
+    the app shows there."""
+    import json
+    from core.settings import AppSettings
+    from ui.dialogs import welcome_dialog as wd
+    monkeypatch.setenv("CHROMIQ_SETTINGS_FILE", str(tmp_path / "s.ini"))
+    dlg = wd.WelcomeDialog(AppSettings())
+    try:
+        dlg._stack.setCurrentIndex(1)                    # a card
+        assert dlg._log_btn.isHidden() and not dlg._back_btn.isHidden()
+        dlg._stack.setCurrentIndex(0)                    # the first page
+        assert not dlg._log_btn.isHidden()
+    finally:
+        dlg.deleteLater()
+    key = next(k for k in json.loads((Path(wd.__file__).resolve().parents[2] / "data" /
+                                      "i18n" / "de.json").read_text(encoding="utf-8"))
+               if k.startswith("Something went wrong while preparing this help card"))
+    assert "first page of this Help window" in key and "Preferences → Paths" in key
+    assert "directly left of “Close”" in key and "Help → Show the log file" not in key
+    i18n_dir = Path(wd.__file__).resolve().parents[2] / "data" / "i18n"
+    for p in sorted(i18n_dir.glob("*.json")):
+        d = json.loads(p.read_text(encoding="utf-8"))
+        text = d[key]
+        for label in ("Show the log file", "Close", "Paths", "Log file:"):
+            assert d[label].rstrip(" :：") in text, (p.stem, label)
+        assert "→" in text and text.count(d["Show the log file"]) == 1, p.stem
 
 
 def test_a_windows_path_with_a_space_is_quoted_round_the_path_only(tmp_path):

@@ -3819,7 +3819,8 @@ class WelcomeDialog(QDialog):
         self._back_btn.setVisible(False)
         _right_l.addWidget(self._back_btn)
         # A9 (4.3.50): the log a tester is asked to send, one press away. The
-        # help card's error text points here ("Help → Show the log file").
+        # help card's error text points here (the first page of Help, and
+        # Preferences → Paths, "Log file:": on a card this button is hidden).
         # 4.3.51 (the owner, 2026-11-20: "the show the log file button in the
         # help window should be on the left next to the close button ... close
         # stays where it is"): in Close's row, directly on its left; Close keeps
@@ -3974,8 +3975,10 @@ class WelcomeDialog(QDialog):
                 tr("Something went wrong while preparing this help card for "
                    "printing, so nothing was sent to your printer.\n\n"
                    "You can still reach the same information here on screen. "
-                   "If it keeps happening, the log (Help → Show the log file) has "
-                   "the details."))
+                   "If it keeps happening, the log has the details. To open it, go "
+                   "back to the first page of this Help window and press “Show the "
+                   "log file” there, directly left of “Close”. It is also in "
+                   "Preferences → Paths, at “Log file:”."))
 
     def _show_log_file(self) -> None:
         """A9: the app log in the file manager, selected where the system can."""
