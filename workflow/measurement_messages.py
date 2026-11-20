@@ -12786,6 +12786,7 @@ M_I1IO_DRIVE_AIM = _m(
     "Aim at mark {mark}",
     "Push the arm gently by hand until the cross hairs of the sight sit "
     "exactly on mark {mark}, {corner}. Then press Aimed.\n\n"
+    "The arm should slide easily. If it resists, do not push it. Press Stop.\n\n"
     "ChromIQ only reads where the arm is; it does not move it while you aim.",
     approved=False)
 
@@ -12797,8 +12798,8 @@ M_I1IO_DRIVE_AIM_PATCH = _m(
     "that patch ringed. Then press Aimed.\n\n"
     "This chart has no aiming crosses, so its corner patches are the three points you aim "
     "at. A patch has no fine centre to aim at, as a cross has, so aim as well as you can at "
-    "its middle: after the aims, the arm moves by itself to the third point, and you check "
-    "there that the opening sits on it before anything is read.\n\n"
+    "its middle. ChromIQ works out where every other patch lies from your three aims.\n\n"
+    "The arm should slide easily. If it resists, do not push it. Press Stop.\n\n"
     "ChromIQ only reads where the arm is; it does not move it while you aim.",
     approved=False)
 
@@ -12808,8 +12809,8 @@ M_I1IO_DRIVE_AIM_BUTTON_PATCH = _m(
     "Instead of pressing Aimed here, you can press the button on the i1Pro 2 itself, once, "
     "while the cross hairs sit on the centre of patch {patch}. ChromIQ then takes that press "
     "as Aimed for this patch, so your hand can stay on the arm.\n\n"
-    "The button never starts a move. Before the arm moves again, ChromIQ still asks you on "
-    "screen to take your hands away from the table.\n\n"
+    "The button never starts a move. Before the arm moves again, ChromIQ tells you on screen "
+    "to take your hands away from the table.\n\n"
     "i1Profiler uses the button the same way on the table. ChromIQ's own way of listening for "
     "the press has not been tried on a real table yet. If nothing happens when you press it, "
     "simply press Aimed here: nothing is lost.",
@@ -12823,7 +12824,7 @@ M_I1IO_DRIVE_AIM_BUTTON = _m(
     "then takes that press as Aimed for this mark, so your hand can stay on "
     "the arm.\n\n"
     "The button never starts a move. Before the arm moves again, ChromIQ "
-    "still asks you on screen to take your hands away from the table.\n\n"
+    "tells you on screen to take your hands away from the table.\n\n"
     "i1Profiler uses the button the same way on the table. ChromIQ's own way "
     "of listening for the press has not been tried on a real table yet. If "
     "nothing happens when you press it, simply press Aimed here: nothing is "
@@ -13021,6 +13022,119 @@ M_I1IO_DRIVE_READER_CONSENT_MAC = _m(
     "afterwards. The calibration is kept where a later reading by hand finds "
     "it.",
     approved=False)
+
+# --- PROPOSED (4.3.52): "Guided, step by step measurement" and the table's log ----------
+# Preferences > Beta's two sub-options of "X-Rite i1iO support" (the owner, 2026-11-19, W7, W8).
+# {countdown} is COUNTDOWN_SENTENCE (empty when the job's UNGUIDED_COUNTDOWN_S is 0); {alarm}
+# is one of the two ALARM sentences (ui.i1io_table_window.ALARM_IGNORES_SOUND_SETTING).
+
+M_I1IO_DRIVE_COUNTDOWN = _m(
+    "M-I1IO-DRIVE-COUNTDOWN",
+    "The arm is about to move",
+    "The arm moves in {n} seconds. Please keep your hands away from the table and the "
+    "arm. To keep the arm where it is, press Stop.",
+    body_one=(
+        "The arm moves in 1 second. Please keep your hands away from the table and the "
+        "arm. To keep the arm where it is, press Stop."),
+    count_key="n", approved=False)
+
+M_I1IO_DRIVE_START_UP_ARM = _m(
+    "M-I1IO-DRIVE-START-UP-ARM",
+    "The table has just been switched on",
+    "The table was just switched on. Is the arm at its resting place, over the small "
+    "white tile?\n\n"
+    "•  Yes: ChromIQ starts the table the way i1Profiler does. The arm moves during the "
+    "start-up and ends at its resting place. {countdown}Please keep your hands away from "
+    "the table and the arm.\n"
+    "•  No: ChromIQ sends nothing to the table. The start-up of a table that was just "
+    "switched on has never been recorded with the arm out over the table.\n"
+    "•  Or let i1Profiler start the table: ChromIQ then lets go of the table. Open "
+    "i1Profiler 3.8.6 or older once, let it find the table, quit it, and press START "
+    "MEASUREMENT again.\n\n"
+    "To stop the arm at once, switch the table off at its power switch.",
+    approved=False)
+
+M_I1IO_DRIVE_CONSENT_GUIDANCE = _m(
+    "M-I1IO-DRIVE-CONSENT-GUIDANCE",
+    "Guided, step by step measurement",
+    "Opening the i1Pro 2. To read the patches, ChromIQ opens the i1Pro 2 in the table's "
+    "arm with the ArgyllCMS library, as when you measure by hand.{mac}\n\n"
+    "Guided, step by step measurement. This is switched on at first, in Preferences > "
+    "Beta. ChromIQ then asks you before each step of a table measurement. If you switch it "
+    "off, ChromIQ does not ask before the arm moves, and it opens the i1Pro 2 without "
+    "asking. {countdown}Please stay beside the table while it measures, and watch it.\n\n"
+    "{alarm}",
+    approved=False)
+
+M_I1IO_GUIDED_HELP = _m(
+    "M-I1IO-GUIDED-HELP",
+    "Guided, step by step measurement",
+    "When this is on, ChromIQ guides you through every table measurement step by step. "
+    "Before the arm moves, ChromIQ asks you to take your hands away from the table. It asks "
+    "you to confirm that the arm is at its resting place and that only your sheet lies on "
+    "the table. Before the arm goes to a part of the table it has not visited before, or "
+    "towards the front, ChromIQ asks you first. After each step, ChromIQ asks whether the "
+    "table did what it described.\n\n"
+    "When this is off, a table measurement runs like a measurement with the other "
+    "instruments. You lay the sheet, press START MEASUREMENT and aim at the three marks. "
+    "ChromIQ then reads the whole sheet without questions, saves it and brings the arm "
+    "home. {countdown}Please keep your hands away from the table and the arm.\n\n"
+    "What the guided measurement protects you from: ChromIQ cannot see the table. When it "
+    "is off, nobody checks before the arm moves that the bed is empty apart from your sheet, "
+    "that the arm is at its resting place, or that the table did what ChromIQ expected after "
+    "each step. The arm can also move towards the front in small steps of 5 mm without "
+    "asking. If your sheet lies very far towards you, the arm can then touch the end of its "
+    "travel once. ChromIQ then stops and tells you how far to move the sheet.\n\n"
+    "ChromIQ still asks you when the table was just switched on (it asks whether the arm is "
+    "at its resting place), when a row could not be read, when something did not happen as "
+    "expected, and when you need to lay the next sheet.\n\n"
+    "Please stay beside the table while it measures, and watch it. You can press Stop at "
+    "any time. The power switch of the table stops the arm at once.",
+    approved=False)
+
+M_I1IO_LOG_HELP = _m(
+    "M-I1IO-LOG-HELP",
+    "Keep the table's detailed log",
+    "ChromIQ writes down everything it says to the table and everything the table answers, "
+    "with the times. This helps us improve the table support. It needs a few hundred "
+    "kilobytes for each measurement.\n\n"
+    "When this is off, ChromIQ still keeps a short line for every movement, everything "
+    "around anything that went wrong, and all of your readings. The app's own log always "
+    "keeps its lines about the table.",
+    approved=False)
+
+#: the sentences the texts above put in for {countdown} and {alarm} (plain strings, not §M
+#: messages of their own; their English is in the §M text of each message that uses them)
+COUNTDOWN_SENTENCE = "Before the arm moves, ChromIQ shows a countdown of {seconds} seconds. "
+ALARM_SENTENCE_WITH_SOUNDS_ON = (
+    "When ChromIQ asks you to switch the table off, it plays the “Instrument error” sound, "
+    "if “Play sounds during measurement” is ticked on the Measure tab.")
+ALARM_SENTENCE_ALWAYS = (
+    "When ChromIQ asks you to switch the table off, it plays a warning sound, even when "
+    "sounds are switched off in ChromIQ. Please check that the sound of your computer is on.")
+
+
+def i1io_countdown_sentence(seconds: float) -> str:
+    """{countdown} of the guidance texts, for the job's UNGUIDED_COUNTDOWN_S (the caller
+    passes it: this module never imports the table package): empty when it is 0."""
+    try:
+        s = float(seconds)
+    except (TypeError, ValueError):
+        s = 0.0
+    if s <= 0:
+        return ""
+    return tr(COUNTDOWN_SENTENCE).format(seconds=f"{s:g}")
+
+
+def i1io_alarm_sentence(ignores_setting: bool) -> str:
+    """{alarm} of the consent's guidance part: the sentence that is true for the alarm."""
+    if ignores_setting:
+        return tr("When ChromIQ asks you to switch the table off, it plays a warning sound, "
+                  "even when sounds are switched off in ChromIQ. Please check that the sound "
+                  "of your computer is on.")
+    return tr("When ChromIQ asks you to switch the table off, it plays the “Instrument error” "
+              "sound, if “Play sounds during measurement” is ticked on the Measure tab.")
+
 
 M_I1IO_DRIVE_CAL_PLACE = _m(
     "M-I1IO-DRIVE-CAL-PLACE",
@@ -13887,7 +14001,9 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_DUAL_ROWS, M_I1IO_DRIVE_DUAL_SPOT, M_I1IO_DRIVE_DUAL_PATCHES_TOO_SHORT,
     M_I1IO_DRIVE_ROW_FAILED_STRIP, M_I1IO_DRIVE_FRONT,
     M_I1IO_DRIVE_FIRST_VISIT, M_I1IO_DRIVE_READER_CONSENT,
-    M_I1IO_DRIVE_READER_CONSENT_MAC, M_I1IO_DRIVE_CAL_PLACE, M_I1IO_DRIVE_STORED_WHITE_REFUSED,
+    M_I1IO_DRIVE_READER_CONSENT_MAC, M_I1IO_DRIVE_COUNTDOWN, M_I1IO_DRIVE_START_UP_ARM,
+    M_I1IO_DRIVE_CONSENT_GUIDANCE, M_I1IO_GUIDED_HELP, M_I1IO_LOG_HELP,
+    M_I1IO_DRIVE_CAL_PLACE, M_I1IO_DRIVE_STORED_WHITE_REFUSED,
     M_I1IO_DRIVE_CAL_OWN_TILE, M_I1IO_DRIVE_CAL_RESEAT,
     M_I1IO_DRIVE_ROW_FAILED,
     M_I1IO_DRIVE_ROW_NOT_AGAIN, M_I1IO_DRIVE_REPORT, M_I1IO_DRIVE_PROBLEM,
