@@ -109,6 +109,9 @@ PASS_S = float(os.environ.get("CHROMIQ_DUAL_SIM_PASS_S", "0.4"))
 #: the commands the helper holds while the second pass is due (4.3.49)
 #: the driver's CQ_LIGHTS_BLUE_QUIET_MS (core/i1pro2_lights_quiet.py BLUE_QUIET_MS)
 BLUE_QUIET_MS = 370
+#: ...and its CQ_LIGHTS_QUIET_MS (core/i1pro2_lights_quiet.py DEFAULT_MS); this script
+#: runs on its own, so it holds a copy, pinned by tests/test_lights_quiet_default_is_written_once.py
+QUIET_DEFAULT_MS = 2100
 HELD = ("goto", "forward", "back", "next_unread", "file_as", "turn")
 
 
@@ -116,7 +119,7 @@ def main(argv: "list[str]") -> int:
     if "--caps" in argv:
         os.execv(str(REAL), [str(REAL), *argv])
     lights_sim = "--i1pro2-lights" in argv and "--lights-signals" in argv
-    quiet_ms = 2100
+    quiet_ms = QUIET_DEFAULT_MS
     if "--lights-quiet-ms" in argv:
         try:
             q = int(argv[argv.index("--lights-quiet-ms") + 1])

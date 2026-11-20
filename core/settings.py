@@ -17,6 +17,7 @@ from core.beta_registry import show as _beta_show  # noqa: E402
 #: or id, a Bluetooth address, a salt): one list, in core.log_privacy, which also
 #: hides such a value in an older line. ``settings.set`` logs the key only.
 from core.log_privacy import UNLOGGED_SETTING_KEYS as UNLOGGED_VALUE_KEYS  # noqa: E402
+from core.i1pro2_lights_quiet import DEFAULT_S as _LIGHTS_QUIET_DEFAULT_S  # noqa: E402
 
 #: S5 (4.3.50): the app log's per-install salt (``core.log_privacy``)
 LOG_PRIVACY_SALT_KEY = "log_privacy_salt"
@@ -352,7 +353,7 @@ DEFAULTS: dict[str, Any] = {
     #: 4.3.37's own value (the study of 2026-11-20 does not support less for
     #: ChromIQ's driver); 0 to 10. Not 2.1 = --lights-quiet-ms; 2.1 = the
     #: command line stays as it was. The i1Pro 3 has no quiet time.
-    "i1pro2_lights_quiet_s":     2.1,
+    "i1pro2_lights_quiet_s":     _LIGHTS_QUIET_DEFAULT_S,   # 2.1, written once
     #: Beta (Settings -> Beta, 2026-11-14): the i1Pro 2 / i1Pro 3 ruler check
     #: (stage 1, CHECK ONLY; workflow/ruler_check.py). With the ChromIQ
     #: chart-reading engine: after each strip the ruler's travel, direction and

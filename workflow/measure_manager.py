@@ -21,7 +21,8 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 from core.i1pro2_lights_quiet import (  # noqa: E402  (4.3.52)
-    DEFAULT_MS as LIGHTS_QUIET_DEFAULT_MS, to_ms as lights_quiet_ms)
+    DEFAULT_MS as LIGHTS_QUIET_DEFAULT_MS, DEFAULT_S as LIGHTS_QUIET_DEFAULT_S,
+    to_ms as lights_quiet_ms)
 
 # Regex to detect which strip chartread is currently asking for.
 # Handles formats:
@@ -341,7 +342,7 @@ class MeasureParams:
     #: (Preferences > Beta, 0 to 10). Passed as --lights-quiet-ms only when it
     #: is not 4.3.37's 2.1 s, with --i1pro2-lights, and only to a helper whose
     #: caps name "lights_quiet": at 2.1 s the command line stays as it was.
-    engine_lights_quiet_s: float = 2.1
+    engine_lights_quiet_s: float = LIGHTS_QUIET_DEFAULT_S
     #: Preferences > Beta, the ruler check (2026-11-14; stage 1, check only):
     #: pass --ruler, and only to a helper whose caps name "ruler_check". Off:
     #: the command line is exactly the one it was.
@@ -1264,7 +1265,7 @@ class MeasureManager(QObject):
                         else:
                             log.info("i1Pro 2 lights: this helper does not know "
                                      "--lights-quiet-ms; the quiet time stays "
-                                     "2.1 s")
+                                     "%s s", LIGHTS_QUIET_DEFAULT_S)
                 else:
                     log.info("i1Pro 2 lights: this helper does not know "
                              "--i1pro2-lights; not passed")

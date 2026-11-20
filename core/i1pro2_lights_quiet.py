@@ -17,8 +17,11 @@ The range goes down to 0, below everything recorded, so a user can try.
 from __future__ import annotations
 
 #: 4.3.37's quiet time, the default (``CQ_LIGHTS_QUIET_MS``)
+#: The ONE place the number is written in Python (fix round, review S5); the
+#: driver's CQ_LIGHTS_QUIET_MS holds the same, pinned by
+#: tests/test_lights_quiet_default_is_written_once.py
 DEFAULT_S = 2.1
-DEFAULT_MS = 2100
+DEFAULT_MS = int(round(DEFAULT_S * 1000))
 #: the range offered (the helper takes 0 to 10000 ms, CQ_LIGHTS_QUIET_MAX_MS)
 MIN_S = 0.0
 MAX_S = 10.0

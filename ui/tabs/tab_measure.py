@@ -25761,11 +25761,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         p.engine_lights_during_reading = bool(
             self._settings.get("i1pro2_lights_during_reading", False))
         # 4.3.52: the i1Pro 2's quiet time before a reading (seconds)
-        try:
-            p.engine_lights_quiet_s = float(
-                self._settings.get("i1pro2_lights_quiet_s", 2.1))
-        except (TypeError, ValueError):
-            p.engine_lights_quiet_s = 2.1
+        # (the stored value on the field's grid; not a number from 0 to 10 s
+        # -> the default, written once in core/i1pro2_lights_quiet.py)
+        from core import i1pro2_lights_quiet as _lq
+        p.engine_lights_quiet_s = _lq.seconds(
+            self._settings.get("i1pro2_lights_quiet_s"))
         p.engine_ruler_check = bool(
             self._settings.get("ruler_check_beta", False))
         p.engine_margin_tolerance = bool(
