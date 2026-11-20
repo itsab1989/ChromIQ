@@ -1332,9 +1332,31 @@ homing 1.312 s, status 0), and no `f0`.
     time window is 0-2.0 s within 25 mm of rest (as before) and 0.3-3.5 s beyond;
   * inside 4.3.48's envelope of recorded homings of a held arm (X -1434..1179, Y 1202..2560):
     offered on the same page; the lines are 4.3.48's, unchanged (`s0 p0 i1 s0 f0 f4 f4 p0`);
-  * anywhere else (the home line beyond Y 815 and short of 1202, beside it in the back strip, the
-    rest of the measuring area, the front zone, the alignment start): nothing is sent, and the
-    page says why and what works (M-I1IO-DRIVE-ARM-OUT-NOT-HERE).
+  * **a TRY (the owner's decision of 2026-11-20)** everywhere else inside 4.3.47's homing region
+    for a held arm (`homing_starts_here`: the measuring area's raw box X -1434..1766,
+    Y 473..2773, and the held front zone up to Y 3114), which is where 4.3.50 offered its
+    homing after "The arm is out". Basti, 2026-11-20: *"let chromiq offer to try it and if it
+    does not work it suggests i1profiler. but the i1io 2 is not supported by the most recent
+    i1profiler anymore so we should not rely on it".* The offer itself is his decision; how it
+    is built awaits confirmation like the rest of this section. The page says it is a try with no
+    recording at a start (M-I1IO-DRIVE-ARM-OUT-TRY); the lines are 4.3.48's, unchanged
+    (`s0 p0 i1 s0 f0 f4 f4 p0`, window 0.8-8.0 s), as 4.3.50 sent them from there; the reading
+    right before i1 must lie within 5 units of the offer's and still in the try region, and the
+    last reading must find the arm at rest. No margin is kept from the end of the travel: the
+    one homing on record that answered a status (status 3) was a free arm at the right end,
+    which is refused, and held homings from that end are recorded with status 0 (the reasons
+    are in the work folder's safety brief for the re-review);
+  * anywhere else (beside the home line in the back strip, Y below 473, where i1Profiler once
+    did not home directly; the alignment start and beyond the raw box; in front of Y 3114):
+    nothing is sent, and the page says why and what works (M-I1IO-DRIVE-ARM-OUT-NOT-HERE).
+  When a homing at a START does not bring the arm home (a status, no arrival, not at rest
+  afterwards, the held arm moved before it), ONE page says so (M-I1IO-DRIVE-HOME-TRY-FAILED),
+  with the way on (M-I1IO-DRIVE-ARM-WAY-OUT): End measurement, the power switch, the arm pushed
+  gently by hand only if it moves easily (whether a switched-off table lets it move is not
+  known), START again, and only then i1Profiler 3.8.6 or older, with the plain statement that
+  3.8.7 and newer no longer work with the i1iO 2. A move that may still be waiting keeps its
+  switch-off page first. Every page of the table window that names i1Profiler 3.8.6 without
+  that statement gets it added (M-I1IO-DRIVE-I1PROFILER-LIMIT).
   After the homing the measurement goes on (M-I1IO-DRIVE-HOME-AT-START-DONE, "Go on"), except
   after the alignment's own place check had stopped the sending (`-N`): then nothing more is sent
   in this measurement, as in 4.3.48. The usual homing (`home`) is never offered at a START.
