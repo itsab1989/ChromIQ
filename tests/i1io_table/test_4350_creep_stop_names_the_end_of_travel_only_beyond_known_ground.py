@@ -30,7 +30,8 @@ def test_the_step_knows_whether_it_went_beyond_known_ground(tmp_path, monkeypatc
 def test_the_page_names_the_end_of_travel_only_beyond_known_ground(beyond):
     for rid in ("table_answered_a_status", "table_refused_a_line", "table_did_not_answer"):
         _t, body = _page(dict(DETAIL, creep_stop=rid, beyond_known_front=beyond), rid)
-        assert ("end of its travel there" in body or "at the end of its travel" in body) is (
+        assert ("end of its range of movement there" in body
+                or "at the end of its range of movement" in body) is (
             beyond), (rid, beyond)
         if not beyond and rid == "table_answered_a_status":
             assert "has reached this place before" in body

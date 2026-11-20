@@ -65,7 +65,7 @@ def test_not_now_then_close_moves_nothing_and_the_done_page_says_how_the_arm_com
     assert p.page() == "home_not_now" and _moves(sim) == n
     p.press("Close")
     assert p.page() == "done" and _moves(sim) == n
-    assert "The arm was left out over the table" in win._text.text()
+    assert "The arm stayed extended over the table" in win._text.text()
 
 
 def test_his_page_ends_with_the_arm_brought_home_from_in_front_of_every_homing_start(

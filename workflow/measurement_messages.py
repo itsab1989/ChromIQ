@@ -11163,7 +11163,7 @@ def _shift_tail() -> str:
     also name a cause (an unprinted patch, a print far from its design) for
     which Keep it is the right answer, so the window must not say both."""
     return (
-        "Readings filed under the wrong patch would make the profile, or a "
+        "Readings stored under the wrong patch would make the profile, or a "
         "verification report, wrong for those colours. Nothing else is "
         "affected: your other strips and everything read so far are saved.\n\n"
         "{remeasure}: go back to strip {strip} and read it again. Put the "
@@ -11303,7 +11303,7 @@ M_STRIP_END_SLIPPED_EARLY = _m(
 M_STRIP_ENDS_SHIFTED_LATE = _m(
     "M-STRIP-ENDS-SHIFTED-LATE",
     "The start of strip {strip} was probably read one patch out of place",
-    "Taken together, the first readings of strip {strip}, patches {first} to "
+    "As a group, the first readings of strip {strip}, patches {first} to "
     "{last}, match the colours one place earlier better than their own "
     "colours. For patch {first}, the colour one place earlier is the white "
     "paper in front of the strip; for each of the others, it is the patch "
@@ -11311,7 +11311,7 @@ M_STRIP_ENDS_SHIFTED_LATE = _m(
     "it cannot say whether the rest of the strip is in step.\n\n"
     "This usually happens when the instrument takes the white paper in front "
     "of the first patch for a patch of its own. The readings after it are "
-    "then filed one place too far along, at least for a few patches.\n\n"
+    "then stored one patch too late, at least for a few patches.\n\n"
     "A print whose colours are far from the chart's design can look the "
     "same, for example a print much lighter than planned. If you read the "
     "strip again carefully and this question comes back, the print is the "
@@ -11327,7 +11327,7 @@ M_STRIP_ENDS_SHIFTED_LATE = _m(
 M_STRIP_ENDS_SHIFTED_EARLY = _m(
     "M-STRIP-ENDS-SHIFTED-EARLY",
     "The end of strip {strip} was probably read one patch out of place",
-    "Taken together, the last readings of strip {strip}, patches {first} to "
+    "As a group, the last readings of strip {strip}, patches {first} to "
     "{last}, match the colours one place later better than their own "
     "colours. For patch {last}, the colour one place later is the white "
     "paper after the strip; for each of the others, it is the patch just "
@@ -11335,7 +11335,7 @@ M_STRIP_ENDS_SHIFTED_EARLY = _m(
     "cannot say whether the rest of the strip is in step.\n\n"
     "This usually happens when the instrument takes the white paper after "
     "the last patch for a patch of its own. The readings before it are then "
-    "filed one place too early, at least for a few patches.\n\n"
+    "stored one patch too early, at least for a few patches.\n\n"
     "A print whose colours are far from the chart's design can look the "
     "same, for example a print much lighter than planned. If you read the "
     "strip again carefully and this question comes back, the print is the "
@@ -11360,7 +11360,7 @@ M_STRIP_END_PAPER_LATE = _m(
     "misses it by {base} ΔE00. ChromIQ looked only at this one reading.\n\n"
     "There are two usual causes. The instrument may have taken the white "
     "paper in front of the first patch for a patch of its own; then the "
-    "readings after it may be filed one place too far along. Or patch "
+    "readings after it may be stored one patch too late. Or patch "
     "{first} did not print, for example because a nozzle is blocked or an "
     "ink ran out.\n\n"
     "Look at patch {first} on the printed chart. If it is white or very "
@@ -11381,7 +11381,7 @@ M_STRIP_END_PAPER_EARLY = _m(
     "misses it by {base} ΔE00. ChromIQ looked only at this one reading.\n\n"
     "There are two usual causes. The instrument may have taken the white "
     "paper after the last patch for a patch of its own; then the readings "
-    "before it may be filed one place too early. Or patch {last} did not "
+    "before it may be stored one patch too early. Or patch {last} did not "
     "print, for example because a nozzle is blocked or an ink ran out.\n\n"
     "Look at patch {last} on the printed chart. If it is white or very pale, "
     "the print is the cause: reading the strip again will not change that, "
@@ -12543,7 +12543,7 @@ M_I1IO_DRIVE_CONSENT = _m(
     "This is unofficial. X-Rite did not make or approve it, and removed the "
     "i1iO 2 and the i1Pro 2 from i1Profiler in version 3.8.7 (X-Rite's own "
     "release notes); 3.8.6 is the last version that works with them. "
-    "ChromIQ's commands and timings were worked out from USB recordings that "
+    "ChromIQ's commands and timings were taken from USB recordings that "
     "one table owner made of i1Profiler, not from X-Rite's documentation. "
     "Some steps go beyond what was recorded and are first tries.\n\n"
     "What has been tried on a real table so far. One i1iO 2 with an i1Pro 2, "
@@ -12556,14 +12556,15 @@ M_I1IO_DRIVE_CONSENT = _m(
     "on a Mac: the aiming, the slow steps towards the front and every row "
     "worked. Not tried "
     "on a real table yet: reading in rows (strips), the dual scan, a second "
-    "page, bringing the arm home from the front of the table, and what "
-    "happens at the end of the arm's travel. On Windows and on Linux, nothing "
+    "page, bringing the arm home from the front of the table, and what happens at the end of the "
+    "arm's range of movement."
+    " On Windows and on Linux, nothing "
     "has been tried at all: it "
     "may not work there, and if it does not, ChromIQ stops and tells you what "
     "it found.\n\n"
     "Keep your hands away from the arm while it moves. Nothing may lie on the "
     "table's bed except your sheet.\n\n"
-    "The way out is always the power switch. If anything looks or sounds "
+    "You can always switch the table off at its power switch. If anything looks or sounds "
     "wrong, switch the table off at its power switch. That is always allowed, "
     "and ChromIQ will never ask you not to. Leave it off for ten seconds "
     "before you switch it on again.\n\n"
@@ -12911,7 +12912,7 @@ M_I1IO_DRIVE_ROW_M0_ONLY_STRIP = _m(
     "this row has no M1 and M2 yet; every other row keeps its own. What would you like to "
     "do?\n"
     "  •  Read it again as a strip, with both passes.\n"
-    "  •  Read it patch by patch: slower, and the careful way.\n"
+    "  •  Read it patch by patch: slower, but more careful.\n"
     "  •  Skip this row: it keeps M0 only. Continue Measurement, with the dual scan still "
     "switched on, reads it again later with both passes.\n"
     "  •  End this step.",
@@ -13274,8 +13275,9 @@ M_I1IO_DRIVE_END = _m(
     "The arm stays where it is while you choose; nothing moves while this "
     "question is shown. After Save and stop or Discard and stop, ChromIQ then "
     "brings the arm home if it can, and asks you to take your hands away "
-    "first. Keep measuring reads the rows that are still missing, after the "
-    "same question.",
+    "first. Keep measuring then reads the rows that are still missing; it asks the same question "
+    "first."
+    "",
     approved=False)
 
 #: 4.3.50 (the first real page, 19 Nov 2026: the homing OFFERED after Save was not taken, and
@@ -13290,10 +13292,11 @@ M_I1IO_DRIVE_HOME_AT_END = _m(
     "Please take your hands away from the table and the arm, then press “Bring the arm home, "
     "my hands are away”: the arm moves at once.\n\n"
     "If the arm does not go home now, the table stays in its aiming mode. ChromIQ cannot start "
-    "a new measurement on it until the arm is home. So press “Not now” only if you must reach "
-    "the sheet first: nothing moves, and you can still bring the arm home from this window "
+    "a new measurement on it until the arm is home. So press “Not now” only if you must get to the "
+    "sheet first"
+    ": nothing moves, and you can still bring the arm home from this window "
     "afterwards.\n\n"
-    "Please do not move the arm while you reach the sheet. ChromIQ brings the arm home only "
+    "Please do not move the arm while you reach for the sheet. ChromIQ brings the arm home only "
     "from the place where it left it. If the arm has been moved, ChromIQ does not move it "
     "any more.\n\n"
     "To stop the arm at once, switch the table off at its power switch.",
@@ -13312,7 +13315,7 @@ M_I1IO_DRIVE_HOME_NOT_NOW = _m(
     "then press “Bring the arm home, my hands are away”. The arm moves at once.\n\n"
     "If you press Close, ChromIQ ends its connection to the table. After that, ChromIQ cannot "
     "bring the arm home.\n\n"
-    "Please do not move the arm while you reach the sheet. ChromIQ brings the arm home only "
+    "Please do not move the arm while you reach for the sheet. ChromIQ brings the arm home only "
     "from the place where it left it. If the arm has been moved, ChromIQ does not move it "
     "any more.\n\n"
     "To stop the arm at once, switch the table off at its power switch.",
@@ -13324,8 +13327,8 @@ M_I1IO_DRIVE_HOME_NOT_NOW = _m(
 #: Y 3114 is not; a just switched-on table is started (i0) only with the arm at rest.
 M_I1IO_DRIVE_LEFT_OUT = _m(
     "M-I1IO-DRIVE-LEFT-OUT",
-    "The arm was left out over the table",
-    "The arm was left out over the table, and the table is still in its aiming mode. ChromIQ "
+    "The arm stayed extended over the table",
+    "The arm stayed extended over the table, and the table is still in its aiming mode. ChromIQ "
     "cannot start a new measurement on this table until the arm is home again. ChromIQ cannot "
     "bring it home from a new measurement either: only the measurement that took the arm there "
     "knows the way back.\n\n"
@@ -13333,7 +13336,7 @@ M_I1IO_DRIVE_LEFT_OUT = _m(
     "1. Stay beside the table, with its power switch in reach. Open i1Profiler 3.8.6 or older "
     "once and let it find the table. It should bring the arm home, but no recording shows it "
     "doing that from where the arm is now.\n"
-    "2. When the arm is at its resting place, quit i1Profiler. Then press START MEASUREMENT in "
+    "2. When the arm is at its resting place, close i1Profiler. Then press START MEASUREMENT in "
     "ChromIQ again.\n\n"
     "If you switch the table off and on instead: ChromIQ starts a table that was just switched "
     "on only when the arm is at its resting place, and it asks you about that first. How the "
@@ -13356,7 +13359,7 @@ M_I1IO_DRIVE_STILL_AIMING = _m(
     "2. Stay beside the table, with its power switch in reach. Open i1Profiler 3.8.6 or older "
     "once and let it find the table. It should bring the arm home, but no recording shows how "
     "it does that for a table in this mode.\n"
-    "3. When the arm is at its resting place, quit i1Profiler. Then press START MEASUREMENT "
+    "3. When the arm is at its resting place, close i1Profiler. Then press START MEASUREMENT "
     "again.\n\n"
     "Please send us the diagnostics file of this measurement: {log}.",
     approved=False)

@@ -127,7 +127,7 @@ def test_each_case_has_its_own_true_page(rid):
         assert body.index("Switch the table off now") < body.index("Press End measurement")
         assert "motor may still be trying" in body
     elif rid == "table_answered_a_status":
-        assert "error code" in body and "end of its travel" in body
+        assert "error code" in body and "end of its range of movement" in body
         assert "If you hear the motor keep running" in body
     else:
         assert "refused" in body and "cannot tell whether the arm moved" in body
@@ -191,11 +191,11 @@ def test_in_the_window_the_page_and_its_way_home_after_the_ending(
 
 def test_a_creep_step_outside_its_time_window_says_so_and_where_the_arm_is():
     """SHOULD-2's last part: the step was reported finished, outside a step's time. Its reason
-    says that (not "did not arrive exactly"), where the arm reads, and the homing offered."""
+    says that (not "did not reach the exact place"), where the arm reads, and the homing offered."""
     from ui.i1io_table_window import reason_text
     why = reason_text("creep_step_outside_time_window",
                       {"read": [1402, 3171], "target": [1402, 3220], "short_mm": 6})
-    assert "took longer or shorter than such a step takes" in why
+    assert "took more time or less time than a normal step takes" in why
     assert "X 1402, Y 3171" in why and "about 6 mm further towards the back" in why
-    assert "Bring the arm home" in why and "did not arrive exactly" not in why
+    assert "Bring the arm home" in why and "did not reach the exact place" not in why
     assert "—" not in why

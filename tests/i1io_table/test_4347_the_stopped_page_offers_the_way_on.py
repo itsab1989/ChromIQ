@@ -56,7 +56,7 @@ def test_the_page_button_ends_the_session_cleanly_and_the_last_page_says_the_fre
     assert sim.sim.received == sent                    # ending sends nothing to the table
     text = win._text.text()
     assert M.M_I1IO_DRIVE_FREE_LEFT.render()[1] in text
-    assert "The arm was left out over the table" not in text
+    assert "The arm stayed extended over the table" not in text
     assert p.labels() == ["Close"]
     assert win.job.state().arm_free is True
 
@@ -67,7 +67,7 @@ def test_a_held_arm_left_out_keeps_its_old_last_page_words():
     import inspect
     import ui.i1io_table_window as W
     src = inspect.getsource(W.TableMeasureWindow._after_close)
-    assert "The arm was left out over the table." in src and "_arm_left_free()" in src
+    assert "The arm stayed extended over the table." in src and "_arm_left_free()" in src
 
 
 @pytest.mark.parametrize("asking", [True, False])

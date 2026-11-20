@@ -68,7 +68,7 @@ def test_one_window_gives_one_piece_of_advice(msg):
 
 @pytest.mark.parametrize("msg", SHIFT[:2], ids=lambda m: m.id)
 def test_the_two_or_three_readings_are_said_to_fit_together(msg):
-    assert msg.body.startswith("Taken together")
+    assert msg.body.startswith("As a group")
     assert "{numbers_line}" in msg.body and "by only {best}" not in msg.body
 
 

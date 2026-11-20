@@ -34,7 +34,7 @@ from workflow import measurement_messages as M
 
 MOVES = ("m0", "m1", "m2", "i0", "i1")
 BRING = "Bring the arm home, my hands are away"
-DO_NOT_MOVE = "Please do not move the arm while you reach the sheet."
+DO_NOT_MOVE = "Please do not move the arm while you reach for the sheet."
 I18N = Path(__file__).resolve().parents[2] / "data" / "i18n"
 
 

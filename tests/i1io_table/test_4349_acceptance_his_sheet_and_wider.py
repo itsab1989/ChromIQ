@@ -262,4 +262,4 @@ def test_the_page_after_a_creep_that_met_the_end_says_how_far_to_lay_the_sheet_b
     assert "—" not in text
     # without the amount (an older detail), the general sentence stays
     assert reason_text("creep_step_did_not_arrive", {}) == tr(
-        "The slow steps towards the front stopped at a step that did not arrive exactly.")
+        "The slow steps towards the front stopped at a step where the arm did not reach the exact place.")

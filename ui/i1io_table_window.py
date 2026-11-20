@@ -122,8 +122,9 @@ def front_stop_what(rid: str, beyond_known_front: bool = True) -> str:
         if rid == "table_answered_a_status":
             return tr("During one of the small 5 mm steps towards the front of the table, the "
                       "table answered with an error code instead of reporting the step "
-                      "finished. The arm has reached this place before, so the end of its "
-                      "travel is not the likely cause.")
+                      "finished. The arm has reached this place before, so the end of its range of "
+                      "movement is not the likely cause."
+                      "")
         if rid == "table_refused_a_line":
             return tr("The table refused the command for one of the small 5 mm steps towards "
                       "the front of the table. ChromIQ cannot tell whether the arm moved before "
@@ -133,15 +134,17 @@ def front_stop_what(rid: str, beyond_known_front: bool = True) -> str:
                   "trying to move the arm.")
     if rid == "table_answered_a_status":
         return tr("During one of the small 5 mm steps towards the front of the table, the table "
-                  "answered with an error code instead of reporting the step finished. Most "
-                  "likely the arm met the end of its travel there.")
+                  "answered with an error code instead of reporting the step finished. Most likely "
+                  "the arm reached the end of its range of movement there."
+                  "")
     if rid == "table_refused_a_line":
         return tr("The table refused the command for one of the small 5 mm steps towards the "
                   "front of the table. ChromIQ cannot tell whether the arm moved before that, "
-                  "or whether it stands at the end of its travel.")
+                  "or whether it stands at the end of its range of movement.")
     return tr("The table did not answer one of the small 5 mm steps towards the front of the "
-              "table: it never reported the step finished. The arm may have met the end of its "
-              "travel there, and the motor may still be trying to move it.")
+              "table: it never reported the step finished. The arm may have reached the end of its "
+              "range of movement there"
+              ", and the motor may still be trying to move it.")
 
 
 def _xy_text(p) -> str:
@@ -788,7 +791,7 @@ def table_state_text(a0) -> str:
         "3. If the arm is out over the table, or the table still answers this way: stay beside "
         "the table, with its power switch in reach. Open i1Profiler 3.8.6 or older once and let "
         "it find the table. It should bring the arm home, but no recording shows how it does "
-        "that for a table in this state. When the arm is at its resting place, quit i1Profiler. "
+        "that for a table in this state. When the arm is at its resting place, close i1Profiler. "
         "Then press START MEASUREMENT again.\n\n"
         "ChromIQ does not start a table that was just switched on with the arm out over the "
         "table, because that has never been recorded.")
@@ -1004,7 +1007,7 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
                                            "sheet you aimed at."),
         "path_leaves_area": tr("The way there would leave the area ChromIQ allows."),
         "target_beyond_confirmed_front": tr(
-            "The place lies further forward than the arm has gone in this measurement."),
+            "This position is further forward than the arm has gone in this measurement."),
         "unexpected_error": tr("Something unexpected happened inside ChromIQ."),
         "no_run": tr("No profile run is selected."),
         "nothing_waits_for_a_confirmation": tr("No question is open."),
@@ -1180,18 +1183,21 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
         # 4.3.50 (safety review 449, SHOULD-2): the step was reported finished, but not in the
         # time such a step takes; the arm was read, the homing is offered as after a stall
         rd_ = d.get("read") or (0, 0)
-        return tr("One of the small 5 mm steps towards the front of the table took longer or "
-                  "shorter than such a step takes, so ChromIQ moves the arm no further forward. "
-                  "The table reported the step finished, and the arm now reads X {x}, Y {y} (in "
+        return tr("One of the small 5 mm steps towards the front of the table took more time or "
+                  "less time than a normal step takes"
+                  ", so ChromIQ moves the arm no further forward. "
+                  "The table reported the step finished, and the arm is now at X {x}, Y {y} (in "
                   "tenths of a millimetre).\n\nPlease press Bring the arm home. ChromIQ asks "
                   "you to take your hands away first, then takes the arm back along the way it "
                   "came, to a place it has already reached in this measurement, and brings it "
-                  "home from there. If the arm met the end of its travel, lay the sheet about "
+                  "home from there. If the arm reached the end of its range of movement, lay the "
+                  "sheet about "
                   "{mm} mm further towards the back of the table (away from you) and start the "
                   "measurement again.").format(x=int(rd_[0]), y=int(rd_[1]),
                                                mm=d.get("short_mm") or 1)
     if rid.startswith("creep_"):
-        return tr("The slow steps towards the front stopped at a step that did not arrive exactly.")
+        return tr("The slow steps towards the front stopped at a step where the arm did not reach "
+                  "the exact place.")
     if rid.startswith("instrument_"):
         return tr("ChromIQ needs exactly one i1Pro 2 in the table's arm and no other measuring "
                   "instrument connected.")
@@ -3977,7 +3983,8 @@ class TableMeasureWindow(QFrame):
             f"{k}. {ln}" for k, ln in enumerate(lines, 1))
         out += "\n\n" + tr(
             "ChromIQ does not bring the arm home itself this time. It does that only after a "
-            "stop at which the table answered every command as recorded, and here the table's "
+            "stop at which the table answered every command in the same way as in the recordings, "
+            "and here the table's "
             "state is not known.")
         return out
 
@@ -4379,7 +4386,7 @@ class TableMeasureWindow(QFrame):
                 way = M.M_I1IO_DRIVE_LEFT_OUT.render()[1]
             else:
                 # 4.3.50 (table re-review, SHOULD-5): the same honesty as LEFT-OUT
-                way = tr("The arm was left out over the table. Stay beside the table, with its "
+                way = tr("The arm stayed extended over the table. Stay beside the table, with its "
                          "power switch in reach, and open i1Profiler 3.8.6 or older once and let "
                          "it find the table. It should bring the arm home, but no recording "
                          "shows it doing that from where the arm is now.")
