@@ -60,7 +60,8 @@ def test_argyll_reads_a_stamped_file(tmp_path):
     f = _a_ti3(tmp_path)
     tp.stamp(f, "chromiq-chartread_2026-11-19d+x")
     res = subprocess.run([str(ARGYLL / "colprof"), "-qm", "-O", "x.icc", f.stem],
-                         cwd=tmp_path, capture_output=True, text=True, timeout=600)
+                         cwd=tmp_path, capture_output=True, text=True, encoding="utf-8",
+                         errors="replace", timeout=600)
     assert res.returncode == 0, res.stdout[-1500:] + res.stderr[-1500:]
     assert (tmp_path / "x.icc").is_file()
 
@@ -75,8 +76,10 @@ def test_every_writing_path_stamps():
     assert "stamp(tmp)" in inspect.getsource(i1pro3_conditions.average_conditions)
     assert "stamp(out)" in inspect.getsource(ti3_average.average_scanner_ti3)
     assert "stamp(ti3_path)" in inspect.getsource(reference_convert)
-    src = inspect.getsource(job.TableJob)
-    assert src.count("_stamp_provenance(") >= 3
+    # NOT the table's save: its session-state check compares the filed file byte for
+    # byte, so a header written after filing made a saved sitting read "interrupted"
+    # (tests/i1io_table/test_job_review8_fixes.py); the table path is listed as not covered
+    assert "provenance" not in inspect.getsource(job)
 
 
 def test_the_tab_stamps_the_session_file_and_its_conditions(tmp_path, monkeypatch):
@@ -91,5 +94,6 @@ def test_the_tab_stamps_the_session_file_and_its_conditions(tmp_path, monkeypatc
         _ti1_path = ti1
         _ti3_mtime_before = None
         _manager = _Mgr()
+        _settings = {"i1pro3_conditions_beta": False}
     T.TabMeasure._stamp_provenance_at_end(_Fake())
     assert tp.read(f) == (APP_VERSION, "chromiq-chartread_b")

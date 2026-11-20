@@ -91,7 +91,9 @@ def test_a_child_process_logs_into_the_sandbox_not_the_real_log(
     sandbox = Path(os.environ["CHROMIQ_LOG_DIR"])
     assert child_log == sandbox / "chromiq.log"
     # The line that reached the real log in beta 45 now reaches the sandbox.
-    assert str(ini) in child_log.read_text(encoding="utf-8"), (
+    # 4.3.50 (A0): the log's privacy filter scrubs the path as it writes it
+    from core.log_privacy import safe_scrub
+    assert safe_scrub(str(ini)) in child_log.read_text(encoding="utf-8"), (
         "the child's 'Settings SANDBOXED' line is not in the sandbox log")
     assert not _real_log_says(_real_log_path(monkeypatch), str(ini)), (
         "a child process of a test wrote into the REAL chromiq.log")

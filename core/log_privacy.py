@@ -263,31 +263,41 @@ def note_printer_names(names) -> None:
 
 
 def scrub(text: str) -> str:
-    """The line with everything private replaced (see the module text)."""
+    """The line with everything private replaced (see the module text).
+
+    Each rule runs only when a cheap substring test says it can match (most
+    lines match none), so an ordinary line costs a few microseconds."""
     s = str(text)
     ident = _identity()
-    if ident.printer_re is not None:
+    low = s.lower()
+    if ident.printer_re is not None and any(p in s for p in ident.printers):
         s = ident.printer_re.sub(lambda m: ident.printers.get(m.group(0), "<printer>"), s)
-    if ident.home_re is not None:
+    if ident.home_re is not None and any(h.lower() in low for h in ident.homes):
         s = ident.home_re.sub("~", s)
+        low = s.lower()
 
     def _other(m):
         name = m.group("name")
         if name.strip().lower() in _KEEP_HOME_NAMES:
             return m.group(0)
         return m.group("pre") + "<user>"
-    s = _OTHER_HOME.sub(_other, s)
-    if ident.phrase_re is not None:
+    if "users" in low or "/home/" in low:
+        s = _OTHER_HOME.sub(_other, s)
+    if ident.phrase_re is not None and any(p.lower() in low for p in ident.phrases):
         s = ident.phrase_re.sub("<user>", s)
-    if ident.word_re is not None:
+    if ident.word_re is not None and any(n in low for n in ident.lower_names):
         s = ident.word_re.sub("<user>", s)
-    if ident.host_re is not None:
+    if ident.host_re is not None and any(h.lower() in low for h in ident.hosts):
         s = ident.host_re.sub("<computer>", s)
-    for rx in _SERIALS:
-        s = rx.sub(lambda m: m.group("pre") + ident.tag("sn", m.group("val")), s)
-    s = _MAC.sub(lambda m: ident.tag("sn", m.group("val")), s)
-    s = _UUID.sub(lambda m: ident.tag("sn", m.group("val")), s)
-    s = _LONG_HEX.sub(lambda m: ident.tag("hex", m.group(0))[:-1] + f" {len(m.group(0))} digits>", s)
+    if "serial" in low or ".cal" in low or "chip" in low:
+        for rx in _SERIALS:
+            s = rx.sub(lambda m: m.group("pre") + ident.tag("sn", m.group("val")), s)
+    if s.count(":") >= 5 or s.count("-") >= 4:
+        s = _MAC.sub(lambda m: ident.tag("sn", m.group("val")), s)
+        s = _UUID.sub(lambda m: ident.tag("sn", m.group("val")), s)
+    if len(s) > 64:
+        s = _LONG_HEX.sub(lambda m: ident.tag("hex", m.group(0))[:-1]
+                          + f" {len(m.group(0))} digits>", s)
     return s
 
 

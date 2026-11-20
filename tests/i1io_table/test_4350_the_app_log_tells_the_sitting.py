@@ -39,5 +39,5 @@ def test_a_table_page_in_the_app_log(qtbot, monkeypatch, tmp_path, settings, cap
     lines = len(m)
     import os
     if os.environ.get("CQ_DUMP"):
-        open(os.environ["CQ_DUMP"], "w").write("\n".join(m))
+        open(os.environ["CQ_DUMP"], "w", encoding="utf-8").write("\n".join(m))
     assert lines < 400, lines

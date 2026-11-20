@@ -24379,6 +24379,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 return
             build = getattr(self._manager, "applog_helper_build", None)
             tp.stamp(ti3, build)
+            # the condition files only with the M0/M1/M2 Beta on (off, its
+            # code is never reached: test_i1pro3_conditions_off_...)
+            if not bool(self._settings.get("i1pro3_conditions_beta", False)):
+                return
             from workflow import i1pro3_conditions as _c
             for cond in ("M0", "M1", "M2"):
                 for f in (_c.condition_file(ti3, cond),

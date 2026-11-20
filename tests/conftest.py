@@ -2283,7 +2283,7 @@ def pytest_addoption(parser):
 #
 # * `tests/test_chartread_engine.py` and seven other files carry a MODULE-LEVEL
 #   `skipif` on a GITIGNORED build artefact, and an eighth skips part of itself
-#   on the same thing (10 wholesale and 39 in part since 2026-11-20, the i1Pro 2 dual-scan engine, review-fix, UI, UI fix-round, 4.3.49 gap, kept-conditions, final-fix and 4.3.50 strip shift tests, counted by
+#   on the same thing (10 wholesale and 40 in part since 2026-11-20 (4.3.50 app log: the conditions' end line), the i1Pro 2 dual-scan engine, review-fix, UI, UI fix-round, 4.3.49 gap, kept-conditions, final-fix and 4.3.50 strip shift tests, counted by
 #   `test_a_run_says_what_it_cannot_prove.py`). Absent, 85 tests skip. A worktree,
 #   a fresh clone and any CI runner are the normal case for that artefact, and
 #   the only trace in the log is the total - so "the helper was present so

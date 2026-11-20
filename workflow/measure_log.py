@@ -26,7 +26,7 @@ from core.app_log import Clock, line
 
 #: which ti2 keywords the start line reads (the header ends at BEGIN_DATA)
 _TI2_KEYS = ("TARGET_INSTRUMENT", "STEPS_IN_PASS", "PASSES_IN_STRIPS2", "NUMBER_OF_SETS",
-             "PAPER_SIZE", "ORIGINATOR", "CHROMIQ_I1IO_TABLE", "CHROMIQ_ISIS_LAYOUT")
+             "PAPER_SIZE", "ORIGINATOR")
 
 
 def chart_summary(ti2_path) -> dict:
@@ -59,10 +59,6 @@ def chart_summary(ti2_path) -> dict:
         res["patches_per_strip"] = out.get("STEPS_IN_PASS")
         res["layout"] = ("chromiq" if "ChromIQ" in str(out.get("ORIGINATOR", ""))
                          else "printtarg" if out.get("ORIGINATOR") else None)
-        if out.get("CHROMIQ_I1IO_TABLE"):
-            res["i1io_table_chart"] = True
-        if out.get("CHROMIQ_ISIS_LAYOUT"):
-            res["isis_chart"] = True
         side = p.with_suffix(".channels.json")
         if side.is_file() and side.stat().st_size < 4_000_000:
             lay = (json.loads(side.read_text(encoding="utf-8")) or {}).get("layout") or {}

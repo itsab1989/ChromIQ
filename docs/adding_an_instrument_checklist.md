@@ -111,6 +111,11 @@ routes and a challenged plan.
       needed. The ⓘ says what it adds, the limits, how the facts were found,
       whether it was tried on real hardware, what a tester can check and how
       to report, and that off changes nothing.
+- [ ] **1.4b** The switch and its own options named in the app log's session
+      header: add the keys to `core/beta_registry.py` (and the switch's
+      latched answer to `core/session_header.py` when it is restart-to-apply);
+      `tests/test_the_session_header_names_every_beta_switch.py` fails for a
+      Beta page key that is missing.
 - [ ] **1.5** Consent window when switched on: no icon, "Keep it off" the
       default, the confirm button marked as the risky choice, own risk said
       plainly; Cancel unticks; switching on again asks again. Examples:

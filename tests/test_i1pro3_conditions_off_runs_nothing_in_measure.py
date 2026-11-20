@@ -53,6 +53,8 @@ def test_the_measure_tab_reaches_the_feature_at_four_named_points():
         "tab_measure._fill_strips",
         "tab_measure._fill_note_text",
         "tab_measure._fill_guided_strips",
+        # 4.3.50 (A10): the condition files' provenance, after asking the switch
+        "tab_measure._stamp_provenance_at_end",
     }, users
     # the manager uses it only where the folder was given (`engine_condition_dir`)
     for m in re.finditer(r"i1pro3_conditions", mm):
