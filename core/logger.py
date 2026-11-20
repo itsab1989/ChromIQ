@@ -55,6 +55,13 @@ def configure_logging() -> None:
     fmt = _Fmt("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
     path = _log_path()
+    # M3 (4.3.50): the older sessions in the log (and its rotated copies) pass
+    # the privacy filter once, before the handler opens the file
+    try:
+        from core.log_privacy import clean_old_logs as _clean
+        cleaned = _clean(path.parent, path.name)
+    except Exception:      # noqa: BLE001  # never let this stop logging
+        cleaned = None
     _write_session_banner(path)
 
     fh = logging.handlers.RotatingFileHandler(
@@ -70,6 +77,11 @@ def configure_logging() -> None:
     root.addHandler(ch)
 
     _quiet_third_party()
+    try:
+        from core.log_privacy import log_cleaning_result
+        log_cleaning_result(cleaned)
+    except Exception:      # noqa: BLE001
+        pass
 
 
 #: Libraries that log at DEBUG on the root logger and drown ChromIQ's own

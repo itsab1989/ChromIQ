@@ -55,8 +55,16 @@ WHAT IS NOT REPLACED, AND WHY
 * other short numbers (patch counts, dE values, ids of strips) — a number is only
   treated as a serial where a word says it is one.
 * the crash log (``chromiq-crash.log``) is written by faulthandler at the C level
-  and cannot pass through a Python formatter; it holds stack traces with source
-  file paths of the app bundle, not the user's files.
+  and cannot pass through a Python formatter while it is written; its stacks
+  name source file paths (with the account name for a source run or an app in
+  the home folder). It is passed through this filter at the NEXT start, before
+  faulthandler opens it (``core.crash_log.clean_previous``), so a crash log
+  sent before ChromIQ is started again is not cleaned.
+
+OLDER LOGS (M3): ``chromiq.log`` is appended to and rotated. At the first start
+of a build with this filter, the log and its rotated copies are passed through
+it once (:func:`clean_old_logs`, atomic replace, the original kept on any
+failure), and a line in the new log says so.
 
 It NEVER raises and NEVER drops a line: on any internal failure the line is still
 written, with the home folder replaced the cheap way and ``[scrub failed]`` in
@@ -425,3 +433,110 @@ class ScrubbingFormatter(logging.Formatter):
             except Exception:      # noqa: BLE001
                 line = "<a log line that could not be formatted>"
         return safe_scrub(line)
+
+
+# --------------------------------------------------------------------------
+# M3 (4.3.50): the log a tester sends after updating still held every older
+# session unscrubbed (chromiq.log is appended to and rotated, five copies).
+# At the first start of a build with the filter, each of those files passes
+# through the same filter once. The crash log is cleaned at every start,
+# before faulthandler opens it (its stacks name source paths).
+# --------------------------------------------------------------------------
+
+#: raised when what the filter removes changes enough that old logs should be
+#: cleaned again (the marker file holds the version it was cleaned with)
+CLEAN_VERSION = 1
+CLEAN_MARKER = "chromiq-log-cleaned"
+
+
+def clean_file(path) -> "tuple[int, str | None]":
+    """Pass one log file through :func:`safe_scrub`, line by line, and replace
+    it ATOMICALLY (a temporary file beside it, then ``os.replace``). Returns
+    ``(lines changed, None)``, or ``(0, "<why>")`` when it could not be done:
+    the original is then left exactly as it was. Bytes that are not UTF-8 are
+    kept as they are. Never raises."""
+    from pathlib import Path
+    p = Path(path)
+    tmp = p.with_name(p.name + ".cleaning")
+    try:
+        raw = p.read_bytes()
+        text = raw.decode("utf-8", "surrogateescape")
+        out, changed = [], 0
+        for ln in text.splitlines(keepends=True):
+            body = ln.rstrip("\r\n")
+            end = ln[len(body):]
+            new = safe_scrub(body) if body else body
+            if new != body:
+                changed += 1
+            out.append(new + end)
+        if not changed:
+            return 0, None
+        data = "".join(out).encode("utf-8", "surrogateescape")
+        with open(tmp, "wb") as fh:
+            fh.write(data)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, p)
+        return changed, None
+    except Exception as exc:      # noqa: BLE001
+        try:
+            if tmp.exists():
+                tmp.unlink()
+        except Exception:      # noqa: BLE001
+            pass
+        return 0, f"{type(exc).__name__}: {exc}"
+
+
+def clean_old_logs(directory, name: str = "chromiq.log") -> "dict | None":
+    """Once per :data:`CLEAN_VERSION`: clean *name* and its rotated copies
+    (``<name>.1`` ...) in *directory*. Returns ``None`` when it was already
+    done (or there was nothing), else ``{"cleaned": [(file, lines)],
+    "failed": [(file, why)]}``. The marker file is written only when every
+    file was cleaned, so a failure is tried again at the next start.
+    Never raises; call it BEFORE a handler opens the file."""
+    try:
+        from pathlib import Path
+        d = Path(directory)
+        marker = d / CLEAN_MARKER
+        try:
+            if marker.read_text(encoding="utf-8").strip() == str(CLEAN_VERSION):
+                return None
+        except OSError:
+            pass
+        files = [d / name] + sorted(d.glob(name + ".[0-9]*"),
+                                    key=lambda q: q.name)
+        files = [f for f in files if f.is_file() and f.suffix != ".cleaning"]
+        res = {"cleaned": [], "failed": []}
+        for f in files:
+            n, why = clean_file(f)
+            if why:
+                res["failed"].append((f.name, why))
+            else:
+                res["cleaned"].append((f.name, n))
+        if not res["failed"]:
+            try:
+                d.mkdir(parents=True, exist_ok=True)
+                marker.write_text(f"{CLEAN_VERSION}\n", encoding="utf-8")
+            except OSError as exc:
+                res["failed"].append((CLEAN_MARKER, f"{type(exc).__name__}: {exc}"))
+        return res if files else (res if res["failed"] else None)
+    except Exception as exc:      # noqa: BLE001
+        return {"cleaned": [], "failed": [("?", f"{type(exc).__name__}: {exc}")]}
+
+
+def log_cleaning_result(res, logger=None) -> None:
+    """The marker line in the new log: what was cleaned, what could not be.
+    Never raises."""
+    if not res:
+        return
+    try:
+        lg = logger or logging.getLogger("chromiq.privacy")
+        if res.get("cleaned"):
+            lg.info("log privacy: the older sessions in this log were passed through the "
+                    "privacy filter once (filter version %d): %s", CLEAN_VERSION,
+                    ", ".join(f"{f} ({n} lines changed)" for f, n in res["cleaned"]))
+        for f, why in res.get("failed") or ():
+            lg.warning("log privacy: could not clean %s (%s); the original is kept "
+                       "unchanged and will be tried again at the next start", f, why)
+    except Exception:      # noqa: BLE001
+        pass

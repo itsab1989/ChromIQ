@@ -23,6 +23,8 @@ jctay's Windows log, forum post 149800):
   pauses ``faulthandler`` for the length of such a dialog, and only there,
   and only on Windows, and puts back exactly what was armed, also when the
   dialog raises. Everything outside that one call keeps its crash coverage.
+* **IT IS CLEANED AT EVERY START (4.3.50).** `clean_previous` passes the
+  file through the app log's privacy filter before faulthandler opens it.
 * **IT DOES NOT GROW FOR EVER.** The file was opened for appending and never
   trimmed, so every start of ChromIQ added to it for as long as ChromIQ was
   installed: jctay's held 3,700 lines going back to July (forum post 149834,
@@ -76,6 +78,28 @@ def rotate_if_large(path: Path, max_bytes: int = MAX_BYTES) -> bool:
         return False
 
 
+def clean_previous(directory: Path) -> None:
+    """4.3.50 (M3): pass the crash log and its older copy through the app
+    log's privacy filter, at every start and BEFORE faulthandler opens the
+    file (it writes at the C level, so a new dump cannot be filtered as it is
+    written; it is cleaned at the next start). A crash stack names source
+    file paths, which for a source run or an app kept in the home folder hold
+    the account name. A file that cannot be cleaned is kept as it was, and the
+    app log says so. Never raises."""
+    try:
+        from core.log_privacy import clean_file
+        for p in (directory / FILE_NAME, directory / (FILE_NAME + OLD_SUFFIX)):
+            if p.is_file() and p.stat().st_size <= 4 * MAX_BYTES:
+                _n, why = clean_file(p)
+                if why:
+                    import logging
+                    logging.getLogger("chromiq.privacy").warning(
+                        "log privacy: could not clean %s (%s); the original is kept",
+                        p.name, why)
+    except Exception:      # noqa: BLE001
+        pass
+
+
 def armed_line(version: str, when: "datetime | None" = None) -> str:
     """The line written at start-up, before faulthandler is switched on."""
     when = when or datetime.now()
@@ -96,6 +120,7 @@ def arm(directory: Path, version: str) -> "IO[str]":
     global _file, _all_threads
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
+    clean_previous(directory)
     rotate_if_large(directory / FILE_NAME)
     f = open(directory / FILE_NAME, "a", encoding="utf-8")
     f.write(armed_line(version))
