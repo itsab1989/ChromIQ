@@ -1181,7 +1181,7 @@ class Table:
             self._flush_move()
             text = bytes(line).decode("ascii", "replace").rstrip("\r")
             target = text[3:].strip() if cid in ("m0", "m2") else "-"
-            self._move_note = {"n": self.motions_sent + 1, "kind": str(kind or cid),
+            self._move_note = {"n": self.motions_sent, "kind": str(kind or cid),
                                "target": target or "-", "t": self.t.now(), "took": None,
                                "predicted": None, "status": "sent"}
         except Exception:      # noqa: BLE001 - a record, never the table's concern
