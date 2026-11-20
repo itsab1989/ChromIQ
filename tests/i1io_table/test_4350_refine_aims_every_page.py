@@ -58,9 +58,9 @@ def test_a_two_page_refinement_aims_each_page_again_in_its_own_sitting(tmp_path,
     fits = []
     real = geo.fit_alignment
 
-    def counted(aims_mm, readings):
+    def counted(aims_mm, readings, *rest):
         fits.append([tuple(r) for r in readings])
-        return real(aims_mm, readings)
+        return real(aims_mm, readings, *rest)
     monkeypatch.setattr(geo, "fit_alignment", counted)
     rep = job.set_options(["-p", "-r"], only_locs=locs)
     assert rep.ok and rep.detail.get("refine") == 2, rep.detail
@@ -158,4 +158,4 @@ def test_only_the_aiming_gives_the_job_a_sheet_position():
     src = ast.get_source_segment((ROOT / job_py).read_text(encoding="utf-8"), next(
         n for n in ast.walk(ast.parse((ROOT / job_py).read_text(encoding="utf-8")))
         if isinstance(n, ast.FunctionDef) and n.name == "_align"))
-    assert "geo.fit_alignment(aims_mm, readings)" in src
+    assert "geo.fit_alignment(aims_mm, readings," in src      # 4.3.53: + the turn allowed

@@ -23,6 +23,15 @@ from tests.i1io_table.job_harness import HERE
 from workflow.i1io.table import job as J
 
 
+
+@pytest.fixture(autouse=True)
+def _tester_060s_four_f4(monkeypatch):
+    """4.3.53 fix round (inventory B15): the job sends two f4 after the aims, as i1Profiler
+    does; tester 0.6.0 sent four. For the comparison with the tester's wire the job holds
+    the tester's four here (test_4353_fix_round pins the two)."""
+    from workflow.i1io.table import job as _J
+    monkeypatch.setattr(_J, "F4_AFTER_AIMS", 4)
+
 @pytest.fixture(autouse=True)
 def _first_time_on_new_ground(monkeypatch):
     """4.3.53 fix round (inventory A8): ground this table's reach record already holds no

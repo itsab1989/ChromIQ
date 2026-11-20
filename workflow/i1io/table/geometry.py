@@ -506,6 +506,13 @@ def length_tolerance(sheet_units: float) -> float:
 
 ANGLE_TOL_DEG = 1.0         # recorded 89.9 to 90.5 degrees
 ROTATION_TOL_DEG = 3.0      # recorded within 0.8 degrees; a turned sheet is 90 or 180 off
+#: 4.3.53 fix round (inventory A11): a sheet read PATCH BY PATCH may lie turned by up to this
+#: much: every patch is its own m0 to a computed target (the recorded form), whatever the
+#: turn, and an arrival is checked; the limit only keeps a sheet turned by 90 or 180 degrees
+#: (marks aimed on the wrong sides) refused. Rows keep ROTATION_TOL_DEG: a strip's scan move
+#: across a turned sheet runs diagonally, and how the table moves a long diagonal m2 has not
+#: been recorded (next_release.txt).
+ROTATION_TOL_SPOT_DEG = 30.0
 
 
 @dataclass(frozen=True)
@@ -573,7 +580,7 @@ def _shift_back(points, area: Area) -> str:
     return " and ".join(parts)
 
 
-def fit_model(aims_mm, readings) -> Alignment:
+def fit_model(aims_mm, readings, rotation_tol: float = ROTATION_TOL_DEG) -> Alignment:
     """i1Profiler's own model: the affine map through the three aims, p1 readings used AS
     TARGETS with no sight-to-opening conversion (its recorded spot targets fit it within 1 unit;
     tests/test_i1io_part_c.py checks it against every recorded alignment). The shape checks, but
@@ -609,9 +616,9 @@ def fit_model(aims_mm, readings) -> Alignment:
     if detM >= 0:
         raise AlignmentRefused("the marks were aimed in another order than 1, 2, 3, or the sheet "
                                "is mirrored")
-    if abs(rot) > ROTATION_TOL_DEG:
+    if abs(rot) > rotation_tol:
         raise AlignmentRefused(f"the sheet seems to be turned by about {abs(rot):.0f} degrees from "
-                               f"the way it must lie (at most {ROTATION_TOL_DEG:.0f} is accepted)")
+                               f"the way it must lie (at most {rotation_tol:.0f} is accepted)")
     for (want, got), name in zip(lens, ("marks 1 and 2", "marks 2 and 3")):
         tol = length_tolerance(want)
         if abs(want - got) > tol:
@@ -623,18 +630,23 @@ def fit_model(aims_mm, readings) -> Alignment:
         raise AlignmentRefused(f"the corner at mark 2 measures {ang:.1f} degrees on the table "
                                f"(90 within {ANGLE_TOL_DEG:.0f} is accepted): one aim was "
                                "probably off")
-    if not (P1[0] >= max(P2[0], P3[0]) - 30 and P1[1] <= min(P2[1], P3[1])):
+    # 4.3.53 fix round (A11): for a sheet allowed to lie turned further (patch by patch), the
+    # order check leaves room for that turn (the side times sin of the allowed turn); a sheet
+    # turned by 90 or 180 degrees still fails it, and rows keep the check as it was
+    slack = (max(math.dist(P1, P2), math.dist(P2, P3)) * math.sin(math.radians(rotation_tol))
+             if rotation_tol > ROTATION_TOL_DEG else 0.0)
+    if not (P1[0] >= max(P2[0], P3[0]) - 30 - slack and P1[1] <= min(P2[1], P3[1]) + slack):
         raise AlignmentRefused("mark 1 must be the one furthest to the left and furthest back")
     return Alignment(tuple(tuple(a) for a in aims_mm),
                      tuple(tuple(int(v) for v in p) for p in readings), M, checks)
 
 
-def fit_alignment(aims_mm, readings) -> Alignment:
+def fit_alignment(aims_mm, readings, rotation_tol: float = ROTATION_TOL_DEG) -> Alignment:
     """:func:`fit_model`, then all three marks inside CAP_AREA (the proven zone and the front
     zone up to its cap; whether the front zone is used is D1's question to the person). The
     marks are compared as TARGETS (the opening is put on a mark by moving to its p1 value), the
     same frame as every patch target and :func:`check_target`."""
-    al = fit_model(aims_mm, readings)
+    al = fit_model(aims_mm, readings, rotation_tol)
     pts = [tuple(map(float, p)) for p in readings]
     outside = [(n, p) for n, p in enumerate(pts, 1) if not CAP_AREA.contains(p)]
     if outside:

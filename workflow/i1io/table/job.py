@@ -414,6 +414,10 @@ class PersonStopped(Exception):
         self.reason, self.detail = reason, detail
 
 
+#: 4.3.53 fix round (inventory B15): the f4 status checks after the aims: i1Profiler sends
+#: two (the speed audit's D9, R12); tester 0.6.0 and ChromIQ until 4.3.52 sent four. The
+#: wire-identity tests against tester 0.6.0 hold the old 4.
+F4_AFTER_AIMS = 2
 #: part C's per-stage runs, per page (the tester's max_runs per sitting, then per sheet laid).
 #: 4.3.53 fix round (inventory D8): NOT A LIMIT ANY MORE (nothing refuses a run by this count);
 #: each run beyond the first adds its own lines to the caps (TableJob.RUN_GRANT). Kept for the
@@ -3196,14 +3200,17 @@ class TableJob:
         # 4.3.53: the hand was on the free arm at every aim: the next movement has its countdown
         self._countdown_owed = True
         d.exchange("status")
-        for _ in range(4):
+        for _ in range(F4_AFTER_AIMS):
             d._f4("01")
         self._block["data"]["aims"] = readings
         self.reach_diag["aims"].append({"page": self.page + 1, "p1": [list(p) for p in readings]})
         self._p0_after_aims_due = tuple(readings[-1]) if readings else None
         aims_mm = [tuple(sc.sheet_table_mm(sheet, a["page_mm"])) for a in aims]
         try:
-            al = geo.fit_alignment(aims_mm, readings)
+            # 4.3.53 fix round (A11): a sheet read patch by patch may lie turned further
+            al = geo.fit_alignment(aims_mm, readings,
+                                   geo.ROTATION_TOL_SPOT_DEG if self.row_kind == "spot"
+                                   else geo.ROTATION_TOL_DEG)
         except geo.AlignmentRefused as exc:
             self.align_refusals_in_a_row += 1
             raise StageFailed(alignment_id(str(exc)), log_reason=str(exc),

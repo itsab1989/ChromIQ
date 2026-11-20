@@ -433,7 +433,8 @@ def _base_lines():
     return sim.received
 
 
-@pytest.mark.parametrize("i", range(54))
+# 4.3.53 fix round (B15): 52 lines, two f4 fewer after the aims
+@pytest.mark.parametrize("i", range(52))
 def test_a_lost_link_at_every_line_ends_truthfully(i):
     sim = csim.CSimTable(part_c=True, aims=H.demo_aims())
     sim.inject_at(i, "unplug")
@@ -730,6 +731,15 @@ def test_a_turned_or_wrong_sheet_is_refused_before_any_move(name):
     aims = W._wrong()[name]
     res, job, sim, _p = H.run_steps(["open", "align"], aims=aims)
     r = res[1]
+    if name == "turned 5 degrees":
+        # 4.3.53 fix round (inventory A11): read patch by patch (this sitting), a sheet may lie
+        # turned by up to geo.ROTATION_TOL_SPOT_DEG; rows keep geo.ROTATION_TOL_DEG
+        assert r.ok, r.reason
+        from workflow.i1io.table import scan as sc
+        with pytest.raises(geo.AlignmentRefused, match="turned by about 5 degrees"):
+            geo.fit_model([tuple(sc.sheet_table_mm(job.sheet, a["page_mm"]))
+                           for a in sc.aims_of(job.sheet, 0)], aims)
+        return
     assert r.kind == J.Kind.REFUSED and r.reason.startswith(("aims_", "sheet_")), r.reason
     last_p1 = max(i for i, x in enumerate(sim.received) if x == ";p124")
     assert moves(sim.received[last_p1:]) == []

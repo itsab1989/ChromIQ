@@ -333,3 +333,43 @@ def test_a_sheet_aimed_beyond_the_former_front_backstop_is_accepted_and_felt_to(
     front = [y for y in ys if y > geo.MEASURING_AREA.ymax]
     assert all(0 < b - a <= geo.CREEP_STEP for a, b in zip(front, front[1:]) if b > a)
     assert sim.violations == []
+
+
+# ---- inventory B15: two f4 after the aims, as i1Profiler sends ----------------------------------
+
+def test_after_the_aims_the_job_sends_two_f4_as_i1profiler_does():
+    res, job, sim, _p = H.run_steps(["open", "align"])
+    assert res[1].ok
+    last_p1 = max(i for i, x in enumerate(sim.received) if x == ";p124")
+    after = sim.received[last_p1 + 1:]
+    # the status line (s0), then the f4 checks, before anything else
+    k = 0
+    while k < len(after) and after[k][1:3] in ("s0", "f4"):
+        k += 1
+    assert sum(1 for x in after[:k] if x[1:3] == "f4") == 2 == J.F4_AFTER_AIMS
+
+
+# ---- inventory A11: a sheet turned a little, read patch by patch --------------------------------
+
+def _rot(points, deg):
+    import math
+    cx = sum(p[0] for p in points) / 3
+    cy = sum(p[1] for p in points) / 3
+    a = math.radians(deg)
+    return [(int(round(cx + (x - cx) * math.cos(a) - (y - cy) * math.sin(a))),
+             int(round(cy + (x - cx) * math.sin(a) + (y - cy) * math.cos(a))))
+            for x, y in points]
+
+
+def test_a_sheet_turned_by_10_degrees_is_accepted_patch_by_patch_and_not_for_rows():
+    from workflow.i1io.table import geometry as geo
+    from workflow.i1io.table import scan as sc
+    good = H.demo_aims()
+    sheet = H.demo_sheet()
+    mm = [tuple(sc.sheet_table_mm(sheet, a["page_mm"])) for a in sc.aims_of(sheet, 0)]
+    for deg in (10, -10):
+        geo.fit_model(mm, _rot(good, deg), geo.ROTATION_TOL_SPOT_DEG)       # accepted
+        with pytest.raises(geo.AlignmentRefused, match="turned"):
+            geo.fit_model(mm, _rot(good, deg))                              # rows: as before
+    with pytest.raises(geo.AlignmentRefused):
+        geo.fit_model(mm, _rot(good, 90), geo.ROTATION_TOL_SPOT_DEG)        # turned: never
