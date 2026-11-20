@@ -50,7 +50,10 @@ class _S(dict):
 
 
 def _on(**kw):
-    return _S({"i1pro3_conditions_beta": True, D.SETTING: True, **kw})
+    # 4.3.54: these rules are the dual scan's "always" (4.3.53's behaviour); the
+    # "only for M1 or M2" mode is pinned in tests/test_4354_dual_scan_mode.py
+    return _S({"i1pro3_conditions_beta": True, D.SETTING: True,
+               D.MODE_SETTING: D.MODE_ALWAYS, **kw})
 
 
 # ------------------------------------------------------------------ the rules

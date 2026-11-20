@@ -93,6 +93,7 @@ def _on(settings, on=True):
     from workflow.dual_scan import session as D
     settings.set(ic.SETTING, on)
     settings.set(D.SETTING, on)
+    settings.set(D.MODE_SETTING, D.MODE_ALWAYS)   # 4.3.54: 4.3.53's behaviour
 
 
 def test_start_on_the_table_with_the_dual_scan_off_is_unchanged(settings):

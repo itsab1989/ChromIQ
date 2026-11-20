@@ -39,6 +39,17 @@ from workflow.dual_scan.scale import REFINED_SOURCE, ScaleChoice
 #: AppSettings key of the Beta switch (core/settings.py)
 SETTING = "i1pro2_dual_scan_beta"
 
+#: 4.3.54 (the owner, 2026-11-20): WHEN the dual scan runs, chosen in the
+#: switch's own row in Preferences > Beta. "always": every strip twice, M0,
+#: M1 and M2 saved (4.3.45 to 4.3.53). "m1_m2": only when M1 or M2 is chosen
+#: before the measurement; M0 chosen = the ordinary single scan, nothing
+#: extra. A measurement that is continued keeps the kind it was started with
+#: (:func:`started_as`), whatever is chosen now.
+MODE_SETTING = "i1pro2_dual_scan_mode"
+MODE_ALWAYS = "always"
+MODE_M1_M2 = "m1_m2"
+MODES = (MODE_ALWAYS, MODE_M1_M2)
+
 #: the filter row's ``-F`` value -> the condition chosen with the dual scan
 FILTER_CHOICE = {None: "M0", "": "M0", "n": "M0", "5": "M1", "u": "M2"}
 #: the row's choices an i1Pro 2 has nothing for, even with the dual scan
@@ -82,6 +93,43 @@ def parent_on(settings: Any) -> bool:
         return bool(conditions.stored_value(settings))
     except Exception:  # noqa: BLE001 - a broken store means "off"
         return False
+
+
+def mode(settings: Any) -> str:
+    """When the dual scan runs (:data:`MODES`); anything else stored is read
+    as the default, "m1_m2" (`core/settings.py`)."""
+    try:
+        raw = str(settings.get(MODE_SETTING, MODE_M1_M2) or "").strip().lower()
+    except Exception:  # noqa: BLE001 - a broken store means the default
+        return MODE_M1_M2
+    return raw if raw in MODES else MODE_M1_M2
+
+
+def mode_labels() -> "list[tuple[str, str]]":
+    """The entries of the combobox in Preferences > Beta, short (the long
+    explanation is in the option's help)."""
+    return [(MODE_ALWAYS, tr("always")),
+            (MODE_M1_M2, tr("only for M1 or M2"))]
+
+
+def started_as(main_ti3) -> str:
+    """How the measurement *main_ti3* was started: "dual" (its header has the
+    dual record, or its pass record says it was a dual scan), "single" (it
+    has readings and neither), or "" (no readings yet: a new measurement).
+    4.3.54: under "m1_m2" this, not the condition chosen now, decides how a
+    continued measurement goes on."""
+    if not main_ti3:
+        return ""
+    from pathlib import Path
+    main = Path(main_ti3)
+    try:
+        if not main.is_file() or not storage._has_readings(main):
+            return ""
+        if storage.read_dual_record(main).dual:
+            return "dual"
+        return "dual" if storage.pass_record_of(main) is not None else "single"
+    except Exception:  # noqa: BLE001 - unreadable: as a new measurement
+        return ""
 
 
 def helper_can(caps: Iterable[str]) -> bool:
@@ -129,6 +177,11 @@ class Plan:
     #: (``m0_only_strips``); Continue Measurement takes the reader to them
     #: and reads them again with both passes
     m0_only: "tuple[str, ...]" = ()
+    #: 4.3.54: the dual scan is on but this read is an ordinary single scan
+    #: of an i1Pro 2 by the "m1_m2" rule (*why_not* "m0_chosen" or
+    #: "single_record"): the filter row is the condition choice, so it is not
+    #: sent as -F (an i1Pro 2 refuses every -F)
+    single_i1pro2: bool = False
 
     def args(self) -> "list[str]":
         if not self.dual or self.choice is None:
@@ -138,10 +191,15 @@ class Plan:
 
 def plan_for(settings: Any, caps: Iterable[str], reported_model: "str | None",
              filter_code: "str | None", main_ti3=None,
-             choice: "ScaleChoice | None" = None) -> Plan:
+             choice: "ScaleChoice | None" = None,
+             condition_offered: bool = True) -> Plan:
     """The dual scan's plan for one START (see the module docstring).
     *main_ti3*: the measurement this read continues (None: a new one);
-    *choice*: the factor (default: the standard one)."""
+    *choice*: the factor (default: the standard one); *condition_offered*:
+    the module shows a condition choice (Manual's filter row). Guided has
+    none, so the "m1_m2" rule has nothing to go by there and the dual scan
+    runs as with "always" (4.3.54: no choice is not a choice of M0, and the
+    dual scan is never taken away from a module that has it)."""
     if not switched_on(settings):
         return Plan(False, why_not="off")
     if not helper_can(caps):
@@ -153,6 +211,16 @@ def plan_for(settings: Any, caps: Iterable[str], reported_model: "str | None",
     if code in NOT_DUAL_FILTERS:
         return Plan(False, refusal="filter_not_dual")
     chosen = FILTER_CHOICE.get(code, "M0")
+    if mode(settings) == MODE_M1_M2:
+        # 4.3.54: the run's own record decides a continued measurement; only
+        # a new one goes by the condition chosen now
+        kind = started_as(main_ti3)
+        if kind == "single":
+            return Plan(False, chosen, why_not="single_record",
+                        single_i1pro2=True)
+        if not kind and condition_offered and chosen == "M0":
+            return Plan(False, chosen, why_not="m0_chosen",
+                        single_i1pro2=True)
     choice = choice or ScaleChoice.standard()
     white = "instrument"
     if ended_before(main_ti3) and not storage.read_dual_record(

@@ -12239,6 +12239,93 @@ M_DUAL_CONTINUE_M0 = _m(
     "as a new measurement.",
     approved=False)
 
+#: 4.3.54 (the owner, 2026-11-20): what the Measure tab's status line says before
+#: START about the dual scan, for every reason it will or will not run
+#: (`TabMeasure._dual_note_now`); each can be switched off for good, per kind.
+M_DUAL_BEFORE_START_TABLE = _m(
+    'M-DUAL-BEFORE-START-TABLE',
+    'Dual scan (beta, first try): the table reads everything twice',
+    'In rows, each row is read twice: first with the lamp, then once more '
+    'with the UV light. Patch by patch, each patch is read with the lamp '
+    'and then with the UV light. From the two readings ChromIQ works out M1'
+    ' and M2 besides M0, and the profile is made from {chosen}. Not yet '
+    'tried on a real table; M1 and M2 are calculated.',
+    approved=False)
+
+M_DUAL_M0_CHOSEN = _m(
+    'M-DUAL-M0-CHOSEN',
+    'Dual scan: not used, because M0 is chosen',
+    'Each strip is read once, as without the dual scan, and only M0 is '
+    'saved. To read M1 and M2 as well, choose M1 or M2 in “{row}” before '
+    'you press “{start}”. Or choose “{always}” beside “{option}” in '
+    '{where}.',
+    approved=False)
+
+M_DUAL_SINGLE_CONTINUES = _m(
+    'M-DUAL-SINGLE-CONTINUES',
+    'Dual scan: this measurement continues with one pass per strip',
+    'It was started with one pass per strip, so it goes on that way and '
+    'keeps M0 only, whatever condition is chosen now. For M1 and M2, '
+    'measure the chart again as a new measurement, with M1 or M2 chosen.',
+    approved=False)
+
+M_DUAL_NOT_I1PRO2 = _m(
+    'M-DUAL-NOT-I1PRO2',
+    'Dual scan: not used, because the instrument is not an i1Pro 2',
+    'ChromIQ knows the instrument as {known}. It measures as without the '
+    'dual scan. If your instrument is an i1Pro 2, change this under '
+    '“{model_row}” in {where}.',
+    approved=False)
+
+M_DUAL_NOT_THIS_CHART = _m(
+    'M-DUAL-NOT-THIS-CHART',
+    'Dual scan: not used for this chart',
+    '{why}',
+    approved=False)
+
+M_DUAL_NO_ENGINE = _m(
+    'M-DUAL-NO-ENGINE',
+    "Dual scan: not used, because ChromIQ's chart-reading engine cannot do it",
+    '{why} Without it, each strip is read once and only M0 is saved.',
+    approved=False)
+
+M_DUAL_HIGHRES_NOTE = _m(
+    'M-DUAL-HIGHRES-NOTE',
+    'Dual scan: cannot run while “{highres}” is on',
+    "The instrument's factory data for M1 and M2 exist only in 10 nm steps,"
+    ' so “{start}” will not start this measurement. Switch “{highres}” off '
+    'to measure with the dual scan.{more}',
+    approved=False)
+
+M_DUAL_NOCAL_NOTE = _m(
+    'M-DUAL-NOCAL-NOTE',
+    'Dual scan: cannot run while “{nocal}” is on',
+    'The dual scan needs a new calibration at the start, so “{start}” will '
+    'not start this measurement. Switch “{nocal}” off to measure with the '
+    'dual scan.{more}',
+    approved=False)
+
+M_DUAL_FILTER_NOTE = _m(
+    'M-DUAL-FILTER-NOTE',
+    'Dual scan: “{setting}” cannot be measured with it',
+    'With the dual scan, “{row}” chooses M0, M1 or M2. Choose one of them, '
+    'or “{start}” will not start this measurement.',
+    approved=False)
+
+M_DUAL_CANNOT_CONTINUE = _m(
+    'M-DUAL-CANNOT-CONTINUE',
+    'Dual scan: this measurement cannot be continued with it',
+    '{reason} “{start}” will not start this measurement.',
+    approved=False)
+
+M_DUAL_LAST_CANNOT = _m(
+    'M-DUAL-LAST-CANNOT',
+    'Dual scan: the last measurement could not use it',
+    'At the last measurement: {reason} ChromIQ tries the dual scan again at'
+    " this measurement's calibration. If the same happens, this measurement"
+    ' keeps M0 only.',
+    approved=False)
+
 #: Before START: "Skip initial calibration (-N)" with the dual scan (review
 #: of 2026-11-18, S-5): a calibration kept from before has no reading of the
 #: white tile with the UV light, so M1 and M2 would end at the first strip.
@@ -14130,6 +14217,7 @@ CATALOGUE = {m.id: m for m in (
     M_COND_FILL_OFFER,
     M_DUAL_MODEL_ASK, M_DUAL_MODEL_CORRECTED,
     M_DUAL_MODEL_NOTED,
+    M_DUAL_BEFORE_START_TABLE, M_DUAL_M0_CHOSEN, M_DUAL_SINGLE_CONTINUES, M_DUAL_NOT_I1PRO2, M_DUAL_NOT_THIS_CHART, M_DUAL_NO_ENGINE, M_DUAL_HIGHRES_NOTE, M_DUAL_NOCAL_NOTE, M_DUAL_FILTER_NOTE, M_DUAL_CANNOT_CONTINUE, M_DUAL_LAST_CANNOT,
     M_STRIP_FAILED_COMS_DETAIL,
     M_RESUME_RESOLUTION,
     M_RESUME_RESOLUTION_INSTRUMENT,

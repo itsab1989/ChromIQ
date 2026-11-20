@@ -522,6 +522,17 @@ def no_file_reason(main: Path) -> str:
             "and only until the readings are changed in another way (for "
             "example averaged, imported or replaced).")
     inst = (read_header_keyword(main, "TARGET_INSTRUMENT") or "").strip()
+    if inst and model_key(inst) == "i1pro2":
+        # 4.3.54 (guide gaps of 2026-11-20, C4): "Only an X-Rite i1Pro 3 ..." read as
+        # "the i1Pro 2 cannot", the opposite of its dual scan
+        from workflow.dual_scan.session import switch_label, where_label
+        return tr(
+            "This measurement was read with one pass per strip, without the "
+            "i1Pro 2 dual scan, so it has M0 only. For M1 and M2, switch on "
+            "“{option}” in {where}, choose M1 or M2 in the Measure tab (or "
+            "“{always}” beside the option), and measure the chart again as a new "
+            "measurement: each strip is then read twice.").format(
+                option=switch_label(), where=where_label(), always=tr("always"))
     if inst and model_key(inst) not in ("i1pro3", "i1pro3plus"):
         return tr(
             "Only an X-Rite i1Pro 3 gives all three conditions from one "

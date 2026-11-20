@@ -60,25 +60,51 @@ every scan (beta)"**, then the switch under it, **"X-Rite i1Pro 2: also M1 and M
 (beta, first try)"**. A window first says what the option does and asks you to confirm it. The ⓘ
 beside each switch explains it in more detail.
 
+Beside the switch, in the same line, a list chooses **when the dual scan runs** (since 4.3.54):
+
+* **"always"**: every strip is read twice, and M0, M1 and M2 are saved, whatever condition you
+  choose in the Measure tab.
+* **"only for M1 or M2"**: the condition you choose in the Measure tab decides (step 2). With M0
+  chosen, each strip is read once, as without the dual scan, and only M0 is saved. With M1 or M2
+  chosen, each strip is read twice, and M0, M1 and M2 are all saved. The cost: a chart measured
+  with M0 chosen has no M1 or M2, and you cannot add them later without measuring the chart
+  again as a new measurement.
+
+When you switch the dual scan on, the list starts at "only for M1 or M2". If the dual scan was
+already on before ChromIQ 4.3.54, "always" is kept for you, so nothing changes until you choose.
+
 Under the switch, **"Instrument for the dual scan:"** shows what ChromIQ remembers about your
 instrument: "Ask before the next measurement" (nothing remembered yet), "i1Pro 2", or "Another
 instrument (not an i1Pro 2)". You can change it here at any time.
 
-![Preferences > Beta with both switches on and "Instrument for the dual scan:"](i1pro2_dual_scan/01-preferences-beta.png)
+![Preferences > Beta with both switches on, "when" beside the dual scan, and "Instrument for the dual scan:"](i1pro2_dual_scan/01-preferences-beta.png)
 
 ## 2. The Measure tab before START
 
-Load your chart in the **Measure** tab as usual. The row **"Spectral filter type (-F)"** (under
-Additional Options) now chooses **which condition your profile is made from**: "M0: no filter
-(lamp as it is)", "M1: D50 daylight (with UV)" or "M2: UV cut (no UV)". With an i1Pro 2 it is not
-sent to the instrument (an i1Pro 2 has no filter ArgyllCMS could switch); ChromIQ records your
-choice. With the row switched off, the profile is made from M0.
+Load your chart in the **Measure** tab as usual and switch to **MANUAL**: the row **"Spectral
+filter type (-F)"** is under Additional Options there. With the dual scan on, it chooses
+**which condition your profile is made from**: "M0: no filter (lamp as it is)", "M1: D50
+daylight (with UV)" or "M2: UV cut (no UV)". With an i1Pro 2 it is not sent to the instrument
+(an i1Pro 2 has no filter ArgyllCMS could switch); ChromIQ records your choice. With the row
+switched off, the profile is made from M0. With **"only for M1 or M2"** (step 1), this row also
+decides whether the dual scan runs: M0 = one pass per strip, M1 or M2 = two passes. GUIDED has no
+such row: there the dual scan always runs, and the profile is made from M0 (Build Profile can
+still build from M1 or M2).
 
-The line under the log says **"Dual scan (beta, first try): each strip is read twice, on the
-ruler"**, and the log explains it: first as usual with the lamp, then once more over the same
-strip with the UV light, without lifting the instrument.
+**You measure the chart once**, not once for each condition: each strip is read twice, right
+after each other, and all three conditions come from that one measurement.
 
-![The Measure tab before START: the filter row on M2 and the dual-scan line](i1pro2_dual_scan/02-measure-before-start.png)
+The line under the log says what will happen. When the dual scan will run, it says **"Dual scan
+(beta, first try): each strip is read twice, on the ruler"**, and the log explains it: first as
+usual with the lamp, then once more over the same strip with the UV light, without lifting the
+instrument. When it will not run, the line says why, for example **"Dual scan: not used, because
+M0 is chosen"**, **"Dual scan: cannot run while “High resolution spectral mode (-H)” is on"**, or
+**"Dual scan: not used, because the instrument is not an i1Pro 2"**. Hold the pointer over the
+line for the whole note. Beside it, **"Don't show this again"** switches that note off for good
+(only that kind: a note for another reason still shows). The app's log file still records the
+reason at every start. Restore Factory Defaults brings the notes back.
+
+![The Measure tab before START: the filter row on M2 and the dual-scan line with "Don't show this again"](i1pro2_dual_scan/02-measure-before-start.png)
 
 Two things refuse the start, with a window that says what to change:
 
@@ -267,6 +293,8 @@ After a first try, whether it worked or not, please send us on
 * from the run's folder: the **`conditions/`** and **`dual_scan/`** folders and the measurement
   (`<project>.ti3`);
 * the text of the **Measure log** (select it in the Measure tab and copy it);
+* the app's **log file** (Help window, "Show the log file", left of Close): it says at every start
+  whether the dual scan ran, and why not;
 * a **USB recording** of the run, if you use a recording tool for that.
 
 And please tell us:

@@ -3947,9 +3947,23 @@ class SettingsDialog(QDialog):
             tr("i1Pro 2 dual scan (beta)"), i1pro2_dual_scan_help(), self,
             min_width=680)
         self._i1pro2_dual_check.clicked.connect(self._on_i1pro2_dual_clicked)
+        # 4.3.54 (the owner, 2026-11-20): WHEN the dual scan runs, in the
+        # switch's own row ("fits right within the line of the main option"),
+        # short entries; the explanation is in the (i). workflow/dual_scan/
+        # session.py MODE_*.
+        from workflow.dual_scan.session import mode_labels as _dual_modes
+        from PyQt6.QtWidgets import QComboBox as _QCBm
+        self._dual_mode_combo = _QCBm(self)
+        self._dual_mode_combo.setObjectName("i1pro2_dual_scan_mode")
+        for _data, _text in _dual_modes():
+            self._dual_mode_combo.addItem(_text, _data)
+        self._dual_mode_combo.setSizeAdjustPolicy(
+            _QCBm.SizeAdjustPolicy.AdjustToContents)
+        self._dual_mode_combo.setToolTip(tr("When the dual scan runs"))
         _dualrow = QHBoxLayout()
         _dualrow.setContentsMargins(24, 0, 0, 0)
         _dualrow.addWidget(self._i1pro2_dual_check)
+        _dualrow.addWidget(self._dual_mode_combo)
         _dualrow.addStretch()
         _dualrow.addWidget(dual_tip)
         _beta.addLayout(_dualrow)
@@ -5115,8 +5129,10 @@ class SettingsDialog(QDialog):
         combo = getattr(self, "_dual_model_combo", None)
         if combo is not None:
             both = on and self._i1pro2_dual_check.isChecked()
-            for w in (combo, self._dual_model_lbl, self._dual_model_note):
-                w.setEnabled(both)
+            for w in (combo, self._dual_model_lbl, self._dual_model_note,
+                      getattr(self, "_dual_mode_combo", None)):
+                if w is not None:
+                    w.setEnabled(both)
         self._i1pro2_dual_check.setToolTip("" if on else tr(
             "Switch on “X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every scan” "
             "above to choose this: the dual scan keeps its M1 and M2 in the "
@@ -7051,6 +7067,9 @@ class SettingsDialog(QDialog):
             bool(s.get("i1pro3_conditions_beta", False)))
         self._i1pro2_dual_check.setChecked(
             bool(s.get("i1pro2_dual_scan_beta", False)))
+        from workflow.dual_scan import session as _ds
+        self._dual_mode_combo.setCurrentIndex(
+            max(0, self._dual_mode_combo.findData(_ds.mode(s))))
         from workflow.dual_scan import instrument_model as _im
         _rem = _im.remembered(s)
         self._dual_model_loaded = _rem.kind
@@ -8830,6 +8849,7 @@ class SettingsDialog(QDialog):
         s.set("i1pro3_conditions_beta",
               self._i1pro3_conditions_check.isChecked())
         s.set("i1pro2_dual_scan_beta", self._i1pro2_dual_check.isChecked())
+        s.set("i1pro2_dual_scan_mode", str(self._dual_mode_combo.currentData()))
         # the instrument for the dual scan: written only when it was changed
         # here, so a model the instrument reported stays as it reported it
         _kind = str(self._dual_model_combo.currentData() or "")
@@ -10841,8 +10861,24 @@ def i1pro2_dual_scan_help() -> str:
            "patch by patch with the instrument's position ruler, so read "
            "both passes on the ruler, without lifting the instrument between "
            "them. Without the ruler only M0 is measured."),
-        tr("**Which condition the profile is made from.** In the Measure "
-           "tab, “Spectral filter type (-F)” then chooses M0, M1 or M2 for "
+        tr("**When the dual scan runs.** The list beside this option "
+           "chooses it. “{always}”: every strip is read twice, and M0, M1 "
+           "and M2 are saved, whatever condition you choose. “{m1m2}”: in "
+           "the Measure tab's MANUAL, “Spectral filter type (-F)” decides. "
+           "With M0 chosen (or the row switched off), each strip is read "
+           "once, as without this option, and only M0 is saved. With M1 or "
+           "M2 chosen, each strip is read twice, and M0, M1 and M2 are all "
+           "saved. GUIDED has no such row, so there the dual scan always "
+           "runs.").format(always=tr("always"), m1m2=tr("only for M1 or M2")),
+        tr("**What “{m1m2}” costs.** A chart you measure with M0 chosen has "
+           "no M1 or M2. You cannot add them later without measuring the "
+           "chart again as a new measurement. A measurement you continue "
+           "goes on the way it was started: one started with one pass per "
+           "strip continues with one pass per strip, and one started with "
+           "two passes continues with two, whatever you choose now.").format(
+            m1m2=tr("only for M1 or M2")),
+        tr("**Which condition the profile is made from.** When the dual "
+           "scan runs, “Spectral filter type (-F)” chooses M0, M1 or M2 for "
            "your profile instead of being sent to the instrument (an "
            "i1Pro 2 accepts no filter choice). The measurement itself is "
            "saved in M0, and M1 and M2 beside it, in the same files the "
@@ -10888,7 +10924,10 @@ def i1pro2_dual_scan_help() -> str:
         tr("It works only with “X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every "
            "scan” switched on, and with ChromIQ's chart-reading engine. The "
            "option is read each time you start a measurement."),
-        tr("**Default:** off."),
+        tr("**Default:** off. When it is switched on: “{m1m2}”. If the dual "
+           "scan was already on before ChromIQ 4.3.54, “{always}” is kept, so "
+           "nothing changes for you until you choose.").format(
+            m1m2=tr("only for M1 or M2"), always=tr("always")),
     ))
 
 

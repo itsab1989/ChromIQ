@@ -5052,6 +5052,21 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                    "Change this only if you know which filter or mode your "
                    "instrument uses. On an instrument that accepts it, a wrong "
                    "choice silently skews the measured values.")
+                # 4.3.54 (guide gaps of 2026-11-20, C1): with the i1Pro 2 dual scan
+                # the row is a choice of condition, never sent; what it does in each mode
+                + "\n\n" + tr(
+                   "WITH THE i1Pro 2 DUAL SCAN (Preferences > Beta)\n"
+                   "This row is then not sent to the instrument. It chooses "
+                   "which condition your profile is made from, and the list "
+                   "beside the dual scan option decides what is measured:\n\n"
+                   "  • “always”: every strip is read twice, and M0, M1 and M2 "
+                   "are all saved. This row only chooses which of them the "
+                   "profile is made from.\n"
+                   "  • “only for M1 or M2”: with M0 chosen (or this row off), "
+                   "each strip is read once and only M0 is saved. With M1 or M2 "
+                   "chosen, each strip is read twice, M0, M1 and M2 are all "
+                   "saved, and the profile is made from the one you chose.\n\n"
+                   "You measure the chart once, not once for each condition.")
             ),
             widget=filter_combo,
         ))
@@ -7562,8 +7577,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             run = run.run.verification_chart(
                 _vid, getattr(self, "_staged_from", None) if _staged is not None else None)
         args = self._manager._build_args(params)
-        if table_dual is not None:
-            # the dual scan records the filter row's choice instead of sending -F (as by hand)
+        if table_dual is not None or self._table_row_is_choice_only():
+            # the dual scan records the filter row's choice instead of sending -F (as by hand);
+            # 4.3.54: also when "only for M1 or M2" reads this chart once (M0 chosen, or a
+            # single-scan measurement continued): the row is a choice of condition then
             args = self._args_without_filter(args)
         _beside = Path(run.measurement_ti3)
         self._ti3_mtime_before = (_beside.stat().st_mtime if _beside.exists()
@@ -11838,7 +11855,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if getattr(self, "_dual_status_text", ""):
             # the i1Pro 2 dual scan's pass line is the strip prompt: it
             # comes back after a flashed line
-            self._status_bar_lbl.setText(self._dual_status_text)
+            self._status_bar_lbl.setText(self._dual_status_markup())
             self._status_bar_lbl.setToolTip(
                 getattr(self, "_dual_status_detail", ""))
             self._dual_status_style(True)
@@ -12523,7 +12540,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if getattr(self, "_dual_status_text", ""):
             self._dual_status("")
 
-    def _dual_status(self, text: str, detail: str = "") -> None:
+    def _dual_status(self, text: str, detail: str = "", hide_kind: str = "") -> None:
         """The dual scan's line in the Measure tab's own status line (under
         the log, where the tab says what happens next): the note before
         START and "Strip A, pass 2 of 2 (UV light)". Never a box over the
@@ -12540,8 +12557,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # the log: three lines there squeezed the options above at a narrow
         # window (photographed 2026-11-18, en-narrow2)
         self._dual_status_detail = str(detail or "")
+        # 4.3.54: a note before START carries "Don't show this again" (its kind only)
+        self._dual_status_kind = str(hide_kind or "") if self._dual_status_text else ""
+        if not getattr(self, "_dual_link_connected", False):
+            lbl.linkActivated.connect(self._dual_note_link)
+            self._dual_link_connected = True
         if self._dual_status_text:
-            lbl.setText(self._dual_status_text)
+            lbl.setText(self._dual_status_markup())
             lbl.setToolTip(self._dual_status_detail)
             self._dual_status_style(True)
             lbl.setVisible(True)
@@ -12550,6 +12572,18 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             if not getattr(self, "_gesture_paused", None):
                 lbl.setToolTip("")
                 lbl.setVisible(False)
+
+    def _dual_status_markup(self) -> str:
+        """The dual line as the status label shows it: the plain line, or (a note before
+        START) the line and a "Don't show this again" link, in one line."""
+        text = getattr(self, "_dual_status_text", "")
+        kind = getattr(self, "_dual_status_kind", "")
+        if not kind:
+            return text
+        link = tr("Don't show this again")
+        return ('<span>{}</span>&nbsp;&nbsp;&nbsp;<a href="dual-hide:{}" '
+                'style="font-weight: normal;">{}</a>').format(
+                    html.escape(text), html.escape(kind, quote=True), html.escape(link))
 
     def _dual_status_style(self, on: bool) -> None:
         """The pass line is the instruction of the moment: as readable as
@@ -12594,6 +12628,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         try:
             if not D.switched_on(self._settings):
                 return None
+            _logd = getattr(self, "_log_dual_decision", None)
+            if callable(_logd):
+                _logd("table")   # 4.3.54: the same words as by hand
             caps = self._dual_caps()
             if not D.helper_can(caps):
                 return None
@@ -12601,8 +12638,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 main = self._measurement_to_continue()
             except Exception:      # noqa: BLE001
                 main = None
+            _mode = getattr(self, "_current_mode", None)
             plan = D.plan_for(self._settings, caps, "i1Pro 2", self._measure_filter_code(),
-                              main)
+                              main, condition_offered=not (callable(_mode) and _mode() == "guided"))
             if plan.refusal:
                 self._show_dual_refusal(plan.refusal)
                 return False
@@ -12620,6 +12658,25 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         except Exception:      # noqa: BLE001 - never block a read on this
             log.debug("dual scan: no table plan", exc_info=True)
             return None
+
+    def _table_row_is_choice_only(self) -> bool:
+        """4.3.54: the table's filter row is not greyed while the dual scan is on
+        (`_table_dead_widgets`), so it is a condition choice there and never -F, also
+        when the "only for M1 or M2" rule reads this chart as a single scan."""
+        try:
+            from workflow.dual_scan import session as D
+            if not (D.switched_on(self._settings) and D.helper_can(self._dual_caps())):
+                return False
+            try:
+                main = self._measurement_to_continue()
+            except Exception:      # noqa: BLE001
+                main = None
+            return D.plan_for(self._settings, self._dual_caps(), "i1Pro 2",
+                              self._measure_filter_code(), main,
+                              condition_offered=self._current_mode() != "guided"
+                              ).single_i1pro2
+        except Exception:      # noqa: BLE001 - as before
+            return False
 
     @staticmethod
     def _args_without_filter(args) -> list:
@@ -12676,9 +12733,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             main = self._measurement_to_continue()
         except Exception:      # noqa: BLE001
             main = None
+        # 4.3.54: Guided offers no condition choice, so the "only for M1 or
+        # M2" rule has nothing to go by there (session.plan_for)
         return D.plan_for(self._settings, self._dual_caps(),
                           self._dual_model_for_plan(),
-                          self._measure_filter_code(), main)
+                          self._measure_filter_code(), main,
+                          condition_offered=self._current_mode() != "guided")
 
     # ---- which instrument (the owner, 2026-11-18; instrument_model.py) ----
     def _dual_model_decision(self, fresh: bool = False):
@@ -12858,7 +12918,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         (the row's choice is recorded instead)."""
         code = self._measure_filter_code()
         try:
-            if self._dual_plan_now().dual:
+            _plan = self._dual_plan_now()
+            if _plan.dual or _plan.single_i1pro2:
                 return None
         except Exception:      # noqa: BLE001 - never block a read on this
             pass
@@ -12959,6 +13020,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # again only by a read that continues it (-r); every other read into
         # the same file is a new measurement and starts a fresh record.
         self._dual_resume = bool(getattr(p, "resume", False))
+        _logd = getattr(self, "_log_dual_decision", None)
+        _tbl = getattr(self, "_chart_is_an_i1io_chart", None)
+        if callable(_logd) and not (callable(_tbl) and _tbl()):
+            _logd("hand")   # 4.3.54: the table logs its own START
         try:
             plan = self._dual_plan_now()
         except Exception:      # noqa: BLE001 - never stop a Start
@@ -12971,6 +13036,23 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             if plan.why_not not in ("off", ""):
                 log.info("dual scan: not used for this read (%s)",
                          plan.why_not)
+            if plan.single_i1pro2:
+                # 4.3.54, "only for M1 or M2": an ordinary single scan of an
+                # i1Pro 2. The filter row is the condition choice there, so
+                # "-F n" is not sent (an i1Pro 2 refuses every -F); with no
+                # -F in the row nothing changes at all, so the read is the
+                # one made with the dual scan off. When something was taken
+                # out, an instrument that reports itself as another model is
+                # started again with the row's -F (`_dual_check_reported`).
+                from workflow.dual_scan import session as D
+                from workflow.measurement_condition import filter_code_from_args
+                if filter_code_from_args(p.extra_args or "") is not None:
+                    p.extra_args = D.without_filter(p.extra_args)
+                    from workflow.dual_scan import instrument_model as IM
+                    self._dual_assumed = IM.I1PRO2
+                    log.info("dual scan: single scan (%s); the filter row's "
+                             "%s is the condition choice, not sent as -F",
+                             plan.why_not, plan.chosen)
             return
         from workflow.dual_scan import session as D
         p.extra_args = D.without_filter(p.extra_args)
@@ -12987,23 +13069,197 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                  " ".join(p.engine_dual_args))
 
     def _dual_before_start_text(self) -> "tuple[str, str]":
-        """M-DUAL-BEFORE-START (title, body) while the dual scan applies,
-        else ("", "")."""
-        from workflow import measurement_messages as M
-        from workflow.measurement_condition import condition_name
-        try:
-            plan = self._dual_plan_now()
-        except Exception:      # noqa: BLE001
+        """The note before START (title, body), or ("", "") when there is none or the
+        person switched its kind off (`_dual_note_now`)."""
+        kind, title, body = self._dual_note_now()
+        if kind and kind in self._dual_notes_hidden():
             return "", ""
+        return title, body
+
+    # ---- 4.3.54: what the status line says before START (the owner, 2026-11-20) ----
+    #: the reasons a LAST measurement gave for ending the dual scan that come from the
+    #: instrument or its calibration: said again before the next START (M-DUAL-LAST-CANNOT)
+    _DUAL_LAST_REASONS = ("no_uv_tables", "bad_uv_tables", "uv_tile_dark",
+                          "not_available", "no_dual_calibration")
+    _DUAL_LAST_KEY = "dual_scan_last_cannot"
+
+    def _dual_notes_hidden(self) -> "set[str]":
+        """The kinds of note switched off with "Don't show this again"."""
+        try:
+            raw = str(self._settings.get("dual_scan_notes_hidden", "") or "")
+        except Exception:      # noqa: BLE001
+            return set()
+        return {k.strip() for k in raw.split(",") if k.strip()}
+
+    def _dual_hide_note(self, kind: str) -> None:
+        """"Don't show this again" beside the note: this kind only, for good. The
+        reason still goes into the app log at every START (`_log_dual_decision`)."""
+        kind = str(kind or "").strip()
+        if not kind:
+            return
+        hidden = self._dual_notes_hidden() | {kind}
+        self._settings.set("dual_scan_notes_hidden", ",".join(sorted(hidden)))
+        log.info("dual scan: the note %r is switched off (Don't show this again)", kind)
+        self._dual_status("")
+        self._refresh_dual_note()
+
+    def _dual_note_link(self, href: str) -> None:
+        if str(href).startswith("dual-hide:"):
+            self._dual_hide_note(str(href)[len("dual-hide:"):])
+
+    def _dual_note_plan(self):
+        """The plan the note speaks of: the hand plan, or for a chart the i1iO table reads
+        the table's plan, from the same rule (session.plan_for)."""
+        from workflow.dual_scan import session as D
+        if not self._chart_is_an_i1io_chart():
+            return self._dual_plan_now(), False
+        try:
+            main = self._measurement_to_continue()
+        except Exception:      # noqa: BLE001
+            main = None
+        return D.plan_for(self._settings, self._dual_caps(), "i1Pro 2",
+                          self._measure_filter_code(), main,
+                          condition_offered=self._current_mode() != "guided"), True
+
+    def _dual_note_now(self) -> "tuple[str, str, str]":
+        """(kind, title, body) of the status line's note before START. *kind* names
+        what "Don't show this again" switches off ("will_run", "m0_chosen",
+        "cannot:<reason>"); "" for the notes that cannot be switched off (the
+        strips to complete, a measurement that continues as M0). Every reason the dual
+        scan does not run has its sentence; nothing at all with the Beta off."""
+        from workflow import measurement_messages as M
+        from workflow.dual_scan import session as D
+        from workflow.measurement_condition import condition_name
         fill = self._fill_note_text()
+        if not D.switched_on(self._settings):
+            return ("",) + tuple(fill)
+        start = self._start_button_name()
+        if not self._engine_selected():
+            return ("cannot:engine",) + M.M_DUAL_NO_ENGINE.render(why=tr(
+                "The dual scan needs “{engine}”, which is switched off in "
+                "Preferences.").format(engine=tr("ChromIQ chart-reading engine")))
+        ti1 = getattr(self, "_ti1_path", None)
+        if ti1 is None:
+            return "", "", ""
+        if Path(ti1).parent.name == "cal":
+            return ("cannot:cal_chart",) + M.M_DUAL_NOT_THIS_CHART.render(why=tr(
+                "This is the calibration chart. It is read with the lamp only, as always."))
+        if _fd9_ask(self, "_is_fd9_target") or self._chart_is_cr30():
+            return ("cannot:other_chart",) + M.M_DUAL_NOT_THIS_CHART.render(why=tr(
+                "This chart is read with another instrument than an i1Pro 2."))
+        plan, table = self._dual_note_plan()
+        row = tr("Spectral filter type (-F)")
+        if plan.refusal == "filter_not_dual":
+            return ("cannot:filter",) + M.M_DUAL_FILTER_NOTE.render(
+                setting=self._filter_label(self._measure_filter_code()), row=row,
+                start=start)
+        if plan.refusal:
+            return ("cannot:" + plan.refusal,) + M.M_DUAL_CANNOT_CONTINUE.render(
+                reason=D.reason_sentence(plan.refusal), start=start)
         if not plan.dual:
-            return fill
+            if plan.why_not == "helper":
+                return ("cannot:helper",) + M.M_DUAL_NO_ENGINE.render(why=tr(
+                    "The chart-reading engine in this copy of ChromIQ does not offer "
+                    "the dual scan."))
+            if plan.why_not == "other_instrument":
+                return ("cannot:other_instrument",) + M.M_DUAL_NOT_I1PRO2.render(
+                    known=self._dual_known_as(), model_row=tr("Instrument for the dual scan:").rstrip(": "),
+                    where=D.where_label())
+            if plan.why_not == "m0_chosen":
+                return ("m0_chosen",) + M.M_DUAL_M0_CHOSEN.render(
+                    row=row, start=start, always=tr("always"), option=D.switch_label(),
+                    where=D.where_label())
+            if plan.why_not == "single_record":
+                if fill[0]:
+                    return ("",) + tuple(fill)
+                return ("cannot:single_record",) + M.M_DUAL_SINGLE_CONTINUES.render()
+            return ("",) + tuple(fill)
         if plan.ended_before:
-            return M.M_DUAL_CONTINUE_M0.render()
+            return ("",) + tuple(M.M_DUAL_CONTINUE_M0.render())
         if fill[0]:
-            return fill
-        return M.M_DUAL_BEFORE_START.render(
-            chosen=condition_name(plan.chosen))
+            return ("",) + tuple(fill)
+        more = ""
+        if D.mode(self._settings) == D.MODE_M1_M2 and self._current_mode() != "guided":
+            more = " " + tr("Or choose M0: then each strip is read once, as without the "
+                            "dual scan.")
+        if self._dual_nocal_now():
+            return ("cannot:nocal",) + M.M_DUAL_NOCAL_NOTE.render(
+                nocal=tr("Skip initial calibration (-N)"), start=start, more=more)
+        if self._dual_highres_now():
+            return ("cannot:highres",) + M.M_DUAL_HIGHRES_NOTE.render(
+                highres=tr("High resolution spectral mode (-H)"), start=start, more=more)
+        last = str(self._settings.get(self._DUAL_LAST_KEY, "") or "")
+        if last in self._DUAL_LAST_REASONS:
+            return ("cannot:last_" + last,) + M.M_DUAL_LAST_CANNOT.render(
+                reason=D.reason_sentence(last))
+        msg = M.M_DUAL_BEFORE_START_TABLE if table else M.M_DUAL_BEFORE_START
+        return ("will_run",) + msg.render(chosen=condition_name(plan.chosen))
+
+    def _dual_known_as(self) -> str:
+        """How the instrument known before the read is known, for M-DUAL-NOT-I1PRO2."""
+        try:
+            from workflow.dual_scan import instrument_model as IM
+            rem = IM.remembered(self._settings)
+            if rem.name and rem.source == "reported":
+                return "“{}”".format(rem.name)
+            dec = self._dual_model_decision()
+            if dec.kind == IM.OTHER and rem.kind != IM.OTHER:
+                return tr("another instrument, from its USB connection")
+        except Exception:      # noqa: BLE001
+            pass
+        return tr("another instrument, from your answer")
+
+    def _dual_remember_last(self, rid: str, ok: bool = False) -> None:
+        """The reason the instrument or its calibration gave for ending the dual scan,
+        kept for the note before the next START; forgotten at a good dual calibration."""
+        try:
+            if ok:
+                if self._settings.get(self._DUAL_LAST_KEY, ""):
+                    self._settings.set(self._DUAL_LAST_KEY, "")
+            elif rid in self._DUAL_LAST_REASONS:
+                self._settings.set(self._DUAL_LAST_KEY, rid)
+        except Exception:      # noqa: BLE001
+            log.debug("dual scan: last reason not kept", exc_info=True)
+
+    #: the app log's words for each decision (English, plain), `_log_dual_decision`
+    _DUAL_LOG_WORDS = {
+        "will_run": "the dual scan runs: each strip is read twice, M0, M1 and M2 are saved",
+        "m0_chosen": "not used: M0 is chosen and the mode is 'only for M1 or M2', so each strip is read once and only M0 is saved",
+        "cannot:single_record": "not used: the measurement continued was started with one pass per strip, so it continues that way (M0 only)",
+        "cannot:engine": "not used: ChromIQ's chart-reading engine is switched off",
+        "cannot:helper": "not used: this chart-reading engine does not offer the dual scan",
+        "cannot:other_instrument": "not used: the instrument known before the read is not an i1Pro 2",
+        "cannot:cal_chart": "not used: the calibration chart is read with the lamp only",
+        "cannot:other_chart": "not used: this chart is read with another instrument",
+        "cannot:filter": "START refused: the polariser or D65 is chosen",
+        "cannot:highres": "START refused: High resolution spectral mode (-H) is on",
+        "cannot:nocal": "START refused: Skip initial calibration (-N) is on",
+    }
+
+    def _log_dual_decision(self, where: str = "hand") -> None:
+        """4.3.54: at every START with the dual scan on, one app-log line with the mode
+        and whether the dual scan runs, and why not, in plain words, also when its note
+        was switched off on screen. Never raises; nothing with the Beta off."""
+        try:
+            from workflow.dual_scan import session as D
+            if not D.switched_on(self._settings):
+                return
+            kind, title, _body = self._dual_note_now()
+            words = self._DUAL_LOG_WORDS.get(kind)
+            if words is None:
+                if kind.startswith("cannot:last_"):
+                    words = ("tried again: the last measurement ended the dual scan ("
+                             + kind[len("cannot:last_"):] + ")")
+                elif kind.startswith("cannot:"):
+                    words = "START refused: " + kind[len("cannot:"):]
+                else:
+                    words = "as the note says: " + (title or "-")
+            from core.app_log import line
+            line("dual scan decision", where=where, mode=D.mode(self._settings),
+                 kind=kind or "-", hidden=bool(kind) and kind in self._dual_notes_hidden(),
+                 why=words)
+        except Exception:      # noqa: BLE001
+            log.debug("dual scan: decision not logged", exc_info=True)
 
     # ---- 4.3.49: strips with the main condition only (Basti, 2026-11-19) ----
     def _fill_main(self) -> "Path | None":
@@ -13190,9 +13446,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if getattr(self, "_session_live", False) or self._runner.is_running:
             return
         try:
-            title, body = self._dual_before_start_text()
+            kind, title, body = self._dual_note_now()
+            if kind and kind in self._dual_notes_hidden():
+                kind, title, body = "", "", ""   # switched off: the app log still says it
             if title or getattr(self, "_dual_status_text", ""):
-                self._dual_status(title, body)  # nothing at all, Beta off
+                self._dual_status(title, body, hide_kind=kind)  # nothing at all, Beta off
             if title and getattr(self, "_dual_note_logged", "") != body:
                 self._dual_note_logged = body
                 self._log.appendPlainText(f"[{title}]\n{body}")
@@ -13205,9 +13463,14 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return
         rows = [o for o in ((getattr(self, "_chartread_opts", None) or [])
                             + (getattr(self, "_m_chartread_opts", None) or []))
-                if getattr(o, "key", "") == "filter"]
+                if getattr(o, "key", "") in ("filter", "highres")]
         if not rows:
             return
+        # 4.3.54: the note also says why the dual scan will not run (-H, -N, the module)
+        for _w, _sig in ((getattr(self, "_m_nocal_cb", None), "toggled"),
+                         (getattr(self, "_stack", None), "currentChanged")):
+            if _w is not None and hasattr(_w, _sig):
+                getattr(_w, _sig).connect(self._refresh_dual_note)
         for o in rows:
             if o.checkbox is not None:
                 o.checkbox.toggled.connect(self._refresh_dual_note)
@@ -13253,6 +13516,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             # "mixed" when it had rewritten the header on an earlier one
             why = "resume"
         self._dual_end_reason = D.reason_id(why)
+        _keep = getattr(self, "_dual_remember_last", None)
+        if callable(_keep):
+            _keep(self._dual_end_reason)   # 4.3.54: the next note says it
         msg = (M.M_DUAL_ENDED_KEPT
                if getattr(self._manager, "_dual_end_kept", False)
                else M.M_DUAL_ENDED)
@@ -13283,6 +13549,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._dual_cal_ev = dict(ev)
         # a new calibration: the engine may refuse one reading again
         self._dual_cal_asked = False
+        # 4.3.54: what the instrument's calibration said, for the note before the next START
+        from workflow.dual_scan import session as _Dl
+        _keep = getattr(self, "_dual_remember_last", None)
+        if callable(_keep):
+            _keep(_Dl.reason_id(str(ev.get("why") or "")), ok=bool(ev.get("ok")))
         if ev.get("ok"):
             import time as _t
             self._dual_cal_n += 1

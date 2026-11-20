@@ -120,6 +120,18 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 # M-PATCH-SIMILAR joined on 2026-10-15 (4.3.5 beta 8): Knut confirmed the
 # similar-patch rule for both tests (#182 6196599132); its card texts are ours.
 AWAITING_APPROVAL: "set[str]" = {
+    # 2026-11-20, 4.3.54: the dual scan's notes before START (when it runs)
+    "M-DUAL-BEFORE-START-TABLE",
+    "M-DUAL-M0-CHOSEN",
+    "M-DUAL-SINGLE-CONTINUES",
+    "M-DUAL-NOT-I1PRO2",
+    "M-DUAL-NOT-THIS-CHART",
+    "M-DUAL-NO-ENGINE",
+    "M-DUAL-HIGHRES-NOTE",
+    "M-DUAL-NOCAL-NOTE",
+    "M-DUAL-FILTER-NOTE",
+    "M-DUAL-CANNOT-CONTINUE",
+    "M-DUAL-LAST-CANNOT",
     # 2026-11-17: build step 9 of the i1iO table drive (the Measure tab's
     # window that drives an i1iO 2 table, inside the Beta "X-Rite i1iO
     # support"): every text of the window, shown as proposed texts.

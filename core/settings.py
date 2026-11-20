@@ -400,6 +400,25 @@ DEFAULTS: dict[str, Any] = {
     #: --dual-scale and the Measure tab is exactly as before. Read at every
     #: Start.
     "i1pro2_dual_scan_beta":     False,
+    #: 4.3.54 (the owner, 2026-11-20): WHEN the dual scan runs, a choice in
+    #: the dual scan's own row in Preferences > Beta
+    #: (`workflow.dual_scan.session.MODE_*`): "always" (every strip twice,
+    #: as since 4.3.45) or "m1_m2" (only when M1 or M2 is chosen in
+    #: "Spectral filter type (-F)"; M0 chosen = the ordinary single scan).
+    #: The default for a new store is "m1_m2"; a store whose dual scan was
+    #: already on when 4.3.54 first ran is given "always" once
+    #: (schema 35, `_migrate_dual_scan_mode_keep_4353`).
+    "i1pro2_dual_scan_mode":     "m1_m2",
+    #: 4.3.54 (the owner, 2026-11-20): the dual scan's notes in the Measure
+    #: tab's status line that the person switched off with "Don't show this
+    #: again", one word per kind, comma separated ("will_run", "m0_chosen",
+    #: "cannot:<reason>"). Restore Factory Defaults brings them back.
+    "dual_scan_notes_hidden":    "",
+    #: 4.3.54: the reason the instrument or its calibration gave the last time it
+    #: ended the dual scan (no UV light, no factory data, the tile reading with
+    #: the UV light failed), said in the note before the next START; "" after a
+    #: good dual calibration.
+    "dual_scan_last_cannot":     "",
     #: The instrument the dual scan is for (2026-11-18, the owner;
     #: `workflow.dual_scan.instrument_model`): "i1pro2", "other" or "" (ask),
     #: the instrument's own name when it reported itself, and whether the
@@ -1284,7 +1303,7 @@ def thresholds_for_combo(
 # Bump when a shipped default changes in a way that must reach users who have
 # the OLD default persisted. Settings → Save writes every key, so a stored
 # value otherwise pins a user to the old behaviour for good.
-SETTINGS_SCHEMA = 34
+SETTINGS_SCHEMA = 35
 
 # key → the old default(s) it must no longer be stuck on. Only a stored value
 # EQUAL to one of the old defaults is dropped (so it falls through to the new
@@ -1546,6 +1565,9 @@ class AppSettings:
         if stored_schema < 34 and self._migrate_lights_signals_keep_4333():
             written.append("i1pro2_lights_signals = false (the lights Beta was "
                            "already on: kept as in 4.3.33, ready light only)")
+        if stored_schema < 35 and self._migrate_dual_scan_mode_keep_4353():
+            written.append("i1pro2_dual_scan_mode = always (the dual scan was "
+                           "already on: kept as in 4.3.53, every strip twice)")
         self._qs.setValue("settings_schema", SETTINGS_SCHEMA)
         if dropped:
             log.info("Settings migrated to schema %d; dropped stale defaults: %s",
@@ -1554,6 +1576,24 @@ class AppSettings:
             log.info("Settings migrated to schema %d; written: %s",
                      SETTINGS_SCHEMA, ", ".join(written))
         return dropped
+
+    def _migrate_dual_scan_mode_keep_4353(self) -> bool:
+        """schema 35 (4.3.54, 2026-11-20): the i1Pro 2 dual scan gained "when
+        the dual scan runs", whose default is "only for M1 or M2" (M0 chosen
+        = the ordinary single scan). A store whose dual scan was already
+        switched on must not start reading strips once without its owner
+        choosing that: for it "always" is written, exactly 4.3.53. Anyone
+        else gets the default. Runs once (schema step), so it is decided at
+        the first start of 4.3.54 and never again. True when it wrote."""
+        if self._qs.value("i1pro2_dual_scan_mode", None) is not None:
+            return False
+        raw = self._qs.value("i1pro2_dual_scan_beta", None)
+        is_true = raw is True or (isinstance(raw, str)
+                                  and raw.strip().lower() in ("true", "1", "yes"))
+        if not is_true:
+            return False
+        self._qs.setValue("i1pro2_dual_scan_mode", "always")
+        return True
 
     def _migrate_lights_signals_keep_4333(self) -> bool:
         """schema 34 (2026-11-13): the i1Pro 2 lights Beta gained "what the
