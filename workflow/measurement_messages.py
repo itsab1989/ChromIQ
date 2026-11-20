@@ -13090,11 +13090,19 @@ M_I1IO_GUIDED_HELP = _m(
     "each step. The arm can also move towards the front in small steps of 5 mm without "
     "asking. If your sheet lies very far towards you, the arm can then touch the end of its "
     "travel once. ChromIQ then stops and tells you how far to move the sheet.\n\n"
+    "Nobody is asked before the arm moves. The first page and its reminders are not shown "
+    "either. So before you press START MEASUREMENT, set the arm's height for your paper, and "
+    "take everything off the bed except your sheet. The arm also goes into parts of the table "
+    "it has not visited before without asking you.\n\n"
     "ChromIQ still asks you when the table was just switched on (it asks whether the arm is "
     "at its resting place), when a row could not be read, when something did not happen as "
-    "expected, and when you need to lay the next sheet.\n\n"
+    "expected, and when you need to lay the next sheet. It also asks at the end when not "
+    "every patch was read. After a Stop, a problem report or a fault, ChromIQ asks every "
+    "question again until the measurement ends, also before the arm moves.\n\n"
     "Please stay beside the table while it measures, and watch it. You can press Stop at "
-    "any time. The power switch of the table stops the arm at once.",
+    "any time. The power switch of the table stops the arm at once. Keep that power switch "
+    "in reach. To end a measurement while the table reads, press Stop first, then End "
+    "measurement.",
     approved=False)
 
 M_I1IO_LOG_HELP = _m(

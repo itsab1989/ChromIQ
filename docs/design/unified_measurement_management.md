@@ -10774,7 +10774,7 @@ With {n} = 1: "The arm moves in 1 second. Please keep your hands away from the t
 
 ### M-I1IO-GUIDED-HELP · PROPOSED · the help of Preferences > Beta > "Guided, step by step measurement" (its title is the switch's label), Preferences (Beta)
 
-*New 2026-11-20 for 4.3.52 (design3 F4, word for word as the starting point; no calibration paragraph in this release). {countdown} as above. Shown in betas as a proposed text (Knut, 2026-10-14); approved afterwards.*
+*Revised 2026-11-20 (fix round, safety review S-2 / S-6): what the person gives up said plainly (nobody is asked before the arm moves, the first page's reminders are not shown, moves into parts not visited before), that the end still asks when not every patch was read, that after a Stop everything is asked again, the power switch in reach, and "Stop, then End measurement". New 2026-11-20 for 4.3.52 (design3 F4, word for word as the starting point; no calibration paragraph in this release). {countdown} as above. Shown in betas as a proposed text (Knut, 2026-10-14); approved afterwards.*
 
 > **Guided, step by step measurement**
 >
@@ -10784,9 +10784,11 @@ With {n} = 1: "The arm moves in 1 second. Please keep your hands away from the t
 >
 > What the guided measurement protects you from: ChromIQ cannot see the table. When it is off, nobody checks before the arm moves that the bed is empty apart from your sheet, that the arm is at its resting place, or that the table did what ChromIQ expected after each step. The arm can also move towards the front in small steps of 5 mm without asking. If your sheet lies very far towards you, the arm can then touch the end of its travel once. ChromIQ then stops and tells you how far to move the sheet.
 >
-> ChromIQ still asks you when the table was just switched on (it asks whether the arm is at its resting place), when a row could not be read, when something did not happen as expected, and when you need to lay the next sheet.
+> Nobody is asked before the arm moves. The first page and its reminders are not shown either. So before you press START MEASUREMENT, set the arm's height for your paper, and take everything off the bed except your sheet. The arm also goes into parts of the table it has not visited before without asking you.
 >
-> Please stay beside the table while it measures, and watch it. You can press Stop at any time. The power switch of the table stops the arm at once.
+> ChromIQ still asks you when the table was just switched on (it asks whether the arm is at its resting place), when a row could not be read, when something did not happen as expected, and when you need to lay the next sheet. It also asks at the end when not every patch was read. After a Stop, a problem report or a fault, ChromIQ asks every question again until the measurement ends, also before the arm moves.
+>
+> Please stay beside the table while it measures, and watch it. You can press Stop at any time. The power switch of the table stops the arm at once. Keep that power switch in reach. To end a measurement while the table reads, press Stop first, then End measurement.
 
 ### M-I1IO-LOG-HELP · PROPOSED · the help of Preferences > Beta > "Keep the table's detailed log" (its title is the switch's label), Preferences (Beta)
 

@@ -1519,7 +1519,11 @@ nothing of it has run on a real table.
 * **What stays the person's job.** Nothing checks that only the sheet lies on the bed; nobody
   confirms the arm is at rest before the first movement (the first reading of the arm still
   decides); the 5 mm steps towards the front run without a question and can meet the front end
-  once on a sheet laid far forward. The help text says so.
+  once on a sheet laid far forward. The help text says so, and (fix round, S-2 / S-6) also: nobody
+  is asked before the arm moves; the first page's reminders are not shown, so the arm's height and
+  a clear bed are the person's before START; moves into parts not visited before need no answer;
+  the end still asks when not every patch was read; after a Stop everything is asked again; the
+  power switch in reach; to end while the table reads, Stop first, then End measurement.
 
 ### ⏳ Awaiting confirmation: the line under "Patch-by-patch mode (-p)" goes by itself (2026-11-20, for 4.3.52)
 
