@@ -12128,10 +12128,12 @@ M_DUAL_PASS_TWO = _m(
     "the instrument reads with its UV light.",
     approved=False)
 
-#: The same, when ArgyllCMS did not recognise the first pass.
+#: The same, when ArgyllCMS did not recognise the first pass. 4.3.52
+#: (pharmacist, thread 17593): its own headline, so the status line says at
+#: once that pass 1 failed (the tab also plays "Strip read failed" then).
 M_DUAL_PASS_TWO_UNREAD = _m(
     "M-DUAL-PASS-TWO-UNREAD",
-    "Strip {strip}, pass 2 of 2 (UV light)",
+    "Strip {strip}: pass 1 did not read. Read pass 2 anyway",
     "The first pass of this strip did not read. Read the second pass anyway "
     "(it closes the strip), then both passes of strip {strip} again.",
     approved=False)

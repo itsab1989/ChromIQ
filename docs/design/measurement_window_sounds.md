@@ -85,6 +85,7 @@ read ended at start-up and the user has to change a setting. The value is ours.
 | A patch was read and looks off | Patch by patch | Patch reading looks off |
 | A strip was accepted | Strip reading | Strip read OK |
 | A strip was accepted but read quickly | Strip reading | Slow down |
+| The first pass of a dual scan strip did not read (i1Pro 2, Beta) *(awaiting confirmation, 4l)* | Strip reading | Strip read failed |
 | The measurement finished | Both | Measurement finished |
 | A profile finished building | — | Profile build finished |
 
@@ -364,6 +365,23 @@ each one plays is listed in [`i1io_table_support.md`](i1io_table_support.md), se
 on the quiet mode's pop-up windows (awaiting confirmation there), and comes from
 `ui/i1io_table_window.py::POPUP_SOUND`, whose names are checked against `core.sound` (W-4) by
 `tests/i1io_table/test_last_review14_fixes.py::test_note_every_pop_up_sound_is_a_real_sound`.
+
+## 4l. A dual scan's first pass that did not read plays Strip read failed at once (4.3.52)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+The X-Rite i1Pro 2 dual scan (Preferences > Beta), strips by hand. When ArgyllCMS did not
+recognise a strip's first pass (the lamp pass), the engine still asks for the second pass,
+because that pass closes the instrument's position reading. A tester (pharmacist, thread 17593)
+asked to be told at once. The Measure tab now plays **Strip read failed** once, as the second
+pass is asked for, and the status line headline says "pass 1 did not read" (M-DUAL-PASS-TWO-UNREAD).
+After the second pass, "Strip read failed" opens as before, with its own sound. A first pass that
+read plays nothing at that moment. Nothing is sent to the instrument's lights for this:
+i1Profiler too shows red only after the return pass (recording of 2026-11-17). (Since 4.3.52, with
+the lights Beta's result signals, the blue "second pass due" comes after every first pass, read or
+not, as recorded; it has no sound of its own: docs/design/i1pro2_dual_scan.md section 14.)
 
 ## 5. Related documents
 

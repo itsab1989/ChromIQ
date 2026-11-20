@@ -6837,10 +6837,27 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                     per_page = []
                     break
                 per_page.append(rects)
+            # 4.3.52 (jctay 150417): a sheet made outside ChromIQ, its strips
+            # standing apart and nothing like printtarg's label row on top,
+            # had every strip laid inside strip A. Only where the page shows
+            # exactly these strips as separate columns AND the result above
+            # disagrees with them are they used ("tip" arrow, above the ink);
+            # every chart the detector above got right is left as it was.
+            # An FD-9 chart (contributor code, Beta) is never changed by this.
+            mode = "base"
+            from workflow.fd9.measurement import is_fd9_chart
+            if per_page and not is_fd9_chart(ti2_for_counts):
+                from ui.strip_columns import separated_strip_rects, uniform_agrees
+                fixed = [separated_strip_rects(pp, n)
+                         for pp, n in zip(self._tiff_pages, counts)]
+                if all(fixed) and not all(uniform_agrees(u, s)
+                                          for u, s in zip(per_page, fixed)):
+                    per_page, mode = fixed, "tip"
             if per_page:
                 self._page_stripe_rects = per_page
                 self._strips_per_page = counts
-                self._preview.set_stripe_rects(per_page[0])
+                self._stripe_arrow_mode = mode
+                self._preview.set_stripe_rects(per_page[0], mode)
                 return
 
         # An i1iO chart (Beta) records its strips exactly in the layout
@@ -13338,6 +13355,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._dual_prompt(title, body)
         self._log.appendPlainText(f"[{title}]\n{body}")
         self._log.ensureCursorVisible()
+        # 4.3.52 (pharmacist, thread 17593): a first pass that did not read is
+        # heard at once, not only after pass 2 (measurement_window_sounds.md
+        # 4l). Nothing goes to the instrument's lights for it.
+        if not ev.get("lamp_ok", True) and getattr(self, "_sound", None) is not None:
+            import core.sound as _snd
+            self._sound.play(_snd.STRIP_FAIL)
 
     def _on_dual_pass_held(self, strip: str) -> None:
         """A jump or a move asked for while the second pass of *strip* is
@@ -25804,6 +25827,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             self._settings.get("i1pro2_lights_signals", True))
         p.engine_lights_during_reading = bool(
             self._settings.get("i1pro2_lights_during_reading", False))
+        # 4.3.52: the i1Pro 2's quiet time before a reading (seconds)
+        # (the stored value on the field's grid; not a number from 0 to 10 s
+        # -> the default, written once in core/i1pro2_lights_quiet.py)
+        from core import i1pro2_lights_quiet as _lq
+        p.engine_lights_quiet_s = _lq.seconds(
+            self._settings.get("i1pro2_lights_quiet_s"))
         p.engine_ruler_check = bool(
             self._settings.get("ruler_check_beta", False))
         p.engine_margin_tolerance = bool(

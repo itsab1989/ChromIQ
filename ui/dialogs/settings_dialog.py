@@ -3789,11 +3789,63 @@ class SettingsDialog(QDialog):
         _lrd.addWidget(self._lights_reading_combo)
         _lrd.addStretch()
         _beta.addLayout(_lrd)
-        # the two combo boxes start at the same place, whatever the language
+        # 4.3.52 (the owner, 2026-11-20: "could we allow the user to set the
+        # timing himself with recommendations of what was measured inside
+        # i1profiler and leave more room than that to the bottom end?"): the
+        # i1Pro 2's quiet time before a reading, 0 to 10 s, default 2.1 s
+        # (core/i1pro2_lights_quiet.py). Greyed with the other two choices.
+        from core import i1pro2_lights_quiet as _lq
+        self._lights_quiet_label = QLabel(
+            tr("i1Pro 2, wait after a light change:"), self)
+        self._lights_quiet_spin = NoScrollDoubleSpinBox(self)
+        self._lights_quiet_spin.setObjectName("i1pro2_lights_quiet_s")
+        # fix round (review S2): two decimals and steps of 0.05 s, so the
+        # recorded 0.37 and 0.46 s can be typed; "0,37" and "0.37" are both
+        # taken (NoScrollDoubleSpinBox), and the field shows the decimal mark
+        # of ChromIQ's language, like every number beside it (decimal_text),
+        # not the computer's (the pattern of ti3_info_dialog's tolerance)
+        from PyQt6.QtCore import QLocale
+        from core.i18n import uses_decimal_comma
+        self._lights_quiet_spin.setLocale(QLocale(QLocale.Language.German)
+                                          if uses_decimal_comma() else QLocale.c())
+        self._lights_quiet_spin.setRange(_lq.MIN_S, _lq.MAX_S)
+        self._lights_quiet_spin.setDecimals(_lq.DECIMALS)
+        self._lights_quiet_spin.setSingleStep(_lq.STEP_S)
+        self._lights_quiet_spin.setSuffix(" s")    # the SI symbol, as in every language
+        self._lights_quiet_spin.setMinimumWidth(90)
+        self._lights_quiet_label.setBuddy(self._lights_quiet_spin)
+        self._lights_quiet_tip = TooltipButton(
+            tr("i1Pro 2: wait after a light change (beta)"),
+            i1pro2_lights_quiet_help(), self, min_width=620)
+        _lqt = QHBoxLayout()
+        _lqt.setContentsMargins(28, 0, 0, 0)
+        _lqt.addWidget(self._lights_quiet_label)
+        _lqt.addWidget(self._lights_quiet_spin)
+        _lqt.addStretch()
+        _lqt.addWidget(self._lights_quiet_tip)
+        _beta.addLayout(_lqt)
+        self._lights_quiet_note = QLabel(i1pro2_lights_quiet_note(), self)
+        self._lights_quiet_note.setWordWrap(True)
+        self._lights_quiet_note.setContentsMargins(28, 0, 0, 0)
+        _beta.addWidget(self._lights_quiet_note)
+        # fix round (S2): what was typed and not taken (an empty field, a
+        # lone sign) is said, never a silent snap back to the old value
+        self._lights_quiet_back = QLabel("", self)
+        self._lights_quiet_back.setObjectName("i1pro2_lights_quiet_back")
+        self._lights_quiet_back.setWordWrap(True)
+        self._lights_quiet_back.setContentsMargins(28, 0, 0, 0)
+        self._lights_quiet_back.setVisible(False)
+        _beta.addWidget(self._lights_quiet_back)
+        self._lights_quiet_typed = None
+        self._lights_quiet_spin.lineEdit().textEdited.connect(self._lights_quiet_edited)
+        self._lights_quiet_spin.editingFinished.connect(self._lights_quiet_finished)
+        # the three boxes start at the same place, whatever the language
         _lw = max(self._lights_signals_label.sizeHint().width(),
-                  self._lights_reading_label.sizeHint().width())
+                  self._lights_reading_label.sizeHint().width(),
+                  self._lights_quiet_label.sizeHint().width())
         self._lights_signals_label.setMinimumWidth(_lw)
         self._lights_reading_label.setMinimumWidth(_lw)
+        self._lights_quiet_label.setMinimumWidth(_lw)
         self._i1pro2_lights_check.toggled.connect(self._lights_choices_follow)
 
         # THE RULER CHECK (Basti, 2026-11-14: "build the first ruler Beta now
@@ -6977,6 +7029,8 @@ class SettingsDialog(QDialog):
             1 if bool(s.get("i1pro2_lights_signals", True)) else 0)
         self._lights_reading_combo.setCurrentIndex(
             1 if bool(s.get("i1pro2_lights_during_reading", False)) else 0)
+        from core import i1pro2_lights_quiet as _lq
+        self._lights_quiet_spin.setValue(_lq.seconds(s.get("i1pro2_lights_quiet_s")))
         self._lights_choices_follow()
         self._i1p_turned_check.setChecked(
             bool(s.get("i1profiler_turned_export", False)))
@@ -7238,12 +7292,39 @@ class SettingsDialog(QDialog):
         """The lights' two choices are greyed while the lights box is off."""
         on = self._i1pro2_lights_check.isChecked()
         for w in (self._lights_signals_label, self._lights_signals_combo,
-                  self._lights_reading_label, self._lights_reading_combo):
+                  self._lights_reading_label, self._lights_reading_combo,
+                  self._lights_quiet_label, self._lights_quiet_spin,
+                  self._lights_quiet_note):
             w.setEnabled(on)
         tip = "" if on else tr(
             "Switch on the instrument lights above to choose this.")
         self._lights_signals_combo.setToolTip(tip)
         self._lights_reading_combo.setToolTip(tip)
+        self._lights_quiet_spin.setToolTip(tip)
+
+    def _lights_quiet_edited(self, text: str) -> None:
+        """The quiet-time field was typed in (fix round S2)."""
+        self._lights_quiet_typed = text
+        self._lights_quiet_back.setVisible(False)
+
+    def _lights_quiet_finished(self) -> None:
+        """Typing ended: if what was typed could not be taken, the field went
+        back to its value, and that is said under it (fix round S2)."""
+        from PyQt6.QtGui import QValidator
+        typed, self._lights_quiet_typed = self._lights_quiet_typed, None
+        if typed is None:
+            return
+        spin = self._lights_quiet_spin
+        state = spin.validate(typed, len(typed))[0]
+        if state == QValidator.State.Acceptable:
+            self._lights_quiet_back.setVisible(False)
+            return
+        from core import i1pro2_lights_quiet as _lq
+        self._lights_quiet_back.setText(tr(
+            "This is not a number from {low} to {high} s, so the wait stays at "
+            "{value} s.").format(low=decimal_text(_lq.MIN_S), high=decimal_text(_lq.MAX_S),
+                                 value=decimal_text(spin.value())))
+        self._lights_quiet_back.setVisible(True)
 
     def _fd9_rotation_follow(self, *_a) -> None:
         """The FD-9 screen rotation is greyed while FD-9 support is off."""
@@ -8638,6 +8719,8 @@ class SettingsDialog(QDialog):
               bool(self._lights_signals_combo.currentData()))
         s.set("i1pro2_lights_during_reading",
               bool(self._lights_reading_combo.currentData()))
+        from core import i1pro2_lights_quiet as _lq
+        s.set("i1pro2_lights_quiet_s", _lq.seconds(self._lights_quiet_spin.value()))
         s.set("i1profiler_turned_export", self._i1p_turned_check.isChecked())
         s.set("fd9_support_beta", self._fd9_support_check.isChecked())
         s.set("i1io_support_beta", self._i1io_support_check.isChecked())
@@ -9851,6 +9934,72 @@ def preview_legend_help() -> str:
         "**Default:** on.")
 
 
+def i1pro2_lights_quiet_note() -> str:
+    """The short line under Preferences > Beta > the i1Pro 2's wait after a
+    light change (4.3.52). The numbers are the study's of 2026-11-20
+    (core/i1pro2_lights_quiet.py)."""
+    from core import i1pro2_lights_quiet as _lq
+    return tr(
+        "Default {default} s. X-Rite's i1Profiler was recorded waiting only "
+        "{low} s (usually about {typical} s) before a reading by hand. If the "
+        "wait is too short, a reading can be lost, and a measurement can even "
+        "end. ChromIQ writes the wait into the app log.").format(
+            default=decimal_text(_lq.DEFAULT_S),
+            low=decimal_text(_lq.RECORDED_HAND_MIN_S),
+            typical=decimal_text(_lq.RECORDED_HAND_TYPICAL_S))
+
+
+def i1pro2_lights_quiet_help() -> str:
+    """The (i) of Preferences > Beta > the i1Pro 2's wait after a light
+    change (4.3.52). Every sentence is checked against the study of
+    2026-11-20 (ChromIQ-work 2026-11-20_pulse452b/quiet_study.txt) and the
+    driver (native/instlib/i1pro_imp.c ``cq_lights_quiet``)."""
+    from core import i1pro2_lights_quiet as _lq
+    return "\n\n".join((
+        tr("With the lights option on, ChromIQ does not let an i1Pro 2 measure "
+           "right after its light has changed. It waits this long first. This "
+           "applies to every reading and every calibration, with one "
+           "exception: after the blue light of a dual scan, ChromIQ always "
+           "waits {blue} s. That is the shortest wait i1Profiler was recorded "
+           "using after this light. The i1Pro 3 does not wait. **This changes "
+           "how ChromIQ talks to the instrument:** the wait is in ChromIQ's "
+           "copy of ArgyllCMS's instrument code. The commands sent to the "
+           "instrument stay the same.").format(
+               blue=decimal_text(_lq.BLUE_QUIET_MS / 1000.0)),
+        tr("**Why it waits.** A tester's i1Pro 2 lost about two readings in "
+           "three when ChromIQ changed its light a few milliseconds before a "
+           "reading. Without a light change just before, none was lost. Since "
+           "then ChromIQ waits {default} s. Nobody has measured yet whether a "
+           "shorter wait is safe with ChromIQ.").format(
+               default=decimal_text(_lq.DEFAULT_S)),
+        tr("**What X-Rite's i1Profiler does** (recordings of the same tester's "
+           "i1Pro 2):\n"
+           "  •  before a reading by hand: it waited {low} s at the least, "
+           "about {typical} s as a rule, and every reading came;\n"
+           "  •  before a calibration: about {cal} s, and every reading came.\n"
+           "i1Profiler talks to the instrument in a slightly different order "
+           "than ChromIQ, so these numbers are a guide, not a promise.").format(
+               low=decimal_text(_lq.RECORDED_HAND_MIN_S),
+               typical=decimal_text(_lq.RECORDED_HAND_TYPICAL_S),
+               cal=decimal_text(_lq.RECORDED_CALIBRATION_S)),
+        tr("**If the wait is too short:** the instrument may not send the "
+           "first part of a reading. After about two seconds ChromIQ shows "
+           "“The instrument lost communication with the computer”. "
+           "That reading is lost, and you must read the strip again. A "
+           "calibration is tried again by itself. If it keeps failing, the "
+           "measurement ends, and you must start it again (Continue "
+           "Measurement keeps the strips you already read). In a dual scan, a "
+           "lost second pass ends M1 and M2 for the rest of that measurement. "
+           "M0 goes on. Nothing is written into the instrument, and readings "
+           "you already took do not change."),
+        tr("**Range:** 0 to {max} s. 0 means no wait at all, below anything "
+           "that was recorded. If you try a shorter wait, please tell us how "
+           "many readings were lost. ChromIQ writes the wait you chose into "
+           "the app log at the start of every measurement.").format(
+               max=decimal_text(_lq.MAX_S)),
+    ))
+
+
 def i1pro2_lights_help() -> str:
     """The ⓘ of Preferences ▸ Beta ▸ the i1Pro 2 and i1Pro 3 lights (Basti,
     2026-11-13; the i1Pro 3 from jctay's recording, the same day).
@@ -9861,6 +10010,7 @@ def i1pro2_lights_help() -> str:
     recorded sequences, white after a measurement or calibration, off before
     every trigger, at the close and before an EEPROM read; a failed request
     gives the lights up) and the recording it comes from (issue #129)."""
+    from core import i1pro2_lights_quiet as _lq
     return "\n\n".join((
         tr("The X-Rite i1Pro 2 and i1Pro 3 have small indicator lights. "
            "X-Rite's own program, i1Profiler, uses them to show what the "
@@ -9910,6 +10060,23 @@ def i1pro2_lights_help() -> str:
            "  •  while you read and afterwards, the light stays as the "
            "instrument shows it: ChromIQ sends nothing;\n"
            "  •  no light when the measurement ends."),
+        # 4.3.52 (the owner, 2026-11-20: "yes build the blue light")
+        tr("**In an i1Pro 2 dual scan (beta), with “Ready light and result "
+           "signals”:** after the first pass of a strip, the left light pulses "
+           "blue, as with X-Rite's i1Profiler. It means: the second pass of "
+           "this strip is due. You can read the second pass in either "
+           "direction, as before. If you press the button before the blue "
+           "light comes, ChromIQ leaves it out for that strip. Green or red "
+           "follows after the second pass. After the blue light, ChromIQ waits "
+           "{blue} s before the second pass can start, whatever wait after a "
+           "light change you set below. This is the shortest wait recorded "
+           "with i1Profiler after the blue light. Press the button, keep the "
+           "instrument still until it beeps, then slide. **This changes how ChromIQ talks "
+           "to the instrument:** for the blue light ChromIQ changed its copy "
+           "of ArgyllCMS's instrument code a little. It sends only the blue "
+           "pattern i1Profiler was recorded sending, at the same moment. "
+           "With this option or the dual scan off, nothing changes.").format(
+               blue=decimal_text(_lq.BLUE_QUIET_MS / 1000.0)),
         tr("**With this on and “Ready light and result signals”, an i1Pro 3 "
            "shows** (an i1Pro 3 Plus too, which ArgyllCMS handles in exactly "
            "the same way):\n"

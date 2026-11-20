@@ -45,6 +45,11 @@ assets/exported/
 !assets/charts/**/*.tiff
 # …and the withdrawn prebuilt bundles the suite still builds from (4.3.1).
 !tests/fixtures/charts/prebuilt/**/*.tif
+# …and every picture the suite reads from tests/data (4.3.52: two sheet TIFFs
+# were caught here and 7 tests failed on a fresh checkout;
+# tests/test_no_test_data_is_ignored_by_git.py keeps it so).
+!tests/data/**/*.tif
+!tests/data/**/*.tiff
 
 # CI-generated icons (rebuilt by scripts/build_icons.py during the build)
 assets/app_icon.ico

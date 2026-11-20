@@ -30,9 +30,16 @@ RECORDED_SHA256 = {
         "b1e84c7bd4d09e18591a22162630a2e8ecbed8b8956af0fce4ed3c5fa47479ba",
     "cq_lights_seq_red2":
         "813a0add3948ef6183105f9351e7808d8d625f0ee520eb991e9a0d6ef9374ea6",
+    # 4.3.52: the dual scan's blue before the return pass. The same 702 bytes
+    # in all 23 writes of the six i1Profiler 3.8.6 sessions on this machine
+    # (ChromIQ-work 2026-11-20_pulse452b/scripts/blue_bytes.py over the
+    # 13 and 17 November recordings; the 13 November led_hex file,
+    # step4-scan-dual_10.720_702B.hex, is the source of the array)
+    "cq_lights_seq_blue":
+        "f848b4e7f588225ab4af171034b582764da75d687527592a20a420e3acd6d202",
 }
 SIZES = {"cq_lights_seq_pulse": 2306, "cq_lights_seq_green2": 2990,
-         "cq_lights_seq_red2": 2990}
+         "cq_lights_seq_red2": 2990, "cq_lights_seq_blue": 702}
 
 
 def _c_array(text: str, name: str) -> bytes:
@@ -102,10 +109,13 @@ def test_what_each_program_shows():
 
 
 def test_no_unrecorded_colour_and_never_forever_colour():
-    """Masks: 0x3f white (recorded at open), 0x12 green, 0x09 red. No blue,
-    no single side; a colour never repeats forever (only white does)."""
+    """Masks: 0x3f white (recorded at open), 0x12 green, 0x09 red. No other
+    single side; a colour never repeats forever (only white does), except the
+    recorded blue (below)."""
     h = _header()
     for name in RECORDED_SHA256:
+        if name == "cq_lights_seq_blue":
+            continue
         for rep, steps in _decode(_c_array(h, name)):
             masks = {m for m, _ in steps}
             assert masks <= {0x00, 0x3F, 0x12, 0x09}, name
@@ -121,7 +131,18 @@ def test_the_header_is_included_once_and_only_by_the_driver():
     assert hits == ["i1pro_imp.c"]
 
 
-def test_the_send_function_knows_exactly_six_programs():
+def test_the_blue_is_the_left_led_pulsing_for_ever_as_recorded():
+    """4.3.52: BLUE is one block played for ever (until the next program, as
+    i1Profiler left it), with only the left blue LED (mask 0x20) and dark,
+    one cycle of about 0.63 s (clocks of about 73 us)."""
+    blocks = _decode(_c_array(_header(), "cq_lights_seq_blue"))
+    assert [r for r, _ in blocks] == [0xFFFFFFFF]
+    assert {m for m, _ in blocks[0][1]} == {0x00, 0x20}
+    cycle = sum(c for _, c in blocks[0][1]) * 73e-6
+    assert 0.6 < cycle < 0.66
+
+
+def test_the_send_function_knows_exactly_seven_programs():
     text = (INSTLIB / "i1pro_imp.c").read_text(encoding="utf-8",
                                                errors="surrogateescape")
     block = text[text.index("static void cq_lights_send(i1pro *p, int which"):]
@@ -129,7 +150,8 @@ def test_the_send_function_knows_exactly_six_programs():
     used = set(re.findall(r"seq = (cq_lights_seq_\w+);", block))
     assert used == {"cq_lights_seq_white", "cq_lights_seq_off_slow",
                     "cq_lights_seq_off_now", "cq_lights_seq_pulse",
-                    "cq_lights_seq_green2", "cq_lights_seq_red2"}
+                    "cq_lights_seq_green2", "cq_lights_seq_red2",
+                    "cq_lights_seq_blue"}
     # one request (0xD6) and its bulk write on 0x03, nothing else
     assert block.count("usb_control(") == 1 and block.count("usb_write(") == 1
     assert "0xD6" in block and "0x03" in block

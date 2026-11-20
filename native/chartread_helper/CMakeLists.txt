@@ -418,10 +418,50 @@ target_include_directories(i1io_table_dual_test PRIVATE
   ${INSTLIB} ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(i1io_table_dual_test PRIVATE instlib)
 
+# 4.3.52: the lights Beta inside a dual scan, the blue before the return
+# pass and the user's quiet time (tests/test_i1pro2_dual_blue_and_quiet_time.py);
+# with -DCQ_V4351_I1PRO_DIR=<folder with 4.3.51's i1pro.c / i1pro_imp.c /
+# i1pro_imp.h> the same lives against that driver (CQ_V4351: nothing new asked).
+add_executable(i1pro2_dual_lights_test EXCLUDE_FROM_ALL
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests/i1pro2_dual_lights_test.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_dualscan.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_stubs.c
+  ${INSTLIB}/alphix.c
+)
+target_include_directories(i1pro2_dual_lights_test PRIVATE
+  ${INSTLIB} ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(i1pro2_dual_lights_test PRIVATE instlib)
+if(CQ_V4351_I1PRO_DIR)
+  set(_cq_v51_sources ${INSTLIB_SOURCES})
+  list(REMOVE_ITEM _cq_v51_sources "${INSTLIB}/i1pro.c" "${INSTLIB}/i1pro_imp.c")
+  add_library(instlib_v4351_i1pro STATIC EXCLUDE_FROM_ALL ${_cq_v51_sources}
+    "${CQ_V4351_I1PRO_DIR}/i1pro.c" "${CQ_V4351_I1PRO_DIR}/i1pro_imp.c"
+    ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_utf_compat.c)
+  get_target_property(_cq_defs51 instlib COMPILE_DEFINITIONS)
+  get_target_property(_cq_idefs51 instlib INTERFACE_COMPILE_DEFINITIONS)
+  get_target_property(_cq_opts51 instlib COMPILE_OPTIONS)
+  target_compile_definitions(instlib_v4351_i1pro PUBLIC ${_cq_defs51} ${_cq_idefs51})
+  if(_cq_opts51)
+    target_compile_options(instlib_v4351_i1pro PRIVATE ${_cq_opts51})
+  endif()
+  target_include_directories(instlib_v4351_i1pro BEFORE PUBLIC
+    "${CQ_V4351_I1PRO_DIR}")
+  target_include_directories(instlib_v4351_i1pro PUBLIC
+    ${INSTLIB} ${CMAKE_CURRENT_SOURCE_DIR})
+  add_executable(i1pro2_dual_lights_test_v4351 EXCLUDE_FROM_ALL
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/i1pro2_dual_lights_test.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_dualscan.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_stubs.c
+    ${INSTLIB}/alphix.c
+  )
+  target_compile_definitions(i1pro2_dual_lights_test_v4351 PRIVATE CQ_V4351)
+  target_link_libraries(i1pro2_dual_lights_test_v4351 PRIVATE instlib_v4351_i1pro)
+endif()
+
 set(_cq_link_targets chromiq-chartread i1pro2_lights_test i1pro3_lights_test
     i1pro3_conditions_test i1io_table_scan_test)
 list(APPEND _cq_link_targets i1pro2_lights_modes_test i1pro3_lights_modes_test)
-list(APPEND _cq_link_targets i1pro2_dual_test i1io_table_dual_test)
+list(APPEND _cq_link_targets i1pro2_dual_test i1io_table_dual_test i1pro2_dual_lights_test)
 list(APPEND _cq_link_targets i1pro_ruler_scan_test i1pro3_ruler_test)
 list(APPEND _cq_link_targets i1pro2_lights_modes_test_watched
      i1pro3_lights_modes_test_watched i1pro_ruler_scan_test_watched
@@ -438,6 +478,9 @@ if(CQ_V4333_I1PRO_DIR)
 endif()
 if(CQ_V4336_I1PRO_DIR)
   list(APPEND _cq_link_targets i1pro2_lights_modes_test_v4336)
+endif()
+if(CQ_V4351_I1PRO_DIR)
+  list(APPEND _cq_link_targets i1pro2_dual_lights_test_v4351)
 endif()
 if(CQ_UPSTREAM_I1PRO_DIR)
   list(APPEND _cq_link_targets i1pro2_lights_test_upstream

@@ -856,6 +856,11 @@ static int cq_dual_table = 0;	/* --dual-table: patch by patch on the i1iO 2 tabl
 static int cq_dd_nocal = 0;		/* -N was given */
 #include "cq_ruler.h"
 #include "cq_dual.h"
+/* 4.3.52: the blue before the return pass of a dual scan (the lights Beta,
+ * cq_lights_second_pass_* below; nothing unless both options are on) */
+static void cq_lights_second_pass_due(void);
+static void cq_lights_second_pass_over(void);
+static void cq_lights_second_pass_poll(void);
 #include "chromiq_dualdev.c"
 
 /* The driver's record of the reading read_strip / read_sample just made
@@ -2290,6 +2295,8 @@ inst_code cq_uicallback(void *cntx, inst_ui_purp purp) {
 		 * any trigger of the next reading, on this thread, so nothing is ever
 		 * sent during a measurement; and the driver refuses it once the
 		 * button has been pressed for that reading. */
+		if (purp == inst_armed && c == CQ_KEY_NONE)
+			cq_lights_second_pass_poll();	/* 4.3.52: nothing unless a blue is due */
 		if (purp == inst_armed && c == CQ_KEY_NONE && cq_lights_poll != NULL)
 			cq_lights_poll();
 		/* CHROMIQ_EXT: a resume belongs to the pause between pages and
@@ -2583,14 +2590,63 @@ static int cq_lights_drv_owed_ms(void) {
 /* The i1Pro 2 driver's sequence numbers (i1pro_imp.c CQ_LIGHTS_*). */
 static const char *cq_lights_name2(int seq) {
 	static const char *names[] = { "?", "white", "off_slow", "off_now",
-	                               "pulse", "green2", "red2" };
-	return seq >= 1 && seq <= 6 ? names[seq] : "?";
+	                               "pulse", "green2", "red2", "blue" };
+	return seq >= 1 && seq <= 7 ? names[seq] : "?";
+}
+
+/* 4.3.52 (Preferences > Beta, under the lights; the owner, 2026-11-20): the
+ * quiet time the user chose, in ms (--lights-quiet-ms, 0 to 10000); -1 = not
+ * given, the driver's own 2100 ms. Only for an i1Pro 2: the i1Pro 3 has no
+ * quiet time. */
+static int cq_lights_quiet_ms = -1;
+
+/* 4.3.52 (the owner, 2026-11-20: "yes build the blue light"): in an i1Pro 2
+ * dual scan with result signals, i1Profiler's blue "the second pass is due",
+ * sent CQ_LIGHTS_BLUE_AFTER_MS after pass 1's read_strip returned, from the
+ * return pass's armed wait (the uicallback), before its button press. The
+ * driver (i1pro2_cq_lights_second_pass) refuses it once the button was
+ * pressed or in any other reading; a return pass begun or left before it was
+ * due skips it: never sent later. Recorded: 0.53-0.67 s after pass 1's data
+ * at normal speed (0.81-0.97 s in the slow steps); 550 ms is the early end,
+ * which leaves the most time before the press (0.33-1.35 s after the blue in
+ * i1Profiler's recordings), and the armed wait asks every 100 ms. */
+#define CQ_LIGHTS_BLUE_AFTER_MS 550
+static unsigned int cq_lights_blue_due = 0;	/* msec_time() the blue is due; 0 = none */
+
+static void cq_lights_second_pass_due(void) {
+	cq_lights_blue_due = 0;
+	if (!cq_lights_signals_on() || cq_lights_gen != 2)
+		return;
+	if ((cq_lights_blue_due = msec_time() + CQ_LIGHTS_BLUE_AFTER_MS) == 0)
+		cq_lights_blue_due = 1;
+}
+
+static void cq_lights_second_pass_poll(void) {
+	if (cq_lights_blue_due == 0 || (int)(msec_time() - cq_lights_blue_due) < 0)
+		return;
+	cq_lights_blue_due = 0;
+	if (!cq_lights_signals_on() || cq_lights_gen != 2)
+		return;
+	if (!i1pro2_cq_lights_second_pass(cq_lights_it))
+		cq_emit_raw("{\"event\":\"lights\",\"second_pass\":\"skipped\",\"why\":\"refused\"}");
+}
+
+static void cq_lights_second_pass_over(void) {
+	if (cq_lights_blue_due != 0)
+		cq_emit_raw("{\"event\":\"lights\",\"second_pass\":\"skipped\",\"why\":\"early\"}");
+	cq_lights_blue_due = 0;
 }
 
 /* The i1Pro 2's driver held a trigger for the quiet time after a light write
  * (RULE B, 4.3.37): one event per hold; ChromIQ says it once per session. */
 static void cq_lights_held2(int ms) {
-	cq_emit_raw("{\"event\":\"lights\",\"held_ms\":%d}", ms);
+	/* 4.3.52 fix round: a hold after the dual scan's blue counts from the
+	 * blue's own quiet time (i1pro2_cq_lights_blue_quiet_ms), not the user's */
+	if (i1pro2_cq_lights_held_after_blue)
+		cq_emit_raw("{\"event\":\"lights\",\"held_ms\":%d,\"after\":\"blue\","
+		            "\"quiet_ms\":%d}", ms, i1pro2_cq_lights_blue_quiet_ms);
+	else
+		cq_emit_raw("{\"event\":\"lights\",\"held_ms\":%d}", ms);
 }
 
 /* A sequence the i1Pro 2's driver sent: one line for ChromIQ's log. */
@@ -2744,6 +2800,7 @@ static void cq_lights_for_session(inst *it, int rmode, int emis, int trans,
 		 * 4.3.37's rebuilt order and is gone since 4.3.38). */
 		if (cq_lights_gen == 2) {
 			i1pro2_cq_lights_options(it, cq_lights_signals, cq_lights_left_on);
+			i1pro2_cq_lights_quiet_ms = cq_lights_quiet_ms;	/* 4.3.52; -1 = 2100 ms */
 			i1pro2_cq_lights_sent = cq_lights_sent2;
 			i1pro2_cq_lights_held = cq_lights_held2;
 			i1pro2_cq_lights_hold_poll = cq_lights_take_pending;	/* 4.3.37 M3 */
@@ -2776,12 +2833,20 @@ static void cq_lights_for_session(inst *it, int rmode, int emis, int trans,
 	if (why == NULL)
 		cq_emit_raw("{\"event\":\"lights\",\"active\":true,"
 		            "\"instrument\":\"%s\",\"signals\":%s,"
-		            "\"during_reading\":\"%s\",\"firmware\":%d}",
+		            "\"during_reading\":\"%s\",\"firmware\":%d,\"quiet_ms\":%d,"
+		            "\"blue_quiet_ms\":%d}",
 		            cq_lights_gen == 3 ? "i1pro3" : "i1pro2",
 		            choices & 1 ? "true" : "false",
 		            choices & 2 ? "on" : "off",
 		            cq_lights_gen == 3 ? i1pro3_cq_lights_firmware(it)
-		                               : i1pro2_cq_lights_firmware(it));
+		                               : i1pro2_cq_lights_firmware(it),
+		            /* 4.3.52: the quiet time in use (-1: none, an i1Pro 3), and
+		             * the dual scan's blue's own (fix round); both numbers are
+		             * the driver's, written there once */
+		            cq_lights_gen == 3 ? -1
+		            : cq_lights_quiet_ms >= 0 ? cq_lights_quiet_ms
+		            : i1pro2_cq_lights_quiet_default_ms,
+		            cq_lights_gen == 3 ? -1 : i1pro2_cq_lights_blue_quiet_ms);
 	else
 		cq_emit_raw("{\"event\":\"lights\",\"active\":false,\"why\":\"%s\"}",
 		            why);
@@ -6683,6 +6748,17 @@ int main(int argc, char *argv[]) {
 				 * left on during a hand-held reading, as i1Profiler does. */
 				cq_lights_left_on = 1;
 				eat = 1;
+			} else if (strcmp(argv[ai], "--lights-quiet-ms") == 0 && ai + 1 < argc) {
+				/* CHROMIQ_EXT 4.3.52: inside that option, the i1Pro 2's quiet
+				 * time before a reading, in ms (Preferences > Beta). Only a
+				 * whole number 0..10000 is taken; anything else is ignored
+				 * and the driver keeps its 2100 ms. */
+				char *end = NULL;
+				long v = strtol(argv[ai + 1], &end, 10);
+				if (end != NULL && end != argv[ai + 1] && *end == '\0'
+				 && v >= 0 && v <= 10000)
+					cq_lights_quiet_ms = (int)v;
+				eat = 2;
 			} else if (strcmp(argv[ai], "--condition-dir") == 0 && ai + 1 < argc) {
 				/* CHROMIQ_EXT: Preferences > Beta, "X-Rite i1Pro 3: keep
 				 * M0, M1 and M2": the folder the condition files go to. */
@@ -6727,7 +6803,7 @@ int main(int argc, char *argv[]) {
 				 * before it relies on it. One JSON line, then exit 0.
 				 * "legacy_labels": reads sheets ChromIQ's layout engine
 				 * printed with its pre-4.3.3-beta.7 labels as printed. */
-				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"turn\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\",\"lights_signals\",\"lights_during_reading\",\"ruler_check\",\"i1pro3_conditions\",\"margin_tolerance\",\"i1pro2_dual_conditions\",\"i1pro2_dual_scan\",\"i1io_table_dual\",\"conditions_kept\"],\"build\":\"%s\"}\n",
+				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"turn\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\",\"lights_signals\",\"lights_during_reading\",\"ruler_check\",\"i1pro3_conditions\",\"margin_tolerance\",\"i1pro2_dual_conditions\",\"i1pro2_dual_scan\",\"i1io_table_dual\",\"conditions_kept\",\"lights_quiet\",\"i1pro2_dual_blue\"],\"build\":\"%s\"}\n",
 				       cq_helper_build_string());
 				fflush(stdout);
 				return 0;

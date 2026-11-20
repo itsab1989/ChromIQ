@@ -39,6 +39,9 @@ NOT_A_SETTING = {
     "engine_lights_during_reading": ("a Preferences (Beta) value, global by "
                                      "§1.1 (the lights during a reading, "
                                      "2026-11-13)"),
+    "engine_lights_quiet_s": ("a Preferences (Beta) value, global by §1.1 "
+                              "(the i1Pro 2's quiet time before a reading, "
+                              "4.3.52)"),
     "engine_ruler_check": ("a Preferences (Beta) value, global by §1.1 "
                            "(the ruler check, 2026-11-14)"),
     "engine_margin_tolerance": ("a Preferences (Beta) value, global by §1.1 "

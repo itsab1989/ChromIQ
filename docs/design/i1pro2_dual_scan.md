@@ -342,7 +342,9 @@ never on a real instrument. Code: `workflow/dual_scan/session.py` (the rules),
   flashed line shows for its time and then gives it back): "Strip A, pass 1 of 2
   (lamp)" at every strip prompt, "Strip A, pass 2 of 2 (UV light)" when the engine's `dual_pass`
   asks for the second (M-DUAL-PASS-ONE / -TWO; after a first pass ArgyllCMS did not recognise,
-  M-DUAL-PASS-TWO-UNREAD). The strip stays highlighted as for any strip.
+  M-DUAL-PASS-TWO-UNREAD, with its own headline "Strip A: pass 1 did not read. Read pass 2 anyway"
+  and the "Strip read failed" sound at that moment, 4.3.52). The strip stays highlighted as for any
+  strip.
 * **A refused pass.** The engine makes the strip a misread; "Strip Read Failed" opens as for any
   misread (its buttons, keys and sound unchanged) and shows "The second pass of strip B failed"
   with the reason's sentence, which says that both passes are read again (provisional, section 0
@@ -720,3 +722,74 @@ instrument: no helper change, no new line, no new order (the rows are read exact
   with the patches still missing; with the dual scan off it never does (and a single-scan
   session never continues a dual measurement, as before). An average is never completed (as by
   hand).
+
+### 14. The lights in a dual scan: the blue "second pass due", and the quiet time as a setting (2026-11-20, for 4.3.52)
+
+**Confirmed by:** *nobody yet.* Built on the owner's words of 2026-11-20: *"yes build the blue
+light, are we too cautious with our waiting time at the moment?"* and *"could we allow the user
+to set the timing himself with recommendations of what was measured inside i1profiler and leave
+more room than that to the bottom end?"*, and on his rule of the same day that ChromIQ does what
+the vendor's software does unconditionally (memory: i1io-table-more-commands-ruling, rule 4).
+Tested on the fake USB layer through the real driver, against 4.3.51's driver, and driven on
+screen against the simulated helper; never on a real instrument. Tests:
+`tests/test_i1pro2_dual_blue_and_quiet_time.py`. Study: ChromIQ-work
+`2026-11-20_pulse452b/quiet_study.txt`.
+
+* **The blue.** With the lights Beta on ("X-Rite i1Pro 2 and i1Pro 3: show the instrument's state
+  with its lights", with "Ready light and result signals") AND the dual scan on, an i1Pro 2 gets
+  i1Profiler's own blue after the first pass of a strip by hand: the left LED pulsing blue
+  (0.63 s per pulse) until the next light command; byte for byte the 702 bytes all 23 recorded
+  writes of 6 i1Profiler 3.8.6 sessions sent (request 0xD6, then bulk 0x03), the only blue form
+  ever recorded. It is sent 0.55 s after pass 1's data is in (recorded: 0.53 to 0.67 s at normal
+  speed, 0.81 to 0.97 s in the slow steps; 0.55 s is the early end, which leaves the most time
+  before the person presses), from the wait for the return pass's button press, with no arming
+  command added or moved; also after a first pass ArgyllCMS did not recognise (as recorded:
+  i1Profiler shows blue there too and red only after the return pass). Green or red follows the
+  return pass as before and replaces it.
+* **What it means, in the texts.** "The second pass of this strip is due". Never a direction:
+  the recorded blue is always on the left, and ChromIQ lets the return pass be read either way.
+  The Measure log says "blue. The second pass of this strip is due."; the app log says
+  `lights: sent=blue meaning=second_pass_due quiet_ms=...`.
+* **Never late, never twice.** If the button is pressed before the blue is due (faster than any
+  recorded case: i1Profiler's presses came 0.33 to 1.35 s after it), the blue is skipped for that
+  strip, never sent during or after the trigger (app log `lights: second_pass=skipped
+  why=early`). The driver refuses it outside the return pass's wait, in a lamp pass, in a single
+  scan, once the button was pressed, while a trigger is pending, without result signals, and a
+  second time in one wait. With "Ready light only" nothing would replace the blue after the
+  return pass, so it is not sent then.
+* **The blue has its own quiet time: 0.37 s (fix round of 2026-11-20).** The blue follows
+  i1Profiler's timing, and so does the wait after it: when the last light write was the blue (it
+  went out, nothing was written after it), the return pass's trigger waits 0.37 s after the blue
+  (`CQ_LIGHTS_BLUE_QUIET_MS`), whatever the quiet time below is set to. i1Profiler triggered the
+  return pass 0.372 to 1.389 s after this very program, 15 of 15, every reading came; 0.37 s is
+  never closer than that. Any later light write (the OFF_SLOW before a calibration after an
+  abandoned return pass, an off during the hold) gives the quiet time below back. A hold after
+  the blue goes to the app log only (`lights: held_ms=... after=blue quiet_ms=370`). Before the
+  fix round the return pass waited the full quiet time after the blue (0.7 to 1.7 s of keeping
+  still at the default, review S1). Why this is judged safe enough for a Beta, and what stays
+  unproved (ChromIQ's driver submits the data read before the trigger, i1Profiler after it):
+  ChromIQ-work `2026-11-20_pulse452_fix/decisions.txt`.
+* **Off means off.** With the lights Beta or the dual scan off, nothing new is sent and the
+  driver's path is 4.3.51's: proved request for request on the fake USB layer against 4.3.51's
+  driver. The change is in ChromIQ's copy of ArgyllCMS's instrument code (the lights block of
+  `native/instlib/i1pro_imp.c`, re-applied by `scripts/vendor_instlib.py`); the option's help
+  says so.
+* **The quiet time as a setting.** Preferences > Beta, under the lights option and greyed while
+  it is off: "i1Pro 2, wait after a light change", 0 to 10 s in steps of 0.05 s with two
+  decimals (comma or point typed, the mark of ChromIQ's language shown; a text that cannot be
+  taken is said under the field), default **2.1 s** (4.3.37's value;
+  the study found i1Profiler waiting 0.37 s at the least and about 0.46 s as a rule before a
+  hand-held reading, and 0.01 s before a calibration, every reading arriving, but nothing
+  measured with ChromIQ's own driver between 25 ms, where two readings in three were lost, and
+  2.1 s). Beside it: the default, i1Profiler's numbers, what a too-short value can do (a reading
+  lost, "The instrument lost communication with the computer", the strip read again; a
+  calibration retried, and if it keeps failing the measurement ends and is started again,
+  Continue Measurement keeping the strips already read; in a dual scan a lost second pass ends M1
+  and M2 for the rest of that measurement), that the wait is in ChromIQ's copy of ArgyllCMS's
+  instrument code, and that ChromIQ writes the value into the app log. It changes only how long
+  a trigger waits, never a byte (proved on the fake USB layer). Not 2.1 s: the helper gets
+  `--lights-quiet-ms`; 2.1 s: the command line stays as it was. The value is in the measurement's
+  start line (`i1pro2_lights_quiet_s=`: at Start the instrument is not known yet), the
+  session's lights line (`quiet_ms=`, `blue_quiet_ms=`), and the session header's list of Beta
+  settings (`i1pro2_lights_quiet_s`). The i1Pro 3 has no quiet time: its session line says
+  `lights: instrument=i1pro3 quiet=not_used`.

@@ -62,6 +62,21 @@ later Continue Measurement takes them back (``"partial": true``) and reads
 with both passes again; reading an M0-only strip again with both passes
 completes it.
 
+THE LIGHTS (4.3.52, helper 2026-11-20b). With ``--i1pro2-lights`` and
+``--lights-signals`` the real helper's lights run only on a real i1Pro 2 (its
+replay says ``"active": false, "why": "instrument"``). The simulation then
+says what the real helper says on an i1Pro 2 (chromiq_chartread.c
+cq_lights_for_session, cq_lights_second_pass_*, cq_lights_held2): the
+``{"event":"lights","active":true,"instrument":"i1pro2",...,"quiet_ms":Q}``
+line (Q from ``--lights-quiet-ms``, else 2100); ``{"event":"lights","sent":
+"blue"}`` 0.55 s after a strip's first pass (CQ_LIGHTS_BLUE_AFTER_MS) unless
+the second swipe came first, which gives ``{"event":"lights","second_pass":
+"skipped","why":"early"}``; at the second swipe after a blue, the driver's
+hold until the BLUE's own 370 ms after the blue, whatever Q (CQ_LIGHTS_BLUE_
+QUIET_MS, helper 2026-11-20b: ``{"event":"lights","held_ms":n,"after":"blue",
+"quiet_ms":370}``, between the button and the beep); and ``"sent": "green2"`` /
+``"red2"`` after the strip.
+
 LIMITS (said, not hidden): without that suffix the replay instrument
 computes M1 / M2 for every strip it reads, so after ``needs_ruler`` the files
 still hold M1 / M2 where the real helper would hold none; patch by patch the
@@ -92,12 +107,26 @@ M0_SUFFIX = os.environ.get("CHROMIQ_DUAL_SIM_M0_SUFFIX", "")
 #: the person moving the instrument back over the strip
 PASS_S = float(os.environ.get("CHROMIQ_DUAL_SIM_PASS_S", "0.4"))
 #: the commands the helper holds while the second pass is due (4.3.49)
+#: the driver's CQ_LIGHTS_BLUE_QUIET_MS (core/i1pro2_lights_quiet.py BLUE_QUIET_MS)
+BLUE_QUIET_MS = 370
+#: ...and its CQ_LIGHTS_QUIET_MS (core/i1pro2_lights_quiet.py DEFAULT_MS); this script
+#: runs on its own, so it holds a copy, pinned by tests/test_lights_quiet_default_is_written_once.py
+QUIET_DEFAULT_MS = 2100
 HELD = ("goto", "forward", "back", "next_unread", "file_as", "turn")
 
 
 def main(argv: "list[str]") -> int:
     if "--caps" in argv:
         os.execv(str(REAL), [str(REAL), *argv])
+    lights_sim = "--i1pro2-lights" in argv and "--lights-signals" in argv
+    quiet_ms = QUIET_DEFAULT_MS
+    if "--lights-quiet-ms" in argv:
+        try:
+            q = int(argv[argv.index("--lights-quiet-ms") + 1])
+            if 0 <= q <= 10000:
+                quiet_ms = q
+        except (ValueError, IndexError):
+            pass
     child = subprocess.Popen([str(REAL), *argv], stdin=subprocess.PIPE,
                              stdout=subprocess.PIPE, bufsize=0)
     out_lock = threading.Lock()
@@ -109,7 +138,9 @@ def main(argv: "list[str]") -> int:
           # replay reports no start-up calibration of its own)
           "cal_ok": os.environ.get("CHROMIQ_DUAL_SIM_CAL") != "dark",
           "asked": False,
-          "mode": "spot" if "-p" in argv else "scan"}
+          "mode": "spot" if "-p" in argv else "scan",
+          # 4.3.52: the blue before the second pass (see THE LIGHTS above)
+          "blue_due": None, "blue_at": None}
 
     def emit(obj) -> None:
         line = (json.dumps(obj) if isinstance(obj, dict) else obj) + "\n"
@@ -149,6 +180,12 @@ def main(argv: "list[str]") -> int:
                 except ValueError:
                     ev = None
             kind = (ev or {}).get("event")
+            if (lights_sim and kind == "lights" and ev.get("active") is False
+                    and ev.get("why") == "instrument"):
+                emit({"event": "lights", "active": True, "instrument": "i1pro2",
+                      "signals": True, "during_reading": "off", "firmware": 634,
+                      "quiet_ms": quiet_ms, "blue_quiet_ms": BLUE_QUIET_MS})
+                continue
             if kind == "scan_ready":
                 ready.set()
             if kind == "conditions" and ev.get("active") and ev.get("dual"):
@@ -174,10 +211,14 @@ def main(argv: "list[str]") -> int:
                 cal = calibration()
                 st["cal_ok"], st["asked"] = cal["ok"], False
                 emit(cal)
+            verdict = None
             if kind in ("strip_read", "patch_read", "error") and st["pending"]:
+                verdict = bool(st["pending"].get("ok"))
                 emit(st["pending"])
                 st["pending"] = None
             emit(text)
+            if lights_sim and verdict is not None and st["dual"]:
+                emit({"event": "lights", "sent": "green2" if verdict else "red2"})
         # the real helper has ended: so does the simulation, with its code
         code = child.wait()
         try:
@@ -276,11 +317,35 @@ def main(argv: "list[str]") -> int:
             emit({"event": "dual_pass", "strip": strip, "pass": "uv",
                   "of": 2, "lamp_ok": not st["lamp_fault"]})
             st["phase"] = "uv"
+            if lights_sim:
+                token = object()
+                st["blue_due"], st["blue_at"] = token, None
+
+                def _blue(tok=token):
+                    time.sleep(0.55)
+                    if st["blue_due"] is tok and st["phase"] == "uv":
+                        st["blue_due"] = None
+                        st["blue_at"] = time.monotonic()
+                        emit({"event": "lights", "sent": "blue"})
+                threading.Thread(target=_blue, daemon=True).start()
             continue
         # the second pass: the instrument's button, its beep, then the slide
         # at a hand's pace (the tab times a strip from the beep)
         st["phase"] = "lamp"
         emit({"event": "scan_started"})  # the button ...
+        if lights_sim:
+            if st["blue_due"] is not None:
+                st["blue_due"] = None
+                emit({"event": "lights", "second_pass": "skipped", "why": "early"})
+            elif st["blue_at"] is not None:
+                # the driver's hold (RULE B): after the blue alone it is the
+                # blue's own quiet time, not the user's (fix round, 20b)
+                wait = BLUE_QUIET_MS / 1000.0 - (time.monotonic() - st["blue_at"])
+                if wait > 0:
+                    time.sleep(wait)
+                    emit({"event": "lights", "held_ms": int(wait * 1000),
+                          "after": "blue", "quiet_ms": BLUE_QUIET_MS})
+            st["blue_at"] = None
         emit({"event": "scan_ready"})    # ... the beep, then the slide
         time.sleep(PASS_S)
         if st["lamp_fault"]:

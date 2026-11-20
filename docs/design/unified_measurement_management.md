@@ -10004,9 +10004,9 @@ alone.
 
 ### M-DUAL-PASS-TWO-UNREAD · PROPOSED · the X-Rite i1Pro 2 dual scan (Preferences > Beta), Measure, 2026-11-18
 
-*New 2026-11-18 (the dual scan's UI step, a first try, never run on a real instrument): the same when ArgyllCMS did not recognise the first pass (dual_pass, lamp_ok false): the second pass closes the ruler stream and then both are read again (provisional for the first Beta, docs/design/i1pro2_dual_scan.md section 0 (a)). Shown in the beta while awaiting approval.*
+*New 2026-11-18 (the dual scan's UI step, a first try, never run on a real instrument): the same when ArgyllCMS did not recognise the first pass (dual_pass, lamp_ok false): the second pass closes the ruler stream and then both are read again (provisional for the first Beta, docs/design/i1pro2_dual_scan.md section 0 (a)). Shown in the beta while awaiting approval. Revised 2026-11-20 for 4.3.52 (pharmacist, thread 17593, asked to be told at once that the first pass was bad): its own headline instead of M-DUAL-PASS-TWO's, so the status line says it without hovering; the tab plays "Strip read failed" at the same moment (measurement_window_sounds.md section 4l).*
 
-> **Strip {strip}, pass 2 of 2 (UV light)**
+> **Strip {strip}: pass 1 did not read. Read pass 2 anyway**
 >
 > The first pass of this strip did not read. Read the second pass anyway (it closes the strip), then both passes of strip {strip} again.
 

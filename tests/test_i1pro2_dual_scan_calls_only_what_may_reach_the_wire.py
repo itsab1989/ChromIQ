@@ -82,6 +82,12 @@ HELPER_MAY_CALL = _LIBC | {
     # waiting key of the uicallback's context (no instrument call); cq_dd_fits is arithmetic on
     # the last calibration
     "cq_cal_gate_set", "cq_dd_held_command",
+    # 4.3.52 (the lights Beta's blue before the return pass): two helper functions
+    # (chromiq_chartread.c) that only set and clear a due time and say "skipped" as an
+    # event; neither calls the driver. The blue itself is sent from the armed uicallback
+    # by i1pro2_cq_lights_second_pass (i1pro_imp.c), which refuses it outside the UV
+    # pass's wait or once the button was pressed (tests/test_i1pro2_dual_blue_and_quiet_time.py)
+    "cq_lights_second_pass_due", "cq_lights_second_pass_over",
 }
 
 
@@ -155,6 +161,8 @@ REACHABLE_SENDERS = {
     # (the table scan sends it already)
     ("i1pro_getmisc", "control", "0xC9"): "the status, 8 bytes in, read only (recorded)",
     # the lights Beta's own recorded light program, before a trigger, only with that Beta on
+    # (4.3.52: the same function also sends the recorded blue, from the uicallback, not from
+    # these entry points; tests/test_i1pro2_dual_blue_and_quiet_time.py)
     ("cq_lights_send", "control", "0xD6"): "lights Beta only: its recorded OFF_SLOW",
     ("cq_lights_send", "write", "0x03"): "lights Beta only: its recorded OFF_SLOW",
     # the i1Pro Rev A-D's own path; the dual scan is offered only for an i1Pro 2

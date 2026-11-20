@@ -13,12 +13,16 @@ from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 
 from core.logger import get_logger
 from core.strip_utils import letter_to_idx
-from core.i18n import tr
+from core.i18n import decimal_text, tr
 
 if TYPE_CHECKING:
     from core.argyll_runner import ArgyllRunner
 
 log = get_logger(__name__)
+
+from core.i1pro2_lights_quiet import (  # noqa: E402  (4.3.52)
+    DEFAULT_MS as LIGHTS_QUIET_DEFAULT_MS, DEFAULT_S as LIGHTS_QUIET_DEFAULT_S,
+    to_ms as lights_quiet_ms)
 
 # Regex to detect which strip chartread is currently asking for.
 # Handles formats:
@@ -334,6 +338,11 @@ class MeasureParams:
     #: a helper whose caps name them; both off = exactly 4.3.33's command line.
     engine_lights_signals: bool = False
     engine_lights_during_reading: bool = False
+    #: ...and (4.3.52) the i1Pro 2's quiet time before a reading, in seconds
+    #: (Preferences > Beta, 0 to 10). Passed as --lights-quiet-ms only when it
+    #: is not 4.3.37's 2.1 s, with --i1pro2-lights, and only to a helper whose
+    #: caps name "lights_quiet": at 2.1 s the command line stays as it was.
+    engine_lights_quiet_s: float = LIGHTS_QUIET_DEFAULT_S
     #: Preferences > Beta, the ruler check (2026-11-14; stage 1, check only):
     #: pass --ruler, and only to a helper whose caps name "ruler_check". Off:
     #: the command line is exactly the one it was.
@@ -457,6 +466,8 @@ def _keeps_the_computer_awake(start):
 
 
 class MeasureManager(QObject):
+    #: 4.3.52: the i1Pro 2's quiet time in use, ms (set at every Start)
+    _lights_quiet_ms = LIGHTS_QUIET_DEFAULT_MS
     stripe_changed         = pyqtSignal(str)  # emits strip ID string e.g. "A01"
     all_stripes_done       = pyqtSignal()    # emitted when chartread reports all rows read
     # Emitted when the instrument asks to be calibrated, carrying what it
@@ -858,6 +869,7 @@ class MeasureManager(QObject):
 
     def _reset_requested_calibration(self) -> None:
         """Per-session state of the calibration the user asks for (K)."""
+
         #: The instrument fired and the strip has not come back yet.
         self._scan_in_progress: bool = False
         #: A dual strip's second pass is due (4.3.49, `_dual_pass_holds`).
@@ -1035,6 +1047,7 @@ class MeasureManager(QObject):
         #: 4.3.37: the i1Pro 2's driver held a trigger for the quiet time; the
         #: Measure log says so once per session.
         self._lights_held_said = False
+        self._lights_quiet_ms = LIGHTS_QUIET_DEFAULT_MS
         #: External values (-x): ChromIQ reads the instrument itself and the
         #: helper opens none. Kept because the SAVE-AND-STOP path differs — see
         #: `save_partial_and_quit`.
@@ -1242,6 +1255,17 @@ class MeasureManager(QObject):
                     if (params.engine_lights_during_reading
                             and "lights_during_reading" in caps):
                         eargs += ["--lights-during-reading"]
+                    # 4.3.52: the user's quiet time, only when not the default
+                    quiet_ms = lights_quiet_ms(params.engine_lights_quiet_s)
+                    self._lights_quiet_ms = LIGHTS_QUIET_DEFAULT_MS
+                    if quiet_ms != LIGHTS_QUIET_DEFAULT_MS:
+                        if "lights_quiet" in caps:
+                            eargs += ["--lights-quiet-ms", str(quiet_ms)]
+                            self._lights_quiet_ms = quiet_ms
+                        else:
+                            log.info("i1Pro 2 lights: this helper does not know "
+                                     "--lights-quiet-ms; the quiet time stays "
+                                     "%s s", LIGHTS_QUIET_DEFAULT_S)
                 else:
                     log.info("i1Pro 2 lights: this helper does not know "
                              "--i1pro2-lights; not passed")
@@ -1486,6 +1510,9 @@ class MeasureManager(QObject):
                       helper_build=helper_build_cached(params.engine_helper),
                       ruler=getattr(self, "_ruler", None) is not None, dual=dual,
                       lights=bool(self._lights_option),
+                      lights_quiet_s=(getattr(self, "_lights_quiet_ms",
+                                              LIGHTS_QUIET_DEFAULT_MS) / 1000.0
+                                      if self._lights_option else None),
                       conditions=("on" if "--condition-dir" in eargs else
                                   "off" if params.engine_condition_dir is None else
                                   "off(helper_cannot)"))
@@ -3967,14 +3994,38 @@ class MeasureManager(QObject):
         light request failed or the lights were switched off. Only ever seen
         when the option is on (the helper is started with --i1pro2-lights)."""
         from core import i1pro2_lights_marker as _marker
+        if "held_ms" in ev and ev.get("after") == "blue":
+            # 4.3.52 fix round: the return pass of a dual scan waited the
+            # blue's own quiet time (at most 0.37 s, i1Profiler's shortest
+            # recorded gap after the blue), not the user's. App log only: it
+            # is shorter than any beep delay the Measure log explains.
+            from core.app_log import line as _applog
+            _applog("lights", held_ms=ev.get("held_ms"), after="blue",
+                    quiet_ms=ev.get("quiet_ms"))
+            log.info("i1Pro 2 lights: the second pass waited %s ms after the "
+                     "blue (its own quiet time %s ms)", ev.get("held_ms"),
+                     ev.get("quiet_ms"))
+            return
         if "held_ms" in ev:
             # 4.3.37 (RULE B): a trigger waited until the quiet time after a
             # light write had passed. Every one in the app log; once in the
             # Measure log.
             log.info("i1Pro 2 lights: a measurement waited %s ms for the "
-                     "quiet time after a light change", ev.get("held_ms"))
+                     "quiet time after a light change (quiet time %s ms)",
+                     ev.get("held_ms"), self._lights_quiet_ms)
             if not getattr(self, "_lights_held_said", False):
                 self._lights_held_said = True
+                if self._lights_quiet_ms != LIGHTS_QUIET_DEFAULT_MS:
+                    # 4.3.52: the quiet time the user set in Preferences
+                    on_line(tr(
+                        "[Engine] Instrument lights (beta): ChromIQ let the "
+                        "i1Pro 2 wait a moment before it measured, because its "
+                        "light had just changed. You set this wait to "
+                        "{seconds} s in Preferences > Beta. After pressing the "
+                        "button, keep the instrument still until it beeps. "
+                        "Start sliding at the beep.").format(
+                            seconds=decimal_text(self._lights_quiet_ms / 1000.0)))
+                    return
                 on_line(tr(
                     "[Engine] Instrument lights (beta): ChromIQ let the "
                     "i1Pro 2 wait a moment before it measured, because its "
@@ -3996,6 +4047,16 @@ class MeasureManager(QObject):
             # (the i1Pro 3's own "instrument_green2"/"instrument_red2" of "as
             # in ChromIQ 4.3.33" too) only goes to the app log.
             log.info("instrument lights: sent %s", sent)
+            if sent == "blue":
+                # 4.3.52: i1Profiler's blue between the two passes of a dual
+                # scan (the left LED pulsing), sent after pass 1's data
+                from core.app_log import line as _applog
+                _applog("lights", sent="blue", meaning="second_pass_due",
+                        quiet_ms=self._lights_quiet_ms)
+                on_line(tr(
+                    "[Engine] Instrument lights (beta): blue. The second pass "
+                    "of this strip is due."))
+                return
             if sent == "green2":
                 on_line(tr(
                     "[Engine] Instrument lights (beta): green twice. ChromIQ "
@@ -4005,6 +4066,14 @@ class MeasureManager(QObject):
                     "[Engine] Instrument lights (beta): red twice. ChromIQ did "
                     "not accept this reading as it is: please look at the "
                     "screen, and read it again if ChromIQ asks you to."))
+            return
+        if ev.get("second_pass") == "skipped":
+            # 4.3.52: the blue was not sent: the return pass began (or was
+            # left) before it was due, or the driver refused it. App log only.
+            from core.app_log import line as _applog
+            _applog("lights", second_pass="skipped", why=ev.get("why"))
+            log.info("i1Pro 2 lights: the blue before the second pass was not "
+                     "sent (%s)", ev.get("why"))
             return
         state = ev.get("state")
         if state == "unknown":
@@ -4068,6 +4137,17 @@ class MeasureManager(QObject):
                 self._lights_marker_live = True
             self._runner.set_kill_courtesy(self.LIGHTS_OFF_EXIT)
             log.info("instrument lights: in use for this session (%s)", which)
+            if which == "i1pro2":
+                # 4.3.52: the quiet time the driver uses (2100 = 4.3.37's)
+                try:
+                    qms = int(ev.get("quiet_ms", LIGHTS_QUIET_DEFAULT_MS))
+                except (TypeError, ValueError):
+                    qms = LIGHTS_QUIET_DEFAULT_MS
+                from core.app_log import line as _applog
+                _applog("lights", instrument="i1pro2", quiet_ms=qms,
+                        quiet_default=qms == LIGHTS_QUIET_DEFAULT_MS,
+                        # fix round: after the dual scan's blue (helper 20b)
+                        blue_quiet_ms=ev.get("blue_quiet_ms"))
             signals = bool(ev.get("signals"))
             left_on = str(ev.get("during_reading") or "off") == "on"
             try:
@@ -4075,6 +4155,10 @@ class MeasureManager(QObject):
             except (TypeError, ValueError):
                 fw = -1
             if which == "i1pro3":
+                # fix round (review S7): the i1Pro 3 has no quiet time; the
+                # start line's i1pro2_lights_quiet_s does not apply to it
+                from core.app_log import line as _applog
+                _applog("lights", instrument="i1pro3", quiet="not_used")
                 on_line(self._i1pro3_lights_line(signals, left_on))
                 # With either choice, which firmware it has (2026-11-14): the
                 # project does not know the recordings' firmware, so a
