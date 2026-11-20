@@ -509,7 +509,7 @@ def test_a_helper_without_the_flag_is_not_given_it(qapp, tmp_path, monkeypatch):
 
 def test_the_start_line_names_the_quiet_time():
     src = (ROOT / "workflow" / "measure_log.py").read_text(encoding="utf-8")
-    assert "lights_quiet_s=lights_quiet_s," in src
+    assert "i1pro2_lights_quiet_s=lights_quiet_s," in src
     mm = (ROOT / "workflow" / "measure_manager.py").read_text(encoding="utf-8")
     assert "lights_quiet_s=(getattr(self, \"_lights_quiet_ms\"" in mm
 
@@ -521,8 +521,19 @@ def test_the_start_line_is_written_with_it(caplog, tmp_path):
                         instrument=1, high_res=False, resume=False)
     with caplog.at_level("INFO"):
         log_start(p, reader="engine", lights=True, lights_quiet_s=0.4)
-    assert any("measure start:" in r.getMessage() and "lights_quiet_s=0.4" in r.getMessage()
+    assert any("measure start:" in r.getMessage() and " i1pro2_lights_quiet_s=0.4" in r.getMessage()
                for r in caplog.records)
+
+
+def test_an_i1pro3_session_says_it_uses_no_quiet_time(qapp, caplog):
+    """Review S7: the i1Pro 3 has no quiet time; its session says so."""
+    with caplog.at_level("INFO"):
+        _events(qapp, [{"event": "lights", "active": True, "instrument": "i1pro3",
+                        "signals": True, "during_reading": "off", "firmware": 101,
+                        "quiet_ms": -1, "blue_quiet_ms": -1}])
+    msgs = [r.getMessage() for r in caplog.records]
+    assert any("lights: instrument=i1pro3 quiet=not_used" in m for m in msgs)
+    assert not any("instrument=i1pro3 quiet_ms" in m for m in msgs)
 
 
 def _events(qapp, evs, quiet_ms=2100):

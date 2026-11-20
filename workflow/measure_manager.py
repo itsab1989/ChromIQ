@@ -4154,6 +4154,10 @@ class MeasureManager(QObject):
             except (TypeError, ValueError):
                 fw = -1
             if which == "i1pro3":
+                # fix round (review S7): the i1Pro 3 has no quiet time; the
+                # start line's i1pro2_lights_quiet_s does not apply to it
+                from core.app_log import line as _applog
+                _applog("lights", instrument="i1pro3", quiet="not_used")
                 on_line(self._i1pro3_lights_line(signals, left_on))
                 # With either choice, which firmware it has (2026-11-14): the
                 # project does not know the recordings' firmware, so a

@@ -113,8 +113,10 @@ def log_start(params, *, reader: str, helper_build: str = "", ruler: bool = Fals
              margin_tolerance=bool(getattr(params, "engine_margin_tolerance", False)) and ruler,
              misaligned_check=bool(getattr(params, "engine_safenet", False)),
              lights=lights,
-             # 4.3.52: the i1Pro 2's quiet time before a reading (lights Beta)
-             lights_quiet_s=lights_quiet_s,
+             # 4.3.52: the i1Pro 2's quiet time before a reading (lights Beta).
+             # Named for the i1Pro 2: at Start the instrument is not known yet,
+             # and an i1Pro 3 has none (its session line says "not_used").
+             i1pro2_lights_quiet_s=lights_quiet_s,
              high_res=bool(params.high_res), resume=bool(params.resume),
              run_kind=run_kind(ti1), page_pause=bool(getattr(params, "page_pause", False)),
              replay=getattr(params, "engine_replay", None) is not None,
