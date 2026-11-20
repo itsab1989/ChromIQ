@@ -368,9 +368,10 @@ def test_the_helpers_due_poll_over_run_as_written(tmp_path):
     c.write_text(_BLUE_HARNESS.replace("@@SOURCE@@", src), encoding="utf-8")
     exe = tmp_path / "blue_harness"
     r = subprocess.run([cc, "-std=c99", "-Wall", "-o", str(exe), str(c)], capture_output=True,
-                       text=True, timeout=120)
+                       text=True, encoding="utf-8", errors="replace", timeout=120)
     assert r.returncode == 0, r.stderr
-    out = subprocess.run([str(exe)], capture_output=True, text=True, timeout=60).stdout.split("\n")
+    out = subprocess.run([str(exe)], capture_output=True, text=True, encoding="utf-8",
+                         timeout=60).stdout.split("\n")
     assert out[:-1] == [
         "STEP due", "SEND",
         "STEP early", '{"event":"lights","second_pass":"skipped","why":"early"}',

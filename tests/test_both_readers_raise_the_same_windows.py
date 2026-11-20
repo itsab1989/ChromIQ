@@ -49,15 +49,17 @@ HELPER_C = (Path(__file__).resolve().parent.parent
 # partial files, cq_cond_resume) inserted above these lines (a move, nothing else changed)
 # +54 on 2026-11-20 (4.3.52, helper 20a): the lights' quiet-time flag and the dual scan's blue
 # (cq_lights_second_pass_*) inserted above these lines (a move, nothing else changed)
+# +11 on 2026-11-20 (4.3.52 fix round, helper 20b): the hold after the blue and the session
+# line's blue_quiet_ms (cq_lights_held2, cq_lights_for_session) above these lines (a move)
 HELPER_LINES = {
     "capability":  ("Need reflection spot, strip, xy or chart reading capability,",
-                    "Need reflection spot, strip, xy or chart reading capability", 3558),
+                    "Need reflection spot, strip, xy or chart reading capability", 3569),
     "ccmx_set":    ("Setting Colorimeter Correction Matrix failed with error :'x' (0x1)",
-                    "Setting Colorimeter Correction Matrix failed with error", 3617),
+                    "Setting Colorimeter Correction Matrix failed with error", 3628),
     "ccmx_read":   ("Reading CCMX/CCSS File 'x.ccmx' failed with error 2:'nope'",
-                    "Reading CCMX/CCSS File", 3639),
+                    "Reading CCMX/CCSS File", 3650),
     "mode_set":    ("Setting instrument mode failed with error :'unsupported' (0x2)",
-                    "Setting instrument mode failed with error", 3985),
+                    "Setting instrument mode failed with error", 3996),
     "init_fail":   ("Initialising instrument failed with message 'Communications failure'",
                     None, None),
     "coms_fail":   ("Establishing communications with instrument failed with message 'timeout'",
