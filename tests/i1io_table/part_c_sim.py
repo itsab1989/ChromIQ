@@ -97,6 +97,26 @@ REAL_REST_RELAX = (-1, 13)
 REAL_RELAX_AFTER_S = 1.0
 
 
+#: 4.3.51: the homings of a held arm on the home line that the recordings time (the simulator's
+#: own copy): (1102, 48) 0.352 s (the owner's start-up capture, 19 Nov 2026, at rest), (1098, 810)
+#: 1.312 s (the same capture, the arm pushed out by hand), (1102, 1202) 1.599 s (12 Nov, R1
+#: 85.848). Between them the simulated homing takes the straight-line time.
+HOME_LINE_RECORDED_S = ((48.0, 0.352), (810.0, 1.312), (1202.0, 1.599))
+
+
+def _homing_s(start, free) -> float:
+    """How long the simulated i1 takes from *start* (the simulator's own model)."""
+    on_line = 1090 <= start[0] <= 1115
+    if on_line and start[1] <= 250:
+        return 0.17 + abs(start[1]) * 0.0038
+    if on_line and start[1] <= HOME_LINE_RECORDED_S[-1][0] and not free:
+        pts = HOME_LINE_RECORDED_S
+        for (y0, t0), (y1, t1) in zip(pts, pts[1:]):
+            if start[1] <= y1:
+                return t0 + (t1 - t0) * (start[1] - y0) / (y1 - y0)
+    return 2.0 + max(abs(start[0] - 1102), abs(start[1])) * 0.0006 + (0.4 if free else 0.0)
+
+
 def _draw(rng, counts):
     n = rng.randrange(sum(c for _v, c in counts))
     for v, c in counts:
@@ -258,8 +278,10 @@ class CSimTable(SimTable):
                 inst = self.instrument
                 if inst is None or not inst.ready_now():
                     raise SimViolation("a scan move while the instrument was not ready to fire")
+        # 4.3.51: the home line up to Y 815: the owner's start-up capture of 19 Nov 2026, where
+        # i1Profiler homed a started table's arm from (1098, 810) (the simulator's own copy)
         if line == I1 and not (_inside(C_SWEEP_BOX, here) or (1090 <= here[0] <= 1115
-                                                              and -1 <= here[1] <= 250)):
+                                                              and -1 <= here[1] <= 815)):
             raise SimViolation(f"i1 from {here}")
         if line == M1L and (self.free_arm or not (_near(here, (2507, 1498))
                                                   or _near(here, (1000, 1500)))):
@@ -427,15 +449,16 @@ class CSimTable(SimTable):
             self.pos = [1102.0, float(self._rng.choice(REAL_REST_AFTER_HOMING_Y)
                                       if self.real_table else self._rng.choice((0, 1, 2)))]
             self.free_arm = False
+            took = _homing_s(start, free)
+            if kind == "fast_motion":
+                took = 0.02
             if self.real_table:
-                # the arm at rest, not driven, relaxes a little later (REAL_REST_RELAX)
-                took = (0.17 + abs(start[1]) * 0.0038 if 1090 <= start[0] <= 1115
-                        and start[1] <= 250 else 2.0)
-                self._relax_due = self.clock + took + REAL_RELAX_AFTER_S
-            if 1090 <= start[0] <= 1115 and start[1] <= 250:
-                return 0, "", 0.17 + abs(start[1]) * 0.0038
-            return 0, "", 2.0 + max(abs(start[0] - 1102), abs(start[1])) * 0.0006 + \
-                (0.4 if free else 0.0)
+                # the arm at rest, not driven, relaxes a little later (REAL_REST_RELAX; the same
+                # estimate of the homing's time as before 4.3.51)
+                est = (0.17 + abs(start[1]) * 0.0038 if 1090 <= start[0] <= 1115
+                       and start[1] <= 250 else 2.0)
+                self._relax_due = self.clock + est + REAL_RELAX_AFTER_S
+            return 0, "", took
         return self._execute(line, cid, a, fault)
 
     # -- the instrument's lamp starts a waiting scan move

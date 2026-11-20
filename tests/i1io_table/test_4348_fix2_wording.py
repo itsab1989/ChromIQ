@@ -18,7 +18,9 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def test_the_homing_after_a_stop_does_not_say_exactly():
     body = M.M_I1IO_DRIVE_HOME_AFTER_STOP.body
-    assert "sends it home the way i1Profiler ends a job" in body
+    # 4.3.51: the START rule's homing from the home line is i1Profiler's homing after its
+    # opening, not its end of a job; the sentence names the table's own homing for both
+    assert "sends it home with the table's own homing, as i1Profiler does from there" in body
     assert "exactly" not in body
 
 

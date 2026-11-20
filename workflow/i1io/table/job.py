@@ -510,6 +510,54 @@ HELD_HOMING_AREA = geo.Area(geo.AREA_RAW.xmin, geo.AREA_RAW.xmax, geo.AREA_RAW.y
 #: refuses anyway (``homing_starts_here``), so the box begins at X -1434.
 HOME_AFTER_STOP_AREA = geo.Area(geo.AREA_RAW.xmin, 1179, 1202, 2560)
 
+#: 4.3.51 (the owner's start-up capture of 19 Nov 2026, 22:26, PRIVATE analysis in the work
+#: folder): i1Profiler opened a STARTED table (a0 130000, f4 00 four times) whose arm had been
+#: pushed 76 mm out by hand along its home line, read (1098, 810), and sent its homing at once:
+#: s0 p0 i1 s0, i1 1.312 s, status 0, no f0 (the aiming mode was off). With the arm at rest it
+#: sent the same four lines (0.352 s). The home line here: X as START_GUARD (1090..1115, about
+#: 1.2 mm either side of 1102), Y up to the recorded 810 plus the arrival tolerance. Nothing
+#: further out on the line (816..1201) and nothing beside it: the one place near rest where
+#: i1Profiler did NOT home directly, (1058, 317) on 12 Nov, lies 44 units off the line.
+START_HOME_LINE = tbl.Box(tbl.START_GUARD.xmin, tbl.START_GUARD.xmax, tbl.START_GUARD.ymin,
+                          810 + geo.ARRIVAL_SLACK)
+#: the time window of that homing when it starts beyond START_GUARD (Y 251..815): recorded 1.312 s
+#: from Y 810; from Y 251 about 0.6 s (0.352 s from Y 48 and the same rate). 0.3 s is half the
+#: shortest prediction, 3.5 s about 2.7 times the recorded time (home_far: 1.7 times)
+HOME_LINE_WINDOW = (0.3, 3.5)
+HOME_LINE_TIMEOUT_S = 12.0
+
+
+def start_homing_form(p) -> "str | None":
+    """4.3.51, THE START RULE: which homing ChromIQ may offer for a HELD arm found away from its
+    resting place at a START (nothing moved yet in the sitting, the aiming mode off), from the
+    place only: "start" (i1Profiler's own homing after its opening, s0 p0 i1 s0, then one
+    reading at rest) on the home line up to Y 815 (START_GUARD included); "end_of_job" (4.3.48's
+    homing after a stop, s0 p0 i1 s0 f0 f4 f4 p0, unchanged) inside HOME_AFTER_STOP_AREA; None
+    at rest (nothing to bring home) and everywhere else (no recording shows a homing starting
+    there)."""
+    if p is None or tbl.REST_GUARD.contains(p):
+        return None
+    if tbl.START_GUARD.contains(p) or START_HOME_LINE.contains(p):
+        return "start"
+    if HOME_AFTER_STOP_AREA.contains(p) and homing_starts_here(p, False):
+        return "end_of_job"
+    return None
+
+
+def start_place(p) -> "str | None":
+    """The START rule's name for a place (the session log, the app log, the tests)."""
+    if p is None:
+        return None
+    if tbl.REST_GUARD.contains(p):
+        return "at_rest"
+    if tbl.START_GUARD.contains(p):
+        return "near_rest_on_the_home_line"
+    if START_HOME_LINE.contains(p):
+        return "out_along_the_home_line"
+    if start_homing_form(p) == "end_of_job":
+        return "where_recorded_homings_start"
+    return "elsewhere"
+
 
 #: 4.3.48: the stops after which ChromIQ may offer its own homing (``home_after_stop``): the
 #: first reason the table module closed the sending with must start with one of these. Each is
@@ -831,6 +879,11 @@ class TableJob:
         self.opened_with_arm_out = False
         #: 4.3.48: the homing after a stop was tried in this session (it is offered once)
         self._home_after_stop_tried = False
+        #: 4.3.51: what the START found and offered (the session log and the app log read it):
+        #: table state, the first reading, the START rule's place, what was offered and why,
+        #: the person's answers; start_case_seq counts its changes
+        self.start_case: "dict | None" = None
+        self.start_case_seq = 0
         self._row_seq = 0
         self.tile_readings: "list[dict]" = []
         self._tile_spectrum: "list[float] | None" = None
@@ -935,6 +988,11 @@ class TableJob:
             return WayBack.OPEN_I1PROFILER_ONCE
         if tbl.REST_GUARD.contains(p) and d.arm_free is False:
             return WayBack.OPEN_I1PROFILER_ONCE if d.mode_on else WayBack.NONE
+        if self._nothing_moved_yet():
+            # 4.3.51: at a START the arm found out is offered the START rule's homing or
+            # nothing, whichever step read it first (never the usual homing's wider region)
+            return (WayBack.HOME_AFTER_STOP if self._home_after_stop_why() is None
+                    else WayBack.OPEN_I1PROFILER_ONCE)
         if d.closed_reason is None and self.phase == "open" and self._ready("home") is None:
             return WayBack.HOME_OFFERED
         if self._home_after_stop_why() is None:
@@ -959,11 +1017,79 @@ class TableJob:
             # person's stop inside a row, a declined move, a failed row, any named refusal) may
             # have the person's hands on the bed; the next moving step waits for a hands-off GO
             self._go_page = None
-        return StepResult(step, kind, reason, self.state(), self.way_back(), detail=detail)
+        wb = self.way_back()
+        self._note_start_case(wb)
+        return StepResult(step, kind, reason, self.state(), wb, detail=detail)
 
     def _needs(self, step: str, ask: Ask) -> StepResult:
-        return StepResult(step, Kind.NEEDS, "", self.state(), self.way_back(), ask.kind,
+        wb = self.way_back()
+        self._note_start_case(wb)
+        return StepResult(step, Kind.NEEDS, "", self.state(), wb, ask.kind,
                           CHOICES[ask.kind], dict(ask.detail))
+
+    # ---- 4.3.51: the START case, for the logs ------------------------------------------------
+    def _nothing_moved_yet(self) -> bool:
+        """At a START: the table open, nothing that moves sent in this sitting (no start-up, no
+        homing, no move)."""
+        d = self._table
+        return d is not None and d.motions_sent == 0 and not d.start_up_sent
+
+    def _note_start_case(self, wb: str) -> None:
+        """Records once what the START found (table state, the first reading, the START rule's
+        place) and what it offered; logs it in the session log. Never raises, sends nothing."""
+        try:
+            d = self._table
+            if d is None or self.start_case is not None:
+                return
+            case = {"answer_at_start": "arm out" if self.opened_with_arm_out else "yes"}
+            if d.state == "cold" and not d.start_up_sent:
+                case.update(table="cold", place=None, where=None,
+                            offered="nothing" if self.opened_with_arm_out else "start_up",
+                            why="arm_out_start_up_not_recorded" if self.opened_with_arm_out
+                            else None)
+            elif d.state in (None, "cold") or d.closed_reason is not None and d.last_read is None:
+                if d.closed_reason is None:
+                    return              # the opening is still running
+                reason = d.closed_reason
+                m = _A0_RE.search(reason)
+                table = (f"a0_{m.group(1)}" if m else "aiming_mode_on" if reason.startswith(
+                    "f4 answered 01") else "not_known")
+                case.update(table=table, place=None, where=None, offered="nothing",
+                            why=doubt_id(reason))
+            elif d.last_read is not None and self._nothing_moved_yet():
+                p = d.last_read
+                where = start_place(p)
+                why = self._home_after_stop_why() if where != "at_rest" else None
+                offered = ("nothing_needed" if where == "at_rest" else
+                           "homing_at_start" if wb == WayBack.HOME_AFTER_STOP else "nothing")
+                case.update(table="warm", place=[int(p[0]), int(p[1])], where=where,
+                            offered=offered, form=start_homing_form(p) if offered ==
+                            "homing_at_start" else None,
+                            why=None if offered != "nothing" else why)
+            elif not self._nothing_moved_yet() and d.state != "cold" and \
+                    getattr(d, "first_read", None) is not None and \
+                    getattr(d, "first_read_after_motions", 1) == 0:
+                # the first reading was the alignment's own homing check (-N): it read the arm
+                # where that homing may start, and the homing ran
+                p = d.first_read
+                case.update(table="warm", place=[int(p[0]), int(p[1])], where=start_place(p),
+                            offered="nothing_needed", by="the_alignments_own_homing")
+            else:
+                return
+            self.start_case = case
+            self.start_case_seq += 1
+            self.diag.log("DATA", "the start: " + json.dumps(case))
+        except Exception:      # noqa: BLE001 - a record, never the job's concern
+            pass
+
+    def _start_case_answer(self, ans: str) -> None:
+        try:
+            if self.start_case is not None:
+                self.start_case = dict(self.start_case, answer_to_offer=ans)
+                self.start_case_seq += 1
+                self.diag.log("DATA", "the start: " + json.dumps(self.start_case))
+        except Exception:      # noqa: BLE001
+            pass
 
     # ---- driving a step ----------------------------------------------------------------------
     def _begin(self, step: str, gen) -> StepResult:
@@ -1084,7 +1210,8 @@ class TableJob:
         res = self._drive_inner(value, step, throw)
         t = self._table
         if (self.ask_after_each_step and self._gen is None and t is not None
-                and t.closed_reason is None and step not in ("home", None) and (
+                and t.closed_reason is None and step not in ("home", "home_after_stop", None)
+                and (
                     t.motions_sent > moves_before or (step == "start_up" and t.start_up_sent))):
             # tester 0.6.0 asked after every stage that moved (and after the start-up)
             self.report_due = step
@@ -1482,6 +1609,10 @@ class TableJob:
                 return "front_zone_confirmed_already"
         if step == "home" and not (self.out_known() or d.arm_free is True):
             return "arm_not_out_on_the_table"
+        if step == "home" and self._nothing_moved_yet():
+            # 4.3.51, the START rule: an arm found out at a START is offered only the START's
+            # own homing (home_after_stop), never the usual homing's wider region
+            return self._home_after_stop_why() or "arm_not_at_rest"
         if step == "home" and d.arm_free is False and d.position_now is not None and \
                 not homing_starts_here(d.position_now, d.arm_free) and \
                 self._way_back(d.position_now) is None:
@@ -1604,9 +1735,9 @@ class TableJob:
         if d.state == "cold" or (d.start_up_sent and not d.cold_done):
             return "table_not_started"
         reason = d.closed_reason
-        if reason is None:
-            return "not_stopped"
-        if not reason.startswith(HOME_AFTER_STOP_REASONS):
+        # 4.3.51, the START rule: also with the sending still open (the arm found out by the
+        # white's rest check or the "arm out" reading); a stop counts only at a place check
+        if reason is not None and not reason.startswith(HOME_AFTER_STOP_REASONS):
             return "stop_not_at_a_place_check"
         if d.motions_sent != 0 or d.start_up_sent:
             # safety review 448, MUST-1: the place check "right before the homing" also takes
@@ -1627,7 +1758,9 @@ class TableJob:
             return "no_fresh_position_reading"
         if d.arm_free is not False or d.mode_on:
             return "arm_not_held"
-        if not homing_starts_here(p, d.arm_free) or not HOME_AFTER_STOP_AREA.contains(p):
+        if tbl.REST_GUARD.contains(p):
+            return "at_rest"
+        if start_homing_form(p) is None:
             return "homing_not_from_here"
         return None
 
@@ -1648,8 +1781,13 @@ class TableJob:
         return self._begin(step, self._home_after_stop())
 
     def _home_after_stop(self):
+        d = self._table
+        found = d.position_now
+        form = start_homing_form(found)
         ans = yield Ask(Confirm.GO, {"step": "home_after_stop", "page": self.page + 1,
-                                     "after_a_stop": True})
+                                     "after_a_stop": d.closed_reason is not None,
+                                     "at_start": True, "form": form})
+        self._start_case_answer(ans)
         if ans != "yes":
             raise PersonStopped("person_chose_back")
         why = self._home_after_stop_why()       # nothing may have changed while it was asked
@@ -1657,20 +1795,63 @@ class TableJob:
             raise StageFailed(why)
         if self._other_program is not None and self._other_program() is True:
             raise StageFailed("i1profiler_running")
-        d = self._table
         self._home_after_stop_tried = True
         stopped_because = d.closed_reason
-        d.reopen_for_homing(stopped_because, cp.HOME)
+        if stopped_because is not None:
+            # 4.3.48: the sending was stopped at the place check; opened again for exactly
+            # the homing's own lines, and stopped again after it, however it ends
+            d.reopen_for_homing(stopped_because, cp.HOME)
         self.runs[(self.page, "f")] = self.runs.get((self.page, "f"), 0) + 1
         self._start_block("home_after_stop")
         try:
-            self._end_of_job(where=HOME_AFTER_STOP_AREA.contains)
+            if form == "start":
+                self._home_from_the_home_line(found)
+            else:
+                self._end_of_job(where=HOME_AFTER_STOP_AREA.contains)
         finally:
             d.current_step = None
-            d.close_for_sending("the homing after the stop has ended; nothing more is sent in "
-                                "this measurement")
-        d.log("DATA", f"brought home after the stop ({stopped_because})")
-        return {"read": d.position_now, "after": stopped_because}
+            if stopped_because is not None:
+                d.close_for_sending("the homing after the stop has ended; nothing more is sent "
+                                    "in this measurement")
+        d.log("DATA", f"brought home at the start from {found} ({form}; "
+                      f"{stopped_because or 'the sending was open'})")
+        return {"read": d.position_now, "after": stopped_because, "form": form,
+                "goes_on": stopped_because is None}
+
+    def _home_from_the_home_line(self, found) -> None:
+        """4.3.51: i1Profiler's own homing right after its opening, s0 p0 i1 s0 (the owner's
+        start-up capture of 19 Nov 2026: from (1098, 810), i1 1.312 s, status 0; no f0, the
+        aiming mode was off), then one reading that must find the arm at rest. The reading right
+        before i1 must lie where the arm was found (within 5 units), on the home line."""
+        d = self._table
+        self._step(f"{self._block['stage']}_start", *cp.HOME)
+        d.exchange("status")
+        got = d.position()
+        if found is not None and not _near(got, found):
+            raise d._doubt(f"before the homing the held arm reads {got}, not {found}, where "
+                           f"ChromIQ found it")
+        if start_homing_form(got) != "start":
+            raise StageFailed("homing_not_from_here", read=got)
+        if tbl.START_GUARD.contains(got):
+            window, timeout = tbl.TIME_WINDOW["home_far"], tbl.MOVE_TIMEOUT["home_far"]
+        else:
+            window, timeout = HOME_LINE_WINDOW, HOME_LINE_TIMEOUT_S
+        try:
+            d.c_exchange(tbl.WIRE["home"], 0, window=window, timeout=timeout,
+                         late_is_doubt=False)
+        except tbl.MoveOutside as exc:
+            p = d.position()
+            if not tbl.REST_GUARD.contains(p):
+                d.outside_at = p
+                raise d._doubt(f"after a homing that took {exc.took:.2f} s (outside "
+                               f"{exc.lo:.2f}-{exc.hi:.2f} s) the arm reads {p}") from None
+            raise StageFailed("homing_late_but_at_rest", took=round(exc.took, 3)) from None
+        d.exchange("status")
+        p = d.position()
+        if not tbl.REST_GUARD.contains(p):
+            d.outside_at = p
+            raise d._doubt(f"after the homing the arm reads {p}, not at its resting place")
+        d.state = "homed"
 
     def _note(self, note, step: "str | None", about: str) -> "dict | None":
         """The person's own words, into the log (a NOTE line) and into the result block of the

@@ -224,9 +224,13 @@ def test_start_with_the_arm_out_reads_it_and_offers_the_usual_homing(tmp_path):
     r = p.drive(job.where_is_the_arm())
     assert (r.kind, r.reason) == (J.Kind.REFUSED, "arm_not_at_rest")
     assert sim.received[11:] == [";p025"]               # one reading, nothing moved
-    assert r.way_back == J.WayBack.HOME_OFFERED and r.state.sending_closed is False
+    # 4.3.51, ONE START rule: the START's own homing (way back HOME_AFTER_STOP), whichever step
+    # read the arm; the usual homing is not offered at a START
+    assert r.way_back == J.WayBack.HOME_AFTER_STOP and r.state.sending_closed is False
+    n = len(sim.received)
+    assert job.home().kind == J.Kind.REFUSED and len(sim.received) == n
     asked = len(p.asked)
-    r = p.drive(job.home())
+    r = p.drive(job.home_after_stop())
     assert r.ok, (r.kind, r.reason)
     assert [a[1] for a in p.asked[asked:]] == [J.Confirm.GO]
     assert sim.received[12:] == HOMING

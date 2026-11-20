@@ -356,7 +356,19 @@ def test_a_far_away_arm_is_not_homed_at_the_start():
     assert p.drive(job.open()).ok
     r = p.drive(job.park())
     assert r.kind == J.Kind.STOPPED and r.reason == "arm_not_where_expected"
-    # read out on the table, nothing moved: this job sends nothing more, i1Profiler once
+    # read out on the table, nothing moved by the park itself. 4.3.51 (the owner's start-up
+    # capture of 19 Nov 2026): Y 400 lies on the home line inside the recorded Y 815, so the
+    # START rule's own homing is OFFERED (its own GO, test_4351_one_start_rule.py)
+    assert moves(sim.received) == [] and r.way_back == J.WayBack.HOME_AFTER_STOP
+
+
+def test_an_arm_further_out_on_the_home_line_is_not_homed_at_the_start():
+    """4.3.51: beyond the recorded Y 815 (and short of Y 1202) nothing is offered."""
+    job, sim, _t = H.make_job(pos=[1102.0, 1000.0])
+    p = H.Person(job, sim)
+    assert p.drive(job.open()).ok
+    r = p.drive(job.park())
+    assert r.kind == J.Kind.STOPPED and r.reason == "arm_not_where_expected"
     assert moves(sim.received) == [] and r.way_back == J.WayBack.OPEN_I1PROFILER_ONCE
 
 

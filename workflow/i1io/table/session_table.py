@@ -1519,6 +1519,11 @@ class Table:
         #: 4.3.47 MUST-1: the line number this reading came with (the job compares it with the
         #: last question and the last release of the arm before a computed move)
         self.read_at_line = self.lines_sent
+        if getattr(self, "first_read", None) is None:
+            #: 4.3.51: the first place this sitting read, and how many movements came before
+            #: it (the job's record of the START; nothing depends on it)
+            self.first_read = p
+            self.first_read_after_motions = self.motions_sent
         self.last_read = p
         self.last_read_t = self.t.now()
         self.arrival_unknown = False

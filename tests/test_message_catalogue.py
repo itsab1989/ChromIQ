@@ -173,6 +173,9 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-I1IO-DRIVE-STOPPED-AT-OPENING",
     # 4.3.50 integration (table re-review, MUST-A): the held arm moved before the ending's homing
     "M-I1IO-DRIVE-HOME-ARM-MOVED",
+    # 2026-11-20, 4.3.51: ONE rule at a START for an arm away from its resting place
+    "M-I1IO-DRIVE-ARM-OUT-AT-START", "M-I1IO-DRIVE-ARM-OUT-NOT-HERE",
+    "M-I1IO-DRIVE-HOME-AT-START-DONE",
     "M-I1IO-DRIVE-DUAL-CONTINUE-FILL",
     "M-I1IO-DRIVE-DUAL-FILL-OFFER",
     "M-I1IO-NOT-YET-SIDE-FILE",

@@ -58,8 +58,9 @@ def test_start_with_the_arm_out_brings_it_home_and_goes_on(qtbot, monkeypatch, t
     assert p.page() == "refused", win.pages_shown[-3:]
     text = win._text.text()
     assert tr("The arm is not at its resting place.") in text
-    assert "ChromIQ can bring it home now" in text and "i1Profiler 3.8.6 or older" in text
-    assert p.labels() == ["Bring the arm home"]          # no "Carry on" here
+    # 4.3.51: the START rule's page (M-I1IO-DRIVE-ARM-OUT-AT-START), End measurement beside it
+    assert "ChromIQ can bring it home from there" in text and "i1Profiler 3.8.6 or older" in text
+    assert p.labels() == ["End measurement", "Bring the arm home"]   # no "Carry on" here
     assert sim.sim.received[11:] == [";p025"]            # read once, nothing moved
     p.press("Bring the arm home")
     assert p.page() == "go"
@@ -67,7 +68,10 @@ def test_start_with_the_arm_out_brings_it_home_and_goes_on(qtbot, monkeypatch, t
     p.press("Go")
     p.idle()
     assert sim.sim.received[n:n + 8] == HOMING
-    # the measurement then goes on with the calibration, as at a usual start
+    # 4.3.51: the page says so, and Go on goes on with the calibration, as at a usual start
+    assert p.page() == "home_after_stop_done" and p.labels() == ["Go on"]
+    p.press("Go on")
+    p.idle()
     assert p.page() not in ("refused", "stopped"), win.pages_shown[-3:]
     assert sim.sim.violations == []
 
@@ -77,8 +81,9 @@ def test_start_with_the_arm_out_at_the_alignment_start_keeps_the_old_advice(
     win, sim, p = _ready_page(qtbot, monkeypatch, tmp_path, settings, ALIGN_START)
     _press_arm_out(win, p)
     text = win._text.text()
-    assert "ChromIQ cannot bring it home from there" in text
-    assert "open i1Profiler 3.8.6 or older once" in text and "power switch" in text
+    # 4.3.51: M-I1IO-DRIVE-ARM-OUT-NOT-HERE (why, and what works)
+    assert "ChromIQ does not bring it home from there" in text
+    assert "Open i1Profiler 3.8.6 or older" in text and "power switch" in text
     assert "Bring the arm home" not in p.labels()
     assert p.labels() == ["End measurement"]
     assert not [ln for ln in sim.sim.received if ln[1:3] in ("m0", "m1", "m2", "i1", "i0")]

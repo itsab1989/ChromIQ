@@ -1304,3 +1304,52 @@ safeguard, or names its question, describes 4.3.49 and is superseded by this sec
   arm home from a place no recording shows: they say it "should", and to stay beside the table
   with the power switch in reach. The consent page is asked again (version 3), because what has
   and has not run on a real table changed.
+
+### ⏳ Awaiting confirmation: ONE rule at a START for an arm that is not at its resting place (2026-11-20, for 4.3.51)
+
+**Confirmed by:** *nobody yet.*
+
+Until 4.3.50 the same arm at the same place was offered ChromIQ's homing or not depending on which
+answer the person gave at the ready question, and on whether a white was due first: after "The
+arm is out", or before the white, a held arm anywhere in the measuring area (and the front zone)
+was offered the usual homing of the end of a job; with the white skipped (`-N`) the alignment's
+own place check stopped, and only 4.3.48's envelope of recorded homings was offered. The owner's
+start-up capture of 19 Nov 2026 shows what i1Profiler does at its opening of a started table
+(a0 130000, f4 00 four times): with the arm at rest, and with the arm pushed 76 mm out by hand
+along its home line, to (1098, 810), it sent the same four lines at once, `s0 p0 i1 s0` (the
+homing 1.312 s, status 0), and no `f0`.
+
+* **The rule.** On a started table whose aiming mode is off, the first reading of the arm at a
+  START (whichever step takes it: the white's rest check, the reading after "The arm is out", or
+  the alignment's own homing check) decides, while nothing has moved in the sitting, the arm is
+  held, the reading is the last line the table answered, nothing is pending, the link works,
+  nobody chose "Send nothing more" and the i1Pro 2 is in its arm:
+  * at its resting place: the measurement goes on as before;
+  * on the home line (X 1090..1115) up to Y 815 (the recorded 810 plus the 5-unit arrival
+    tolerance): offered (M-I1IO-DRIVE-ARM-OUT-AT-START); after the hands-off GO ChromIQ sends
+    `s0 p0 i1 s0` (the reading right before the homing must lie within 5 units of the one the
+    offer was made on) and then one `p0` that must read the resting place; no `f0`. The homing's
+    time window is 0-2.0 s within 25 mm of rest (as before) and 0.3-3.5 s beyond;
+  * inside 4.3.48's envelope of recorded homings of a held arm (X -1434..1179, Y 1202..2560):
+    offered on the same page; the lines are 4.3.48's, unchanged (`s0 p0 i1 s0 f0 f4 f4 p0`);
+  * anywhere else (the home line beyond Y 815 and short of 1202, beside it in the back strip, the
+    rest of the measuring area, the front zone, the alignment start): nothing is sent, and the
+    page says why and what works (M-I1IO-DRIVE-ARM-OUT-NOT-HERE).
+  After the homing the measurement goes on (M-I1IO-DRIVE-HOME-AT-START-DONE, "Go on"), except
+  after the alignment's own place check had stopped the sending (`-N`): then nothing more is sent
+  in this measurement, as in 4.3.48. The usual homing (`home`) is never offered at a START.
+  Offered once per sitting. Declining it (Back, End measurement) sends nothing.
+* **Unchanged.** A table that answers its first state question with anything but 111800 or 130000,
+  or whose aiming mode is still on (f4 01), is refused before the arm is read. A table that was
+  just switched on is not started after "The arm is out"; after "yes" its recorded start-up runs
+  (ChromIQ cannot read the arm before it: no recording shows a reading sent to such a table
+  first). With the white skipped, an arm within 25 mm of rest on the home line is homed by the
+  alignment's own homing after the sheet question, as before.
+* **Narrower than 4.3.50 at a START.** The usual homing's wider region (the measuring area and the
+  front zone) is no longer offered at a START: no recording shows a homing starting there when a
+  measurement starts, and the one opening of a table whose arm stood off its line near rest
+  ((1058, 317), 12 Nov) did not home directly.
+* **The logs.** The session log and the app log ("table start case") record the table's state,
+  where the arm was read, the rule's name for the place, what was offered and why not, the answer
+  at the ready question and the answer to the offer.
+* **Not tried on a real table.** Driven on screen against the simulated table only.

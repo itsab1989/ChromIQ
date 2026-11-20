@@ -13252,8 +13252,8 @@ M_I1IO_DRIVE_HOME_AFTER_STOP = _m(
     "is moving or waiting.\n\n"
     "ChromIQ can bring the arm home for you, once: press Bring the arm home. ChromIQ "
     "first asks you to take your hands away from the table and the arm. Then it reads "
-    "where the arm is, sends it home the way i1Profiler ends a job, and checks "
-    "that the table reports it at its resting place. Nothing else is sent, and afterwards "
+    "where the arm is, sends it home with the table's own homing, as i1Profiler does from "
+    "there, and checks that the table reports it at its resting place. Nothing else is sent, and afterwards "
     "ChromIQ sends nothing more in this measurement.\n\n"
     "If you would rather not, leave the arm where it is: {instead} open i1Profiler 3.8.6 or "
     "older once and let it find the table; it should bring the arm home. You can always "
@@ -13267,6 +13267,47 @@ M_I1IO_DRIVE_HOME_AFTER_STOP_DONE = _m(
     "ChromIQ has brought the arm home, and the table reports it at its resting place. "
     "ChromIQ sends nothing more in this measurement, and you do not need i1Profiler "
     "for the arm this time.\n\n{next}",
+    approved=False)
+
+# --- PROPOSED (4.3.51): the arm found away from its resting place at a START -------------------
+#: {where}: "X .., Y .. (in tenths of a millimetre)". ONE rule since 4.3.51: what is offered depends
+#: on the table's state and the arm's measured place, not on the answer to the ready question.
+M_I1IO_DRIVE_ARM_OUT_AT_START = _m(
+    "M-I1IO-DRIVE-ARM-OUT-AT-START",
+    "The arm is not at its resting place",
+    "The arm is not at its resting place. The table reports it at {where}.\n\n"
+    "ChromIQ can bring it home from there. A recording shows the table's own homing starting "
+    "cleanly from this part of the table when a measurement starts. Press Bring the arm home. "
+    "ChromIQ first asks you to take your hands away from the table and the arm. Then it reads "
+    "where the arm is once more, sends it home with the table's own homing and checks that it "
+    "arrived. After that, the measurement goes on as usual.\n\n"
+    "If you would rather not, press End measurement. Then open i1Profiler 3.8.6 or older once "
+    "and let it find the table: it should bring the arm home.",
+    approved=False)
+
+M_I1IO_DRIVE_ARM_OUT_NOT_HERE = _m(
+    "M-I1IO-DRIVE-ARM-OUT-NOT-HERE",
+    "The arm is not at its resting place",
+    "The arm is not at its resting place. The table reports it at {where}.\n\n"
+    "ChromIQ does not bring it home from there, so it moves nothing. No recording shows the "
+    "table's homing starting from that place when a measurement starts. At a start, ChromIQ "
+    "brings the arm home itself only from two parts of the table: the line straight in front of "
+    "the resting place, up to about 8 cm out, and the part of the table where i1Profiler's "
+    "recorded homings started, about 12 to 25 cm in front of the resting place.\n\n"
+    "What you can do:\n"
+    "1. Press End measurement.\n"
+    "2. Stay beside the table, with its power switch in reach. Open i1Profiler 3.8.6 or older "
+    "once and let it find the table. It should bring the arm home, but no recording shows it "
+    "doing that from where the arm is now.\n"
+    "3. When the arm is at its resting place, quit i1Profiler. Then press START MEASUREMENT "
+    "again.",
+    approved=False)
+
+M_I1IO_DRIVE_HOME_AT_START_DONE = _m(
+    "M-I1IO-DRIVE-HOME-AT-START-DONE",
+    "The arm is at its resting place",
+    "ChromIQ has brought the arm home, and the table reports it at its resting place. The "
+    "measurement goes on as usual: press Go on.",
     approved=False)
 
 M_I1IO_DRIVE_END = _m(
@@ -13741,6 +13782,8 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_LINK_LOST_SWITCH_OFF, M_I1IO_DRIVE_COLD,
     M_I1IO_DRIVE_COLD_WAY_OUT, M_I1IO_DRIVE_FREE_LEFT, M_I1IO_DRIVE_STOPPED_END_FIRST,
     M_I1IO_DRIVE_HOME_AFTER_STOP, M_I1IO_DRIVE_HOME_AFTER_STOP_DONE,
+    M_I1IO_DRIVE_ARM_OUT_AT_START, M_I1IO_DRIVE_ARM_OUT_NOT_HERE,
+    M_I1IO_DRIVE_HOME_AT_START_DONE,
     M_I1IO_DRIVE_END,
     M_I1IO_DRIVE_HOME_AT_END, M_I1IO_DRIVE_HOME_NOT_NOW, M_I1IO_DRIVE_LEFT_OUT,
     M_I1IO_DRIVE_STILL_AIMING, M_I1IO_DRIVE_STOPPED_AT_OPENING, M_I1IO_DRIVE_HOME_ARM_MOVED,

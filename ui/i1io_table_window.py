@@ -3770,6 +3770,22 @@ class TableMeasureWindow(QFrame):
                             "this Save. If this measurement ends without a Save, ChromIQ puts "
                             "it back where it was.")
         buttons = self._way_on_buttons() if after is None else None
+        j = self.job
+        if res.reason == "arm_not_at_rest" and after is None and j is not None and \
+                j._nothing_moved_yet() and j.ended is None:
+            # 4.3.51, ONE START rule: the arm found away from its resting place at a START,
+            # by whichever step read it first: the table's state and the arm's place decide
+            # what is offered (job.start_homing_form), never the answer to the ready question
+            if j.way_back() == "home_after_stop":
+                msg = M.M_I1IO_DRIVE_ARM_OUT_AT_START
+                buttons = [(tr("End measurement"), self._on_end_pressed),
+                           (tr("Bring the arm home"), self._on_home_after_stop)]
+            else:
+                msg = M.M_I1IO_DRIVE_ARM_OUT_NOT_HERE
+                buttons = [(tr("End measurement"), self._on_end_pressed)]
+            title, body = msg.render(where=self._where())
+            self._show("refused", title, body, buttons)
+            return
         if res.reason == "arm_not_at_rest" and after is None:
             # 4.3.48: the arm found out at a START (or before a calibration): plainly what
             # ChromIQ can do, and the old way as the fallback; "Carry on" would only read it again
@@ -4188,6 +4204,12 @@ class TableMeasureWindow(QFrame):
     def _show_home_after_stop_done(self) -> None:
         from workflow import measurement_messages as M
         j = self.job
+        if j is not None and j.ended is None and j.phase == "open" and \
+                not j.state().sending_closed:
+            # 4.3.51: the START rule's homing ran with the sending open: the measurement goes on
+            title, body = M.M_I1IO_DRIVE_HOME_AT_START_DONE.render()
+            self._show("home_after_stop_done", title, body, [(tr("Go on"), self._next)])
+            return
         if j is not None and j.ended is not None:
             nxt, buttons = tr("Press Close to finish."), [(tr("Close"), self._close_job)]
         else:
@@ -4229,6 +4251,12 @@ class TableMeasureWindow(QFrame):
     def _on_end_pressed(self) -> None:
         if self.job is None or self._busy:
             return
+        case = getattr(self.job, "start_case", None)
+        if case and case.get("offered") == "homing_at_start" and not case.get(
+                "answer_to_offer") and self.job._nothing_moved_yet():
+            # 4.3.51: the START case's answer, for the logs (nothing is sent for it)
+            self.job._start_case_answer("end measurement")
+            _applog_table_start_case(self)
         if self.job.ended is not None:
             self._close_job()
             return
@@ -4745,6 +4773,7 @@ def _applog_table_result(win, res) -> None:
                   **extra, **_table_state_pairs(getattr(res, "state", None)),
                   **flat(detail, depth=2))
         line("table result", _level=level, **{k: v for k, v in kv.items() if v is not None})
+        _applog_table_start_case(win)
         if (res.kind == "ok" and job is not None and not getattr(job, "ask_after_each_step", True)
                 and res.step not in ("home", "note", "report", "options", "close", "end",
                                      "save", "discard", "problem", None)):
@@ -4756,6 +4785,31 @@ def _applog_table_result(win, res) -> None:
                       ending=(getattr(res, "detail", None) or {}).get("ending"),
                       **_table_state_pairs(getattr(res, "state", None)))
             line("table session end", **{k: v for k, v in kv.items() if v is not None})
+    except Exception:      # noqa: BLE001
+        pass
+
+
+def _applog_table_start_case(win) -> None:
+    """4.3.51: the START case the job decided (table state, where the arm was read, what was
+    offered and why, the answer at the ready question, the answer to the offer), one line each
+    time the job's record changes. After the result was handled, on the GUI thread; never
+    raises, sends nothing."""
+    try:
+        from core.app_log import line
+        job = win.job
+        case = getattr(job, "start_case", None) if job is not None else None
+        seq = getattr(job, "start_case_seq", 0) if job is not None else 0
+        if not case or seq == getattr(win, "_applog_start_seq", 0):
+            return
+        win._applog_start_seq = seq
+        place = case.get("place")
+        kv = dict(table=case.get("table"),
+                  place=f"{place[0]},{place[1]}" if place else None,
+                  where=case.get("where"), offered=case.get("offered"),
+                  form=case.get("form"), why=case.get("why"), by=case.get("by"),
+                  answer_at_start=case.get("answer_at_start"),
+                  answer_to_offer=case.get("answer_to_offer"))
+        line("table start case", **{k: v for k, v in kv.items() if v is not None})
     except Exception:      # noqa: BLE001
         pass
 
