@@ -151,7 +151,9 @@ def test_the_send_function_knows_exactly_seven_programs():
     assert used == {"cq_lights_seq_white", "cq_lights_seq_off_slow",
                     "cq_lights_seq_off_now", "cq_lights_seq_pulse",
                     "cq_lights_seq_green2", "cq_lights_seq_red2",
-                    "cq_lights_seq_blue"}
+                    "cq_lights_seq_blue",
+                    # 4.3.53: the same blue on the right (only its side bytes differ)
+                    "cq_lights_seq_blue_right"}
     # one request (0xD6) and its bulk write on 0x03, nothing else
     assert block.count("usb_control(") == 1 and block.count("usb_write(") == 1
     assert "0xD6" in block and "0x03" in block

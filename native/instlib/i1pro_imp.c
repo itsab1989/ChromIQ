@@ -12509,6 +12509,9 @@ i1pro2_indLEDoff(void *pp) {
 #define CQ_LIGHTS_GREEN2   5
 #define CQ_LIGHTS_RED2     6
 #define CQ_LIGHTS_BLUE     7	/* 4.3.52: dual scan, "the second pass is due" */
+#define CQ_LIGHTS_BLUE_RIGHT 8	/* 4.3.53: the same on the right, after a right-to-left pass 1 */
+/* 4.3.53: either blue (the side follows pass 1's direction) */
+#define CQ_LIGHTS_IS_BLUE(w) ((w) == CQ_LIGHTS_BLUE || (w) == CQ_LIGHTS_BLUE_RIGHT)
 
 #define CQ_LIGHTS_TOUT       0.25	/* s per transfer; a good one takes a few ms */
 #define CQ_LIGHTS_TOUT_TRIGGER 0.25	/* between the button and the trigger: short */
@@ -12655,6 +12658,8 @@ static void cq_lights_send(i1pro *p, int which, double tout) {
 		seq = cq_lights_seq_red2;     size = (int)sizeof(cq_lights_seq_red2);
 	} else if (which == CQ_LIGHTS_BLUE) {
 		seq = cq_lights_seq_blue;     size = (int)sizeof(cq_lights_seq_blue);
+	} else if (which == CQ_LIGHTS_BLUE_RIGHT) {
+		seq = cq_lights_seq_blue_right; size = (int)sizeof(cq_lights_seq_blue_right);
 	} else {
 		which = CQ_LIGHTS_OFF_NOW;
 		seq = cq_lights_seq_off_now;  size = (int)sizeof(cq_lights_seq_off_now);
@@ -12718,7 +12723,7 @@ static int cq_lights_ready_prog(i1proimp *m) {
  * next strip's first pass waits the user's quiet time, not the blue's). */
 #include "cq_dual.h"
 static int cq_lights_last_was_blue(i1proimp *m) {
-	return m->cq_lights == CQ_LIGHTS_LIT && m->cq_lights_prog == CQ_LIGHTS_BLUE
+	return m->cq_lights == CQ_LIGHTS_LIT && CQ_LIGHTS_IS_BLUE(m->cq_lights_prog)
 	    && i1pro2_cq_dual_phase(m->p) == CQ_DUAL_PHASE_UV;
 }
 
@@ -12889,17 +12894,40 @@ void i1pro2_cq_lights_result(void *pp, int good) {
  *  - the blue is not already showing: once per return pass, as recorded.
  * Returns 1 when the blue went out. */
 #include "cq_dual.h"
+/* 4.3.53 (the tester Nelson, 20 Nov 2026: after a right-to-left first pass the
+ * left blue still blinked): the light shows the side the second pass moves
+ * TOWARDS, as i1Profiler's left blue after its (always left-to-right, 23 of 23
+ * recorded) first passes. The direction of pass 1 is the ruler stream's net
+ * count when the blue is due (the stream started with pass 1 and is still
+ * open): recorded left-to-right first passes count NEGATIVE (-324 to -524 in
+ * 23 of 23, 2026-11-20_nelson_4352/ruler_per_pass_out.txt). Beyond
+ * CQ_BLUE_SIDE_STEPS either way the side is known; anything else (a short
+ * count, no stream) is "not known" and gets the recorded left blue. */
+#define CQ_BLUE_SIDE_STEPS 100
+static long cq_ruler_net_now(i1proimp *m, int *known);	/* below, by the ruler */
+/* the last blue's ruler count and whether it was known (the helper's log) */
+long i1pro2_cq_lights_blue_net = 0;
+int i1pro2_cq_lights_blue_known = 0;
 int i1pro2_cq_lights_second_pass(void *pp) {
 	i1pro *p = (i1pro *)pp;
 	i1proimp *m = cq_lights_m(p);
+	long net;
+	int known = 0, which = CQ_LIGHTS_BLUE;
 	if (m == NULL || !m->cq_lights_signals || !m->cq_lights_reading
 	 || cq_lights_trigger_pending(m) || cq_lights_pressed(m)
 	 || i1pro2_cq_dual_phase(pp) != CQ_DUAL_PHASE_UV
 	 || !i1pro2_cq_dual_uv_pass_ready(pp)
-	 || (m->cq_lights == CQ_LIGHTS_LIT && m->cq_lights_prog == CQ_LIGHTS_BLUE))
+	 || (m->cq_lights == CQ_LIGHTS_LIT && CQ_LIGHTS_IS_BLUE(m->cq_lights_prog)))
 		return 0;
-	cq_lights_send(p, CQ_LIGHTS_BLUE, CQ_LIGHTS_TOUT);
-	return m->cq_lights == CQ_LIGHTS_LIT && m->cq_lights_prog == CQ_LIGHTS_BLUE;
+	net = cq_ruler_net_now(m, &known);
+	if (known && net > CQ_BLUE_SIDE_STEPS)
+		which = CQ_LIGHTS_BLUE_RIGHT;	/* pass 1 ran right to left: come back right */
+	else if (!(known && net < -CQ_BLUE_SIDE_STEPS))
+		known = 0;			/* too short to tell: the recorded left blue */
+	i1pro2_cq_lights_blue_net = net;
+	i1pro2_cq_lights_blue_known = known;
+	cq_lights_send(p, which, CQ_LIGHTS_TOUT);
+	return m->cq_lights == CQ_LIGHTS_LIT && m->cq_lights_prog == which;
 }
 
 /* The two choices, from the helper, before ..._begin (0/0 = 4.3.33). */
@@ -13039,6 +13067,35 @@ typedef struct {
 	volatile long nbytes, extra;
 } cq_ruler_ctx;
 
+/* 4.3.53: the net quadrature count of the ruler stream that runs now (the
+ * blue's side). The same count as the helper's cq_margin_motion: the low two
+ * bits of each sample, order 0, 1, 3, 2; one step forward +1, back -1, a jump
+ * of two skipped. *known = 0 without a stream or its buffer. Reads only what
+ * the reader thread has published (an acquire load of the count). */
+static long cq_ruler_net_now(i1proimp *m, int *known) {
+	static const int order[4] = { 0, 1, 3, 2 };
+	cq_ruler_ctx *c = m != NULL ? (cq_ruler_ctx *)m->cq_ruler_ctx : NULL;
+	long n, i, cum = 0;
+	int prev;
+	*known = 0;
+	if (c == NULL || c->buf == NULL)
+		return 0;
+	n = __atomic_load_n(&c->nbytes, __ATOMIC_ACQUIRE);
+	if (n <= 0)
+		return 0;
+	prev = c->buf[0] & 3;
+	for (i = 1; i < n; i++) {
+		int b = c->buf[i] & 3, d;
+		if (b == prev)
+			continue;
+		d = (order[b] - order[prev] + 4) % 4;
+		cum += d == 1 ? 1 : d == 3 ? -1 : 0;
+		prev = b;
+	}
+	*known = 1;
+	return cum;
+}
+
 static cq_ruler_rec *cq_ruler_r(i1proimp *m) {
 	return (cq_ruler_rec *)m->cq_ruler_rec;
 }
@@ -13166,8 +13223,8 @@ static int cq_ruler_thread(void *pp) {
 		se = c->icom->usb_read(c->icom, &c->cancel, 0x85, dst,
 		                       CQ_RULER_CHUNK, &rw, CQ_RULER_READ_TOUT);
 		if (rw > 0) {
-			if (dst != scratch)
-				c->nbytes += rw;
+			if (dst != scratch)	/* 4.3.53: published after the bytes (the blue reads them) */
+				__atomic_add_fetch(&c->nbytes, (long)rw, __ATOMIC_RELEASE);
 			else
 				c->extra += rw;		/* drained, not kept */
 		}

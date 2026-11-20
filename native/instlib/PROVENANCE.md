@@ -210,13 +210,27 @@ stops if one no longer applies.
   only). No EEPROM write, no indicator-light program of i1Profiler's, no
   0xD7. Not tested on a real instrument by the project.
 
+- **`i1pro_imp.c`, `i1pro_imp.h`, `cq_i1pro2_programs.h`: the blue's side**
+  (ChromIQ 4.3.53, the tester's report of 20 Nov 2026 on a real i1Pro 2).
+  The dual scan's blue "second pass due" now blinks on the side the second
+  pass moves towards: the recorded left blue (mask 0x20) after a first pass
+  from left to right, as recorded, and after a first pass from right to left
+  the same 702-byte program with its 116 mask bytes 0x20 changed to 0x04
+  (ArgyllCMS's documented "Blue Right"; 0x04 alone has not been seen in a
+  recording of i1Profiler: all 23 recorded first passes ran left to right).
+  The direction is the net count of the ruler stream that runs from pass 1
+  (the reader thread publishes its byte count with a release add, the blue
+  reads it with an acquire load); not known (fewer than 100 steps, no
+  stream): the left blue. Same request, same moment, same waits. No EEPROM
+  write. Not tested on a real instrument by the project.
+
 | patched file | upstream sha256 (first 16) | shipped sha256 (first 16) |
 |---|---|---|
 | `rspl1.c` | `5c7b0509abf97f44…` | `d53a8d37b30b6e14…` |
 | `conv.c` | `c6b04014888cb6f4…` | `1b88327ee6e6d9df…` |
 | `i1pro.c` | `ac75b6e3f47537b8…` | `833d46b27134f93e…` |
-| `i1pro_imp.h` | `c37813e4b43a9bff…` | `fd3ee6abc9cb0114…` |
-| `i1pro_imp.c` | `8b8516cdd89e21de…` | `3e2d7fd769eb1e0c…` |
+| `i1pro_imp.h` | `c37813e4b43a9bff…` | `c15edbcbe43cd264…` |
+| `i1pro_imp.c` | `8b8516cdd89e21de…` | `06e1ccf9e09b9b95…` |
 | `i1pro3.c` | `9c4b1ac9f8af507a…` | `347235c6d10f9677…` |
 | `i1pro3_imp.h` | `190cceb46fe8bc33…` | `ef7245eb1a92eb5e…` |
 | `i1pro3_imp.c` | `42c684afa3bbb15d…` | `d78f1a6596886bf6…` |

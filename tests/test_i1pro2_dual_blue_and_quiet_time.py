@@ -299,7 +299,8 @@ def test_the_blues_own_quiet_time_is_the_vendors_shortest_gap():
             < q.index(": CQ_LIGHTS_BLUE_QUIET_MS;")     # 4.3.53: unless the helper passed one
             < q.index("i1pro2_cq_lights_quiet_ms >= 0"))
     blue = _body(t, "static int cq_lights_last_was_blue(i1proimp *m) {")
-    assert "m->cq_lights == CQ_LIGHTS_LIT && m->cq_lights_prog == CQ_LIGHTS_BLUE" in blue
+    # 4.3.53: either side's blue (the side follows pass 1's direction)
+    assert "m->cq_lights == CQ_LIGHTS_LIT && CQ_LIGHTS_IS_BLUE(m->cq_lights_prog)" in blue
     # 4.3.52 release (re-review S2): only while that strip's return pass is the one waiting
     assert "i1pro2_cq_dual_phase(m->p) == CQ_DUAL_PHASE_UV" in blue
     # and the simulator holds the same number
@@ -309,13 +310,13 @@ def test_the_blues_own_quiet_time_is_the_vendors_shortest_gap():
 
 def test_the_blue_entry_checks_everything_before_it_sends():
     b = _body(_driver(), "int i1pro2_cq_lights_second_pass(void *pp) {")
-    send = b.index("cq_lights_send(p, CQ_LIGHTS_BLUE")
+    send = b.index("cq_lights_send(p, which")
     guard = b[:send]
     for need in ("cq_lights_m(p)", "!m->cq_lights_signals", "!m->cq_lights_reading",
                  "cq_lights_trigger_pending(m)", "cq_lights_pressed(m)",
                  "i1pro2_cq_dual_phase(pp) != CQ_DUAL_PHASE_UV",
                  "!i1pro2_cq_dual_uv_pass_ready(pp)",
-                 "m->cq_lights_prog == CQ_LIGHTS_BLUE"):
+                 "CQ_LIGHTS_IS_BLUE(m->cq_lights_prog)"):
         assert need in guard, need
     assert b.count("cq_lights_send(") == 1
 
@@ -449,7 +450,7 @@ def test_the_helper_names_the_new_abilities_and_build():
     assert '\\"lights_quiet\\",\\"i1pro2_dual_blue\\"' in h
     ext = (HELPER_SRC / "chromiq_ext.h").read_text(encoding="utf-8")
     # 4.3.53: 2026-11-20d = 20c + the waits as values (tests/test_instrument_waits.py)
-    assert '"chromiq-chartread 2026-11-20d ' in ext
+    assert '"chromiq-chartread 2026-11-20e ' in ext
     assert "+conditions-kept+lights-quiet+i1pro2-dual-blue+blue-own-quiet+blue-quiet-return-only" in ext
 
 
@@ -469,7 +470,7 @@ def test_the_bundled_helper_is_this_build():
     if not exe.is_file():
         pytest.skip("no bundled helper in this checkout")
     data = exe.read_bytes()
-    assert b"chromiq-chartread 2026-11-20d " in data
+    assert b"chromiq-chartread 2026-11-20e " in data
     assert b'"why\\":\\"early\\"' in data or b'"why":"early"' in data
     assert b"blue_quiet_ms" in data and b'"after":"blue"' in data
 
@@ -840,7 +841,10 @@ def test_the_help_names_the_recorded_numbers_and_the_risk():
     lights = i1pro2_lights_help()
     assert "second pass of this strip is due" in lights
     assert "changes how ChromIQ talks to the instrument" in lights
-    assert "left light pulses blue" in lights and "either direction" in lights
+    # 4.3.53 (the tester Nelson): the side the second pass moves towards
+    assert "The blue light blinks on the side the second pass should move towards" in lights
+    assert "on the right after a first pass from right to left" in lights
+    assert "either direction" in lights
     assert ("After the blue light, ChromIQ waits the time set below in “Dual scan, wait "
             "after the blue light” (default 0.37 s) before the second pass can start.") in lights
     assert "keep the instrument still until it beeps, then slide" in lights
@@ -941,3 +945,88 @@ def test_4353_the_lamp_wait_passed_changes_only_that_wait(traces, scn, low, high
     gaps = _timed(t, scn, "LAMPGAP")
     assert len(gaps) == 2
     assert low <= gaps[0] < high, gaps          # the dark reading waited this long
+
+
+# ---------------------------------------------------------------------------
+# 4.3.53: the blue's side follows the direction of pass 1 (the tester Nelson's report of
+# 20 Nov 2026 on a real i1Pro 2: after a right-to-left first pass the LEFT blue still blinked)
+# ---------------------------------------------------------------------------
+BLUE_RIGHT_SHA256 = "c8c07dfd2d166bab2a7d31efcfaf126da186f668c5973de763f0d4a2169a225d"
+
+
+def _blue_data(t: str, scn: str) -> bytes:
+    wire = _wire(t, scn)
+    (i,) = _blue_writes(wire)
+    assert wire[i - 1] == "CTL d6 000002be"
+    return bytes.fromhex(wire[i].split()[3])
+
+
+def _net(t: str, scn: str) -> "tuple[int, int]":
+    ln = [x for x in t.splitlines() if x.startswith(f"{scn} NET ")]
+    assert ln, scn
+    a, b = ln[-1].split()[2:4]
+    return int(a), int(b)
+
+
+def test_after_a_left_to_right_pass_1_the_blue_is_todays_left_blue(traces):
+    t = traces["i1pro2_dual_lights_test"]
+    assert hashlib.sha256(_blue_data(t, "blue_side_ltr")).hexdigest() == BLUE_SHA256
+    net, known = _net(t, "blue_side_ltr")
+    assert known == 1 and net < -100            # the recorded sign of a left-to-right pass
+    # and every request of that life is the 4.3.52 life's (the default is left to right)
+    assert _wire(t, "blue_side_ltr") == _wire(t, "blue_sent")
+
+
+def test_after_a_right_to_left_pass_1_the_blue_is_on_the_right_with_only_the_side_changed(traces):
+    t = traces["i1pro2_dual_lights_test"]
+    right = _blue_data(t, "blue_side_rtl")
+    left = _blue_data(t, "blue_side_ltr")
+    assert hashlib.sha256(right).hexdigest() == BLUE_RIGHT_SHA256 and len(right) == 702
+    diff = [i for i in range(702) if right[i] != left[i]]
+    assert len(diff) == 116 and all(left[i] == 0x20 and right[i] == 0x04 for i in diff)
+    assert right[:12] == left[:12]               # the same header, length and repeat
+    net, known = _net(t, "blue_side_rtl")
+    assert known == 1 and net > 100
+    # nothing else on the wire differs from the left-to-right life
+    w_r, w_l = _wire(t, "blue_side_rtl"), _wire(t, "blue_side_ltr")
+    assert len(w_r) == len(w_l)
+    assert [a for a, b in zip(w_r, w_l) if a != b] == [w_r[_blue_writes(w_r)[0]]]
+
+
+def test_when_pass_1s_direction_is_not_known_the_blue_stays_left(traces):
+    t = traces["i1pro2_dual_lights_test"]
+    assert hashlib.sha256(_blue_data(t, "blue_side_unknown")).hexdigest() == BLUE_SHA256
+    assert _net(t, "blue_side_unknown")[1] == 0
+
+
+@pytest.mark.parametrize("scn", ["blue_side_rtl_lights_off", "blue_side_rtl_single"])
+def test_without_the_lights_or_the_dual_scan_no_blue_on_either_side(traces, scn):
+    assert not _blue_writes(_wire(traces["i1pro2_dual_lights_test"], scn))
+
+
+def test_the_right_blue_is_the_left_with_argylls_blue_right_mask_in_the_programs_file():
+    src = (ROOT / "native" / "instlib" / "cq_i1pro2_programs.h").read_text(encoding="utf-8")
+    assert "static const unsigned char cq_lights_seq_blue_right[702] = {" in src
+    assert BLUE_RIGHT_SHA256 in src
+    d = _driver()
+    assert "#define CQ_LIGHTS_BLUE_RIGHT 8" in d and "#define CQ_BLUE_SIDE_STEPS 100" in d
+    b = _body(d, "int i1pro2_cq_lights_second_pass(void *pp) {")
+    assert "known && net > CQ_BLUE_SIDE_STEPS" in b and "which = CQ_LIGHTS_BLUE_RIGHT" in b
+
+
+def test_the_helper_logs_the_blues_side_and_its_ruler_count():
+    h = _helper()
+    assert '"blue_right" };' in h
+    assert '\\"side\\":\\"%s\\"' in h and "ruler_net" in h and "direction_known" in h
+
+
+def test_the_right_blue_is_said_as_the_blue_and_its_side_goes_to_the_app_log(qapp, caplog):
+    """4.3.53: the helper's "blue_right" (after a right-to-left first pass) reads in the
+    Measure log as the blue does; the app log says the side and the ruler count."""
+    with caplog.at_level("INFO"):
+        out = _events(qapp, [{"event": "lights", "sent": "blue_right", "side": "right",
+                              "ruler_net": 412, "direction_known": True}])
+    assert out == ["[Engine] Instrument lights (beta): blue. The second pass of this strip is due."]
+    msg = [r.getMessage() for r in caplog.records if "second_pass_due" in r.getMessage()]
+    assert msg and "sent=blue_right" in msg[0] and "side=right" in msg[0] \
+        and "ruler_net=412" in msg[0]

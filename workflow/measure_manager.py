@@ -4079,11 +4079,18 @@ class MeasureManager(QObject):
             # (the i1Pro 3's own "instrument_green2"/"instrument_red2" of "as
             # in ChromIQ 4.3.33" too) only goes to the app log.
             log.info("instrument lights: sent %s", sent)
-            if sent == "blue":
+            if sent in ("blue", "blue_right"):
                 # 4.3.52: i1Profiler's blue between the two passes of a dual
-                # scan (the left LED pulsing), sent after pass 1's data
+                # scan (the left LED pulsing), sent after pass 1's data.
+                # 4.3.53 (helper 2026-11-20e): on the side the second pass moves
+                # towards: "blue_right" after a right-to-left first pass; the
+                # app log says the side and the ruler count it was decided from
                 from core.app_log import line as _applog
-                _applog("lights", sent="blue", meaning="second_pass_due",
+                _applog("lights", sent=sent, meaning="second_pass_due",
+                        side=ev.get("side", "right" if sent == "blue_right"
+                                    else "left"),
+                        ruler_net=ev.get("ruler_net"),
+                        direction_known=ev.get("direction_known"),
                         quiet_ms=self._lights_quiet_ms)
                 on_line(tr(
                     "[Engine] Instrument lights (beta): blue. The second pass "

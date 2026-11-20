@@ -1549,6 +1549,8 @@ extern int i1pro2_cq_lights_quiet_ms;	/* the user's quiet time, ms (4.3.52); -1 
 int i1pro2_cq_lights_second_pass(void *pp);	/* dual scan: the blue before the return pass (4.3.52); 1 = sent */
 extern const int i1pro2_cq_lights_quiet_default_ms;	/* CQ_LIGHTS_QUIET_MS (4.3.52) */
 extern const int i1pro2_cq_lights_blue_quiet_ms;	/* the BLUE's own quiet time (4.3.52) */
+extern long i1pro2_cq_lights_blue_net;		/* 4.3.53: the last blue's ruler net count */
+extern int i1pro2_cq_lights_blue_known;		/* 4.3.53: 1 = pass 1's direction was known */
 extern int i1pro2_cq_lights_held_after_blue;	/* the last hold counted from the BLUE (4.3.52) */
 extern int i1pro2_cq_lights_blue_quiet_set_ms;	/* the BLUE's quiet time from the helper, ms (4.3.53); -1 = CQ_LIGHTS_BLUE_QUIET_MS */
 extern int i1pro_cq_lamp_off_ms;	/* the lamp wait from the helper, ms (4.3.53); -1 = LAMP_OFF_TIME */

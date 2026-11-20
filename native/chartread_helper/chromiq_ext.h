@@ -79,6 +79,8 @@ extern int i1pro2_cq_lights_quiet_ms;	/* 4.3.52: the user's quiet time, ms; -1 =
 int i1pro2_cq_lights_second_pass(void *pp);	/* 4.3.52: the dual scan's blue; 1 = sent */
 extern const int i1pro2_cq_lights_quiet_default_ms;	/* 4.3.52: 2100, the driver's default */
 extern const int i1pro2_cq_lights_blue_quiet_ms;	/* 4.3.52: the blue's own quiet time */
+extern long i1pro2_cq_lights_blue_net;		/* 4.3.53: the last blue's ruler net count */
+extern int i1pro2_cq_lights_blue_known;		/* 4.3.53: pass 1's direction known */
 extern int i1pro2_cq_lights_held_after_blue;	/* 4.3.52: the last hold counted from the blue */
 extern int i1pro2_cq_lights_blue_quiet_set_ms;	/* 4.3.53: the blue's wait from --lights-blue-quiet-ms; -1 = 370 */
 extern int i1pro_cq_lamp_off_ms;	/* 4.3.53: ArgyllCMS's lamp wait from --lamp-off-ms; -1 = 1500 */
@@ -157,7 +159,7 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src);
  *
  * ⚠ BUMP THIS IN THE SAME COMMIT AS ANY CHANGE TO THE HELPER, and rebuild and
  * commit native/chromiq-chartread. The test tells you the expected value. */
-#define CQ_HELPER_BUILD "chromiq-chartread 2026-11-20d legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures+exit-guard+save-after-close+i1pro2-lights+i1pro3-lights+i1pro3-lights-choices+ruler-check+usb-step-detail+i1pro2-beta-paused+i1pro2-lights-quiet+resume-spectral-check+hold-interruptible+i1pro2-ruler-back+own-row-direction+turn-round+filter-event+i1pro3-conditions+conditions-commit-last+margin-tolerance+ruler-trigger-wait+margin-one-way+margin-accounted+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule+i1pro2-dual-device+i1pro2-dual-safety+i1io-table-dual+i1io-table-dual-fix2+i1io-table-dual-calreset+i1pro2-dual-gaps+conditions-kept+lights-quiet+i1pro2-dual-blue+blue-own-quiet+blue-quiet-return-only+instrument-waits"
+#define CQ_HELPER_BUILD "chromiq-chartread 2026-11-20e legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures+exit-guard+save-after-close+i1pro2-lights+i1pro3-lights+i1pro3-lights-choices+ruler-check+usb-step-detail+i1pro2-beta-paused+i1pro2-lights-quiet+resume-spectral-check+hold-interruptible+i1pro2-ruler-back+own-row-direction+turn-round+filter-event+i1pro3-conditions+conditions-commit-last+margin-tolerance+ruler-trigger-wait+margin-one-way+margin-accounted+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule+i1pro2-dual-device+i1pro2-dual-safety+i1io-table-dual+i1io-table-dual-fix2+i1io-table-dual-calreset+i1pro2-dual-gaps+conditions-kept+lights-quiet+i1pro2-dual-blue+blue-own-quiet+blue-quiet-return-only+instrument-waits+blue-side"
 const char *cq_helper_build_string(void);
 
 

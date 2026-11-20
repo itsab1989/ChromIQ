@@ -2590,8 +2590,9 @@ static int cq_lights_drv_owed_ms(void) {
 /* The i1Pro 2 driver's sequence numbers (i1pro_imp.c CQ_LIGHTS_*). */
 static const char *cq_lights_name2(int seq) {
 	static const char *names[] = { "?", "white", "off_slow", "off_now",
-	                               "pulse", "green2", "red2", "blue" };
-	return seq >= 1 && seq <= 7 ? names[seq] : "?";
+	                               "pulse", "green2", "red2", "blue",
+	                               "blue_right" };	/* 4.3.53 */
+	return seq >= 1 && seq <= 8 ? names[seq] : "?";
 }
 
 /* 4.3.52 (Preferences > Beta, under the lights; the owner, 2026-11-20): the
@@ -2688,8 +2689,14 @@ static void cq_lights_held2(int ms) {
 /* A sequence the i1Pro 2's driver sent: one line for ChromIQ's log. */
 static void cq_lights_sent2(int seq) {
 	cq_usbwatch_light(cq_lights_name2(seq));	/* 4.3.36: for an error event */
-	cq_emit_raw("{\"event\":\"lights\",\"sent\":\"%s\"}",
-	            cq_lights_name2(seq));
+	if (seq == 7 || seq == 8)	/* 4.3.53: which side, and from what ruler count */
+		cq_emit_raw("{\"event\":\"lights\",\"sent\":\"%s\",\"side\":\"%s\","
+		            "\"ruler_net\":%ld,\"direction_known\":%s}", cq_lights_name2(seq),
+		            seq == 8 ? "right" : "left", i1pro2_cq_lights_blue_net,
+		            i1pro2_cq_lights_blue_known ? "true" : "false");
+	else
+		cq_emit_raw("{\"event\":\"lights\",\"sent\":\"%s\"}",
+		            cq_lights_name2(seq));
 }
 
 /* A pattern the i1Pro 3's driver sent (never its off). With result signals

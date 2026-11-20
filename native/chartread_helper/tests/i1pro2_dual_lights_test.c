@@ -60,6 +60,11 @@ static volatile int end_pending = 0;
 static volatile int stream_over = 0;
 static volatile long rsamples = 0;
 static volatile int rdir = 1;
+/* 4.3.53: the direction of every lamp pass's ruler stream: -1 left to right
+ * (the sign of all 23 recorded first passes; the default, so every life
+ * written before 4.3.53 is a left-to-right pass 1), +1 right to left, 0 no
+ * motion (direction not known). The UV pass runs the other way. */
+static volatile int lamp_dir = -1;
 static volatile long rpos = 0;
 static volatile unsigned int end_at = 0;
 static int scan_ms = 0;
@@ -102,11 +107,11 @@ static int fake_control(icoms *p, int requesttype, int request, int value,
 	if ((request & 0xff) == 0xD4 && rwsize >= 14) {
 		if (rwbuf[13] & 0x08) {
 			end_pending = 1;
-			rdir = -1;
+			rdir = -lamp_dir;
 			end_at = msec_time() + (unsigned int)scan_ms;
 		}
 		if (rwbuf[13] & 0x04)
-			rdir = 1;
+			rdir = lamp_dir;
 	}
 	return ICOM_OK;
 }
@@ -205,7 +210,7 @@ static i1pro *make(int caps2) {
 	i1pro_state *s;
 	int j;
 
-	stream_over = 0; end_pending = 0; rsamples = 0; rdir = 1; rpos = 0; cancelled = 0;
+	stream_over = 0; end_pending = 0; rsamples = 0; rdir = lamp_dir; rpos = 0; cancelled = 0;
 	last_wr_end = 0;
 	ic->usb_control = fake_control;
 	ic->usb_write = fake_write;
@@ -415,7 +420,7 @@ static void life(const char *name, int lights, int signals, int dual, int wait, 
 		/* the next strip: the blue is asked for in its lamp pass's wait,
 		 * where it never belongs */
 		step("next-lamp-pass");
-		stream_over = 0; end_pending = 0; rdir = 1;
+		stream_over = 0; end_pending = 0; rdir = lamp_dir;
 		pass_begin(p);
 		i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_LAMP);
 		if (wait == 1)
@@ -508,6 +513,23 @@ int main(int argc, char *argv[]) {
 	life("blue_wait_bad", 1, 1, 1, 1, -1);
 	i1pro2_cq_lights_blue_quiet_set_ms = 370;	/* passed at the default */
 	life("blue_wait_370", 1, 1, 1, 1, -1);
+#if !defined(CQ_V4351) && !defined(CQ_V4352)
+	/* 4.3.53: the blue's side follows pass 1's direction (the ruler stream) */
+	i1pro2_cq_lights_blue_quiet_set_ms = -1;
+	lamp_dir = -1;
+	life("blue_side_ltr", 1, 1, 1, 1, -2);		/* left to right: the recorded left blue */
+	printf("blue_side_ltr NET %ld %d\n", i1pro2_cq_lights_blue_net, i1pro2_cq_lights_blue_known);
+	lamp_dir = 1;
+	life("blue_side_rtl", 1, 1, 1, 1, -2);		/* right to left: the right blue */
+	printf("blue_side_rtl NET %ld %d\n", i1pro2_cq_lights_blue_net, i1pro2_cq_lights_blue_known);
+	lamp_dir = 0;
+	life("blue_side_unknown", 1, 1, 1, 1, -2);	/* no motion: not known, the left blue */
+	printf("blue_side_unknown NET %ld %d\n", i1pro2_cq_lights_blue_net, i1pro2_cq_lights_blue_known);
+	lamp_dir = 1;
+	life("blue_side_rtl_lights_off", 0, 0, 1, 1, -2);	/* the lights off: nothing */
+	life("blue_side_rtl_single", 1, 1, 0, 4, -2);	/* no dual scan: nothing */
+	lamp_dir = -1;
+#endif
 	i1pro2_cq_lights_blue_quiet_set_ms = -1;
 	/* ArgyllCMS's lamp wait */
 	lamp_life("lamp_300", 300);

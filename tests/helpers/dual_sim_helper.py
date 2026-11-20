@@ -341,13 +341,21 @@ def main(argv: "list[str]") -> int:
             if lights_sim:
                 token = object()
                 st["blue_due"], st["blue_at"] = token, None
+                # 4.3.53 (helper 2026-11-20e): the blue's side follows pass 1's
+                # direction: a pass 1 read right to left ("reversed") gets the
+                # right blue; the event says the side and the ruler's net count
+                rtl = bool(cmd.get("reversed"))
 
-                def _blue(tok=token):
+                def _blue(tok=token, rtl=rtl):
                     time.sleep(blue_after_ms / 1000.0)
                     if st["blue_due"] is tok and st["phase"] == "uv":
                         st["blue_due"] = None
                         st["blue_at"] = time.monotonic()
-                        emit({"event": "lights", "sent": "blue"})
+                        emit({"event": "lights",
+                              "sent": "blue_right" if rtl else "blue",
+                              "side": "right" if rtl else "left",
+                              "ruler_net": 400 if rtl else -400,
+                              "direction_known": True})
                 threading.Thread(target=_blue, daemon=True).start()
             continue
         # the second pass: the instrument's button, its beep, then the slide

@@ -37,7 +37,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 HELPER_NAME = "chromiq-chartread"
-HELPER_BUILD = "2026-11-20d"      # ChromIQ's helper: the table scan (2026-11-17a) + the button wait (17b)
+HELPER_BUILD = "2026-11-20e"      # ChromIQ's helper: the table scan (2026-11-17a) + the button wait (17b)
 #                                    + the i1Pro 2 dual-scan conditions (18a, nothing for the table)
 #                                    + the dual scan's resume rule (18b, nothing for the table)
 #                                    + the dual scan's device side (18c, nothing for the table yet)

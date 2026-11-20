@@ -2190,6 +2190,37 @@ I1PRO_IMP_H_WAITS_453 = [
 PATCHES["i1pro_imp.c"] = _fold_dual(PATCHES["i1pro_imp.c"], I1PRO_IMP_C_WAITS_453)
 PATCHES["i1pro_imp.h"] = _fold_dual(PATCHES["i1pro_imp.h"], I1PRO_IMP_H_WAITS_453)
 
+# ---- 4.3.53: the blue's side follows pass 1's direction (the tester Nelson, 2026-11-20;
+# decided by the coordinator for the owner): after a right-to-left first pass the right blue
+# (cq_lights_seq_blue_right, cq_i1pro2_programs.h), from the ruler stream's net count; the
+# reader publishes its count with a release add, the blue reads it with an acquire load ----
+I1PRO_IMP_C_BLUESIDE_453 = [
+    ('#define CQ_LIGHTS_BLUE     7\t/* 4.3.52: dual scan, "the second pass is due" */\n\n',
+     '#define CQ_LIGHTS_BLUE     7\t/* 4.3.52: dual scan, "the second pass is due" */\n#define CQ_LIGHTS_BLUE_RIGHT 8\t/* 4.3.53: the same on the right, after a right-to-left pass 1 */\n/* 4.3.53: either blue (the side follows pass 1\'s direction) */\n#define CQ_LIGHTS_IS_BLUE(w) ((w) == CQ_LIGHTS_BLUE || (w) == CQ_LIGHTS_BLUE_RIGHT)\n\n'),
+    ('\t\tseq = cq_lights_seq_blue;     size = (int)sizeof(cq_lights_seq_blue);\n\t} else {\n',
+     '\t\tseq = cq_lights_seq_blue;     size = (int)sizeof(cq_lights_seq_blue);\n\t} else if (which == CQ_LIGHTS_BLUE_RIGHT) {\n\t\tseq = cq_lights_seq_blue_right; size = (int)sizeof(cq_lights_seq_blue_right);\n\t} else {\n'),
+    ('static int cq_lights_last_was_blue(i1proimp *m) {\n\treturn m->cq_lights == CQ_LIGHTS_LIT && m->cq_lights_prog == CQ_LIGHTS_BLUE\n\t    && i1pro2_cq_dual_phase(m->p) == CQ_DUAL_PHASE_UV;\n',
+     'static int cq_lights_last_was_blue(i1proimp *m) {\n\treturn m->cq_lights == CQ_LIGHTS_LIT && CQ_LIGHTS_IS_BLUE(m->cq_lights_prog)\n\t    && i1pro2_cq_dual_phase(m->p) == CQ_DUAL_PHASE_UV;\n'),
+    ('#include "cq_dual.h"\nint i1pro2_cq_lights_second_pass(void *pp) {\n',
+     '#include "cq_dual.h"\n/* 4.3.53 (the tester Nelson, 20 Nov 2026: after a right-to-left first pass the\n * left blue still blinked): the light shows the side the second pass moves\n * TOWARDS, as i1Profiler\'s left blue after its (always left-to-right, 23 of 23\n * recorded) first passes. The direction of pass 1 is the ruler stream\'s net\n * count when the blue is due (the stream started with pass 1 and is still\n * open): recorded left-to-right first passes count NEGATIVE (-324 to -524 in\n * 23 of 23, 2026-11-20_nelson_4352/ruler_per_pass_out.txt). Beyond\n * CQ_BLUE_SIDE_STEPS either way the side is known; anything else (a short\n * count, no stream) is "not known" and gets the recorded left blue. */\n#define CQ_BLUE_SIDE_STEPS 100\nstatic long cq_ruler_net_now(i1proimp *m, int *known);\t/* below, by the ruler */\n/* the last blue\'s ruler count and whether it was known (the helper\'s log) */\nlong i1pro2_cq_lights_blue_net = 0;\nint i1pro2_cq_lights_blue_known = 0;\nint i1pro2_cq_lights_second_pass(void *pp) {\n'),
+    ('\ti1proimp *m = cq_lights_m(p);\n\tif (m == NULL || !m->cq_lights_signals || !m->cq_lights_reading\n',
+     '\ti1proimp *m = cq_lights_m(p);\n\tlong net;\n\tint known = 0, which = CQ_LIGHTS_BLUE;\n\tif (m == NULL || !m->cq_lights_signals || !m->cq_lights_reading\n'),
+    ('\t || !i1pro2_cq_dual_uv_pass_ready(pp)\n\t || (m->cq_lights == CQ_LIGHTS_LIT && m->cq_lights_prog == CQ_LIGHTS_BLUE))\n\t\treturn 0;\n',
+     '\t || !i1pro2_cq_dual_uv_pass_ready(pp)\n\t || (m->cq_lights == CQ_LIGHTS_LIT && CQ_LIGHTS_IS_BLUE(m->cq_lights_prog)))\n\t\treturn 0;\n'),
+    ('\t\treturn 0;\n\tcq_lights_send(p, CQ_LIGHTS_BLUE, CQ_LIGHTS_TOUT);\n\treturn m->cq_lights == CQ_LIGHTS_LIT && m->cq_lights_prog == CQ_LIGHTS_BLUE;\n}\n',
+     '\t\treturn 0;\n\tnet = cq_ruler_net_now(m, &known);\n\tif (known && net > CQ_BLUE_SIDE_STEPS)\n\t\twhich = CQ_LIGHTS_BLUE_RIGHT;\t/* pass 1 ran right to left: come back right */\n\telse if (!(known && net < -CQ_BLUE_SIDE_STEPS))\n\t\tknown = 0;\t\t\t/* too short to tell: the recorded left blue */\n\ti1pro2_cq_lights_blue_net = net;\n\ti1pro2_cq_lights_blue_known = known;\n\tcq_lights_send(p, which, CQ_LIGHTS_TOUT);\n\treturn m->cq_lights == CQ_LIGHTS_LIT && m->cq_lights_prog == which;\n}\n'),
+    ('\nstatic cq_ruler_rec *cq_ruler_r(i1proimp *m) {\n',
+     "\n/* 4.3.53: the net quadrature count of the ruler stream that runs now (the\n * blue's side). The same count as the helper's cq_margin_motion: the low two\n * bits of each sample, order 0, 1, 3, 2; one step forward +1, back -1, a jump\n * of two skipped. *known = 0 without a stream or its buffer. Reads only what\n * the reader thread has published (an acquire load of the count). */\nstatic long cq_ruler_net_now(i1proimp *m, int *known) {\n\tstatic const int order[4] = { 0, 1, 3, 2 };\n\tcq_ruler_ctx *c = m != NULL ? (cq_ruler_ctx *)m->cq_ruler_ctx : NULL;\n\tlong n, i, cum = 0;\n\tint prev;\n\t*known = 0;\n\tif (c == NULL || c->buf == NULL)\n\t\treturn 0;\n\tn = __atomic_load_n(&c->nbytes, __ATOMIC_ACQUIRE);\n\tif (n <= 0)\n\t\treturn 0;\n\tprev = c->buf[0] & 3;\n\tfor (i = 1; i < n; i++) {\n\t\tint b = c->buf[i] & 3, d;\n\t\tif (b == prev)\n\t\t\tcontinue;\n\t\td = (order[b] - order[prev] + 4) % 4;\n\t\tcum += d == 1 ? 1 : d == 3 ? -1 : 0;\n\t\tprev = b;\n\t}\n\t*known = 1;\n\treturn cum;\n}\n\nstatic cq_ruler_rec *cq_ruler_r(i1proimp *m) {\n"),
+    ('\t\tif (rw > 0) {\n\t\t\tif (dst != scratch)\n\t\t\t\tc->nbytes += rw;\n\t\t\telse\n',
+     '\t\tif (rw > 0) {\n\t\t\tif (dst != scratch)\t/* 4.3.53: published after the bytes (the blue reads them) */\n\t\t\t\t__atomic_add_fetch(&c->nbytes, (long)rw, __ATOMIC_RELEASE);\n\t\t\telse\n'),
+]
+I1PRO_IMP_H_BLUESIDE_453 = [
+    ("extern const int i1pro2_cq_lights_blue_quiet_ms;\t/* the BLUE's own quiet time (4.3.52) */\nextern int i1pro2_cq_lights_held_after_blue;\t/* the last hold counted from the BLUE (4.3.52) */\n",
+     "extern const int i1pro2_cq_lights_blue_quiet_ms;\t/* the BLUE's own quiet time (4.3.52) */\nextern long i1pro2_cq_lights_blue_net;\t\t/* 4.3.53: the last blue's ruler net count */\nextern int i1pro2_cq_lights_blue_known;\t\t/* 4.3.53: 1 = pass 1's direction was known */\nextern int i1pro2_cq_lights_held_after_blue;\t/* the last hold counted from the BLUE (4.3.52) */\n"),
+]
+PATCHES["i1pro_imp.c"] = _fold_dual(PATCHES["i1pro_imp.c"], I1PRO_IMP_C_BLUESIDE_453)
+PATCHES["i1pro_imp.h"] = _fold_dual(PATCHES["i1pro_imp.h"], I1PRO_IMP_H_BLUESIDE_453)
+
 # (source-relative, dest-name) — dest flat like the instlib zip
 FILES = []
 

@@ -10299,9 +10299,12 @@ def i1pro2_lights_help() -> str:
            "  •  no light when the measurement ends."),
         # 4.3.52 (the owner, 2026-11-20: "yes build the blue light")
         tr("**In an i1Pro 2 dual scan (beta), with “Ready light and result "
-           "signals”:** after the first pass of a strip, the left light pulses "
-           "blue, as with X-Rite's i1Profiler. It means: the second pass of "
-           "this strip is due. You can read the second pass in either "
+           "signals”:** after the first pass of a strip, a light pulses blue, "
+           "as with X-Rite's i1Profiler. It means: the second pass of this strip "
+           "is due. The blue light blinks on the side the second pass should "
+           "move towards: on the left after a first pass from left to right, on "
+           "the right after a first pass from right to left (when ChromIQ cannot "
+           "tell the direction, on the left). You can read the second pass in either "
            "direction, as before. If you press the button before the blue "
            "light comes, ChromIQ leaves it out for that strip. Green or red "
            "follows after the second pass. After the blue light, ChromIQ waits "
@@ -10311,7 +10314,10 @@ def i1pro2_lights_help() -> str:
            "instrument still until it beeps, then slide. **This changes how ChromIQ talks "
            "to the instrument:** for the blue light ChromIQ changed its copy "
            "of ArgyllCMS's instrument code a little. It sends only the blue "
-           "pattern i1Profiler was recorded sending, at the same moment. "
+           "pattern i1Profiler was recorded sending, at the same moment. On the "
+           "right side it is the same pattern on the right light: i1Profiler has "
+           "not been recorded doing that, because every recorded first pass ran "
+           "from left to right. "
            "With this option or the dual scan off, nothing changes.").format(
                blue=decimal_text(_lq.BLUE_QUIET_MS / 1000.0)),
         tr("**With this on and “Ready light and result signals”, an i1Pro 3 "

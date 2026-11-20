@@ -192,7 +192,9 @@ def test_the_driver_file_is_4_3_44s_plus_one_include():
     text = now.decode("utf-8", "surrogateescape")
     # 4.3.52: the lights' dual-scan blue and quiet time, applied last (their own list);
     # 4.3.53: the waits as values, applied after those (undone first)
-    for old, new in (list(reversed(_vendor_module()["I1PRO_IMP_C_WAITS_453"]))
+    # 4.3.53 (the tester Nelson): the blue's side, applied last (undone first)
+    for old, new in (list(reversed(_vendor_module()["I1PRO_IMP_C_BLUESIDE_453"]))
+                     + list(reversed(_vendor_module()["I1PRO_IMP_C_WAITS_453"]))
                      + list(reversed(_vendor_module()["I1PRO_IMP_C_LIGHTS_452"]))
                      + list(reversed(_vendor_module()["I1PRO_IMP_C_DUAL"]))):
         assert text.count(new) == 1, old[:60]
@@ -263,12 +265,15 @@ def test_the_build_string():
     # 2026-11-20c = 20b + the blue's floor only before that strip's return pass (4.3.52
     # release, re-review S2; nothing for the table);
     # 2026-11-20d = 20c + the waits as values passed by the app (4.3.53; for the table
-    # only ArgyllCMS's lamp wait, at its default 1500 ms unless changed), last
-    assert "chromiq-chartread 2026-11-20d " in h
+    # only ArgyllCMS's lamp wait, at its default 1500 ms unless changed);
+    # 2026-11-20e = 20d + the dual scan's blue on the side of the second pass (4.3.53, the
+    # tester Nelson; nothing for the table), last
+    assert "chromiq-chartread 2026-11-20e " in h
     assert ("+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule"
             "+i1pro2-dual-device+i1pro2-dual-safety+i1io-table-dual+i1io-table-dual-fix2"
             "+i1io-table-dual-calreset+i1pro2-dual-gaps+conditions-kept+lights-quiet"
-            "+i1pro2-dual-blue+blue-own-quiet+blue-quiet-return-only+instrument-waits\"") in h
+            "+i1pro2-dual-blue+blue-own-quiet+blue-quiet-return-only+instrument-waits"
+            "+blue-side\"") in h
 
 
 def _base_tree(tmp: Path) -> Path:
