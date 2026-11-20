@@ -4278,6 +4278,11 @@ class CompositeAppFilter(QObject):
         if t in self._FONT_DECIDED:
             from ui.font_features import keep_widget_typed
             keep_widget_typed(obj)
+        if t == QEvent.Type.Hide:
+            # A4 (4.3.50): a question window's answer, for the app log. Only
+            # the dialog filter cares; the other three never act on a Hide.
+            self._filters[0].eventFilter(obj, event)
+            return False
         if t not in self._INTERESTING:
             return False
         for f in self._filters:
@@ -4313,13 +4318,34 @@ class DialogFocusFilter(QObject):
             # that said nothing. Now it says which window was in the way.
             if obj.isModal():
                 _log_modal_window_shown(obj)
+            # A4 (4.3.50): the question and, at its Hide, the answer given
+            _question_window_shown(obj)
             defer_clear_button_focus(obj)
             # K44: the default button is FILLED, so it must stop following the
             # focus (QDialog autoDefault). Queued AFTER the clears above, so no
             # button holds a focus-borrowed default when it runs, and once more
             # after the last one for buttons a window adds as it settles.
             defer_freeze_default(obj)
+        elif (event.type() == QEvent.Type.Hide
+              and getattr(obj, "_cq_question_t0", None) is not None):
+            _question_window_hidden(obj)
         return False
+
+
+def _question_window_shown(w) -> None:
+    try:
+        from core.question_log import window_shown
+        window_shown(w)
+    except Exception:      # noqa: BLE001 - a log line is never worth a crash
+        pass
+
+
+def _question_window_hidden(w) -> None:
+    try:
+        from core.question_log import window_hidden
+        window_hidden(w)
+    except Exception:      # noqa: BLE001
+        pass
 
 
 def defer_freeze_default(win: QWidget) -> None:

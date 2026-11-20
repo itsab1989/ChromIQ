@@ -82,7 +82,14 @@ class Message:
                 and self.body_two is not None:
             body = self.body_two
         title = tr(head).format(**kw) if "{" in head else tr(head)
-        return title, tr(body).format(**kw)
+        text = tr(body).format(**kw)
+        try:
+            # A4 (4.3.50): the app log names a shown window by this id
+            from core.question_log import note_rendered
+            note_rendered(self.id, title, text)
+        except Exception:      # noqa: BLE001
+            pass
+        return title, text
 
 
 def _m(id_: str, title: str, body: str, *, approved: bool = True,

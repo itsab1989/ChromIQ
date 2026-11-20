@@ -22,7 +22,7 @@ import time
 log = logging.getLogger("chromiq.events")
 
 #: how long one value may be before it is cut
-MAX_VALUE = 160
+MAX_VALUE = 400
 #: how long one line may be before it is cut (a rotation must not be eaten by one line)
 MAX_LINE = 1200
 
