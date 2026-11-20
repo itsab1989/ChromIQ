@@ -123,3 +123,36 @@ def test_the_line_is_checked_again_right_before_the_homing(tmp_path):
     assert not res.ok and res.reason == "homing_not_from_here", (res.kind, res.reason)
     assert sim.received[n:] == [";s022", ";p025"]
 
+
+# ---- the review's other planted faults that stayed green (P12, P14) -----------------------------
+@pytest.mark.parametrize("answer", ["yes", "arm out"])
+def test_a_just_switched_on_table_is_refused_for_its_own_reason(tmp_path, answer):
+    """P12: "table_not_started" removed from the offer's reasons stayed green, because a cold
+    table never has a fresh reading (no p0 before i0), so the offer was refused anyway, for the
+    wrong reason. The reason is what the app log and the page say: it is pinned here."""
+    from tests.i1io_table.test_job_reading import job_for
+    job, sim, helper, run, p = job_for(tmp_path, {J.Confirm.READY_TO_OPEN: answer},
+                                       real_table=False, cold=True)
+    sim.pos = [1098.0, 810.0]
+    assert p.drive(job.open()).ok
+    n = len(sim.received)
+    res = job.home_after_stop()
+    assert res.kind == J.Kind.REFUSED and res.reason == "table_not_started"
+    assert sim.received[n:] == []
+
+
+def test_the_fallback_timer_stops_when_the_line_is_written(qapp, qtbot, monkeypatch):
+    """P14: the flush without its cancel stayed green, because the one timer is restarted at
+    every queue and finds nothing held when it fires. Harmless, but the code says the timer is
+    "stopped as soon as the line is written": pinned, so no timer runs for nothing."""
+    from workflow.measure_manager import MeasureManager
+
+    class _R:
+        is_running = False
+    m = MeasureManager(_R())
+    m.END_LOG_FALLBACK_MS = 5000
+    monkeypatch.setattr(m, "_log_measure_end", lambda p, c: None)
+    m._queue_measure_end_log("first", 0)
+    assert m._end_log_timer.isActive()
+    m.flush_measure_end_log()
+    assert not m._end_log_timer.isActive()
