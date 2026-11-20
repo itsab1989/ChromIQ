@@ -1381,3 +1381,108 @@ homing 1.312 s, status 0), and no `f0`.
   where the arm was read, the rule's name for the place, what was offered and why not, the answer
   at the ready question and the answer to the offer.
 * **Not tried on a real table.** Driven on screen against the simulated table only.
+
+### ⏳ Awaiting confirmation: the two sub-options of "X-Rite i1iO support" (2026-11-20, for 4.3.52)
+
+**Confirmed by:** *nobody yet.*
+
+The owner, 2026-11-19: *"another option then in beta tab in preferences that allows the user to
+skip the safe first measurement with the device where he has to confirm every step and directly
+make the measurement look like with all the other instrument ... also an option for the extra
+logging of the device. both should be suboptions of the i1io beta option, greyed when it is not
+active. and the first option should be in a state where the guided, step by step measurement is
+default on but if the user disables it after his first measurement it should be reflected there
+as well"*, and: *"no with this guidance of the measurement shall be automatic"* (design3 W7, W8).
+Built and tested against the simulated table (`tests/i1io_table/test_4352_guidance_off.py`);
+nothing of it has run on a real table.
+
+* **Preferences > Beta.** Under "X-Rite i1iO support (beta)", indented: "Guided, step by step
+  measurement" (on by default; help M-I1IO-GUIDED-HELP), "Keep the table's detailed log" (on by
+  default; help M-I1IO-LOG-HELP), and the calibration place, the stored white values and
+  patch-by-patch rows. They are always there, show their values, and are greyed only while the
+  Beta's box is unticked (nothing else greys them: options open, defaults safe).
+* **One key** for the guidance, `i1io_table_ask_after_each_step` (its name is older than the
+  switch): Preferences (read every time it opens), the first page's tick ("Guided, step by step
+  measurement (ChromIQ asks before each step)", shown on a guided START) and the done page's offer
+  after a clean guided measurement ("From now on, run my table measurements without guidance, like
+  the other instruments. You can switch the guidance on again in Preferences > Beta.") all read
+  and write it. The log switch is `i1io_table_extra_logging`, read once at START.
+* **With the guidance off** the job, never the window, decides (`workflow/i1io/table/job.py`:
+  `BY_SETTING`, `COUNTDOWN_INSTEAD`, `SKIPPED`); the window answers nothing itself (the
+  calibration place, which the window used to answer from Preferences, is handed to the job as its
+  place). Every question and page of a table measurement:
+
+  | page (message id) | guidance off |
+  |---|---|
+  | consent M-I1IO-DRIVE-CONSENT (+ M-I1IO-DRIVE-CONSENT-GUIDANCE) | stays, once per version (4) |
+  | earlier sessions, option conflicts (-EARLIER*, -OPTION-REFUSED, -WHITE-BASE-*, -OPTIONS-FIELDS) | stay |
+  | first page M-I1IO-DRIVE-PREPARE and its notes | not shown; its text and notes go to the Measure tab's log and the app log; the notice area says "Guided, step by step measurement is off. You can switch it on in Preferences > Beta." |
+  | marker M-I1IO-DRIVE-MARKER (-APP-ENDED) | stays |
+  | ready M-I1IO-DRIVE-READY | answered "yes" by the setting; the first reading of the arm and the START rule (4.3.51) still decide; their homing offer stays |
+  | table, USB, driver and instrument faults at the opening | stay |
+  | just switched on M-I1IO-DRIVE-START-UP | asked as M-I1IO-DRIVE-START-UP-ARM (the one arm question); "No" sends nothing (the 4.3.48 refusal); "Yes": the countdown, then the recorded start-up |
+  | hands-off question M-I1IO-DRIVE-GO (per page, after a question, before a row read again, before a white that needs a homing) | the countdown instead |
+  | homing offers after a stop and at a START (M-I1IO-DRIVE-HOME-OFFERED, -HOME-AFTER-STOP, -ARM-OUT-AT-START, -ARM-OUT-NOT-HERE, -HOME-AT-START-DONE) | stay |
+  | sheet laid M-I1IO-DRIVE-SHEET-LAID | answered "yes" by the setting; the countdown before the way out |
+  | arm felt M-I1IO-DRIVE-ARM-FELT | not asked; the aim page says "The arm should slide easily. If it resists, do not push it. Press Stop." (both modes); the table's own checks of the freed arm stay |
+  | aims M-I1IO-DRIVE-AIM / -AIM-PATCH (+ -BUTTON) | stay; the countdown before the next movement |
+  | front M-I1IO-DRIVE-FRONT | answered "go on" by the setting; the countdown before the 5 mm steps; -FRONT-STOPPED / -FRONT-END stay |
+  | first visit M-I1IO-DRIVE-FIRST-VISIT | answered "yes" by the setting (no countdown: not between rows) |
+  | reader consent M-I1IO-DRIVE-READER-CONSENT (+ -MAC) | answered "yes" by the setting, only after consent version 4 was given |
+  | calibration place | from Preferences > Beta (both modes) |
+  | own tile M-I1IO-DRIVE-CAL-OWN-TILE, reseat -CAL-RESEAT | stay |
+  | report after each step M-I1IO-DRIVE-REPORT | not asked |
+  | row failed (-ROW-FAILED, -ROW-FAILED-STRIP, -ROW-M0-ONLY*, -ROW-NOT-AGAIN) | stay; the countdown after "again" |
+  | next page M-I1IO-DRIVE-NEXT-PAGE | stays; the countdown before the way out |
+  | end M-I1IO-DRIVE-END | every patch of the chart read: answered "save" by the setting; otherwise stays |
+  | homing at the end M-I1IO-DRIVE-HOME-AT-END / -HOME-NOT-NOW | after a complete, saved measurement: the countdown, then the homing; otherwise stays |
+  | done page M-I1IO-DRIVE-DONE | the guidance offer only in the guided mode; the strip offer stays |
+  | stored white notices, dual and refine choices, every fault and stop page, Report a problem, Stop, End measurement | stay |
+
+  The job refuses to answer anything not on `BY_SETTING` (the sitting ends as a fault,
+  `automatic_answer_refused`). Every automatic answer is an ANSWER line in the session log that
+  says it was answered by the setting, not by the person. On the wire an unguided measurement
+  writes exactly the lines a guided one answered "yes / go on / save / home" writes (warm, cold,
+  with the 5 mm steps, with a row read again).
+* **The countdown.** DECIDED BY US, NOT BY THE OWNER (he said "without interruptions"):
+  `job.UNGUIDED_COUNTDOWN_S` = 3 s, 0 removes every countdown page. It stands where the hands-off
+  question stood: before the first movement of a sitting, after the third aim, after the sheet
+  was laid, after any answer to a page that stays, before the homing at the end of a complete
+  measurement; not between rows. Nothing is sent during it (the table is only listened to); Stop
+  ends it before any line (`stopped_before_the_next_move`), the power switch as always. It is
+  what satisfies the hands-off guard: without it a movement after a question is refused. The
+  panel shows it as a page (M-I1IO-DRIVE-COUNTDOWN) with Stop below; in the pop-up presentation
+  no pop-up opens while a job call runs, so the Measure tab's notice area shows it, with the tab's
+  own Stop.
+* **The consent page, version 4.** DECIDED BY US, NOT BY THE OWNER: its text gains
+  M-I1IO-DRIVE-CONSENT-GUIDANCE (the reader's facts, the guidance and its countdown, "Please stay
+  beside the table", the alarm sentence), so every user of the table Beta sees the page once more
+  before the next table START (`ui/i1io_table_window.py::CONSENT_VERSION`).
+* **Sounds: the switch-off alarm.** DECIDED BY US, NOT BY THE OWNER. On a page that tells the
+  person to switch the table off now (a movement or the start-up never reported finished, a strip
+  move that may still wait, the link lost with something waiting), in both modes: "Instrument
+  error" as the page opens (`measurement_window_sounds.md` W-1; W-2: a page that does not open
+  plays nothing), again every 3 s while the page is open, for at most 60 s; any button stops it
+  for the rest of the session's window. By default it goes through the user's sound settings:
+  silent while "Play sounds during measurement" (the Measure tab) is off, which is its default, or
+  "Instrument error" is set to Off (W-3: `play_window` is the window sound without the reading
+  gate, nothing more). The design proposed that it plays even then, with the bundled "error"
+  sound: that is ONE constant, `ui/i1io_table_window.py::ALARM_IGNORES_SOUND_SETTING` (False), and
+  the owner's decision, because it contradicts W-3. The app log has a line for each time it plays
+  and what the sound layer did ("played", "sounds_off", "sound_set_to_off").
+* **The detailed log.** On (the default): the session log as before. Off: a clean sitting's log
+  keeps every INFO, STEP, STOP, RESULT, ANSWER, NOTE and DATA line (but the per-move "took" lines),
+  one MOVE line per movement (`MOVE n kind target t= took= predicted= status= arrival=`), every
+  result block and file the measurement, resume and Save need, reach.json without its long lists;
+  the SEND / RECV / move-time lines go into a ring of the last 300, written under "the 300 lines
+  before this stop, kept because something stopped" at any stop, refusal, status, timeout, lost
+  link, failed row, problem report or ending that is not a clean Save, and from then on every line
+  is written. The MOVE lines are written in both cases.
+* **The app log** (the one log testers send) has the table's lines whatever the switch says, and
+  gains: `guided=on/off`, `countdown_s`, `detailed_log=on/off` on the session line; one "question
+  answer ... by=automatic answered_by_setting=<kind>" line with the message id for every question
+  the job answered itself, and for every countdown; "table alarm" lines.
+* **What stays the person's job.** Nothing checks that only the sheet lies on the bed; nobody
+  confirms the arm is at rest before the first movement (the first reading of the arm still
+  decides); the 5 mm steps towards the front run without a question and can meet the front end
+  once on a sheet laid far forward. The help text says so.
