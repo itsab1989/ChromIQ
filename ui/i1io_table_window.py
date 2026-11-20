@@ -102,6 +102,8 @@ PRESENTATION_PANEL, PRESENTATION_POPUPS = "panel", "popups"
 POPUP_POS_KEY = "i1io_table_popup_pos"
 #: the pop-up's width (it stands over the Measure tab's left column, beside the chart preview)
 POPUP_MIN_W, POPUP_MAX_W = 380, 560
+#: the widest a pop-up gets so that its answers stay in one row (then they are stacked)
+POPUP_WIDE_MAX_W = 900
 #: the sound a pop-up plays as it opens (measurement_window_sounds.md, rule W-1: a warning or an
 #: error window sounds as it appears; a question that is part of the normal flow, like the
 #: hand path's "Calibrate the instrument" or the pause after a page, makes none): a row that
@@ -1993,10 +1995,42 @@ class TableMeasureWindow(QFrame):
                      max(300, av.height() - 80))
 
     def _popup_width(self) -> int:
+        """The pop-up's width: the Measure tab's left column (at most POPUP_MAX_W), WIDER when
+        the page's answers would not fit side by side in it (the project owner, 2026-11-20: a
+        table pop-up had its buttons under each other; the app's other pop-ups keep them in one
+        row). Widened up to POPUP_WIDE_MAX_W and the screen; only answers that do not fit even
+        then are stacked."""
         r = self._area_rect()
-        if r is None:
-            return POPUP_MAX_W
-        return max(POPUP_MIN_W, min(POPUP_MAX_W, r.width() - 32))
+        base = POPUP_MAX_W if r is None else max(POPUP_MIN_W, min(POPUP_MAX_W, r.width() - 32))
+        need = self._popup_row_need()
+        if need <= base:
+            return base
+        cap = POPUP_WIDE_MAX_W
+        try:
+            from PyQt6.QtGui import QGuiApplication
+            scr = (self._popup.screen() if self._popup is not None else None) \
+                or QGuiApplication.primaryScreen()
+            if scr is not None:
+                cap = min(cap, scr.availableGeometry().width() - 80)
+        except Exception:      # noqa: BLE001 - the cap alone then
+            pass
+        return max(base, min(need, cap))
+
+    def _popup_row_need(self) -> int:
+        """The pop-up's width that holds this page's answers in one row (0: no answers)."""
+        pop = self._popup
+        box = getattr(self, "_answer_box", None)
+        made = list(getattr(self, "_buttons", []) or [])
+        if pop is None or box is None or not made:
+            return 0
+        try:
+            m = pop.layout().contentsMargins()
+            sp = box.layout().spacing() if box.layout() is not None else 12
+            row = sum(max(b.sizeHint().width(), b.minimumSizeHint().width()) for b in made) \
+                + max(6, sp) * (len(made) - 1)
+            return row + m.left() + m.right()
+        except RuntimeError:          # a button gone with its page
+            return 0
 
     def _host_width(self) -> int:
         """The width the answers are laid out in: the panel's, or the pop-up's."""
