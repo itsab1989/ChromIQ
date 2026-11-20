@@ -31,7 +31,7 @@ def _to_done(p):
     p.press("Save and stop")
     p.drive_until(("home_offered", "done"))
     if p.page() == "home_offered":
-        p.press("Leave it there")
+        p.leave_it_there()
     p.drive_until("done")
 
 
@@ -312,7 +312,7 @@ def _partial_date(tab, beta_, tmp_path, monkeypatch, qtbot):
     p.press("Save and stop")
     p.drive_until(("home_offered", "done"))
     if p.page() == "home_offered":
-        p.press("Leave it there")
+        p.leave_it_there()
     p.press("Close")
     qtbot.waitUntil(lambda: bool(run.verifications()), timeout=5000)
     qtbot.wait(100)
@@ -338,7 +338,7 @@ def test_s1_a_resumed_table_verification_keeps_the_dates_file_in_the_dates_old(
     p.drive_until(("home_offered", "done", "refused", "error"))
     assert p.page() in ("home_offered", "done"), (p.page(), win._text.text()[:300])
     if p.page() == "home_offered":
-        p.press("Leave it there")
+        p.leave_it_there()
     p.press("Close")
     qtbot.waitUntil(lambda: tab._table_window is None, timeout=5000)
     qtbot.wait(200)

@@ -140,7 +140,7 @@ def test_an_ended_session_with_the_arm_left_out_says_only_the_way_home(qtbot, mo
     p.drive_until("end_of_session")
     p.press("Save and stop")
     assert p.page() == "home_at_end"
-    p.press("Leave it there")
+    p.leave_it_there()
     assert p.page() == "done"
     text = win._text.text()
     assert "The arm was left out over the table" in text and "saved into the run" in text

@@ -104,7 +104,7 @@ HANDS_OFF_LABELS = (
 #: REVIEW 14, S-3: the pages after whose answer the arm moves at once; as a pop-up each carries
 #: the one-line switch-off sentence itself (the tab's line stands behind the pop-up)
 MOVES_AT_ONCE_PAGES = ("go", "start_up", "sheet_laid", "first_visit", "report_after_step",
-                       "home_at_end")
+                       "home_at_end", "home_not_now")
 #: REVIEW 14, M-1: the ways back that mean a move may still be waiting, or a movement (or the
 #: start-up) was never reported as finished: "Switch the table off now" is the first thing shown,
 #: and no later page hides or contradicts it
@@ -113,8 +113,23 @@ MOVES_AT_ONCE_PAGES = ("go", "start_up", "sheet_laid", "first_visit", "report_af
 FRONT_STOP_IDS = ("table_answered_a_status", "table_refused_a_line", "table_did_not_answer")
 
 
-def front_stop_what(rid: str) -> str:
-    """What happened at the creep step, in plain words, one case each (true for that case)."""
+def front_stop_what(rid: str, beyond_known_front: bool = True) -> str:
+    """What happened at the creep step, in plain words, one case each (true for that case).
+    4.3.50 fix round (review SHOULD-4): the end of the arm's travel is named as a likely cause
+    only for a step beyond the ground the arm is known to have reached (*beyond_known_front*)."""
+    if not beyond_known_front:
+        if rid == "table_answered_a_status":
+            return tr("During one of the small 5 mm steps towards the front of the table, the "
+                      "table answered with an error code instead of reporting the step "
+                      "finished. The arm has reached this place before, so the end of its "
+                      "travel is not the likely cause.")
+        if rid == "table_refused_a_line":
+            return tr("The table refused the command for one of the small 5 mm steps towards "
+                      "the front of the table. ChromIQ cannot tell whether the arm moved before "
+                      "that.")
+        return tr("The table did not answer one of the small 5 mm steps towards the front of "
+                  "the table: it never reported the step finished. The motor may still be "
+                  "trying to move the arm.")
     if rid == "table_answered_a_status":
         return tr("During one of the small 5 mm steps towards the front of the table, the table "
                   "answered with an error code instead of reporting the step finished. Most "
@@ -482,7 +497,9 @@ JOB_QUESTION_PAGES = frozenset({
     "pending_marker", "ready_to_open", "start_up", "go", "sheet_laid", "arm_felt", "aimed",
     "front_choice", "first_visit", "reader_consent", "calibration_place",
     "calibration_own_tile", "calibration_reseated", "row_failed", "row_failed_strip",
-    "end_of_session", "report_after_step", "home_at_end"})
+    "end_of_session", "report_after_step", "home_at_end",
+    # 4.3.50 fix round: the homing's question, still open after "Not now"
+    "home_not_now"})
 
 #: the job's refusals that are the person's own Stop taking effect
 STOP_REASONS = ("stopped_before_the_next_move", "stopped_between_patches",
@@ -752,13 +769,20 @@ def table_state_text(a0) -> str:
         moved = bool(int(a0[:2], 16) & 0x40)
     except ValueError:
         moved = False
-    seen = (" " + tr("A table has answered this way after its arm was moved by hand.")
+    # 4.3.50 fix round (MUST-1): the start-up recording of 19 Nov 2026 showed an arm moved by
+    # hand (mode off) WITHOUT this answer; the files fit the aiming mode left on (f1 without f0)
+    seen = (" " + tr("This answer may mean that the table is still in its aiming mode, from an "
+                     "earlier measurement that ended with the arm out over the table.")
             if moved else "")
     return first + seen + " " + tr(
-        "To go on, switch the table off at its power switch, wait a few seconds, switch it on "
-        "again and press START MEASUREMENT: when the table then reports that it was just "
-        "switched on, ChromIQ offers the start-up i1Profiler uses for that, which brings the "
-        "arm to its resting place. If the table still answers this way, use the way below.")
+        "What you can do: if the arm is at its resting place, switch the table off at its power "
+        "switch, wait a few seconds, switch it on again and press START MEASUREMENT. When the "
+        "table then reports that it was just switched on, ChromIQ offers the start-up "
+        "i1Profiler uses for that. If the arm is out over the table, or the table still answers "
+        "this way, open i1Profiler 3.8.6 or older once and let it find the table, and stay "
+        "beside the table with its power switch in reach. ChromIQ does not start a table that "
+        "was just switched on with the arm out over the table, because that has never been "
+        "recorded.")
 
 
 def reason_text(rid: str, detail: "dict | None" = None) -> str:
@@ -1163,11 +1187,14 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
     if rid == "mode_flag_unexpected":
         got, want = d.get("mode_answer"), d.get("mode_expected")
         if want == "00" and got == "01" and d.get("at_opening"):
+            # 4.3.50 fix round (MUST-1): its true cause (the mode stays on until a homing's f0;
+            # the arm may be held), never "stopped while the arm was free"
             return tr(
-                "The table reported that it is still in the mode for aiming by hand, in which the "
-                "motors let the arm go. That happens when an earlier measurement stopped while the "
-                "arm was free. ChromIQ does not move an arm in that state, because no recording "
-                "shows how i1Profiler takes it back from there.")
+                "The table reported that it is still in its aiming mode, the mode in which you "
+                "aim at the marks by hand. Most likely an earlier measurement ended with the arm "
+                "out over the table, before the arm was brought home. ChromIQ does not start on "
+                "a table in this mode, because no recording shows how to take it back from "
+                "there.")
         if want == "00" and got == "01":
             return tr(
                 "The table reported that it has switched into the mode for aiming by hand, in "
@@ -2272,8 +2299,8 @@ class TableMeasureWindow(QFrame):
         "pending_marker", "ready_to_open", "start_up", "go", "sheet_laid", "arm_felt", "aimed",
         "front_choice", "first_visit", "reader_consent", "calibration_place",
         "calibration_own_tile", "calibration_reseated", "row_failed", "row_failed_strip",
-        # 4.3.50: the homing of the ending
-        "home_at_end",
+        # 4.3.50: the homing of the ending (and its question still open after "Not now")
+        "home_at_end", "home_not_now",
     )
     #: the pages whose answers stand in one row when they fit (review 12, S-3: the ending)
     ONE_ROW_ANSWER_PAGES = ("end_of_session",)
@@ -3247,8 +3274,12 @@ class TableMeasureWindow(QFrame):
             # 4.3.50: the homing that is part of the ending (saved, discarded, nothing read)
             title, body = M.M_I1IO_DRIVE_HOME_AT_END.render(what=self._ended_what())
             self._pending_kind = kind
+            # 4.3.50 fix round (review of 20 Nov 2026, MUST-1): the second answer is no longer a
+            # way to walk off with the table in a state ChromIQ cannot start from: "Not now"
+            # sends nothing and keeps this question open (M-I1IO-DRIVE-HOME-NOT-NOW), so the
+            # way home stays here while this window is open; only Close ends the connection
             self._show("home_at_end", title, body,
-                       [(tr("Leave it there"), self._answer_slot("back")),
+                       [(tr("Not now"), self._home_not_now),
                         (tr("Bring the arm home, my hands are away"), self._answer_slot("yes"))])
             self._status.setText(tr("ChromIQ waits for your answer. Nothing moves until you "
                                     "answer."))
@@ -3541,8 +3572,8 @@ class TableMeasureWindow(QFrame):
         reason = res.reason
         if res.step == "home" and reason == "person_chose_back" and self.job is not None \
                 and self.job.ended is not None:
-            # 4.3.50: "Leave it there" at the homing of the ending: nothing moved; the done page
-            # says where the arm is and how it comes home
+            # 4.3.50: Close after "Not now" at the homing of the ending: nothing moved; the
+            # done page says where the arm is and what is true about bringing it home
             self._close_job()
             return
         if reason in STOP_REASONS:
@@ -3796,9 +3827,23 @@ class TableMeasureWindow(QFrame):
             self._after_stop_controls()
             self._show_note()
             return
-        if msg is None and wb == "none" and res.reason in ("stopped_by_person",
-                                                           "cancelled_by_person"):
+        opening = getattr(res, "step", "") == "open" and (
+            self.job is None or self.job.accepted_in_this_session() == 0)
+        d = getattr(res, "detail", None) or {}
+        if msg is None and opening and res.reason == "mode_flag_unexpected" and d.get(
+                "at_opening") and d.get("mode_answer") == "01":
+            # 4.3.50 fix round (MUST-1): the table is still in its aiming mode at a START (most
+            # likely an earlier measurement ended with the arm out): its own page, with its
+            # real cause and what to do, and no readings that do not exist
+            title, body = M.M_I1IO_DRIVE_STILL_AIMING.render(log=self._log_name)
+        elif msg is None and wb == "none" and res.reason in ("stopped_by_person",
+                                                             "cancelled_by_person"):
             title, body = _refused(M, reason_text(res.reason))
+        elif msg is None and opening:
+            # 4.3.50 fix round (MUST-1): a stop at the opening read nothing: no "your readings
+            # so far are kept, and you can still save them"
+            title, body = M.M_I1IO_DRIVE_STOPPED_AT_OPENING.render(log=self._log_name)
+            body = reason_text(res.reason, res.detail) + "\n\n" + body
         else:
             j = self.job
             if msg is None and wb == "open_i1profiler_once" and j is not None \
@@ -3851,7 +3896,7 @@ class TableMeasureWindow(QFrame):
         if getattr(res, "step", "") != "creep" or rid not in FRONT_STOP_IDS \
                 or rid != getattr(res, "reason", ""):
             return None
-        what = front_stop_what(rid)
+        what = front_stop_what(rid, d.get("beyond_known_front", True) is not False)
         way = self._front_stop_way(rid, ending=False)
         before, target = d.get("creep_from"), d.get("creep_to")
         title, body = M.M_I1IO_DRIVE_FRONT_STOPPED.render(
@@ -4061,6 +4106,27 @@ class TableMeasureWindow(QFrame):
     def _on_home(self) -> None:
         self._call(self.job.home, status=tr("Bringing the arm home..."))
 
+    def _home_not_now(self) -> None:
+        """4.3.50 fix round (MUST-1): "Not now" on the homing of the ending. Nothing is sent and
+        the job's hands-off question stays open: this page says what that means and keeps
+        "Bring the arm home, my hands are away" (the same answer to the same question); Close
+        answers it "back" and ends the connection to the table."""
+        from workflow import measurement_messages as M
+        j = self.job
+        if j is not None:
+            try:
+                j.diag.log("ANSWER", "home_at_end -> not now (nothing is sent; the homing's "
+                                     "question stays open while the window is open)")
+            except Exception:      # noqa: BLE001 - never in the way of the button
+                log.exception("i1iO table: the answer could not be noted")
+        title, body = M.M_I1IO_DRIVE_HOME_NOT_NOW.render()
+        self._pending_kind = "go"
+        self._show("home_not_now", title, body,
+                   [(tr("Close"), self._answer_slot("back")),
+                    (tr("Bring the arm home, my hands are away"), self._answer_slot("yes"))])
+        self._status.setText(tr("ChromIQ waits for your answer. Nothing moves until you "
+                                "answer."))
+
     # ---- 4.3.48: the homing after a stop, and the arm found out at a START ------------------
     def _on_home_after_stop(self) -> None:
         if self.job is None or self._busy:
@@ -4257,10 +4323,18 @@ class TableMeasureWindow(QFrame):
             self._says_switch_off = True
         elif j.ended is not None and wb == "open_i1profiler_once":
             # the session has ended (saved, discarded or nothing read) and the arm was left
-            # out: only the way home is said, never "you can still save them" beside "saved"
-            way = (M.M_I1IO_DRIVE_FREE_LEFT.render()[1] if self._arm_left_free() else
-                   tr("The arm was left out over the table. Open i1Profiler 3.8.6 or older once "
-                      "and let it find the table: it brings the arm home."))
+            # out: only the way home is said, never "you can still save them" beside "saved".
+            # 4.3.50 fix round (MUST-1): a held arm with the aiming mode still on gets the whole
+            # truth (M-I1IO-DRIVE-LEFT-OUT): no START until the arm is home, and no promise
+            # of an i1Profiler homing from a place no recording shows
+            st = j.state()
+            if self._arm_left_free():
+                way = M.M_I1IO_DRIVE_FREE_LEFT.render()[1]
+            elif st.mode_on:
+                way = M.M_I1IO_DRIVE_LEFT_OUT.render()[1]
+            else:
+                way = tr("The arm was left out over the table. Open i1Profiler 3.8.6 or older "
+                         "once and let it find the table: it should bring the arm home.")
             body = way + "\n\n" + body
         elif wb not in ("none", "home_offered"):
             msgs = {"switch_off_pending": M.M_I1IO_DRIVE_SWITCH_OFF,

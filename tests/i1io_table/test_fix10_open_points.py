@@ -24,7 +24,7 @@ def _measure_whole_chart(tab, run, monkeypatch, qtbot):
     p.press("Save and stop")
     p.drive_until(("home_offered", "done"))
     if p.page() == "home_offered":
-        p.press("Leave it there")
+        p.leave_it_there()
     p.press("Close")
     assert classify(run.measurement_ti3, run.chart_ti2).state is Ti3State.COMPLETE
     return sim
@@ -290,7 +290,7 @@ def _finish_complete(tab, run, monkeypatch, qtbot, sim=None):
     p.drive_until("end_of_session")
     p.press("Save and stop")
     while p.page() != "done":
-        p.press("Leave it there")
+        p.leave_it_there()
     p.press("Close")
     qtbot.wait(100)
     return sim
@@ -361,7 +361,7 @@ def test_a_partial_save_keeps_the_hand_paths_partial_ending_no_window(tab, beta,
     p.drive_until("end_of_session")
     p.press("Save and stop")
     while p.page() != "done":
-        p.press("Leave it there")
+        p.leave_it_there()
     p.press("Close")
     qtbot.wait(100)
     assert shown == [] and "partial readings saved" in tab._log.toPlainText()

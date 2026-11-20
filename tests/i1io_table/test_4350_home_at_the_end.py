@@ -5,11 +5,12 @@ On the real page the homing OFFERED after Save ("Leave it there" / "Bring the ar
 taken, and the arm stayed held out over the sheet at (-1284, 3275), in front of every recorded
 homing start. Now, after an ending (saved, discarded, nothing read) whose usual homing can run,
 the window starts it at once: its first page is the homing's own hands-off GO
-(M-I1IO-DRIVE-HOME-AT-END, "Bring the arm home, my hands are away" / "Leave it there"). The
-job's rule decides where it may start from (back along the way the arm came first, then the
-recorded homing), unchanged. "Leave it there" moves nothing and closes, as before. A START with
-the arm left out copes: it reads where the arm is, moves nothing by itself and never sends a
-homing from where no recorded one starts.
+(M-I1IO-DRIVE-HOME-AT-END, "Bring the arm home, my hands are away" / "Not now"). The job's rule
+decides where it may start from (back along the way the arm came first, then the recorded
+homing), unchanged. 4.3.50 fix round: "Not now" (was "Leave it there") moves nothing and keeps
+the homing's question open (test_4350_not_now_keeps_the_way_home.py). A START with the arm left
+out copes: it reads where the arm is, moves nothing by itself and never sends a homing from
+where no recorded one starts.
 """
 from __future__ import annotations
 
@@ -43,7 +44,7 @@ def test_after_the_ending_the_homing_starts_and_asks_its_hands_off_go(
     assert p.page() == "home_at_end"
     title, _b = M.M_I1IO_DRIVE_HOME_AT_END.render(what="")
     assert win._title.text() == tr(title)
-    assert p.labels() == [tr("Leave it there"), tr("Bring the arm home, my hands are away")]
+    assert p.labels() == [tr("Not now"), tr("Bring the arm home, my hands are away")]
     assert "home_offered" not in win.pages_shown[-3:]
     n = _moves(sim)
     qtbot.wait(100)
@@ -53,14 +54,16 @@ def test_after_the_ending_the_homing_starts_and_asks_its_hands_off_go(
     assert sim.sim.violations == []
 
 
-def test_leave_it_there_moves_nothing_and_the_done_page_says_how_the_arm_comes_home(
+def test_not_now_then_close_moves_nothing_and_the_done_page_says_how_the_arm_comes_home(
         qtbot, monkeypatch, tmp_path, settings):  # noqa: F811
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
                                                     asking=False)
     p.drive_until("end_of_session")
     p.press("Save and stop")
     n = _moves(sim)
-    p.press("Leave it there")
+    p.press("Not now")
+    assert p.page() == "home_not_now" and _moves(sim) == n
+    p.press("Close")
     assert p.page() == "done" and _moves(sim) == n
     assert "The arm was left out over the table" in win._text.text()
 
@@ -110,7 +113,7 @@ def test_the_end_page_says_the_arm_is_brought_home():
     body = M.M_I1IO_DRIVE_END.render()[1]
     assert "brings the arm home if it can" in body and "offers to" not in body
     end = M.M_I1IO_DRIVE_HOME_AT_END.render(what="x")[1]
-    assert "Leave it there" in end and "i1Profiler" in end
+    assert "Not now" in end and "Leave it there" not in end and "aiming mode" in end
     assert "—" not in body + end
 
 

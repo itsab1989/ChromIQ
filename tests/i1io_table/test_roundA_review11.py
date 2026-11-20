@@ -49,7 +49,7 @@ def _finish(p, after_save=True):
     p.press("Save and stop")
     p.drive_until(("home_offered", "home_at_end", "done"))
     if p.page() in ("home_offered", "home_at_end"):
-        p.press("Leave it there")
+        p.leave_it_there()
     p.press("Close")
 
 
@@ -563,7 +563,7 @@ def test_a_quit_during_a_table_verification_files_it_without_windows(
             break
         pg = p.page()
         if pg in ("home_offered", "home_at_end"):
-            p.press("Leave it there")
+            p.leave_it_there()
         elif pg == "done":
             p.press("Close")
     qtbot.waitUntil(lambda: bool(run.verifications()), timeout=5000)

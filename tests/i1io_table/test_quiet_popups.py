@@ -307,7 +307,7 @@ def test_quit_while_a_row_runs_and_no_pop_up_is_open(qtbot, monkeypatch, tmp_pat
     if p.page() == "end_of_session":
         p.press("Save and stop")
     assert p.page() == "home_at_end"
-    p.press("Leave it there")
+    p.leave_it_there()
     p.idle()
     if not finished:
         # the arm was left out: the last page says how it gets home, and Close quits

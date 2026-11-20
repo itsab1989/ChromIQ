@@ -63,7 +63,7 @@ def test_b1_quit_asks_the_tables_ending_and_quits_only_after_the_job_let_go(
     p.press("Save and stop")
     assert classify(run.measurement_ti3, run.chart_ti2).state is Ti3State.COMPLETE
     assert p.page() == "home_at_end" and moves(sim) == n
-    p.press("Leave it there")
+    p.leave_it_there()
     p.idle()
     job = sim.jobs[0]
     assert job.phase == "closed"                                  # close() ran: USB let go
@@ -417,7 +417,7 @@ def test_m3_the_tabs_own_controls_make_room_and_come_back(tab, beta, tmp_path, m
     p.idle()
     while p.page() != "done":
         p.answer_page(p.page()) if p.page() not in ("home_offered", "home_at_end") \
-            else p.press("Leave it there")
+            else p.leave_it_there()
     p.press("Close")
     assert (tab._left_buttons.isVisible(), tab._calm_outer.isVisible()) == before
 
@@ -581,7 +581,7 @@ def test_s2_a_failed_save_after_the_archive_puts_the_measurement_back(
     if p.page() == "end_of_session":
         p.press("Discard and stop")
     while p.page() != "done":
-        p.press("Leave it there")
+        p.leave_it_there()
     p.press("Close")
     assert run.measurement_ti3.read_bytes() == keep      # put back where it was
 

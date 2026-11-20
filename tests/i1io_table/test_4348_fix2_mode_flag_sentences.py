@@ -13,7 +13,9 @@ from tests.i1io_table.test_job_reading import job_for
 from ui import i1io_table_window as W
 from workflow.i1io.table import job as J
 
-STILL_ON = "still in the mode for aiming by hand"
+#: 4.3.50 fix round (review of 20 Nov 2026, MUST-1): the sentence names its real cause (the
+#: aiming mode stays on until a homing's f0; the arm may be held), never "while the arm was free"
+STILL_ON = "still in its aiming mode"
 SWITCHED_ON = "has switched into the mode for aiming by hand"
 HOLDING = "its motors are holding the arm"
 NEUTRAL = "in a way no recording shows at this point"

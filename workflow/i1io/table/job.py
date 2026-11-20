@@ -2457,6 +2457,10 @@ class TableJob:
             a = self._still(a)
         y0 = self.front_reached()
         start = (x, min(y0, need))
+        # 4.3.50 fix round (review SHOULD-4): the frontmost Y the arm is known to have reached
+        # before these steps (the recordings, this table's remembered reach, this sitting): a
+        # step that ends inside it cannot have met the end of the arm's travel
+        self._creep_known_front = max(geo.FRONTMOST_Y_REACHED, int(d.front_y or 0))
         if self._front_agreed_for is al:
             # 4.3.50: the front question named this move (forward, carefully, to the sheet's
             # front) and its answer was the hands-off confirmation: its part of the table counts
@@ -2466,6 +2470,9 @@ class TableJob:
                                     (max(p[0], q[0]) + 10, max(p[1], q[1]) + 10)))
             self._block["data"]["first_visit_by_the_front_answer"] = True
         else:
+            # (review SHOULD-6: not reached today, since only the front answer "go on" sets the
+            # front need and it also sets _front_agreed_for; kept as the safe default for any
+            # later path into the creep, which then asks the first-visit question as before)
             ok = yield from self._confirm_new_part(a, start, (x, need), what="creep")
             if not ok:
                 raise PersonStopped("first_visit_declined")
@@ -2520,8 +2527,12 @@ class TableJob:
         reached = self.front_reached()
         back = (geo.reach_advice_mm(min(int(need), self._cap()), reached)
                 if need is not None and reached is not None else None)
+        known = getattr(self, "_creep_known_front", None)
         out = {"creep_from": list(before), "creep_to": list(target), "front_y": reached,
-               "need_y": need, "back_mm": back, "creep_stop": rid}
+               "need_y": need, "back_mm": back, "creep_stop": rid,
+               # 4.3.50 fix round (review SHOULD-4): only a step beyond the ground the arm is
+               # known to have reached may be put down to the end of its travel
+               "beyond_known_front": bool(known is None or target[1] > known)}
         self.creep_doubt = dict(out)
         self._block_note("creep_stopped_at", {"target": list(target), "read": None, "why": rid})
         self._reach_note("creep_stopped", target=list(target), read=None, why=rid, need_y=need)
@@ -5030,6 +5041,13 @@ class TableJob:
         # fix round 10 (B-1): the session ended through close(): its write-ahead markers are
         # acknowledged (a strip move that may still wait has its own marker above)
         self._acknowledge_in_use_markers()
+        if d is not None and d.mode_on:
+            # 4.3.50 fix round (MUST-1; the start-up analysis of 19 Nov 2026, 5.1): f0 is sent
+            # only after a homing (the only place it is recorded), so the table stays in its
+            # aiming mode, and a new START meets it there (f4 01, most likely a0 530000)
+            self.diag.log("INFO", "the table is left in its aiming mode: f1 was sent and no f0 "
+                                  "(f0 is sent only after a homing); a new START cannot run "
+                                  f"until the arm is home (arm last read {d.position_now})")
         if d is not None:
             self.diag.log("INFO", f"result: table {d.state or 'not asked'}; "
                                   f"{d.lines_sent} lines sent, {d.motions_sent} movements; "

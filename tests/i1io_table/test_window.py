@@ -273,7 +273,7 @@ def test_discard_keeps_nothing_in_the_run_and_the_homing_is_offered(qtbot, monke
     p.press("Discard and stop")
     assert not run.measurement_ti3.exists() and saved == []
     assert p.page() == "home_at_end"
-    p.press("Leave it there")
+    p.leave_it_there()
     assert p.page() == "done"
     assert se.session_state(run.i1io_table_session_dir(RS.STAMP)) == se.DISCARDED
 

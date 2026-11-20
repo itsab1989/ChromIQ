@@ -254,5 +254,10 @@ def test_the_table_state_page_says_what_the_table_answered(qtbot, monkeypatch, t
     text = win._text.text()
     assert "ChromIQ could not do this step" not in text
     assert "with 530000" in text and "111800 (just switched on)" in text
-    assert "after its arm was moved by hand" in text
+    # 4.3.50 fix round (MUST-1): the start-up recording of 19 Nov showed an arm moved by hand
+    # without this answer; what the answer may mean, and the honest way on for an arm out
+    assert "after its arm was moved by hand" not in text
+    assert "may mean that the table is still in its aiming mode" in text
     assert "switch the table off at its power switch, wait a few seconds" in text
+    assert "which brings the arm to its resting place" not in text
+    assert "you can still save them" not in text and "Nothing was read" in text
