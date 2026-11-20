@@ -202,6 +202,33 @@ def strip_windows_ok(plan) -> "int | None":
     return min(i1 - i0 for i0, i1 in w) if w else None
 
 
+#: 4.3.53: the reasons a row is read patch by patch although strips were asked for, each one
+#: TRUE (until 4.3.52 a run-up or run-out outside the area was reported as "too long"):
+#: ``strip_row_too_long``      no recorded speed keeps the row within STRIP_N_MAX readings;
+#: ``strip_row_outside_area``  the row's run-up or run-out lies outside the area ChromIQ sends
+#:                             the arm to (the absolute backstop, the front cap, or a front not
+#:                             yet confirmed); the detail says which and where;
+#: ``strip_row_too_short``     the run is shorter than 10 mm (no strip move for that);
+#: ``strip_row_not_on_a_line`` a patch does not lie on the line of the run (a side file fault).
+STRIP_FALLBACK_REASONS = ("strip_row_too_long", "strip_row_outside_area", "strip_row_too_short",
+                          "strip_row_not_on_a_line", "strip_only_some_patches",
+                          "dual_row_patches_too_short")
+
+
+def strip_refusal_id(exc: Exception) -> "tuple[str, dict]":
+    """(the true reason id, its detail) for a strip row whose plan was refused by geometry's
+    area check or scan.check_plan (4.3.53)."""
+    text = str(exc)
+    if "shorter than 10 mm" in text:
+        return "strip_row_too_short", {}
+    if "does not lie on the row" in text:
+        return "strip_row_not_on_a_line", {}
+    if "readings: outside what the reader takes" in text or "more than a dual row may" in text:
+        return "strip_row_too_long", {}
+    where = "front" if ("front part" in text or "in front of" in text) else "outside"
+    return "strip_row_outside_area", {"where": where}
+
+
 def plan_strip_row(sheet: dict, page: int, index: int, alignment, front_y=None,
                    only_locs=None, cap_y=None) -> RowPlan:
     """One row as a STRIP (tester 0.6.0 part C's E2/E3, ``scan.sheet_rows`` for this row): the
@@ -211,9 +238,10 @@ def plan_strip_row(sheet: dict, page: int, index: int, alignment, front_y=None,
     caller reads the row patch by patch, and says why):
 
     * ``strip_only_some_patches``: a resume or a refinement wants only part of the row;
-    * ``strip_row_too_long``: no recorded speed keeps it within the readings, or the run with
-      its run-in and run-out leaves the measuring area (geometry's own check: the 230 x 320 mm
-      sheet's longest row, NEXT_STEPS 4b)."""
+    * ``strip_row_too_long``: no recorded speed keeps it within the readings;
+    * 4.3.53: ``strip_row_outside_area`` (the run-up or run-out leaves the target area: the
+      same area every patch-by-patch target is judged by), ``strip_row_too_short``,
+      ``strip_row_not_on_a_line`` (:func:`strip_refusal_id`)."""
     try:
         st = sheet["pages"][page]["strips"][index]
     except (KeyError, IndexError, TypeError):
@@ -226,16 +254,18 @@ def plan_strip_row(sheet: dict, page: int, index: int, alignment, front_y=None,
         try:
             plans = _one_strip(sheet, page, index, alignment, speed, front_y, cap_y=cap_y)
         except (geo.AreaRefused, sc.PlanRefused) as exc:
-            raise RowRefused("strip_row_too_long", page=page + 1, row=index + 1,
-                             log_reason=str(exc)) from None
+            rid, det = strip_refusal_id(exc)
+            raise RowRefused(rid, page=page + 1, row=index + 1, log_reason=str(exc),
+                             **det) from None
         last = plans
         fewest = strip_windows_ok(plans)
         if plans.N <= STRIP_N_MAX and fewest is not None and fewest >= STRIP_MIN_READINGS:
             try:
                 sc.check_plan(plans, None, front_y, cap_y)
             except sc.PlanRefused as exc:
-                raise RowRefused("strip_row_too_long", page=page + 1, row=index + 1,
-                                 log_reason=str(exc)) from None
+                rid, det = strip_refusal_id(exc)
+                raise RowRefused(rid, page=page + 1, row=index + 1, log_reason=str(exc),
+                                 **det) from None
             pts = tuple(PatchTarget(q.sample_id, q.loc, (int(round(q.xy[0])),
                                                          int(round(q.xy[1]))))
                         for q in plans.patches)
@@ -292,8 +322,9 @@ def plan_dual_row(sheet: dict, page: int, index: int, alignment, front_y=None,
         uv = uv_pass_of(lamp)
         sc.check_plan(uv, None, front_y, cap_y)
     except (geo.AreaRefused, sc.PlanRefused) as exc:
-        raise RowRefused("strip_row_too_long", page=page + 1, row=index + 1,
-                         log_reason=str(exc)) from None
+        rid, det = strip_refusal_id(exc)
+        raise RowRefused(rid, page=page + 1, row=index + 1, log_reason=str(exc),
+                         **det) from None
     fewest = dual_windows_ok(lamp, uv)
     if fewest is None or fewest < sc.DUAL_MIN_READINGS:
         raise RowRefused("dual_row_patches_too_short", page=page + 1, row=index + 1,

@@ -466,9 +466,15 @@ def test_t8_the_window_answers_no_question_itself():
 
 def test_t10_the_alarm_opens_with_the_page_repeats_and_stops(qtbot, monkeypatch, tmp_path,
                                                              settings):
+    """4.3.53: made independent of the machine's load. Until then it let a real 40 ms timer
+    run for 300 ms and asked for at least three plays, which a loaded machine (the gate on
+    every core) does not always give. Now the repeat timer never fires by itself (an interval
+    of 1000 s), the window's clock is a fake one, and each repeat is the timer's own slot
+    called at a chosen time: the same code, the same rule (repeat while the page is open, stop
+    at ALARM_FOR_MS), no wall-clock race."""
     import core.sound as snd
     assert hasattr(snd, W.ALARM_SOUND)                                   # W-4
-    monkeypatch.setattr(W, "ALARM_REPEAT_MS", 40)
+    monkeypatch.setattr(W, "ALARM_REPEAT_MS", 1_000_000)
     monkeypatch.setattr(W, "ALARM_FOR_MS", 300)
     sim = WindowSim(table_faults=[("no_answer", "m0")])
     win, sim, run, p, *_ = _unguided(qtbot, monkeypatch, tmp_path, settings, sim=sim)
@@ -477,10 +483,23 @@ def test_t10_the_alarm_opens_with_the_page_repeats_and_stops(qtbot, monkeypatch,
     page = p.page()
     assert sim.jobs[0].way_back() in W.SWITCH_OFF_WAYS, (page, sim.jobs[0].way_back())
     assert win.alarm_plays >= 1                                          # as the page opened
-    qtbot.waitUntil(lambda: not win._alarm_timer.isActive(), timeout=5000)
+    assert win._alarm_timer.isActive()
+    n0 = win.alarm_plays
+    t0 = win._alarm_t0
+    # the fake clock only from here (the job's own waits ran on the real one)
+    now = [t0]
+    monkeypatch.setattr(W.time, "monotonic", lambda: now[0])
+    for k, dt in enumerate((0.1, 0.2), 1):                              # repeated while open
+        now[0] = t0 + dt
+        win._alarm_tick()
+        assert win.alarm_plays == n0 + k and win._alarm_timer.isActive()
+    now[0] = t0 + 0.31                                                   # ALARM_FOR_MS reached
+    win._alarm_tick()
+    assert not win._alarm_timer.isActive()
     n = win.alarm_plays
     assert n >= 3                                                        # repeated, then over
-    qtbot.wait(120)
+    now[0] = t0 + 0.5
+    win._alarm_tick()                                                    # a late tick: silent
     assert win.alarm_plays == n
     assert all(h == (W.ALARM_SOUND, W.ALARM_IGNORES_SOUND_SETTING) for h in heard)
 

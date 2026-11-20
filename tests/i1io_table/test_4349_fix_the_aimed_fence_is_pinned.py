@@ -77,7 +77,12 @@ def _sheet_with_a_patch_off_its_marks():
 
 
 @pytest.mark.parametrize("kind", ["spot", "strip"])
-def test_a_patch_outside_the_sheets_marks_is_refused_and_nothing_is_sent(tmp_path, kind):
+def test_a_patch_outside_the_sheets_marks_is_read_in_both_modes(tmp_path, kind):
+    """4.3.53 (replaces ..._is_refused_and_nothing_is_sent; the owner, 2026-11-20: "probably
+    even a little wider than where he aimed is safe as well ... for both patch by patch and
+    rows"): a patch that lies outside the rectangle of the three aimed marks is planned and
+    read in BOTH modes; the aimed marks are not the edge of the usable ground."""
+    from workflow.i1io.table import spot as sp
     sheet = _sheet_with_a_patch_off_its_marks()
     job, sim, _h, _r = RS.make_reading_job(tmp_path, sheet=sheet, aims=CROSSES_1,
                                            ask_after_each_step=False,
@@ -85,17 +90,25 @@ def test_a_patch_outside_the_sheets_marks_is_refused_and_nothing_is_sent(tmp_pat
     p = H.Person(job, sim, GO_ON)
     for step in ("open", "calibrate", "align", "creep"):
         assert p.drive(getattr(job, step)()).kind == J.Kind.OK, step
-    n = len(sim.received)
-    r = p.drive(job.read_row(1, kind=kind))
-    assert (r.kind, r.reason) == (J.Kind.REFUSED, "target_off_sheet")
-    assert sim.received[n:] == []
+    off = sheet["pages"][0]["strips"][0]["patches"][3]
+    plan = sp.plan_row(sheet, 0, 0, job.alignment, job._table.front_y, cap_y=job._cap(),
+                       kind=kind)
+    assert off["loc"] in {q.loc for q in plan.patches}
+    if kind == "spot":
+        r = p.drive(job.read_row(1, kind=kind))
+        assert r.kind == J.Kind.OK, (r.reason, r.detail)
+        assert r.detail["read"] == len(plan.patches)
+        assert sim.violations == []
 
 
-def test_the_alignment_refuses_a_target_outside_the_aimed_marks():
+def test_the_alignment_no_longer_refuses_a_target_outside_the_aimed_marks():
+    """4.3.53 (replaces test_the_alignment_refuses_a_target_outside_the_aimed_marks): only the
+    target area refuses (its absolute backstop), the same for every kind of row."""
     al = geo.fit_alignment(_demo_aims_mm(), CROSSES_1)
-    with pytest.raises(geo.AreaRefused):
-        al.target((26.5, 4.0), "a patch off the sheet")
+    al.target((26.5, 4.0), "a patch beyond mark 1")
     al.target((26.5, 21.5), "a patch on the sheet")
+    with pytest.raises(geo.AreaRefused):
+        al.target((26.5, 290.0), "a point beyond the backstop")
 
 
 # ---- MUST-3 R1 / R5: the remembered reach skips only, and learns only from the motors ----------

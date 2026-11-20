@@ -255,7 +255,9 @@ HANDS_OFF_BREACHES: "list[str]" = []
 # same answers (tests/i1io_table/test_4352_guidance_off.py, T7).
 
 #: THE COUNTDOWN. Decided by us, not by the owner (he said "without interruptions"); 0 removes
-#: every countdown page; the step still clears the hands-off guard. With the guidance off it
+#: every countdown page; the step still clears the hands-off guard. 4.3.53: it runs only where hands
+#: were last on the table or the arm (the START, a sheet laid, the aims: TableJob._countdown),
+#: not before the homing at the end of a page. With the guidance off it
 #: stands where the hands-off question (GO) stood: the job waits this long on the table's
 #: clock, in COUNTDOWN_SLICE_S slices, sending nothing, and Stop ends it before any line.
 UNGUIDED_COUNTDOWN_S = 3.0
@@ -627,6 +629,21 @@ def _beyond_mm(a, b) -> float:
     return worst
 
 
+def plan_front_y(sheet: dict, page: int, al: geo.Alignment) -> "int | None":
+    """4.3.53: the frontmost table Y of every target the page's plan computes (patch centres
+    and row run ends, through the alignment), or None when the side file gives none."""
+    ys = []
+    try:
+        for st in sheet["pages"][page]["strips"]:
+            for q in st["patches"]:
+                ys.append(al.to_table(sc.sheet_table_mm(sheet, q["centre_mm"]))[1])
+            for r in st["run_mm"]:
+                ys.append(al.to_table(sc.sheet_table_mm(sheet, (st["x_mm"], r)))[1])
+    except (KeyError, IndexError, TypeError, ValueError):
+        return None
+    return max(ys) if ys else None
+
+
 def page_fit(sheet: dict, page: int, al: geo.Alignment) -> dict:
     """Part C's page check after the aims (nothing moves): which spot targets and which strip
     rows of the page lie inside the area, and how far the sheet reaches into the front zone.
@@ -641,7 +658,9 @@ def page_fit(sheet: dict, page: int, al: geo.Alignment) -> dict:
             u = sc.sheet_table_mm(sheet, q["centre_mm"])
             p = al.to_table(u)
             spot_pts.append(p)
-            if not (area.contains(p) and al.on_sheet(u, 0.5)):
+            # 4.3.53: the aimed marks' rectangle no longer refuses a patch (both ways of
+            # reading: the owner's ruling of 2026-11-20); only the target area does
+            if not area.contains(p):
                 spot_out += 1
                 if k not in spot_out_rows:
                     spot_out_rows.append(k)
@@ -955,6 +974,9 @@ class TableJob:
         self.start_case_seq = 0
         self._row_seq = 0
         self.tile_readings: "list[dict]" = []
+        #: 4.3.53: with -N, whether this START has asked the instrument already if a
+        #: calibration of it is still valid (TableJob.calibrate(if_needed=True))
+        self.minus_n_checked = False
         self._tile_spectrum: "list[float] | None" = None
         self.ended: "str | None" = None          # "saved" / "discarded" / "nothing_read"
         #: step 8: interrupted earlier sessions adopted by this one (their readings count)
@@ -1096,6 +1118,9 @@ class TableJob:
         self._mark_answered()
         if kind in COUNTDOWN_AFTER:
             self._hands_off_due = True
+            if kind == Confirm.SHEET_LAID:
+                # 4.3.53: a sheet was laid by hand: the next movement has its countdown
+                self._countdown_owed = True
         d = self._table
         self.auto_answers.append({"kind": kind, "answer": value, "step": step,
                                   "id": QUESTION_ID.get(kind, kind),
@@ -1111,11 +1136,23 @@ class TableJob:
         arm afresh, as after the question it replaces)."""
         d = self._table
         seconds = max(0.0, float(UNGUIDED_COUNTDOWN_S))
+        # 4.3.53 (the owner on this option: "the first measurement goes through smooth without
+        # interruptions"; one countdown at the first movement was what was told to him): the
+        # countdown runs only where a person's hands were last ON the table or the arm, a STATE
+        # reason (``_countdown_owed``): the START itself, a sheet laid by hand (its answer is the
+        # setting's), the aims (the hand is on the free arm at every press). Every other
+        # hands-off point (the homing at the end of a page, after rows ran untouched) is
+        # cleared at once, as the countdown's end clears it; nothing is sent either way
+        if not getattr(self, "_countdown_owed", True):
+            seconds = 0.0
+        self._countdown_owed = False
         entry = {"step": step, "seconds": seconds, "for": (ask.detail or {}).get("step"),
                  "line": d.lines_sent if d is not None else 0, "result": "running"}
         self.countdowns.append(entry)
         self.diag.log("ANSWER", f"{step}: go -> a countdown of {seconds:g} s instead of the "
-                                "hands-off question (guidance off), nothing is sent during it")
+                                "hands-off question (guidance off), nothing is sent during it"
+                      + (" (the page's first movement had its countdown)" if not seconds
+                         else ""))
         if seconds > 0 and d is not None:
             left_shown = math.ceil(seconds)
             self._progress(event="countdown", left=left_shown, seconds=seconds, step=step,
@@ -1188,9 +1225,19 @@ class TableJob:
     def _cap(self) -> int:
         """4.3.49 (Basti's ruling): the front of the target area: the area the person aimed at
         on this sheet (geometry.Alignment.aimed_front_y); the proven measuring area without an
-        alignment."""
+        alignment. 4.3.53 (the owner, 2026-11-20: the aimed points are not the edge): or the
+        frontmost target the page's plan needs, when that lies further forward (a chart aimed
+        on its corner patches); never beyond the absolute backstop (geometry.table_cap)."""
         al = self.alignment
-        return geo.table_cap(al.aimed_front_y() if al is not None else None)
+        if al is None:
+            return geo.table_cap(None)
+        front = al.aimed_front_y()
+        if getattr(self, "_plan_front_for", None) is not al:
+            self._plan_front_for = al
+            self._plan_front = plan_front_y(self.sheet, self.page, al)
+        if self._plan_front is not None:
+            front = max(front, self._plan_front)
+        return geo.table_cap(front)
 
     def state(self) -> TableState:
         d = self._table
@@ -2579,6 +2626,41 @@ class TableJob:
         yield from self._start_homing(found)
         return self._table.position_now
 
+    # ---- 4.3.53: the ground this table is known to reach (FOR THE SAFETY REVIEW) ------------
+    def known_ground_x(self) -> "tuple[int, int]":
+        """(right, left) X this table is known to reach: the vendor's own motor targets and
+        what this table's opening has been read at, free or under motor (the reach record,
+        this sitting included). geometry.known_x."""
+        r = self.reach
+        return geo.known_x(r.right_end_x if r is not None else None,
+                           r.left_x if r is not None else None)
+
+    def _row_ends_beyond(self, *pts) -> "list[str]":
+        """Which sides of the known ground the points *pts* (a strip row's start and end)
+        lie beyond: "right side", "left side", "front" (beyond what this sitting has confirmed
+        with the creep or from this table's motors). Empty: the row runs on known ground and
+        is read at once, as i1Profiler reads it."""
+        right, left = self.known_ground_x()
+        d = self._table
+        front = max(geo.MEASURING_AREA.ymax, int(d.front_y or 0)) if d is not None else \
+            geo.MEASURING_AREA.ymax
+        out = []
+        if any(p[0] < right for p in pts):
+            out.append("right side")
+        if any(p[0] > left for p in pts):
+            out.append("left side")
+        if any(p[1] > front for p in pts):
+            out.append("front")
+        return out
+
+    def _learn_strip_ends(self, res, scan_plan) -> None:
+        """A strip row that ended normally read the arm at its start and its end, each within
+        the arrival tolerance: both are places this table's motors reached."""
+        for got, target in ((getattr(res, "at_start", None), scan_plan.start),
+                            (getattr(res, "end_xy", None), scan_plan.end)):
+            if got is not None and _near(got, target):
+                self._learn(got, "motor", target)
+
     def _visited(self, p) -> bool:
         return (any(box.contains(p) for box in geo.DRIVEN)
                 or any(_rect_contains(r, p) for r in self.driven))
@@ -3057,6 +3139,8 @@ class TableJob:
         # or the homing) waits for a hands-off GO again, in both modes (one more question a page;
         # 4.3.50: for the creep, "Go forward carefully, my hands are away" is that GO)
         self._go_page = None
+        # 4.3.53: the hand was on the free arm at every aim: the next movement has its countdown
+        self._countdown_owed = True
         d.exchange("status")
         for _ in range(4):
             d._f4("01")
@@ -3125,7 +3209,8 @@ class TableJob:
         need = min(int(self.front_need), self._cap())
         self._block["data"]["front_need_y"] = need
         mark = max(al.readings, key=lambda p: p[1])
-        x = min(max(int(mark[0]), geo.MEASURING_AREA.xmin), geo.MEASURING_AREA.xmax)
+        # 4.3.53: the target area's sides (the backstop), no longer the recorded extent
+        x = min(max(int(mark[0]), geo.CAP_AREA.xmin), geo.CAP_AREA.xmax)
         self._step("dz", *DZ_CAPS)
         a = d.position()
         if d.arm_free:
@@ -3802,10 +3887,29 @@ class TableJob:
         self.diag.log("BUTTON", f"a press of the instrument's button was ignored ({why})")
 
     # ---- calibration (part C's C1, spot white) ----------------------------------------------
-    def calibrate(self) -> StepResult:
+    def calibrate(self, if_needed: bool = False) -> StepResult:
         """With the arm at its resting place: the reader consent (once), the place, the
-        instrument's own calibration. Nothing moves; the arm is read before and after."""
+        instrument's own calibration. Nothing moves; the arm is read before and after.
+
+        4.3.53, *if_needed* ("Skip initial calibration (-N)" ticked in the Measure tab): as a
+        hand measurement with -N, the instrument is opened at rest WITHOUT a calibration
+        first; only when it asks for one (no calibration of it is still valid, ArgyllCMS's own
+        rule) is the calibration made, right there, before the aims. Until 4.3.52 the table
+        found that out only at the first row, after the aims, and then had to bring the arm
+        home, calibrate and have the sheet aimed at again."""
+        if if_needed:
+            return self._stage("calibrate", lambda: self._calibrate(if_needed=True), go=False)
         return self._stage("calibrate", self._calibrate, go=False)
+
+    def _cal_needed_at_start(self, ev) -> bool:
+        """-N at a START: the instrument asks for a calibration when it is opened at rest.
+        Not answered here: the reader ends, and the calibration is made as without -N."""
+        self._cal_was_needed = True
+        self._cal_refused = "calibration_needed_at_start"
+        self.diag.log("INST", "-N: the instrument asks for a calibration when it is opened "
+                              f"({ev.get('cond', '')}): no calibration of it is valid any more, "
+                              "so ChromIQ calibrates now, at rest, before the aims")
+        return False
 
     def _cal_place_ok(self, ev) -> bool:
         """The reader's calibration request (its own prompt, an event): only a reflective white
@@ -3826,7 +3930,7 @@ class TableJob:
                               f"({ev.get('cond', '')}); the row is not read")
         return False
 
-    def _calibrate(self):
+    def _calibrate(self, if_needed: bool = False):
         d = self._table
         p = yield from self._rest_or_start_homing("before opening the instrument")
         if not tbl.REST_RECORDED.contains(p):
@@ -3847,6 +3951,26 @@ class TableJob:
                 self._table.outside_at = p
                 raise StageFailed("arm_not_over_the_tile", read=p)
         folder = self.diag.folder / self._block["folder"]
+        if if_needed:
+            # 4.3.53: -N, as a hand measurement: open the instrument without calibrating
+            self._cal_was_needed = False
+            check = yield from self._start_reader(folder, "c1_check", sp.CAL_PATCHES, False)
+            self._cal_refused = None
+            try:
+                self._open_reader(check, self._cal_needed_at_start)
+            except StageFailed:
+                if not self._cal_was_needed:
+                    raise
+            else:
+                self._close_reader(check)
+                self.minus_n_checked = True
+                self._check_rest("after opening the instrument")
+                self.diag.log("STEP", "-N: the instrument's calibration is still valid "
+                                      "(it did not ask for one): no calibration is made, as "
+                                      "in a hand measurement with -N")
+                self._block["data"]["calibration"] = {"skipped": "still_valid"}
+                return {"place": None, "skipped": "still_valid"}
+            self.minus_n_checked = True
         # tester C1: the reader first (its checks and the consent), then the place, asked once
         # in the session (the tester asked it at the reader's calibration request)
         reader = yield from self._start_reader(
@@ -3897,7 +4021,16 @@ class TableJob:
         self._open_reader(reader, self._cal_place_ok)
         cal_ok = bool(getattr(reader, "calibrated", False))
         dual_ev = self._dual_event(reader, "dual_calibration") if self.dual is not None else None
-        self._close_reader(reader)
+        self._pre_tile = None
+        if cal_ok and place == "table tile" and self.dual is None and (
+                self.stored_tile_white or self.white_needed() == "stored"):
+            # 4.3.53 (group I, D4): the table's tile is read with the SAME reader right after
+            # its calibration (it already sits on its one patch, at rest over the tile), not by
+            # a second reader started for it: about 6 s less at every calibration. The reading,
+            # its checks and what is sent to the table are those of _read_tile
+            yield from self._read_tile(reader=reader)
+        else:
+            self._close_reader(reader)
         if not cal_ok:
             raise StageFailed("calibration_not_confirmed")
         if self.dual is not None:
@@ -3979,6 +4112,7 @@ class TableJob:
             self.session_white = "stored" if self.white_scale else "own"
             self.diag.log("STEP", f"the session's white reference is decided: {self.session_white} "
                                   "(kept for every later calibration of this session)")
+        self._pre_tile = None
         return out
 
     def _decide_white_by_a_row(self) -> None:
@@ -4056,15 +4190,33 @@ class TableJob:
     def read_tile(self) -> StepResult:
         return self._stage("read_tile", self._read_tile, go=False)
 
-    def _read_tile(self):
+    def _read_tile(self, reader=None):
+        """One reading of the table's white tile at rest (part C's C2). 4.3.53: *reader*, the
+        calibration's own reader, open on its one patch right after the white: the reading is
+        made with it (kept for the white-level check and the stored white that follow, which
+        then start no reader of their own); without it a reader is started as before."""
+        pre = getattr(self, "_pre_tile", None)
+        if reader is None and pre is not None:
+            # the calibration's reader read the tile a moment ago (nothing moved since: the
+            # arm is checked at rest after it)
+            self._pre_tile = None
+            self._check_rest("before using the tile reading made with the calibration")
+            self._tile_spectrum = pre.get("spectrum")
+            self.tile_readings.append({"xyz": pre["xyz"]})
+            return {"xyz": pre["xyz"]}
         d = self._table
-        self._check_rest("before the reading")
         folder = self.diag.folder / self._block["folder"]
-        reader = yield from self._start_reader(folder, "c2_tile", sp.CAL_PATCHES, False)
+        if reader is None:
+            self._check_rest("before the reading")
+            reader = yield from self._start_reader(folder, "c2_tile", sp.CAL_PATCHES, False)
+            name, own = "c2_tile", True
+        else:
+            name, own = "c1_tile", False
         rows = []
         try:
-            self._cal_refused = None
-            self._open_reader(reader, self._cal_in_a_row)
+            if own:
+                self._cal_refused = None
+                self._open_reader(reader, self._cal_in_a_row)
             self._check_rest("right before the reading")
             p = sp.PatchTarget("1", "A1", d.position_now)
             try:
@@ -4075,13 +4227,17 @@ class TableJob:
             rows.append(rec)
         finally:
             self._finish_reader(reader)
-            self._write_readings(folder, "c2_tile", rows)
+            self._write_readings(folder, name, rows)
         try:
             got = reader.readings.get("A1")
             self._tile_spectrum = list(got.spectrum) if got and got.spectrum else None
         except Exception:      # noqa: BLE001 - no spectrum: the stored white is refused
             self._tile_spectrum = None
         self._check_rest("after the reading")
+        if not own:
+            # kept for the white-level check / the stored white of this calibration
+            self._pre_tile = {"xyz": rows[0]["xyz"], "spectrum": self._tile_spectrum}
+            return {"xyz": rows[0]["xyz"]}
         self.tile_readings.append({"xyz": rows[0]["xyz"]})
         return {"xyz": rows[0]["xyz"]}
 
@@ -4133,13 +4289,13 @@ class TableJob:
                         sp.plan_row(self.sheet, self.page, k, self.alignment,
                                     self._table.front_y, cap_y=self._cap(), kind=kind, only_locs=self.only_locs))
             except sp.RowRefused as exc:
-                if kind != "strip" or exc.reason not in ("strip_row_too_long",
-                                                         "strip_only_some_patches",
-                                                         "dual_row_patches_too_short"):
+                if kind != "strip" or exc.reason not in sp.STRIP_FALLBACK_REASONS:
                     raise
                 fallback = exc.reason
+                # 4.3.53: the TRUE reason, in the log and in the event the window shows
                 self.diag.log("DATA", f"row {row} is read patch by patch: {exc.reason} "
                                       + json.dumps(exc.detail, default=str))
+                self._fallback_detail = dict(exc.detail)
                 plan = sp.plan_row(self.sheet, self.page, k, self.alignment,
                                    self._table.front_y, cap_y=self._cap(), kind="spot", only_locs=self.only_locs)
         except sp.RowRefused as exc:
@@ -4164,7 +4320,9 @@ class TableJob:
             self.rows_again[self.page] = self.rows_again.get(self.page, 0) + 1
         if fallback:
             self.strip_fallbacks.setdefault(self.page, {})[plan.index] = fallback
-            self._progress(event="strip_fallback", row=plan.index + 1, why=fallback)
+            det = getattr(self, "_fallback_detail", None) or {}
+            self._progress(event="strip_fallback", row=plan.index + 1, why=fallback,
+                           where=det.get("where"))
         attempt = 1
         while True:
             if plan.kind == "strip" and self.dual is not None:
@@ -4509,9 +4667,20 @@ class TableJob:
             if self._pause_stop:
                 self._pause_stop = False
                 raise PersonStopped("stopped_before_the_strip")
-            if geo.in_front_zone(scan_plan.start) or geo.in_front_zone(scan_plan.end):
-                # tester fix 2: the creep confirmed the front Y at one X only; the strip runs
-                # along X, so both ends of the row are first reached by a spot move each
+            beyond = self._row_ends_beyond(scan_plan.start, scan_plan.end)
+            rec["row_ends_beyond_known_ground"] = beyond
+            if beyond:
+                # 4.3.53 (the owner, 2026-11-20: care for the first time only): until 4.3.52
+                # every front-zone row (Y beyond 2723) got these two moves, every sitting. Now
+                # only a row whose start or end lies beyond the ground THIS table is known to
+                # reach (self._row_ends_beyond: the side reached by the vendor's own targets
+                # or this table's readings, the front this sitting confirmed) is first driven
+                # to by a spot move to each end, each arrival checked; the arrivals are learned
+                # and stored (reach record), so the next row and the next sitting skip it
+                self.diag.log("DATA", f"row {plan.index + 1}: its "
+                                      + " and ".join(beyond) + " lie beyond the ground this "
+                                      "table is known to reach: both row ends are driven to "
+                                      "first, once (then remembered for this table)")
                 self._step("row_ends", 9, 2)     # +2: S-7, each arrival read again once
                 a = d.position()
                 if d.arm_free:
@@ -4522,6 +4691,7 @@ class TableJob:
                 except _ArrivedBeside as exc:
                     raise _RowFailed(exc.reason, "") from None
                 rec["front_row_ends_confirmed"] = True
+                rec["row_ends_confirmed"] = True
             if self._hands_off_due:
                 # final fix round, M-1 (never expected: every question of this row is asked
                 # before the reader opens, and GO follows it there); no GO is asked with the
@@ -4556,6 +4726,8 @@ class TableJob:
             # arrival tolerance (a doubt otherwise)
             self._arrived_at(scan_plan.start)
             self._arrived_at(scan_plan.end)
+            # 4.3.53: both ends are places this table's motors brought the opening to
+            self._learn_strip_ends(res, scan_plan)
             cut = stp.cut_row(scan_plan, str(folder), res.fired)
             stp.save_cut_info(str(folder), name, cut)
             rec["cut"] = {"ok": cut.ok, "reason": cut.reason,
@@ -4651,7 +4823,15 @@ class TableJob:
             if self._pause_stop:
                 self._pause_stop = False
                 raise PersonStopped("stopped_before_the_strip")
-            if geo.in_front_zone(lamp.start) or geo.in_front_zone(lamp.end):
+            beyond = self._row_ends_beyond(lamp.start, lamp.end)
+            rec["row_ends_beyond_known_ground"] = beyond
+            if beyond:
+                # 4.3.53: as for a strip row, only beyond the ground this table is known to
+                # reach, once (then learned and stored)
+                self.diag.log("DATA", f"row {plan.index + 1}: its "
+                                      + " and ".join(beyond) + " lie beyond the ground this "
+                                      "table is known to reach: both row ends are driven to "
+                                      "first, once (then remembered for this table)")
                 self._step("row_ends", 9, 2)
                 a = d.position()
                 if d.arm_free:
@@ -4664,6 +4844,7 @@ class TableJob:
                     # twice: the row fails cleanly and may be read again
                     raise _RowFailed(exc.reason, "") from None
                 rec["front_row_ends_confirmed"] = True
+                rec["row_ends_confirmed"] = True
             if self._hands_off_due:
                 raise _RowFailed("strip_move_refused_here", "")
             for which, pplan in (("lamp", lamp), ("uv", uv)):
@@ -4707,6 +4888,9 @@ class TableJob:
                 files = sc.save_row(str(folder), res) if which == "lamp" else \
                     _save_pass(str(folder), res)
                 results[which] = res
+                if res.kind == "done":
+                    # 4.3.53: the pass's ends are places this table's motors reached
+                    self._learn_strip_ends(res, pplan)
                 rec.setdefault("scan", {})[which] = {
                     "kind": res.kind, "why": res.why, "notes": res.notes, "files": files,
                     "c4": res.c4, "a3": res.a3, "start_read": res.start_read,

@@ -64,9 +64,10 @@ def test_his_aims_at_the_crosses_are_accepted_as_he_aimed_them():
     assert res[1].ok, (res[1].reason, res[1].detail)
 
 
-#: his aims, the sheet 10 mm further to the right: mark 3 lies beyond the right side (X -1384,
-#: 5 mm inside the right stop the evidence shows), which is still refused
-OFF_THE_RIGHT = _shift(CROSSES_1, -100, 0)
+#: his aims, the sheet 51.6 mm further to the right: mark 3 lies 7.8 mm beyond the target
+#: area's absolute backstop (X -1800), which is still refused. 4.3.53: until 4.3.52 a shift of
+#: 10 mm was refused by the fixed right edge X -1384 (the recorded extent, now gone)
+OFF_THE_RIGHT = _shift(CROSSES_1, geo.CAP_AREA.xmin - 78 - CROSSES_1[2][0], 0)
 
 
 def test_aims_beyond_the_right_side_say_by_how_much():

@@ -74,13 +74,15 @@ def _ready(job, p, steps=("open", "calibrate", "align")):
 # ---- the allow-list: each new line only in its recorded place -------------------------------
 
 def test_the_new_lines_are_the_recorded_bytes():
-    # the form, byte for byte (the recorded row reached X -1433, beyond ChromIQ's measuring
-    # area: ChromIQ's own rows stay inside it, so its builder refuses that end)
+    # the form, byte for byte. 4.3.53: the recorded row reached X -1433, beyond the old fixed
+    # right edge (-1384) that kept ChromIQ's own rows off it; that edge is gone, so ChromIQ's
+    # builder now makes i1Profiler's own line, byte for byte
     assert geo._line("m2", 1267, 1696, 132) == REC_LAMP_M2
     assert geo._line("m2", -1433, 1709, 132) == REC_UV_M2
     assert geo.m2_line(1267, 1696, 132, dual=True) == REC_LAMP_M2
+    assert geo.m2_line(-1433, 1709, 132, dual=True) == REC_UV_M2
     with pytest.raises(geo.AreaRefused):
-        geo.m2_line(-1433, 1709, 132, dual=True)
+        geo.m2_line(geo.CAP_AREA.xmin - 1, 1709, 132, dual=True)
     assert geo.m0_line(1267, 1696) == REC_ZERO_M0
     assert cl.C_DUAL_FIXED["scan_d1_uv"] == REC_D1_UV
     assert geo.DUAL_M2_SPEEDS == (132,)

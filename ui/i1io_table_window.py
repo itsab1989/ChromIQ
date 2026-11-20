@@ -30,6 +30,7 @@ no USB device is ever opened by a driver.
 """
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import sys
@@ -429,6 +430,12 @@ def stored_white_reason(why: str) -> str:
             "can only be applied to a spectrum"),
     }
     return words.get(why, tr("ChromIQ could not use them"))
+
+
+def _calibrate_if_needed(job):
+    """4.3.53: the job call for "Skip initial calibration (-N)" at a START (as a hand
+    measurement with -N: calibrate only when the instrument asks for it)."""
+    return functools.partial(job.calibrate, if_needed=True)
 
 
 def table_reach_store():
@@ -994,6 +1001,10 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
         "strip_move_refused_by_the_table": tr("the table refused the strip move"),
         "strip_failed": tr("the strip could not be read"),
         "strip_row_too_long": tr("the row is too long for one strip move"),
+        "strip_row_outside_area": tr("the strip would start or end outside the part of the "
+                                     "table ChromIQ may send the arm to now"),
+        "strip_row_too_short": tr("the row is not one straight run of at least 10 mm"),
+        "strip_row_not_on_a_line": tr("the row is not one straight run of at least 10 mm"),
         "strip_only_some_patches": tr("only some patches of the row are to be read"),
         "stopped_before_the_next_move": tr("You pressed Stop, so ChromIQ stopped before the "
                                            "next move."),
@@ -2995,13 +3006,10 @@ class TableMeasureWindow(QFrame):
         elif kind == "strip_fallback":
             from workflow import measurement_messages as M
             why = ev.get("why")
-            live["now"] = (M.M_I1IO_DRIVE_STRIP_TOO_LONG.render(row=ev.get("row", "?"))[1]
-                           if why == "strip_row_too_long" else
-                           M.M_I1IO_DRIVE_DUAL_PATCHES_TOO_SHORT.render(
-                               row=ev.get("row", "?"))[1]
-                           if why == "dual_row_patches_too_short" else
-                           tr("Now: row {row} is read patch by patch, because only some of its "
-                              "patches are to be read.").format(row=ev.get("row", "?")))
+            # 4.3.53: every reason in its own true words (M.strip_fallback_text)
+            live["now"] = (M.strip_fallback_text(why, ev.get("row", "?"))
+                           or tr("Now: row {row} is read patch by patch, because only some of "
+                                 "its patches are to be read.").format(row=ev.get("row", "?")))
         elif kind == "strip_move" and ev.get("dual_pass") == "lamp":
             live["now"] = tr("Now: the arm drives along row {row} of page {page} while the "
                              "instrument reads it with its lamp (the first of two passes).").format(
@@ -3651,6 +3659,14 @@ class TableMeasureWindow(QFrame):
             if out:
                 return (j.home, tr("Bringing the arm home first."), home_txt)
             return (j.calibrate, tr("Calibrating the instrument..."), None)
+        if (j.calibration is None and j.options_report.options.skip_initial_calibration
+                and not j.minus_n_checked):
+            # 4.3.53: "Skip initial calibration (-N)", as in a hand measurement: the instrument
+            # is opened first, and calibrated only when it asks for it (before the aims)
+            if out:
+                return (j.home, tr("Bringing the arm home first."), home_txt)
+            return (_calibrate_if_needed(j), tr("Checking whether the instrument needs a new "
+                                                "calibration..."), None)
         # a page with nothing missing (a resume, an adopted session) is never aligned or read
         left = j.rows_left() if j.page_has_something_to_read() else []
         want = bool(left or self._again_rows)

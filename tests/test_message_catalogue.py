@@ -237,6 +237,9 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-I1IO-DRIVE-STRIP-OPTION",
     "M-I1IO-DRIVE-STRIP-FIRST-TRY",
     "M-I1IO-DRIVE-STRIP-TOO-LONG",
+    # 2026-11-20, 4.3.53: the true reason a strip row is read patch by patch
+    "M-I1IO-DRIVE-STRIP-OUTSIDE-AREA",
+    "M-I1IO-DRIVE-STRIP-NOT-POSSIBLE",
     # 2026-11-18, final fix round: a chart without aiming crosses (the owner)
     "M-I1IO-DRIVE-AIM-PATCH",
     "M-I1IO-DRIVE-AIM-BUTTON-PATCH",

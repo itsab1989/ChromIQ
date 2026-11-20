@@ -82,12 +82,18 @@ our recordings shows the opening there. So:
   each one at most CREEP_STEP beyond what is confirmed, from a fresh reading (the gate checks
   this whole rule on the bytes it is given).
 
-THE SHEET. Inside that, every computed target must also lie inside the sheet as the person aimed
-at it: the parallelogram of his three aimed marks (top-left, bottom-left, bottom-right and the
-fourth corner TL + BR - BL), widened by RUN_OUT_MM along the rows (the run-in and run-out of a
-strip read) and ACROSS_MM across them. The aims were reached by hand with the SIGHT on each mark;
-the opening was then about 31 mm behind it, so an aim says where the sheet lies, not that the
-opening has been there (the area above decides that).
+THE SHEET. Until 4.3.52 every computed target also had to lie inside the parallelogram of the three
+aimed marks, widened by RUN_OUT_MM along the rows and ACROSS_MM across them. 4.3.53 (the owner,
+2026-11-20: the aimed points are not the edge, "a little wider than where he aimed is safe as
+well ... for both patch by patch and rows"): that is no longer a refusal. The targets are the
+side file's own patch centres and row run ends through the alignment; the target area (sides:
+the backstop below; front: the aimed area or the plan's frontmost target, felt for with the
+creep) is the only bound, the same for both ways of reading.
+
+THE SIDES (4.3.53). The X sides of MEASURING_AREA / AREA_RAW below were the recorded extent and
+kept the owner's sheet out of strip rows (its run-out needs X -1443). They are replaced by an
+absolute backstop (TARGET_X_RIGHT / TARGET_X_LEFT, not an end of travel) and by KNOWN GROUND
+(:func:`known_x`): the vendor's own motor targets and what this table's opening has been read at.
 
 WHERE THE ARM WAS DRIVEN. :data:`DRIVEN` is where motors moved it in a recording. A computed move
 whose swept rectangle leaves it is a FIRST VISIT: the stage runner makes it a step of its own,
@@ -141,8 +147,41 @@ AREA_RAW = Area(SMALLEST_X_REACHED, SMALLEST_X_REACHED + int(AREA_MM[0] * 10),
 MARGIN = 50
 MEASURING_AREA = Area(AREA_RAW.xmin + MARGIN, AREA_RAW.xmax - MARGIN,
                       AREA_RAW.ymin + MARGIN, AREA_RAW.ymax - MARGIN)
-#: The PROVEN zone is AREA_RAW / MEASURING_AREA above (the names kept).
+#: The PROVEN zone is AREA_RAW / MEASURING_AREA above (the names kept). 4.3.53: their X sides
+#: (-1384 / -1434 and 1716 / 1766) no longer bound a target: they came from where recordings
+#: happened to read the opening, which the owner's rulings of 19 and 20 Nov 2026 say is not a
+#: fence. MEASURING_AREA stays the PROVEN zone for the FRONT (its Y) and the back strip.
 PROVEN_RAW, PROVEN = AREA_RAW, MEASURING_AREA
+
+#: 4.3.53 (the owner, 2026-11-20: "there is no physical reason he should not be able to do it",
+#: and: "for patch by patch you allowed this position because we considered the position where
+#: he aimed the device as safe. so why not rows? ... for both patch by patch and rows"). THE SIDES
+#: OF THE TARGET AREA, the same for both ways of reading:
+#:
+#: * VENDOR_ROW_START_X: the furthest right X i1Profiler ITSELF drove the opening to under motor
+#:   on a real i1iO 2: the starts of its own scan rows on the owner's table, -1432 to -1439
+#:   (18 Nov 2026, decode_full_124449 / _125226, rows at lines 90, 170, 250). Known ground for
+#:   ANY table of this model: the vendor's software sends it there.
+#: * VENDOR_APPROACH_X: the left end of every recorded way out (m0 to (2507, 1498) at 300, done,
+#:   every session; m1 then lands at (2507, 1429)). Known ground on the left for any table.
+#: * Beyond those, what THIS table's opening has been read at (free or under motor: the reach
+#:   record's right_end_x / left_x, learned and stored per table) is known ground too: the arm
+#:   stood there, so the mechanism reaches it (the X carriage on the Y arm: every X reached at
+#:   one Y is reached at every Y of the travel, the belief AREA_RAW's derivation states).
+#: * TARGET_X_RIGHT / TARGET_X_LEFT are an ABSOLUTE BACKSTOP against a corrupted target, NOT an
+#:   end of travel (none is known: no recording or log shows an end met on either side). Right:
+#:   the furthest-left mark ever aimed (1409, the owner's mark 2, 19 Nov 2026) minus the
+#:   manufacturer's 320 mm measuring width, rounded outward to -1800: no sheet that lies inside
+#:   the measuring area needs a target beyond it. Left: VENDOR_APPROACH_X. Both are checked by
+#:   the line builders and the USB gate on every computed line.
+#: Ground between the known ground and the backstop is NOT refused: a strip row that reaches
+#: into it is driven to first by two ordinary arrival-checked moves (its row start and end, the
+#: careful mechanism the front-zone rows already used), ONCE per table: the arrivals are learned
+#: and stored, and later rows and sittings run at full speed (job.TableJob._row_ends_known).
+VENDOR_ROW_START_X = -1439
+VENDOR_APPROACH_X = 2507
+TARGET_X_RIGHT = -1800
+TARGET_X_LEFT = VENDOR_APPROACH_X
 
 #: the arrival tolerance (units) every move is checked with
 ARRIVAL_SLACK = 5
@@ -166,8 +205,15 @@ DEFAULT_TARGET_FRONT_Y = MEASURING_AREA.ymax
 #: A swept rectangle may START where the arm reads after a clean arrival at the cap, within the
 #: arrival tolerance; never beyond this.
 FRONT_SWEEP_CAP_Y = FRONT_CAP_Y + ARRIVAL_SLACK
-CAP_AREA = Area(MEASURING_AREA.xmin, MEASURING_AREA.xmax, MEASURING_AREA.ymin, FRONT_CAP_Y)
-CAP_RAW = Area(AREA_RAW.xmin, AREA_RAW.xmax, AREA_RAW.ymin, FRONT_SWEEP_CAP_Y)
+#: 4.3.53: the back of the target area is the edge of the back strip (AREA_RAW.ymin, the one
+#: physical exception kept: the head parks there beside the white tile's holder, and no computed
+#: move starts in it) plus 1 mm, not the 5 mm margin of 4.3.52. The 1 mm is a STATE reason, not
+#: a fence: an arrival the job accepts may lie up to 1 mm off its target (ARRIVAL_BESIDE_UNITS
+#: in the job), and the arm must never come to stand inside the back strip, from where the next
+#: computed move would be refused.
+TARGET_Y_BACK = AREA_RAW.ymin + 2 * ARRIVAL_SLACK
+CAP_AREA = Area(TARGET_X_RIGHT, TARGET_X_LEFT, TARGET_Y_BACK, FRONT_CAP_Y)
+CAP_RAW = Area(TARGET_X_RIGHT, TARGET_X_LEFT, AREA_RAW.ymin, FRONT_SWEEP_CAP_Y)
 #: One creep step: at most 5 mm, and at most 5 mm beyond what the sitting has confirmed.
 CREEP_STEP = 50
 
@@ -183,7 +229,13 @@ def table_cap(cap_y=None) -> int:
 def table_area(cap_y=None) -> Area:
     """The whole target area of a sitting (its sides as MEASURING_AREA, its front at
     :func:`table_cap`), whatever this sitting has confirmed with the creep."""
-    return Area(MEASURING_AREA.xmin, MEASURING_AREA.xmax, MEASURING_AREA.ymin, table_cap(cap_y))
+    return Area(TARGET_X_RIGHT, TARGET_X_LEFT, TARGET_Y_BACK, table_cap(cap_y))
+
+
+#: 4.3.53: the proven zone with the target area's sides (the backstop above): its front is
+#: MEASURING_AREA's, its sides are no longer the recorded extent
+PROVEN_TARGETS = Area(TARGET_X_RIGHT, TARGET_X_LEFT, TARGET_Y_BACK, MEASURING_AREA.ymax)
+PROVEN_SWEEP = Area(TARGET_X_RIGHT, TARGET_X_LEFT, AREA_RAW.ymin, AREA_RAW.ymax)
 
 
 def areas(front_y=None, cap_y=None) -> "tuple[Area, Area]":
@@ -191,17 +243,32 @@ def areas(front_y=None, cap_y=None) -> "tuple[Area, Area]":
     *front_y* (None: nothing confirmed, the proven zone only), whose target area ends at *cap_y*
     (:func:`table_cap`). Targets never beyond the cap, swept rectangles never beyond it plus the
     arrival tolerance. (4.3.49: the job starts a sitting with *front_y* at the frontmost place
-    THIS table's motors already brought the opening to, minus the arrival tolerance.)"""
+    THIS table's motors already brought the opening to, minus the arrival tolerance.) 4.3.53:
+    the sides are the backstop (TARGET_X_RIGHT / TARGET_X_LEFT), the same for every row kind."""
     if front_y is None or not isinstance(front_y, (int, float)) or front_y != front_y \
             or front_y <= MEASURING_AREA.ymax:
-        return MEASURING_AREA, AREA_RAW
+        return PROVEN_TARGETS, PROVEN_SWEEP
     cap = table_cap(cap_y)
     fy = int(min(front_y, cap))
     # a swept rectangle may start where the arm READS after a clean arrival at fy (within the
     # 5-unit arrival tolerance), never beyond the cap plus that tolerance
     sy = min(fy + ARRIVAL_SLACK, cap + ARRIVAL_SLACK)
-    return (Area(MEASURING_AREA.xmin, MEASURING_AREA.xmax, MEASURING_AREA.ymin, fy),
-            Area(AREA_RAW.xmin, AREA_RAW.xmax, AREA_RAW.ymin, max(AREA_RAW.ymax, sy)))
+    return (Area(TARGET_X_RIGHT, TARGET_X_LEFT, TARGET_Y_BACK, fy),
+            Area(TARGET_X_RIGHT, TARGET_X_LEFT, AREA_RAW.ymin, max(AREA_RAW.ymax, sy)))
+
+
+def known_x(right_end_x=None, left_x=None) -> "tuple[int, int]":
+    """4.3.53: (right, left) X of the ground a table's opening is KNOWN to reach: the vendor's
+    own motor targets, widened by what this table's opening has been read at (free or under
+    motor, the reach record). Never beyond the backstop. Nothing here refuses anything: the job
+    drives a strip row beyond it with its careful row-end moves first, once per table."""
+    right = VENDOR_ROW_START_X
+    if isinstance(right_end_x, (int, float)) and right_end_x == right_end_x:
+        right = min(right, int(right_end_x))
+    left = VENDOR_APPROACH_X
+    if isinstance(left_x, (int, float)) and left_x == left_x:
+        left = max(left, int(left_x))
+    return max(right, TARGET_X_RIGHT), min(left, TARGET_X_LEFT)
 
 
 def in_front_zone(p) -> bool:
@@ -442,7 +509,8 @@ class Alignment:
 
     def on_sheet(self, u, run_out_mm: float = RUN_OUT_MM, across_mm: float = ACROSS_MM) -> bool:
         """Inside the parallelogram of the three aims (sheet x between TL and BR, y between TL and
-        BL), widened by run_out_mm along x and across_mm along y."""
+        BL), widened by run_out_mm along x and across_mm along y. 4.3.53: words only, never a
+        refusal (see :meth:`target`)."""
         xs = [a[0] for a in self.aims_mm]
         ys = [a[1] for a in self.aims_mm]
         return (min(xs) - run_out_mm <= u[0] <= max(xs) + run_out_mm
@@ -450,8 +518,16 @@ class Alignment:
 
     def target(self, u, what: str, run_out_mm: float = RUN_OUT_MM,
                front_y=None, cap_y=None) -> "tuple[int, int]":
-        if not self.on_sheet(u, run_out_mm):
-            raise AreaRefused(f"{what}: sheet position {u} lies outside the aimed marks")
+        """The table target of the sheet point *u* (a patch centre or a row's run end from the
+        side file). 4.3.53 (the owner, 2026-11-20: "probably even a little wider than where he
+        aimed is safe as well. so if there are no crosshairs for aiming but patches only will
+        be safe as well. for both patch by patch and rows"): the aimed marks are NOT the edge
+        of the usable ground, so a point outside their rectangle is not refused (a chart aimed
+        on its corner patches has its row run-outs and half of every edge patch outside it).
+        Only the target area decides (:func:`check_target`: the backstop, the front). *run_out_mm*
+        is kept for the callers; it no longer refuses anything (:meth:`on_sheet` stays, words
+        and diagnostics only)."""
+        del run_out_mm
         p = self.to_table(u)
         # 4.3.49: an alignment's targets are bounded by the area it was aimed at
         check_target(p, what, front_y, self.aimed_front_y() if cap_y is None else cap_y)

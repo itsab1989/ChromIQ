@@ -23,6 +23,13 @@ opening to and it arrived there. Beyond it, the first motor visit keeps the care
 repeated in a later sitting. That only spares a repetition; it never lets a target past the aimed
 area.
 
+4.3.53, THE SECOND USE (the owner, 2026-11-20: "after the first carefull attempt everything runs as
+fast as it is supposed to"): ``right_end_x`` and ``left_x``, the furthest right and left X this
+table's opening was read at (free or under motor), widen the KNOWN GROUND of the sides
+(geometry.known_x). A strip row whose run-up or run-out lies beyond it is driven to first by two
+arrival-checked moves (its start and its end); their arrivals are learned here and stored, so the
+next row and the next sitting read it at once. Nothing here lets a target past the backstop.
+
 WHERE IT IS STORED. One settings value (``i1io_table_reach``), JSON: a random salt made on this
 computer and, per table, a key: the first 16 hex digits of HMAC-SHA256(salt, SHA-256 of the first
 88 bytes of the table's memory block u8 0x6000, which hold its serial field). The block is read in
@@ -195,7 +202,8 @@ class Reach:
             r.front_at = _point(d.get("front_at"))
             r.front_when = str(d.get("front_when") or "")[:20] or None
         rx = _int_or_none(d.get("right_end_x"))
-        if rx is not None and DEFAULT_RIGHT_END_X - 300 <= rx < DEFAULT_RIGHT_END_X \
+        # 4.3.53: believed up to the target area's backstop (geometry.TARGET_X_RIGHT)
+        if rx is not None and geo.TARGET_X_RIGHT <= rx < DEFAULT_RIGHT_END_X \
                 and d.get("right_how") in HOW[1:]:
             r.right_end_x, r.right_how = rx, str(d["right_how"])
         lx = _int_or_none(d.get("left_x"))

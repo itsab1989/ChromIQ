@@ -7877,16 +7877,14 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         try:
             if kind == "aim":
                 self._table_aim_on_preview(ev)
-            elif kind == "strip_fallback" and ev.get("why") == "strip_row_too_long":
-                # round B: a strip row too long for one strip move, read patch by patch
+            elif kind == "strip_fallback" and ev.get("why") in (
+                    "strip_row_too_long", "strip_row_outside_area", "strip_row_too_short",
+                    "strip_row_not_on_a_line", "dual_row_patches_too_short"):
+                # round B: a strip row read patch by patch; 4.3.53: each reason in its own
+                # true words (until 4.3.52 a run outside the area said "too long")
                 from workflow import measurement_messages as M
                 self._log.appendPlainText(
-                    M.M_I1IO_DRIVE_STRIP_TOO_LONG.render(row=ev.get("row", "?"))[1])
-            elif kind == "strip_fallback" and ev.get("why") == "dual_row_patches_too_short":
-                # the dual scan on the table: patches too short for a dual row
-                from workflow import measurement_messages as M
-                self._log.appendPlainText(
-                    M.M_I1IO_DRIVE_DUAL_PATCHES_TOO_SHORT.render(row=ev.get("row", "?"))[1])
+                    M.strip_fallback_text(ev.get("why"), ev.get("row", "?")))
             elif kind == "row_start":
                 # round B: a strip session may read a row patch by patch (too long for one
                 # strip move, or chosen after a failed strip): ring its patches then
