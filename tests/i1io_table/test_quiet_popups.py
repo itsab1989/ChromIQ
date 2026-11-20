@@ -25,6 +25,15 @@ from tests.i1io_table.test_window import open_window, settings  # noqa: F401 (th
 from tests.i1io_table.window_sim import WindowSim
 from ui import i1io_table_window as W
 
+
+@pytest.fixture(autouse=True)
+def _first_time_on_new_ground(monkeypatch):
+    """4.3.53 fix round (inventory A8): this walk is about every question's pop-up, the
+    first-visit question included, so it keeps the first time on new ground
+    (tests/i1io_table/test_4353_first_visit_once.py proves the new rule)."""
+    from workflow.i1io.table import job as _J
+    monkeypatch.setattr(_J.TableJob, "_known_ground", lambda self, p: False)
+
 MOVES = ("m0", "m1", "m2", "i1", "i0")
 
 

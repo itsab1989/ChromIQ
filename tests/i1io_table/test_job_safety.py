@@ -34,6 +34,17 @@ from workflow.i1io.table import geometry as geo
 from workflow.i1io.table import job as J
 from workflow.i1io.table import session_table as tbl
 
+
+@pytest.fixture(autouse=True)
+def _first_time_on_new_ground(monkeypatch):
+    """4.3.53 fix round (inventory A8): ground this table's reach record already holds no
+    longer gets the guided first-visit question (TableJob._known_ground). The tests in this
+    file are about what happens AT and AROUND a first-visit question (or compare the wire with
+    tester 0.6.0, which asked it), so they keep the first time on new ground everywhere;
+    tests/i1io_table/test_4353_first_visit_once.py proves the new rule."""
+    from workflow.i1io.table import job as _J
+    monkeypatch.setattr(_J.TableJob, "_known_ground", lambda self, p: False)
+
 A = geo.MEASURING_AREA
 MOTION = ("m0", "m1", "m2", "i1", "i0")
 

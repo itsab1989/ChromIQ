@@ -2698,7 +2698,26 @@ class TableJob:
 
     def _visited(self, p) -> bool:
         return (any(box.contains(p) for box in geo.DRIVEN)
-                or any(_rect_contains(r, p) for r in self.driven))
+                or any(_rect_contains(r, p) for r in self.driven)
+                or self._known_ground(p))
+
+    def _known_ground(self, p) -> bool:
+        """4.3.53 fix round (inventory A8, the owner: "after the first careful attempt
+        everything runs as fast as it is supposed to"): ground THIS table's reach record
+        already holds (its known sides, geometry.known_x, and the frontmost place its opening
+        was read at, free or under motor) counts as visited, so the guided "first visit"
+        question is asked once per table for new ground, not at almost every row of every
+        sitting. Never the back strip (its own physical rule)."""
+        r = self.reach
+        if r is None or p is None:
+            return False
+        right, left = self.known_ground_x()
+        front = max(int(r.front_y), int(r.motor_front_y or 0))
+        try:
+            x, y = float(p[0]), float(p[1])
+        except (TypeError, ValueError, IndexError):
+            return False
+        return right <= x <= left and geo.AREA_RAW.ymin <= y <= front
 
     def _seg_visited(self, a, b) -> bool:
         x0, x1 = sorted((int(a[0]), int(b[0])))

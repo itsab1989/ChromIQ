@@ -23,6 +23,10 @@ PLAUSIBLE_Y = (0.2, 130.0)
 #: part C (and APP_DESIGN 6.1): at least this long between the end of a reading and the next
 #: move of the arm, so the table is never driven faster than i1Profiler did (1.07 s recorded)
 PACE_FLOOR_S = 1.0
+#: 4.3.53 fix round (inventory C10): GONE. The "1.07 s recorded" was i1Profiler's whole patch
+#: cycle (move + settle + reading); its next m0 followed its p0 after 0.016 s (R12 L971-974),
+#: with no pause of its own. ChromIQ now sends the next move as soon as the reading is in.
+PACE_FLOOR_S = 0.0
 #: what a spot patch takes at most, for the calibration check before a row. Was 1.5 s (the
 #: tester: "as i1Profiler did it", an M0-only row of S2). i1Profiler's DUAL spot row on the
 #: volunteer's table (17 Nov 2026) took 2.01 s a patch (1.94-2.04): I1PROFILER_DUAL_PATCH_S.

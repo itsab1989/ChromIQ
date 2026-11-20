@@ -22,6 +22,17 @@ from tests.i1io_table import must1_wire as M1
 from tests.i1io_table.job_harness import HERE
 from workflow.i1io.table import job as J
 
+
+@pytest.fixture(autouse=True)
+def _first_time_on_new_ground(monkeypatch):
+    """4.3.53 fix round (inventory A8): ground this table's reach record already holds no
+    longer gets the guided first-visit question (TableJob._known_ground). The tests in this
+    file are about what happens AT and AROUND a first-visit question (or compare the wire with
+    tester 0.6.0, which asked it), so they keep the first time on new ground everywhere;
+    tests/i1io_table/test_4353_first_visit_once.py proves the new rule."""
+    from workflow.i1io.table import job as _J
+    monkeypatch.setattr(_J.TableJob, "_known_ground", lambda self, p: False)
+
 TESTER = json.loads((HERE / "data" / "tester_060_strip_wire.json").read_text(encoding="utf-8"))
 CASES = W.cases()
 

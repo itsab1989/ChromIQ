@@ -30,6 +30,17 @@ from workflow.i1io.table import session_table as tbl
 from workflow.i1io.table import spot as sp
 from workflow.i1io.table import usb_system as us
 
+
+@pytest.fixture(autouse=True)
+def _first_time_on_new_ground(monkeypatch):
+    """4.3.53 fix round (inventory A8): ground this table's reach record already holds no
+    longer gets the guided first-visit question (TableJob._known_ground). The tests in this
+    file are about what happens AT and AROUND a first-visit question (or compare the wire with
+    tester 0.6.0, which asked it), so they keep the first time on new ground everywhere;
+    tests/i1io_table/test_4353_first_visit_once.py proves the new rule."""
+    from workflow.i1io.table import job as _J
+    monkeypatch.setattr(_J.TableJob, "_known_ground", lambda self, p: False)
+
 SMALL = [4, 4]                              # a small page: two rows of four patches
 
 
@@ -653,9 +664,11 @@ def test_the_arm_is_never_driven_faster_than_recorded_between_patches(tmp_path, 
     assert p.drive(job.read_row()).ok
     m0 = [t for k, t in times if sim.received[k].startswith(";m0")]
     assert len(m0) == 4
-    # from the start of each reading (0.1 s long here) to the next move: at least the floor
+    # 4.3.53 fix round (inventory C10): no pause of ChromIQ's own after a reading: the next
+    # move follows the reading (and its arrival p0) as i1Profiler's did, 0.016 s after its p0
+    assert sp.PACE_FLOOR_S == 0.0
     for start, nxt in zip(read_end, m0[1:]):
-        assert nxt - start >= sp.PACE_FLOOR_S - 1e-6, (start, nxt)
+        assert 0.0 <= nxt - start < 0.5, (start, nxt)
     assert n0 < len(sim.received)
 
 
@@ -725,7 +738,7 @@ def test_a_calibration_that_fails_with_the_instrument_out_keeps_it_out(tmp_path)
 def test_the_reading_constants_are_pinned():
     """Part C's plausibility and pace, ArgyllCMS's hour, the helper's 2-minute rule as the
     margin, the reader's own waits, the i1Pro 2's name as ArgyllCMS gives it."""
-    assert sp.PLAUSIBLE_Y == (0.2, 130.0) and sp.PACE_FLOOR_S == 1.0
+    assert sp.PLAUSIBLE_Y == (0.2, 130.0) and sp.PACE_FLOOR_S == 0.0      # 4.3.53: C10
     # S-9: i1Profiler's dual patch 2.0 s; ChromIQ's own single reading with its pace 2.5 s
     assert (sp.CAL_VALID_S, sp.CAL_MARGIN_S, sp.PATCH_S_ESTIMATE) == (3600.0, 120.0, 2.5)
     assert sp.I1PROFILER_DUAL_PATCH_S == 2.0 and sp.SPOT_ROWS_SERPENTINE is False

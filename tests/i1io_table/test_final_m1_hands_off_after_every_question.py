@@ -28,6 +28,17 @@ from tests.i1io_table.test_job_reading import job_for, read_page, ready_to_read,
 from workflow.i1io.table import job as J
 from tests.i1io_table.test_window import settings  # noqa: F401 (the fixture)
 
+
+@pytest.fixture(autouse=True)
+def _first_time_on_new_ground(monkeypatch):
+    """4.3.53 fix round (inventory A8): ground this table's reach record already holds no
+    longer gets the guided first-visit question (TableJob._known_ground). The tests in this
+    file are about what happens AT and AROUND a first-visit question (or compare the wire with
+    tester 0.6.0, which asked it), so they keep the first time on new ground everywhere;
+    tests/i1io_table/test_4353_first_visit_once.py proves the new rule."""
+    from workflow.i1io.table import job as _J
+    monkeypatch.setattr(_J.TableJob, "_known_ground", lambda self, p: False)
+
 ASKING = pytest.mark.parametrize("asking", [True, False], ids=["asking", "quiet"])
 #: the panel walks in BOTH presentations (quiet round, 2026-11-18): the panel and the quiet
 #: mode's pop-ups, each with and without the report after every step
