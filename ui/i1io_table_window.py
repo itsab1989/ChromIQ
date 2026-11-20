@@ -3796,6 +3796,9 @@ class TableMeasureWindow(QFrame):
             # what is offered (job.start_homing_form), never the answer to the ready question
             if j.way_back() == "home_after_stop":
                 msg = M.M_I1IO_DRIVE_ARM_OUT_AT_START
+                if self._start_form() == "end_of_job":
+                    # the re-review (S4): no recording from there at a start; the page says so
+                    msg = M.M_I1IO_DRIVE_ARM_OUT_AT_START_AREA
                 if self._start_form() == "try":
                     # the owner's decision of 2026-11-20: a try, and the page says so
                     msg = M.M_I1IO_DRIVE_ARM_OUT_TRY

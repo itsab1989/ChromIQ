@@ -13329,6 +13329,24 @@ M_I1IO_DRIVE_ARM_OUT_AT_START = _m(
     approved=False,
     needs_old_i1profiler=True)
 
+#: 4.3.51 release (the re-review, S4): the same page for the arm found inside 4.3.48's envelope
+#: of recorded homings of a held arm (about 12 to 25 cm out, job.start_homing_form
+#: "end_of_job"): those recordings are homings at the end of a measurement and one when
+#: i1Profiler opened the table, none from there when a measurement starts, so it does not say so
+M_I1IO_DRIVE_ARM_OUT_AT_START_AREA = _m(
+    "M-I1IO-DRIVE-ARM-OUT-AT-START-AREA",
+    "The arm is not at its resting place",
+    "The arm is not at its resting place. The table reports it at {where}.\n\n"
+    "ChromIQ can bring it home from there. Recordings show the table's own homing starting "
+    "cleanly from this part of the table. Press Bring the arm home. "
+    "ChromIQ first asks you to take your hands away from the table and the arm. Then it reads "
+    "where the arm is once more, sends it home with the table's own homing and checks that it "
+    "arrived. After that, the measurement goes on as usual.\n\n"
+    "If you would rather not, press End measurement. Then open i1Profiler 3.8.6 or older once "
+    "and let it find the table: it should bring the arm home.",
+    approved=False,
+    needs_old_i1profiler=True)
+
 M_I1IO_DRIVE_ARM_OUT_NOT_HERE = _m(
     "M-I1IO-DRIVE-ARM-OUT-NOT-HERE",
     "The arm is not at its resting place",
@@ -13882,7 +13900,8 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_LINK_LOST_SWITCH_OFF, M_I1IO_DRIVE_COLD,
     M_I1IO_DRIVE_COLD_WAY_OUT, M_I1IO_DRIVE_FREE_LEFT, M_I1IO_DRIVE_STOPPED_END_FIRST,
     M_I1IO_DRIVE_HOME_AFTER_STOP, M_I1IO_DRIVE_HOME_AFTER_STOP_DONE,
-    M_I1IO_DRIVE_ARM_OUT_AT_START, M_I1IO_DRIVE_ARM_OUT_NOT_HERE,
+    M_I1IO_DRIVE_ARM_OUT_AT_START, M_I1IO_DRIVE_ARM_OUT_AT_START_AREA,
+    M_I1IO_DRIVE_ARM_OUT_NOT_HERE,
     M_I1IO_DRIVE_HOME_AT_START_DONE,
     M_I1IO_DRIVE_ARM_OUT_TRY, M_I1IO_DRIVE_ARM_WAY_OUT, M_I1IO_DRIVE_HOME_TRY_FAILED,
     M_I1IO_DRIVE_I1PROFILER_LIMIT,

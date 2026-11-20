@@ -1331,7 +1331,10 @@ homing 1.312 s, status 0), and no `f0`.
     offer was made on) and then one `p0` that must read the resting place; no `f0`. The homing's
     time window is 0-2.0 s within 25 mm of rest (as before) and 0.3-3.5 s beyond;
   * inside 4.3.48's envelope of recorded homings of a held arm (X -1434..1179, Y 1202..2560):
-    offered on the same page; the lines are 4.3.48's, unchanged (`s0 p0 i1 s0 f0 f4 f4 p0`);
+    offered on a page of its own wording (M-I1IO-DRIVE-ARM-OUT-AT-START-AREA: the recordings
+    from there are homings at the end of a measurement and one at i1Profiler's opening, so it
+    does not say "when a measurement starts"); the lines are 4.3.48's, unchanged
+    (`s0 p0 i1 s0 f0 f4 f4 p0`);
   * **a TRY (the owner's decision of 2026-11-20)** everywhere else inside 4.3.47's homing region
     for a held arm (`homing_starts_here`: the measuring area's raw box X -1434..1766,
     Y 473..2773, and the held front zone up to Y 3114), which is where 4.3.50 offered its

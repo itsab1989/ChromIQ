@@ -175,6 +175,7 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-I1IO-DRIVE-HOME-ARM-MOVED",
     # 2026-11-20, 4.3.51: ONE rule at a START for an arm away from its resting place
     "M-I1IO-DRIVE-ARM-OUT-AT-START", "M-I1IO-DRIVE-ARM-OUT-NOT-HERE",
+    "M-I1IO-DRIVE-ARM-OUT-AT-START-AREA",
     "M-I1IO-DRIVE-HOME-AT-START-DONE",
     # 2026-11-20, 4.3.51, the owner's decision: the try from over the bed
     "M-I1IO-DRIVE-ARM-OUT-TRY", "M-I1IO-DRIVE-HOME-TRY-FAILED",
