@@ -404,9 +404,15 @@ def test_the_log_says_what_the_table_does_and_each_question_and_answer(qtbot, mo
 # ---- the Measure tab ---------------------------------------------------------------------------
 
 def _tab_quiet(tab, tmp_path, monkeypatch, size=None, sim=None):
+    """The tab with the pre-4.3.52 quiet mode (every question in a pop-up, no report): the
+    guidance stays on, the presentation is the pop-ups (see WindowSim.report_switch)."""
     from tests.i1io_table.test_window_in_the_measure_tab import start, table_run
+    from tests.i1io_table.window_sim import WindowSim
     import ui.i1io_table_window as WW
-    tab._settings.set(WW.ASK_KEY, False)
+    tab._settings.set(WW.ASK_KEY, True)
+    monkeypatch.setattr(WW, "presentation_for", lambda _s: WW.PRESENTATION_POPUPS)
+    sim = sim or WindowSim()
+    sim.report_switch = False
     tab._settings.set(WW.POPUP_POS_KEY, "")
     if size is not None:
         tab.resize(*size)

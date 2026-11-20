@@ -46,14 +46,22 @@ def project(tmp_path, sheet, name="Table-Target"):
 
 def open_window(qtbot, monkeypatch, tmp_path, settings, *, asking=True, sheet=None,
                 consent=True, sim=None, args=None, stamp=RS.STAMP, run=None,
-                replace_agreed=False, archive=None, presentation=None):
+                replace_agreed=False, archive=None, presentation=None, guided=None):
+    """*asking* False with *guided* None: the quiet mode as it was before 4.3.52 (every
+    question asked, in pop-ups, no report after each step; see WindowSim.report_switch).
+    *guided* False: 4.3.52's "Guided, step by step measurement" off, as the app builds it."""
     sheet = sheet or small_sheet()
     if run is None:
         _proj, run = project(tmp_path, sheet)
     sim = sim or WindowSim()
     monkeypatch.setattr(W, "JOB_FACTORY", sim.factory)
     monkeypatch.setattr(W, "USB_STATUS", lambda: (True, ""))
-    settings.set(W.ASK_KEY, asking)
+    if guided is None and not asking:
+        sim.report_switch = False
+        presentation = presentation or W.PRESENTATION_POPUPS
+        settings.set(W.ASK_KEY, True)
+    else:
+        settings.set(W.ASK_KEY, asking if guided is None else bool(guided))
     # fix round 10: the calibration place is asked once and remembered; the tests that are
     # about that question clear it themselves
     if not W.calibration_place(settings):
@@ -103,7 +111,9 @@ def test_a_whole_measurement_is_read_saved_and_the_arm_goes_home(qtbot, monkeypa
         win._tick_widgets[0].setChecked(True)
     p.press("Close")
     assert finished == ["ended"]
-    assert W.ask_after_each_step(settings) is False     # ticked, or quiet already
+    # ticked: the guidance is off from now on; the pre-4.3.52 quiet mode (guidance on, no
+    # report) offers nothing and changes nothing
+    assert W.ask_after_each_step(settings) is (not asking)
 
 
 def test_the_consent_is_asked_once_and_not_now_starts_nothing(qtbot, monkeypatch, tmp_path,

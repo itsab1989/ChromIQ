@@ -35,5 +35,5 @@ def test_the_plainer_words():
     start = M.M_I1IO_DRIVE_START_UP.body
     assert "ChromIQ's tester program has sent this start-up to a real table once" in start
     from ui.dialogs import settings_dialog as S
-    assert "ChromIQ asks after every step of an i1iO table measurement whether the table did" \
-        in " ".join(inspect.getsource(S).split()).replace('" "', "")
+    # 4.3.52: the switch is "Guided, step by step measurement" (M-I1IO-GUIDED-HELP)
+    assert 'tr("Guided, step by step measurement")' in inspect.getsource(S)

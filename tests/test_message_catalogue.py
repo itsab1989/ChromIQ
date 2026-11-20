@@ -173,6 +173,9 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-I1IO-DRIVE-STOPPED-AT-OPENING",
     # 4.3.50 integration (table re-review, MUST-A): the held arm moved before the ending's homing
     "M-I1IO-DRIVE-HOME-ARM-MOVED",
+    # 2026-11-20, 4.3.52: the two sub-options of the i1iO Beta (guidance off, the log)
+    "M-I1IO-DRIVE-COUNTDOWN", "M-I1IO-DRIVE-START-UP-ARM", "M-I1IO-DRIVE-CONSENT-GUIDANCE",
+    "M-I1IO-GUIDED-HELP", "M-I1IO-LOG-HELP",
     # 2026-11-20, 4.3.51: ONE rule at a START for an arm away from its resting place
     "M-I1IO-DRIVE-ARM-OUT-AT-START", "M-I1IO-DRIVE-ARM-OUT-NOT-HERE",
     "M-I1IO-DRIVE-ARM-OUT-AT-START-AREA",

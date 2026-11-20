@@ -148,4 +148,5 @@ def test_the_front_stop_way_promises_no_homing_that_no_recording_shows():
 
 
 def test_the_consent_is_asked_again_for_this_version():
-    assert W.CONSENT_VERSION == 3
+    # 4.3.52: version 4 (the guidance, its countdown, the reader's facts, the alarm)
+    assert W.CONSENT_VERSION == 4

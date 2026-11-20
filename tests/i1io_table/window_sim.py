@@ -53,10 +53,16 @@ class WindowSim:
         simkw.setdefault("stored_tile", tuple([0.88] * 36))
         self.simkw = simkw
         self.jobs: list = []
+        #: 4.3.52: the report after each step (None: it follows the guidance). The window tests
+        #: written for the quiet mode before 4.3.52 (every question asked, in pop-ups, no
+        #: report) set it False with the guidance ON (test_window.open_window, asking=False):
+        #: the app no longer builds that mode, but every page it can still show is shown that
+        #: way, so those tests keep proving the pop-ups
+        self.report_switch = None
         self.sim = None
         self.helper = None
 
-    def factory(self, sheet, page, run, stamp, ask):
+    def factory(self, sheet, page, run, stamp, guided, extra_logging=True, consent_version=0):
         from workflow.i1io.table import job as J
         self.sim = csim.CSimTable(part_c=True, aims=self.aims or list(H.demo_aims(sheet)),
                                   cold=self.cold,
@@ -68,7 +74,10 @@ class WindowSim:
         job = J.TableJob(sheet, page, run=run, stamp=stamp,
                          open_transport=lambda: transport,
                          preflight=lambda: H.OK_PREFLIGHT, other_program=lambda: False,
-                         ask_after_each_step=ask, reader_factory=self.helper.factory(),
+                         guided=guided, ask_after_each_step=self.report_switch,
+                         extra_logging=extra_logging,
+                         consent_version=consent_version,
+                         reader_factory=self.helper.factory(),
                          helper_check=lambda: None,
                          instrument_check=lambda: us.Check("ok", {"i1pro_devices": 1}),
                          app_marker_place=self.app_marker_place,
