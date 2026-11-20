@@ -4482,6 +4482,7 @@ class TableJob:
                     os.replace(tmp, dest)
                 record_condition(dest, cond)
                 ic._set_condition_of(dest, key)
+                _stamp_provenance(dest)     # A10 (4.3.50); its pairing key is header-blind
                 self._dual_files[cond] = dest
             self._dual_pair = "partial" if partial else "complete"
         else:
@@ -4762,6 +4763,9 @@ class TableJob:
             # review 8, S-4: a filing note (the measurement's checksum) in every session folder
             # that goes into this file BEFORE the run's file changes: a crash between the run's
             # .ti3 and session_result.json is then recognised at the next START as saved
+            # A10 (4.3.50): who wrote it, into the assembled file's header, BEFORE the note
+            # takes its checksum (the run's .ti3 is a copy of these very bytes)
+            _stamp_provenance(self._assembly.path)
             note = se.filing_note(self._assembly.path, self.stamp)
             for sdir in self._session_dirs():
                 se.write_json_now(Path(sdir) / ms.FILING, note)
@@ -5281,3 +5285,14 @@ def _default_helper_check() -> "str | None":
     if not os.access(path, os.X_OK):
         return "helper_not_runnable"
     return None
+
+
+def _stamp_provenance(path) -> None:
+    """A10 (4.3.50): CHROMIQ_VERSION and the helper's build into the header of a measurement
+    file the job writes (a file on disk; nothing is sent to the table). Never raises."""
+    try:
+        from workflow.chartread_engine import helper_build_cached
+        from workflow.ti3_provenance import stamp
+        stamp(path, helper_build_cached() or None)
+    except Exception:      # noqa: BLE001
+        pass

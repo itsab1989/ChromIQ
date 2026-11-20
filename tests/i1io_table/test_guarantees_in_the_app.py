@@ -86,6 +86,9 @@ STEP7_APP_IMPORTS = {
     # round B: the helper's build string through the app's own --caps question
     "reader.py": {"workflow.chartread_engine"},
     "job.py": {"workflow.measurement_state",
+               # A10 (4.3.50): who wrote the measurement, into its header, before the filing
+               # note (a file on disk; the helper's build is a cached string, never a start)
+               "workflow.ti3_provenance", "workflow.chartread_engine",
                # step 8: Save is guarded as every measurement is (old/ copy, C0 -> C)
                "workflow.measurement_session",
                # the i1Pro 2 dual scan on the table (2026-11-18): the hand dual scan's own files

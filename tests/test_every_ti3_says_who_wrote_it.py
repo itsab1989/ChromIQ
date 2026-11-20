@@ -76,10 +76,11 @@ def test_every_writing_path_stamps():
     assert "stamp(tmp)" in inspect.getsource(i1pro3_conditions.average_conditions)
     assert "stamp(out)" in inspect.getsource(ti3_average.average_scanner_ti3)
     assert "stamp(ti3_path)" in inspect.getsource(reference_convert)
-    # NOT the table's save: its session-state check compares the filed file byte for
-    # byte, so a header written after filing made a saved sitting read "interrupted"
-    # (tests/i1io_table/test_job_review8_fixes.py); the table path is listed as not covered
-    assert "provenance" not in inspect.getsource(job)
+    # the table's save: stamped BEFORE its filing note takes the checksum (the session
+    # state check compares the filed file byte for byte; stamping after filing made a
+    # saved sitting read "interrupted"): tests/i1io_table/test_4350_a10_...
+    save = inspect.getsource(job.TableJob.save)
+    assert save.index("_stamp_provenance(self._assembly.path)") < save.index("se.filing_note(")
 
 
 def test_the_tab_stamps_the_session_file_and_its_conditions(tmp_path, monkeypatch):
