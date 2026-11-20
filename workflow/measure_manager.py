@@ -1412,16 +1412,37 @@ class MeasureManager(QObject):
         try:
             self.flush_measure_end_log()
             self._end_log_pending = (params, code)
-            from PyQt6.QtCore import QTimer
-            QTimer.singleShot(self.END_LOG_FALLBACK_MS, self.flush_measure_end_log)
+            # 4.3.51 (review of 4.3.50): ONE fallback timer, a child of this manager (it goes
+            # with it), stopped as soon as the line is written; a bare singleShot could not be
+            # stopped, and an old one wrote the NEXT measurement's line before its tab had
+            # finished with its files
+            t = getattr(self, "_end_log_timer", None)
+            if t is None:
+                from PyQt6.QtCore import QTimer
+                t = QTimer(self)
+                t.setSingleShot(True)
+                t.timeout.connect(self.flush_measure_end_log)
+                self._end_log_timer = t
+            t.start(int(self.END_LOG_FALLBACK_MS))
         except Exception:      # noqa: BLE001
             log.debug("measure end line not queued", exc_info=True)
+
+    def cancel_measure_end_fallback(self) -> None:
+        """Stop the fallback timer (the line was written, or nobody will want it any more).
+        The held line itself stays for flush_measure_end_log. Never raises."""
+        try:
+            t = getattr(self, "_end_log_timer", None)
+            if t is not None:
+                t.stop()
+        except Exception:      # noqa: BLE001
+            pass
 
     def flush_measure_end_log(self) -> None:
         """Write the held end-of-measurement summary (on its thread), once.
         The Measure tab calls this when its end of session has finished with
         the files (moved to old/, condition recorded, provenance stamped).
         Never raises."""
+        self.cancel_measure_end_fallback()
         try:
             pending = getattr(self, "_end_log_pending", None)
             self._end_log_pending = None

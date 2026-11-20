@@ -1,5 +1,29 @@
 # Changelog
 
+## v4.3.51
+
+**For owners of an X-Rite i1iO 2 table who try the beta option “X-Rite i1iO support”: when a measurement starts and the arm is not at its resting place, what ChromIQ offers now depends only on where the table reports the arm, not on which button you pressed. A new recording of i1Profiler starting a table whose arm had been pushed about 8 cm out by hand shows its own way home from there, and ChromIQ now offers the same. Everywhere else it moves nothing and says why. With the beta options off, ChromIQ measures as 4.3.50 did, and the charts it makes, your measurements and your profiles do not change.**
+
+### Changed
+
+Only with the beta option “X-Rite i1iO support” on:
+
+- **One rule when the arm is not at its resting place at START.** In 4.3.50 the same arm at the same place was offered “Bring the arm home” or not, depending on whether you answered “The arm is out” or “Start”, and on whether a white calibration came first. Now the first reading of the arm decides, whichever step takes it. On the line straight in front of the resting place, up to about 8 cm out, ChromIQ offers the homing i1Profiler sends there when it starts the table: after you have taken your hands away, it sends the table's own homing and then checks that the arm is at its resting place, and the measurement goes on. In the part of the table where i1Profiler's recorded homings of a held arm started (about 12 to 25 cm in front of the resting place), it offers the homing of 4.3.48, as before. Anywhere else it moves nothing, and the page “The arm is not at its resting place” says why and what you can do. This is narrower than 4.3.50 in one way: after “The arm is out”, 4.3.50 also offered the homing from the rest of the measuring area and from the front of the table, where no recording shows a homing at a start.
+- **The front-zone page lists its two answers in the order of its buttons**: first “I will move the sheet”, then “Go forward carefully, my hands are away”, the button that moves the arm, last, as on the other pages of the table window.
+- **The app log says what each START found and offered**: the table's state, where the arm was read, what ChromIQ offered or why not, and your answers.
+
+### Fixed
+
+- **A timer of the end-of-measurement summary in the app log could not be stopped.** When the summary had been written, its 20-second fallback still ran, and when the next measurement had started meanwhile, it could write that measurement's summary before the Measure tab had finished with its files. On Windows this could bring back a short moment where two parts of ChromIQ open the same file. The timer is now stopped when the summary is written, and it goes with the measurement.
+- **A correction to the notes of 4.3.50**: they said that “Bring the arm home” after a stopped measurement had worked once on a real table. A tester reported this; there is no diagnostics file of that run.
+
+### Known issues
+
+- **Nothing of this version's START rule has run on a real table.** The homing from the line in front of the resting place is i1Profiler's, recorded once from 76 mm out; ChromIQ has sent it only to a simulated table. Keep the power switch in reach.
+- **ChromIQ still does not start a table that was just switched on while the arm is out**, and it still refuses a table that is still in its aiming mode or answers its first question in a way no recording shows. Those starts have never been recorded.
+- The known issues of 4.3.50 for the i1iO table still hold, except that ChromIQ can now bring the arm home at a start from the places above.
+- The new and changed texts of this version are shown as proposed texts and may still be reworded.
+
 ## v4.3.50
 
 **For everyone updating from 4.3.49: “Strip may be misaligned” now also finds a strip whose white paper at one end was read as a patch, a misread the check could not see before. It asks you, as it always has, and it never refuses a strip: Keep it keeps the reading in one click. For owners of an X-Rite i1iO 2 table who try the beta option “X-Rite i1iO support”: a real i1iO 2 has now read one complete page with ChromIQ 4.3.49, patch by patch, and this version changes what that first real page showed. The arm is brought home at the end of a measurement, the check at the third mark is gone, one plain question comes before the arm goes forward, and with the dual scan the table keeps M1 and M2 for every row that has them. Reading in rows, the dual scan on the table and a second page have still not run on a real table: please read the known issues at the end. With the beta options off, ChromIQ measures as 4.3.49 did, except that “Strip may be misaligned” asks about more misread strips, and the charts it makes, your measurements and your profiles do not change.**

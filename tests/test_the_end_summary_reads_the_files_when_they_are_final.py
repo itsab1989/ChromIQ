@@ -84,3 +84,47 @@ def test_flush_writes_once_and_a_new_measurement_flushes_the_old(qapp, monkeypat
     m._queue_measure_end_log("second", 1)
     m._queue_measure_end_log("third", 0)    # an older one still held is written first
     assert seen == [("first", 0), ("second", 1)]
+
+
+def test_the_fallback_timer_is_cancelled_once_the_line_is_written(qapp, qtbot, monkeypatch):
+    """4.3.51 (review of 4.3.50): the 20 s fallback was a bare singleShot that nothing could
+    cancel. After the tab had written the line, the old timer still fired, and when a new
+    measurement had queued its own line meanwhile, it wrote THAT one early, before the tab had
+    finished with its files (on Windows: the short file-sharing overlap an earlier fix removed)."""
+    from workflow.measure_manager import MeasureManager
+
+    class _R:
+        is_running = False
+    m = MeasureManager(_R())
+    m.END_LOG_FALLBACK_MS = 150
+    seen = []
+    monkeypatch.setattr(m, "_log_measure_end", lambda p, c: seen.append((p, c)))
+    m._queue_measure_end_log("first", 0)
+    m.flush_measure_end_log()               # the tab wrote it
+    assert seen == [("first", 0)]
+    qtbot.wait(60)
+    m._queue_measure_end_log("second", 0)   # the next measurement's line, held for its tab
+    qtbot.wait(120)                         # the FIRST timer would have fired by now
+    assert seen == [("first", 0)], "the old fallback wrote the next measurement's line early"
+    qtbot.wait(200)                         # the second line's own fallback still works
+    assert seen == [("first", 0), ("second", 0)]
+
+
+def test_the_fallback_timer_can_be_cancelled_when_the_manager_goes_away(qapp, qtbot, monkeypatch):
+    from workflow.measure_manager import MeasureManager
+
+    class _R:
+        is_running = False
+    m = MeasureManager(_R())
+    m.END_LOG_FALLBACK_MS = 100
+    seen = []
+    monkeypatch.setattr(m, "_log_measure_end", lambda p, c: seen.append((p, c)))
+    m._queue_measure_end_log("first", 0)
+    t = m._end_log_timer
+    assert t.isActive()
+    m.cancel_measure_end_fallback()
+    assert not t.isActive()
+    qtbot.wait(150)
+    assert seen == []                       # nothing written by a timer nobody wants
+    m.flush_measure_end_log()               # the held line is still the tab's to write
+    assert seen == [("first", 0)]
