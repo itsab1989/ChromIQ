@@ -180,6 +180,8 @@ def test_the_window_shows_one_page_when_it_does_not_work(qtbot, monkeypatch, tmp
     assert win._title.text() == "The arm did not get home"
     text = win._text.text()
     assert "ChromIQ could not bring the arm home" in text
+    if kind == "status":
+        assert "error code instead of reporting it finished" in text
     sw, i1p = text.index("Switch the table off at its power switch"), text.index("i1Profiler 3.8.6")
     assert sw < i1p                                   # the power switch first
     assert "i1Profiler 3.8.7 and newer no longer work with the i1iO 2" in text

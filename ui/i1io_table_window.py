@@ -3894,8 +3894,13 @@ class TableMeasureWindow(QFrame):
             # did not bring the arm home: the power switch first, i1Profiler only as a further
             # option, with its version limit (a move that may still wait keeps its switch-off
             # page above everything)
+            why = {"table_answered_a_status": tr(
+                       "The table answered the homing with an error code instead of reporting "
+                       "it finished."),
+                   "table_refused_a_line": tr("The table refused the homing command.")}.get(
+                res.reason) or reason_text(res.reason, res.detail)
             title, body = M.M_I1IO_DRIVE_HOME_TRY_FAILED.render(
-                why=reason_text(res.reason, res.detail), where=where,
+                why=why, where=where,
                 way=M.M_I1IO_DRIVE_ARM_WAY_OUT.render()[1], log=self._log_name)
             self._show("stopped", title, body, self._way_on_buttons())
             self._after_stop_controls()
