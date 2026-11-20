@@ -1114,13 +1114,13 @@ is his; the behaviour below is what was built from it and awaits his confirmatio
   s0 f0 f4 f4 p0), once per session; the table module lets only s0, p0, i1, f0 and f4 through, with
   the homing's own 8 lines and 1 movement on top of the caps, and nothing is sent afterwards. Not
   offered after any other stop (answer not understood, refusal, no answer, lost link, caps, a move
-  that did not arrive or was slow, a failed homing, i1Profiler started, the person's stop).
+  that did not arrive or was slow, a failed homing, i1Profiler started, the person's stop). *(Superseded for 4.3.52 by "the START rule by state, not by place" below: the place decides nothing but the back strip, and the homing goes straight home.)*
 * **A START with the arm out.** The ready question has a third answer, "The arm is out" (only
   the bed ticked). ChromIQ connects with the usual opening, reads the arm once (`;p025`) and moves
   nothing; a held arm inside the area is offered the usual homing (`home`), after which the
   measurement goes on; a held arm elsewhere, a free arm (the opening reads f4 = 01) or a table just
   switched on keep the old advice (i1Profiler, the power switch).
-* **The usual homing is not offered for a held arm where it would refuse** (`homing_not_from_here`).
+* **The usual homing is not offered for a held arm where it would refuse** (`homing_not_from_here`). *(Superseded for 4.3.52 by "the START rule by state, not by place" below: the place decides nothing but the back strip, and the homing goes straight home.)*
 * **One more move beside a patch.** In a patch row, an arrival read twice 6..10 units beside its
   target after a normal move is moved to once more from the fresh reading (the same m0 line); a
   second miss fails the row (`arrived_beside_the_target_again`); at most two such moves per row
@@ -1193,7 +1193,7 @@ What changed after the review (its MUSTs and SHOULDs), within the owner's ruling
   recorded lines. A move back that does not arrive or is slow is a doubt: nothing more is sent and
   the page says to end the measurement and open i1Profiler once, or to switch the table off. The
   person is never asked to pull the arm back by hand. The hands-off GO before the homing covers the
-  moves back (they are part of it).
+  moves back (they are part of it). *(Superseded for 4.3.52 by "the START rule by state, not by place" below: the place decides nothing but the back strip, and the homing goes straight home.)*
 * **The front-zone question says the risk before the arm moves** (M-I1IO-DRIVE-FRONT, revised):
   the small steps go beyond where the arm has been, the front of the sheet may lie beyond where the
   opening can go, the arm then meets the end of its travel in one step and stops there, what ChromIQ
@@ -1238,7 +1238,7 @@ form, no helper change.
   the frontmost recorded aim (Y 3109), so that an arrival read a few units further forward cannot
   leave the homing refused with no way on. Pinned by tests that turn red when the 4-move bound,
   the ground test of a jump, the clearing at a homing, or the "usual homing only" condition is
-  planted out (S-1), and the geometry's own back-strip refusal (safety review G2).
+  planted out (S-1), and the geometry's own back-strip refusal (safety review G2). *(Superseded for 4.3.52 by "the START rule by state, not by place" below: the place decides nothing but the back strip, and the homing goes straight home.)*
 * **A multipage refinement aims every page in its own sitting** (the owner's requirement): pinned
   by a two-page refinement whose second page lies elsewhere, and a census of the code (only the
   aiming gives the job a sheet position; the next page and every homing clear it).
@@ -1264,8 +1264,8 @@ safeguard, or names its question, describes 4.3.49 and is superseded by this sec
   stillness reading (as tester 0.6.0's D1 to D3 sitting already did). The marks no longer count in
   the front need: the careful steps go only as far as the frontmost target of the plan (on the
   real page they went 9.5 mm further, to the mark). The three-mark shape checks of the aims stay.
-  The way back before a homing uses the arrivals of the careful steps and the rows, as before;
-  the table's remembered reach learns from them too.
+  The table's remembered reach learns from the arrivals of the careful steps and the rows (4.3.52:
+  the way back before a homing, which used them too, is gone).
 * **The front-zone question is one plain question** (M-I1IO-DRIVE-FRONT, rewritten): first why
   ChromIQ asks (the arm has not been this far forward on this table; it goes there slowly, 5 mm at
   a time, once, and remembers), then two buttons, "Go forward carefully, my hands are away" and
@@ -1305,82 +1305,82 @@ safeguard, or names its question, describes 4.3.49 and is superseded by this sec
   with the power switch in reach. The consent page is asked again (version 3), because what has
   and has not run on a real table changed.
 
-### ⏳ Awaiting confirmation: ONE rule at a START for an arm that is not at its resting place (2026-11-20, for 4.3.51)
+### ⏳ Awaiting confirmation: the START rule by state, not by place (2026-11-20, for 4.3.52)
 
 **Confirmed by:** *nobody yet.*
 
-Until 4.3.50 the same arm at the same place was offered ChromIQ's homing or not depending on which
-answer the person gave at the ready question, and on whether a white was due first: after "The
-arm is out", or before the white, a held arm anywhere in the measuring area (and the front zone)
-was offered the usual homing of the end of a job; with the white skipped (`-N`) the alignment's
-own place check stopped, and only 4.3.48's envelope of recorded homings was offered. The owner's
-start-up capture of 19 Nov 2026 shows what i1Profiler does at its opening of a started table
-(a0 130000, f4 00 four times): with the arm at rest, and with the arm pushed 76 mm out by hand
-along its home line, to (1098, 810), it sent the same four lines at once, `s0 p0 i1 s0` (the
-homing 1.312 s, status 0), and no `f0`.
+This replaces 4.3.51's section "ONE rule at a START for an arm that is not at its resting place",
+which was never confirmed: its places (a home line about 1 mm wide up to Y 815, 4.3.48's area of
+recorded homings about 12 to 25 cm out, a "try" over the measuring area and the front, refusals
+elsewhere) are gone.
 
-* **The rule.** On a started table whose aiming mode is off, the first reading of the arm at a
-  START (whichever step takes it: the white's rest check, the reading after "The arm is out", or
-  the alignment's own homing check) decides, while nothing has moved in the sitting, the arm is
-  held, the reading is the last line the table answered, nothing is pending, the link works,
-  nobody chose "Send nothing more" and the i1Pro 2 is in its arm:
-  * at its resting place: the measurement goes on as before;
-  * on the home line (X 1090..1115) up to Y 815 (the recorded 810 plus the 5-unit arrival
-    tolerance): offered (M-I1IO-DRIVE-ARM-OUT-AT-START); after the hands-off GO ChromIQ sends
-    `s0 p0 i1 s0` (the reading right before the homing must lie within 5 units of the one the
-    offer was made on) and then one `p0` that must read the resting place; no `f0`. The homing's
-    time window is 0-2.0 s within 25 mm of rest (as before) and 0.3-3.5 s beyond;
-  * inside 4.3.48's envelope of recorded homings of a held arm (X -1434..1179, Y 1202..2560):
-    offered on a page of its own wording (M-I1IO-DRIVE-ARM-OUT-AT-START-AREA: the recordings
-    from there are homings at the end of a measurement and one at i1Profiler's opening, so it
-    does not say "when a measurement starts"); the lines are 4.3.48's, unchanged
-    (`s0 p0 i1 s0 f0 f4 f4 p0`);
-  * **a TRY (the owner's decision of 2026-11-20)** everywhere else inside 4.3.47's homing region
-    for a held arm (`homing_starts_here`: the measuring area's raw box X -1434..1766,
-    Y 473..2773, and the held front zone up to Y 3114), which is where 4.3.50 offered its
-    homing after "The arm is out". Basti, 2026-11-20: *"let chromiq offer to try it and if it
-    does not work it suggests i1profiler. but the i1io 2 is not supported by the most recent
-    i1profiler anymore so we should not rely on it".* The offer itself is his decision; how it
-    is built awaits confirmation like the rest of this section. The page says it is a try with no
-    recording at a start (M-I1IO-DRIVE-ARM-OUT-TRY); the lines are 4.3.48's, unchanged
-    (`s0 p0 i1 s0 f0 f4 f4 p0`, window 0.8-8.0 s), as 4.3.50 sent them from there; the reading
-    right before i1 must lie within 5 units of the offer's and still in the try region, and the
-    last reading must find the arm at rest. No margin is kept from the end of the travel: the
-    one homing on record that answered a status (status 3) was a free arm at the right end,
-    which is refused, and held homings from that end are recorded with status 0 (the reasons
-    are in the work folder's safety brief for the re-review);
-  * anywhere else (beside the home line in the back strip, Y below 473, where i1Profiler once
-    did not home directly; the alignment start and beyond the raw box; in front of Y 3114):
-    nothing is sent, and the page says why and what works (M-I1IO-DRIVE-ARM-OUT-NOT-HERE).
-  When a homing at a START does not bring the arm home (a status, no arrival, not at rest
-  afterwards, the held arm moved before it), ONE page says so (M-I1IO-DRIVE-HOME-TRY-FAILED),
-  with the way on (M-I1IO-DRIVE-ARM-WAY-OUT): End measurement, the power switch, the arm pushed
-  gently by hand only if it moves easily (whether a switched-off table lets it move is not
-  known), START again, and only then i1Profiler 3.8.6 or older, with the plain statement that
-  3.8.7 and newer no longer work with the i1iO 2. A move that may still be waiting keeps its
-  switch-off page first. Every page of the table window that sends the person to i1Profiler
-  3.8.6 or older without that statement gets it added (M-I1IO-DRIVE-I1PROFILER-LIMIT); the
-  message's own flag decides (`needs_old_i1profiler`, and `_old_i1p` on a window text), not its
-  wording, and the page for a table that is not an i1iO 2 (M-I1IO-DRIVE-NOT-I1IO2) does not get
-  it.
-  After the homing the measurement goes on (M-I1IO-DRIVE-HOME-AT-START-DONE, "Go on"), except
-  after the alignment's own place check had stopped the sending (`-N`): then nothing more is sent
-  in this measurement, as in 4.3.48. The usual homing (`home`) is never offered at a START.
-  Offered once per sitting. Declining it (Back, End measurement) sends nothing.
-* **Unchanged.** A table that answers its first state question with anything but 111800 or 130000,
-  or whose aiming mode is still on (f4 01), is refused before the arm is read. A table that was
-  just switched on is not started after "The arm is out"; after "yes" its recorded start-up runs
-  (ChromIQ cannot read the arm before it: no recording shows a reading sent to such a table
-  first). With the white skipped, an arm within 25 mm of rest on the home line is homed by the
-  alignment's own homing after the sheet question, as before.
-* **Narrower than 4.3.50 at a START.** The usual homing's wider region (the measuring area and the
-  front zone) is no longer offered at a START: no recording shows a homing starting there when a
-  measurement starts, and the one opening of a table whose arm stood off its line near rest
-  ((1058, 317), 12 Nov) did not home directly.
-* **The logs.** The session log and the app log ("table start case") record the table's state,
-  where the arm was read, the rule's name for the place, what was offered and why not, the answer
-  at the ready question and the answer to the offer.
-* **Not tried on a real table.** Driven on screen against the simulated table only.
+**The source of the rule.** The project owner, Basti, 2026-11-20, after reading the note on 4.3.51
+to the table owner: *"reading your reply to the table owner it seems you are overly cautious
+again. do you really think it matters for i1profiler or the table how far out the arm is whether
+the app brings it to home or not? what else should it do if it is not in the place where it is
+expected?"* The evidence: the owner's start-up capture of 19 Nov 2026 shows i1Profiler opening a
+started table twice and sending the SAME lines `s0 p0 i1 s0` with the arm at rest (1102, 48) and
+76 mm out (1098, 810), deciding nothing from the place; i1Profiler's recorded homings at the end
+of a job start from many places over the bed; the tester wrote that i1Profiler always repositions
+the arm at its start. The one recorded homing that went wrong (status 3) was a FREE arm in the
+aiming mode: a different state of the table, not a place.
+
+* **The rule.** A started table (a0 130000, the aiming mode off: f4 00 four times), the arm HELD,
+  the arm found away from its resting place by the first reading of a step (the white's rest
+  check, the reading after "The arm is out", the alignment's or the park's own homing check, the
+  start-up's own reading before its homing): ChromIQ brings it home from WHEREVER it is, inside
+  that step, with i1Profiler's own start homing `s0 p0 i1 s0`, then one `p0` that must read the
+  resting place. One recorded sequence for every place. (4.3.51 used two: this one on its home
+  line, and 4.3.48's `s0 p0 i1 s0 f0 f4 f4 p0` elsewhere. They differ by `f0`, which is not a
+  read-only line: it ends the aiming mode, and i1Profiler sends it at the end of a job or when it
+  quits, never at its start; and by `f4 f4 p0`, which are read-only.) The reading right before
+  `i1` must lie within 5 units of the one that found the arm (a held arm moved by a hand while the
+  question was shown is a doubt, nothing moves). The homing's time window is 0-2.0 s within 25 mm
+  of rest and 0.3-8.0 s elsewhere. Then the step goes on: the measurement continues by itself.
+  When the sending had been stopped by the step's place check (the alignment's, the park's or the
+  start-up's own homing check), it is opened for exactly the homing's lines and, with the arm then
+  read at rest, for the rest of the measurement.
+* **One page** (M-I1IO-DRIVE-HOME-AT-START): the arm is not at its resting place; ChromIQ brings it
+  there now; hands away; the power switch stops it at once. No "try", no recordings, no distances.
+  With the guidance on it is the hands-off question (Not now, Bring the arm home, my hands are
+  away). "Not now" sends nothing; the page after it offers the same homing
+  (M-I1IO-DRIVE-HOME-AFTER-STOP), always as a question.
+* **With the guidance off** an arm away from its resting place is not a fault and does not turn
+  the sitting guided: the countdown stands in place of the question (its pop-up shows the page's
+  first sentences above the countdown), then the homing, then the run goes on by itself.
+* **A homing that fails** (a status, no arrival, not at rest afterwards, the arm moved before it)
+  is a fault: nothing more is sent, the rest of the sitting is guided, and ONE page says so
+  (M-I1IO-DRIVE-HOME-TRY-FAILED, with M-I1IO-DRIVE-ARM-WAY-OUT: End measurement, the power
+  switch, the arm by hand only if it moves easily, START again, and only then i1Profiler 3.8.6 or
+  older, with the plain statement that 3.8.7 and newer no longer work with the i1iO 2). Once per
+  sitting. A homing outside its time window that reads the arm at rest counts as home.
+* **A just-switched-on table** (a0 111800) gets its recorded start-up (`i0 s0 f4 f4 f4 f4 s0 p0 i1
+  s0`) whatever the person answered about the arm: the start-up is the table's own, and the
+  answer no longer changes what is sent, so the question about the resting place is not asked
+  (job.START_UP_ASKS_ABOUT_THE_ARM brings it back). When the start-up's own reading before its
+  homing finds the arm away from rest, the table counts as started and the rule above applies.
+  With the guidance off the start-up comes after the countdown.
+* **The states that keep their own handling.**
+  * The arm FREE, or the table still in its aiming mode (f4 01 at the opening): nothing that moves
+    is sent (M-I1IO-DRIVE-STILL-AIMING). The one recorded homing that went wrong was a free arm in
+    that mode, and no recording shows the vendor's software finding a table in it.
+  * An unknown answer to the first state question (anything but 111800 or 130000): nothing that
+    moves is sent; the meaning of the answer is not known.
+  * A table that does not answer, or answers a line in a form never recorded: nothing more is
+    sent; its state is not known.
+  * A reading that is the ARRIVAL of ChromIQ's own movement (a homing reported done whose arm is
+    not at rest, safety review 448, MUST-1): a mechanical doubt; nothing is offered. A reading
+    taken later (the arm moved by hand after it was read at rest) is a START-rule case again.
+* **The one place.** The back strip beside the holder of the white tile (Y below 473, off the home
+  line X 1090..1115): nothing is sent (M-I1IO-DRIVE-ARM-OUT-BACK). Physical: the head stands beside
+  the tile's holder there, and i1Profiler itself drove the arm out of it before homing
+  ((1058, 317), 12 Nov 2026). Nothing else is refused because of WHERE the arm is.
+* **The same eye on the rest of the table code.** The usual homing (the end of a job, after a Stop
+  or a problem, at the end of a measurement) is sent DIRECTLY from wherever a held arm stands but
+  the back strip, as i1Profiler's end of a job; the move back along the way the arm came
+  (4.3.49-4.3.51) is gone. A free arm keeps the measuring area's box (a state rule).
+* **Not tried on a real table.** Driven on screen against the simulated table only. What a real
+  table does when its homing starts at an end of its travel is not known.
 
 ### ⏳ Awaiting confirmation: the two sub-options of "X-Rite i1iO support" (2026-11-20, for 4.3.52)
 
@@ -1418,11 +1418,12 @@ nothing of it has run on a real table.
   | earlier sessions, option conflicts (-EARLIER*, -OPTION-REFUSED, -WHITE-BASE-*, -OPTIONS-FIELDS) | stay |
   | first page M-I1IO-DRIVE-PREPARE and its notes | not shown; its text and notes go to the Measure tab's log and the app log; the notice area says "Guided, step by step measurement is off. You can switch it on in Preferences > Beta." |
   | marker M-I1IO-DRIVE-MARKER (-APP-ENDED) | stays |
-  | ready M-I1IO-DRIVE-READY | answered "yes" by the setting; the first reading of the arm and the START rule (4.3.51) still decide; their homing offer stays |
+  | ready M-I1IO-DRIVE-READY | answered "yes" by the setting; the first reading of the arm and the START rule (4.3.52) still decide |
   | table, USB, driver and instrument faults at the opening | stay |
-  | just switched on M-I1IO-DRIVE-START-UP | asked as M-I1IO-DRIVE-START-UP-ARM (the one arm question); "No" sends nothing (the 4.3.48 refusal); "Yes": the countdown, then the recorded start-up |
+  | just switched on M-I1IO-DRIVE-START-UP | the countdown, then the recorded start-up (4.3.52: nothing is asked about the arm; with job.START_UP_ASKS_ABOUT_THE_ARM on, M-I1IO-DRIVE-START-UP-ARM is asked and "No" sends nothing) |
   | hands-off question M-I1IO-DRIVE-GO (per page, after a question, before a row read again, before a white that needs a homing) | the countdown instead |
-  | homing offers after a stop and at a START (M-I1IO-DRIVE-HOME-OFFERED, -HOME-AFTER-STOP, -ARM-OUT-AT-START, -ARM-OUT-NOT-HERE, -HOME-AT-START-DONE) | stay |
+  | the START rule's homing M-I1IO-DRIVE-HOME-AT-START | the countdown instead (not a fault; the run goes on); a homing that fails turns the rest of the sitting guided |
+  | homing offers on a page (M-I1IO-DRIVE-HOME-OFFERED, -HOME-AFTER-STOP, -ARM-OUT-BACK, -HOME-AT-START-DONE) | stay |
   | sheet laid M-I1IO-DRIVE-SHEET-LAID | answered "yes" by the setting; the countdown before the way out |
   | arm felt M-I1IO-DRIVE-ARM-FELT | not asked; the aim page says "The arm should slide easily. If it resists, do not push it. Press Stop." (both modes); the table's own checks of the freed arm stay |
   | aims M-I1IO-DRIVE-AIM / -AIM-PATCH (+ -BUTTON) | stay; the countdown before the next movement |
