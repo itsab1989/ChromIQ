@@ -722,3 +722,29 @@ instrument: no helper change, no new line, no new order (the rows are read exact
   with the patches still missing; with the dual scan off it never does (and a single-scan
   session never continues a dual measurement, as before). An average is never completed (as by
   hand).
+
+### 14. The lights in a dual scan: the blue "second pass due", and the quiet time as a setting (2026-11-20, for 4.3.52)
+
+**Confirmed by:** *nobody yet.* Built on the owner's words of 2026-11-20: *"yes build the blue
+light, are we too cautious with our waiting time at the moment?"* and *"could we allow the user
+to set the timing himself with recommendations of what was measured inside i1profiler and leave
+more room than that to the bottom end?"*, and on his rule of the same day that ChromIQ does what
+the vendor's software does unconditionally (memory: i1io-table-more-commands-ruling, rule 4).
+Tested on the fake USB layer through the real driver, against 4.3.51's driver, and driven on
+screen against the simulated helper; never on a real instrument. Tests:
+`tests/test_i1pro2_dual_blue_and_quiet_time.py`. Study: ChromIQ-work
+`2026-11-20_pulse452b/quiet_study.txt`.
+
+* **The quiet time as a setting.** Preferences > Beta, under the lights option and greyed while
+  it is off: "i1Pro 2, wait after a light change", 0 to 10 s, default **2.1 s** (4.3.37's value;
+  the study found i1Profiler waiting 0.37 s at the least and about 0.46 s as a rule before a
+  hand-held reading, and 0.01 s before a calibration, every reading arriving, but nothing
+  measured with ChromIQ's own driver between 25 ms, where two readings in three were lost, and
+  2.1 s). Beside it: the default, i1Profiler's numbers, what a too-short value can do (a reading
+  lost, "The instrument lost communication with the computer", the strip read again; a
+  calibration retried; in a dual scan a lost second pass also ends M1 and M2 for the rest of
+  that measurement), and that ChromIQ writes the value into the app log. It changes only how long
+  a trigger waits, never a byte (proved on the fake USB layer). Not 2.1 s: the helper gets
+  `--lights-quiet-ms`; 2.1 s: the command line stays as it was. The value is in the measurement's
+  start line (`lights_quiet_s=`), the session's lights line (`quiet_ms=`), and the session
+  header's list of Beta settings (`i1pro2_lights_quiet_s`). The i1Pro 3 has no quiet time.

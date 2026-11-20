@@ -35,6 +35,7 @@ BETA_SUB_OPTIONS: "tuple[str, ...]" = (
     "profile_engine_colprof_comparison",
     "i1pro2_lights_signals",
     "i1pro2_lights_during_reading",
+    "i1pro2_lights_quiet_s",
     "dual_scan_instrument",
     "dual_scan_instrument_source",
     "i1io_table_ask_after_each_step",

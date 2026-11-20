@@ -344,6 +344,15 @@ DEFAULTS: dict[str, Any] = {
     #: readings with the lights on). True = "left on during a reading", as
     #: X-Rite's i1Profiler does by hand (--lights-during-reading).
     "i1pro2_lights_during_reading": False,
+    #: ...and (4.3.52; the owner, 2026-11-20: "could we allow the user to set
+    #: the timing himself with recommendations of what was measured inside
+    #: i1profiler and leave more room than that to the bottom end?") the
+    #: i1Pro 2's quiet time before a reading, in seconds: how long ChromIQ
+    #: keeps a measurement back after the instrument's light changed. 2.1 =
+    #: 4.3.37's own value (the study of 2026-11-20 does not support less for
+    #: ChromIQ's driver); 0 to 10. Not 2.1 = --lights-quiet-ms; 2.1 = the
+    #: command line stays as it was. The i1Pro 3 has no quiet time.
+    "i1pro2_lights_quiet_s":     2.1,
     #: Beta (Settings -> Beta, 2026-11-14): the i1Pro 2 / i1Pro 3 ruler check
     #: (stage 1, CHECK ONLY; workflow/ruler_check.py). With the ChromIQ
     #: chart-reading engine: after each strip the ruler's travel, direction and

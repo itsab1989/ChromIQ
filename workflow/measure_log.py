@@ -88,7 +88,8 @@ def run_kind(ti1_path) -> str:
 
 @never_raises
 def log_start(params, *, reader: str, helper_build: str = "", ruler: bool = False,
-              dual: str = "off", lights: bool = False, conditions: str = "off") -> None:
+              dual: str = "off", lights: bool = False, conditions: str = "off",
+              lights_quiet_s=None) -> None:
     """The one line at a measurement's start. Never raises."""
     try:
         from workflow.measurement_condition import filter_code_from_args
@@ -111,7 +112,10 @@ def log_start(params, *, reader: str, helper_build: str = "", ruler: bool = Fals
              dual_scan=dual, conditions=conditions, ruler=ruler,
              margin_tolerance=bool(getattr(params, "engine_margin_tolerance", False)) and ruler,
              misaligned_check=bool(getattr(params, "engine_safenet", False)),
-             lights=lights, high_res=bool(params.high_res), resume=bool(params.resume),
+             lights=lights,
+             # 4.3.52: the i1Pro 2's quiet time before a reading (lights Beta)
+             lights_quiet_s=lights_quiet_s,
+             high_res=bool(params.high_res), resume=bool(params.resume),
              run_kind=run_kind(ti1), page_pause=bool(getattr(params, "page_pause", False)),
              replay=getattr(params, "engine_replay", None) is not None,
              run_dir=str(ti1.parent))
