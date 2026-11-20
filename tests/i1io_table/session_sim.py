@@ -204,7 +204,20 @@ class Fault:
 FAULT_KINDS = ("no_answer", "no_done", "late", "bad_checksum", "garbled", "status",
                "wrong_cid", "stray", "extra_line", "blocked", "drift", "unplug", "free",
                "identity", "refuse", "a0_other", "a0_after_hand", "k2_other", "memory_short",
-               "memory_bad_start", "long_line", "slow_motion", "fast_motion")
+               "memory_bad_start", "long_line", "slow_motion", "fast_motion", "short_homing")
+#: "short_homing" (4.3.51 fix round, review MUST-1): the homing (i1) answers done with status 0 in
+#: its usual time, but the arm stops short of its resting place, on the way it came: *value* is
+#: the share of the way still left (0 < value < 1, default 0.5; from (1098, 810) it stops at
+#: (1100, 405)). INVENTED: no recording shows it; it is the case the reading after every homing
+#: is there to catch (a homing that reports done and does not arrive).
+SHORT_HOMING_LEFT = 0.5
+
+
+def short_homing_stop(start, rest, value) -> "list[float]":
+    """Where the arm of a "short_homing" fault stops: *value* of the way from *rest* back to
+    *start* (the simulator's own model)."""
+    f = value if 0.0 < (value or 0.0) < 1.0 else SHORT_HOMING_LEFT
+    return [rest[0] + f * (start[0] - rest[0]), rest[1] + f * (start[1] - rest[1])]
 
 
 @dataclass
@@ -609,6 +622,8 @@ class SimTable:
             f = max(0.0, min(1.0, fault.value))
             target = (self.pos[0] + f * (target[0] - self.pos[0]) + 300,
                       self.pos[1] + f * (target[1] - self.pos[1]) + 300)
+        if kind == "short_homing" and line == I1:
+            target = tuple(short_homing_stop(self.pos, target, fault.value))
         self.pos = [target[0], target[1]]
         return 0, "", t
 

@@ -22,7 +22,7 @@ import os
 import random
 
 from tests.i1io_table.session_sim import (F1, I1, SPOT_XY, SPOTS, M1L, M1498, M2507, SimTable, SimViolation,
-                              _near, _first_start, _out_start)
+                              _near, _first_start, _out_start, short_homing_stop)
 from workflow.i1io.table.session_table import checksum, checksum_ok
 
 #: When the simulated table starts a scan move, after the lamp trigger. The simulator's OWN
@@ -452,6 +452,9 @@ class CSimTable(SimTable):
             took = _homing_s(start, free)
             if kind == "fast_motion":
                 took = 0.02
+            if kind == "short_homing":
+                # done in its usual time, the arm short of rest (session_sim.FAULT_KINDS)
+                self.pos = short_homing_stop(start, self.pos, fault.value)
             if self.real_table:
                 # the arm at rest, not driven, relaxes a little later (REAL_REST_RELAX; the same
                 # estimate of the homing's time as before 4.3.51)
