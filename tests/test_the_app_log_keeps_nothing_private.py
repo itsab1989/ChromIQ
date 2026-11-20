@@ -331,3 +331,26 @@ def test_the_table_reach_salt_never_reaches_the_log(caplog):
     said = " ".join(r.getMessage() for r in caplog.records)
     assert "b39d28f5" not in said and "f0874b8c" not in said
     assert "i1io_table_reach" in said
+
+
+# --- S4: an account named like a common word ---
+
+@pytest.mark.parametrize("account,line,expect", [
+    ("max", "max=3 Max dE 2.1 Rel. Col. max Maximum", "max=3 Max dE 2.1 Rel. Col. max Maximum"),
+    ("max", "/Volumes/max/ChromIQ", "/Volumes/<user>/ChromIQ"),
+    ("max", "/Users/max/ChromIQ", "~/ChromIQ"),
+    ("max", "Max's iPhone", "<user>'s iPhone"),
+    ("max", "Maxs AirPods", "<user>s AirPods"),
+    ("max", "/dev/cu.max-iPhone", "/dev/cu.<user>-iPhone"),
+    ("max", "lp -d Canon_MAXIFY_GX", "lp -d Canon_MAXIFY_GX"),
+    ("test", "test passed M-TEST testing", "test passed M-TEST testing"),
+    ("test", "Tests MacBook-Pro", "<user>s MacBook-Pro"),
+])
+def test_a_common_word_account_is_replaced_only_where_it_is_a_name(account, line, expect):
+    lp.reset_for_tests(homes=[f"/Users/{account}"], names=[account])
+    try:
+        if "MAXIFY" in line:
+            lp.note_printer_names(["Canon_MAXIFY_GX"])
+        assert S(line) == expect
+    finally:
+        lp.reset_for_tests()

@@ -19,7 +19,13 @@ WHAT IS REPLACED
   their possessive and joined forms ("Bastis AirPods", "Basti's iPhone",
   "/dev/cu.Bastis-AirPods", "basti_test"), case-insensitive, unicode-aware ->
   ``<user>`` (the possessive tail is kept: ``<user>s AirPods``). A word that
-  merely contains it is left alone ("bastion" stays for the account "basti"). Names
+  merely contains it is left alone ("bastion" stays for the account "basti").
+  A name that is also an ordinary word (``max``, ``test``, ``mark``: the list
+  ``_COMMON``) is NOT replaced as a free word, only as a path component, with
+  an apostrophe ("Max's"), and possessive or joined before a device word
+  ("Maxs AirPods", "/dev/cu.max-iPhone"); so for such an account the name as a
+  free word, and joined to anything but a device word ("max_project"), stays
+  in the log. Names
   shorter than three letters are replaced only inside the home paths above,
   never as words, since a one- or two-letter word occurs everywhere;
 * the full name from the account database, as a whole phrase -> ``<user>``;
@@ -227,7 +233,23 @@ class _Identity:
         # somebody else's folder, not ours with a "2" after it)
         self.home_re = (re.compile(r"(?:" + alt(self.homes) + r")(?=$|[\\/\s'\":,;)\]}])", flags)
                         if self.homes else None)
-        words = [n for n in self.names if len(n) >= 3]
+        all_words = [n for n in self.names if len(n) >= 3]
+        common = _common_words()
+        # S4 (4.3.50): a name that is also an ordinary word ("max", "test",
+        # "mark") is never replaced as a free word, only where it can only be
+        # a name: as a path component, possessive with an apostrophe, and
+        # possessive or joined in front of a device word ("Maxs AirPods",
+        # "/dev/cu.max-iPhone")
+        words = [n for n in all_words if n.lower() not in common]
+        self.common_names = [n for n in all_words if n.lower() in common]
+        self.common_re = None
+        if self.common_names:
+            c = alt(self.common_names)
+            self.common_re = re.compile(
+                r"(?<=[\\/])(?:" + c + r")(?=[\\/])"
+                r"|(?<![^\W_])(?:" + c + r")(?P<apos>['\u2019]s)(?!\w)"
+                r"|(?<![^\W_])(?:" + c + r")(?P<dev>s?[ _.-]+(?:" + _DEVICE_WORDS + r"))(?!\w)",
+                re.IGNORECASE)
         # M2 (4.3.50): a name is a word on its own AND in its possessive and
         # joined forms: "Bastis AirPods", "Basti's iPhone", "Basti’s",
         # "/dev/cu.Bastis-AirPods", "basti_test". An underscore separates here
@@ -237,6 +259,7 @@ class _Identity:
         self.word_re = (re.compile(r"(?<![^\W_])(?:" + alt(words) + r")(?P<tail>['\u2019]s|s)?"
                                    r"(?![^\W_])", re.IGNORECASE)
                         if words else None)
+        self.rare_lower = [n.lower() for n in words]
         self.phrase_re = (re.compile(r"(?<!\w)(?:" + alt(self.phrases) + r")(?!\w)", re.IGNORECASE)
                           if self.phrases else None)
         self.host_re = (re.compile(r"(?<![\w.-])(?:" + alt(self.hosts) + r")(?:\.local)?(?![\w-])",
@@ -266,6 +289,33 @@ def _name_parts(full: str) -> "list[str]":
         if len(part) >= 3 and part.replace("-", "").isalpha():
             out.append(part)
     return out
+
+
+#: S4: words a device is named with after its owner's name (macOS, Windows,
+#: Android, Bluetooth headsets): only before one of these is a name that is
+#: also an ordinary word treated as a name without an apostrophe
+_DEVICE_WORDS = (r"iPhone|iPad|iPod|iMac|Mac|MacBook|MacBook[ _-]?(?:Pro|Air)|Mac[ _-]?mini|"
+                 r"Mac[ _-]?Studio|Mac[ _-]?Pro|AirPods|AirPods[ _-]?(?:Pro|Max)|"
+                 r"Apple[ _-]?Watch|Watch|Galaxy|Pixel|Phone|Handy|Laptop|PC|Desktop|"
+                 r"Notebook|Headphones|Kopfh\u00f6rer|Beats|Buds|Speaker|Lautsprecher|"
+                 r"Surface|ThinkPad|Kindle|Tablet|TV|Magic[ _-]?(?:Mouse|Keyboard|Trackpad)")
+
+#: S4: ordinary words an account may be named (the review saw max, mark, test,
+#: user, admin, mac, print, office). A fixed list, not the app's own texts:
+#: those name people too (credits, contributors), and a first name must stay a
+#: name. Some entries are also first names (mark, will, frank): for such an
+#: account the free word stays, which is the price of not mangling the log.
+_COMMON = frozenset("""
+max min mark test tester user users admin administrator mac print printer office guest
+home root dev data demo info light white black grey gray color colour paper chart patch
+strip read scan table sample profile target new old red green blue owner studio design
+photo work main local system server default setup lab art will may rose page bill frank
+grant joy hope sky ray dean sun star king pro mini air book ink media image images shop
+master temp tmp public shared support service apple""".split())
+
+
+def _common_words() -> "frozenset[str]":
+    return _COMMON
 
 
 _SALT_LOADING = threading.local()
@@ -370,7 +420,8 @@ def note_printer_names(names) -> None:
             if not n or n in ident.printers:
                 continue
             low = n.lower()
-            if any(u in low for u in ident.lower_names):
+            if any(u in low for u in ident.rare_lower) or (
+                    ident.common_re is not None and ident.common_re.search(n)):
                 ident.printers[n] = ident.tag("printer", n)
                 changed = True
         if changed:
@@ -420,8 +471,12 @@ def scrub(text: str) -> str:
     if ident.host_re is not None and any(h.lower() in low for h in ident.hosts):
         s = ident.host_re.sub("<computer>", s)
         low = s.lower()
-    if ident.word_re is not None and any(n in low for n in ident.lower_names):
-        s = ident.word_re.sub(lambda m: "<user>" + (m.group("tail") or ""), s)
+    if any(n in low for n in ident.lower_names):
+        if ident.word_re is not None:
+            s = ident.word_re.sub(lambda m: "<user>" + (m.group("tail") or ""), s)
+        if ident.common_re is not None:
+            s = ident.common_re.sub(
+                lambda m: "<user>" + (m.group("apos") or m.group("dev") or ""), s)
     def _sn(m):
         return m.group("pre") + ident.tag("sn", m.group("val"))
     if "serial" in low or ".cal" in low or "chip" in low or "internal" in low:
