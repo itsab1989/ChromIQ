@@ -166,3 +166,44 @@ def test_the_separated_finder_says_nothing_on_touching_strips():
         tif = next((PREBUILT / "colormunki" / "a3" / "tc924").glob("*.tif"))
     assert separated_strip_rects(tif, 47) == []
 
+
+
+def _separated_sheet(path, n, gap_px):
+    """A page of *n* strips standing apart by *gap_px* (drawn here, nothing
+    of anyone's): 8 patches each, a white margin, no label row."""
+    from PIL import Image, ImageDraw
+    w, h = 1181, 1772
+    im = Image.new("RGB", (w, h), (255, 255, 255))
+    dr = ImageDraw.Draw(im)
+    x0, x1 = int(w * 0.08), int(w * 0.92)
+    pitch = (x1 - x0) / n
+    for i in range(n):
+        a, b = int(x0 + i * pitch), int(x0 + (i + 1) * pitch) - gap_px
+        for j in range(8):
+            y = int(h * 0.12) + j * int(h * 0.09)
+            dr.rectangle([a, y, b, y + int(h * 0.09) - 1],
+                         fill=((37 * i + j * 50) % 200, (90 + j * 20) % 220, (150 + i * 13) % 230))
+    im.save(path)
+
+
+def test_separated_strips_the_old_detector_got_right_keep_its_rects(tab, tmp_path):
+    """Review S3 (fix round): the fix is used ONLY where the old result
+    disagrees with the separated columns the page shows. A page whose strips
+    stand apart by a few pixels, which the old detector reads right, keeps
+    the old rects and the "base" arrow: without the uniform_agrees check the
+    marker would silently move to "tip" here."""
+    from ui.strip_columns import separated_strip_rects, uniform_agrees
+    from ui.tabs.tab_measure import _detect_uniform_stripe_rects
+    stem = "PatchLengthTest2_100x150"                     # 9 strips, one page
+    shutil.copy2(DATA / f"{stem}.ti2", tmp_path / "separated.ti2")
+    tif = tmp_path / "separated.tif"
+    _separated_sheet(tif, 9, 4)
+    old = _detect_uniform_stripe_rects(tif, 9)
+    sep = separated_strip_rects(tif, 9)
+    # the case this test is about: both find the strips, and they agree
+    assert len(old) == 9 and len(sep) == 9 and uniform_agrees(old, sep)
+    tab.set_ti1_path(tmp_path / "separated.ti2")
+    got = tab._page_stripe_rects[0]
+    assert [(r.x(), r.y(), r.width(), r.height()) for r in got] == \
+           [(r.x(), r.y(), r.width(), r.height()) for r in old]
+    assert tab._stripe_arrow_mode == "base"

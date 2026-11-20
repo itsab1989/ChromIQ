@@ -313,6 +313,73 @@ def test_the_helper_sends_the_blue_550_ms_after_pass_1_from_the_armed_wait():
     assert "if (purp == inst_armed && c == CQ_KEY_NONE)" in h[k - 80:k]
 
 
+_BLUE_HARNESS = r"""
+#include <stdio.h>
+#include <stdarg.h>
+typedef struct _inst inst;
+static unsigned int now_ms = 5000;
+static unsigned int msec_time(void) { return now_ms; }
+static inst *cq_lights_it = (inst *)1;
+static int cq_lights_gen = 2;
+static int sig_on = 1;
+static int cq_lights_signals_on(void) { return sig_on; }
+static int i1pro2_cq_lights_second_pass(void *pp) { (void)pp; printf("SEND\n"); return 1; }
+static void cq_emit_raw(const char *fmt, ...) {
+	va_list a; va_start(a, fmt); vprintf(fmt, a); va_end(a); printf("\n");
+}
+@@SOURCE@@
+static void step(const char *s) { printf("STEP %s\n", s); }
+int main(void) {
+	/* sent once it is due, never before, never twice */
+	step("due"); cq_lights_second_pass_due();
+	now_ms += 100; cq_lights_second_pass_poll();
+	now_ms += 500; cq_lights_second_pass_poll();
+	now_ms += 100; cq_lights_second_pass_poll();
+	cq_lights_second_pass_over();
+	/* left before it was due: said once, and never sent later */
+	step("early"); cq_lights_second_pass_due();
+	now_ms += 100; cq_lights_second_pass_over();
+	now_ms += 5000; cq_lights_second_pass_poll();
+	step("next"); now_ms += 5000; cq_lights_second_pass_poll(); cq_lights_second_pass_over();
+	/* without result signals, or on an i1Pro 3: never due */
+	step("nosig"); sig_on = 0; cq_lights_second_pass_due(); sig_on = 1;
+	now_ms += 1000; cq_lights_second_pass_poll(); cq_lights_second_pass_over();
+	step("gen3"); cq_lights_gen = 3; cq_lights_second_pass_due(); cq_lights_gen = 2;
+	now_ms += 1000; cq_lights_second_pass_poll(); cq_lights_second_pass_over();
+	printf("END\n");
+	return 0;
+}
+"""
+
+
+def test_the_helpers_due_poll_over_run_as_written(tmp_path):
+    """Review S3 (fix round): the helper's three blue functions, compiled from
+    the SHIPPED source text with stubs around them, and run. A return pass
+    left before the blue was due must clear the due time, so nothing is sent
+    later (a missing clear in cq_lights_second_pass_over turned no test red)."""
+    cc = shutil.which("cc") or shutil.which("clang") or shutil.which("gcc")
+    if cc is None or sys.platform == "win32":
+        pytest.skip("no C compiler here")
+    h = _helper()
+    a = h.index("#define CQ_LIGHTS_BLUE_AFTER_MS 550")
+    k = h.index("static void cq_lights_second_pass_over(void) {")
+    src = h[a:h.index("\n}\n", k) + 3]
+    c = tmp_path / "blue_harness.c"
+    c.write_text(_BLUE_HARNESS.replace("@@SOURCE@@", src), encoding="utf-8")
+    exe = tmp_path / "blue_harness"
+    r = subprocess.run([cc, "-std=c99", "-Wall", "-o", str(exe), str(c)], capture_output=True,
+                       text=True, timeout=120)
+    assert r.returncode == 0, r.stderr
+    out = subprocess.run([str(exe)], capture_output=True, text=True, timeout=60).stdout.split("\n")
+    assert out[:-1] == [
+        "STEP due", "SEND",
+        "STEP early", '{"event":"lights","second_pass":"skipped","why":"early"}',
+        "STEP next",
+        "STEP nosig",
+        "STEP gen3",
+        "END"], out
+
+
 def test_the_dual_strip_sets_the_blue_due_only_where_pass_2_is_asked_for():
     d = (HELPER_SRC / "chromiq_dualdev.c").read_text(encoding="utf-8")
     body = d[d.index("static void cq_dd_strip("):]
@@ -659,6 +726,40 @@ def test_the_typed_value_reaches_the_helper_exactly(dialog, tmp_path, monkeypatc
                         "quiet_ms": ms, "blue_quiet_ms": 370}])
     assert any(f"lights: instrument=i1pro2 quiet_ms={ms} " in r.getMessage()
                for r in caplog.records)
+
+
+@pytest.mark.parametrize("stored", [0.37, 0.05, 10.0, 2.1])
+def test_the_measure_tab_passes_the_setting_not_a_fixed_value(qapp, tmp_path, monkeypatch,
+                                                             stored):
+    """Review S3 (fix round): Preferences -> Start. The Measure tab builds the
+    parameters from the setting; a fixed 2.1 there turned no test red."""
+    from core.settings import DEFAULTS
+    from workflow import chartread_engine
+    from workflow.measure_manager import MeasureParams
+    from core.argyll_runner import ArgyllRunner
+    from ui.tabs.tab_measure import TabMeasure
+
+    class _S:
+        def __init__(self):
+            self._d = dict(DEFAULTS, i1pro2_lights_beta=True, i1pro2_lights_quiet_s=stored)
+
+        def get(self, key, default=None):
+            return self._d.get(key, default)
+
+        def set(self, key, value):
+            self._d[key] = value
+
+    s = _S()
+    tab = TabMeasure(ArgyllRunner(s), s)
+    try:
+        monkeypatch.setattr(tab, "_engine_selected", lambda: True)
+        monkeypatch.setattr(chartread_engine, "helper_path",
+                            lambda: tmp_path / "chromiq-chartread")
+        p = tab._apply_engine_params(MeasureParams(ti1_path=tmp_path / "c.ti1"))
+        assert p.engine_i1pro2_lights is True
+        assert p.engine_lights_quiet_s == pytest.approx(stored)
+    finally:
+        tab.close()
 
 
 def test_the_help_names_the_recorded_numbers_and_the_risk():
