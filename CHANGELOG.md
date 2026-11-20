@@ -1,5 +1,63 @@
 # Changelog
 
+## v4.3.53
+
+**For owners of an X-Rite i1iO 2 table who try the beta option “X-Rite i1iO support”: a chart is now read in rows wherever it lies on the table, at the speed i1Profiler uses for the same patch size, and ChromIQ remembers each table. After the first careful time on a table, it moves without extra steps and asks fewer questions. For owners of an X-Rite i1Pro 2 who try the dual scan and the instrument lights (both beta): the blue light now blinks on the side the second pass moves towards, and four waiting times can be set in Preferences > Beta. None of this has run on a real table or a real instrument yet: please read the known issues at the end. With the beta options off, ChromIQ measures as 4.3.52 did, and the charts it makes, your measurements and your profiles do not change.**
+
+### New
+
+Only with the beta option “X-Rite i1iO support” on:
+
+- **Rows are read as rows wherever the chart lies.** With “Patch-by-patch mode (-p)” not ticked, every row is read as a strip, also when it starts or ends further to the right or to the left than in the recordings, and also on a chart that you aim at its corner patches. The rows keep their full run before the first patch and after the last one, in both directions. Patch by patch uses the same area.
+- **Rows are read at i1Profiler's own speed.** In the recordings, i1Profiler read the first pass of each row at one speed per chart, and the speed follows the size of the patches: 110 mm/s for patches 8.4 mm apart, 118 for 8.7 mm, 137 and 138 for 9.5 mm, 168 for 10.7 mm and more. ChromIQ now uses the same speed for the same patch size. Before, it used the slowest recorded speed, 54 mm/s. ChromIQ's own charts are read at 168 mm/s.
+- **The first time, ChromIQ goes carefully. After that it remembers.** When a row reaches a part of the table that this table's arm has not been to yet, ChromIQ first moves the arm to the row's two ends, one after the other, and checks that it got there. It remembers this for the table. The next rows and the next measurements on the same table go straight to the row, as i1Profiler does.
+
+Only with the beta options “X-Rite i1Pro 2 and i1Pro 3: show the instrument's state with its lights (beta)” and “X-Rite i1Pro 2: also M1 and M2, by a dual scan (beta, first try)” both on, and “What the lights show” set to “Ready light and result signals (green / red)”:
+
+- **The blue light blinks on the side the second pass moves towards.** After a first pass from left to right, the left light blinks blue, as before and as in i1Profiler. After a first pass from right to left, the right light blinks blue. When ChromIQ cannot tell the direction, it is the left light. A tester saw the left light after a pass from right to left in 4.3.52 and asked for this.
+
+Only with the beta option “X-Rite i1Pro 2 and i1Pro 3: show the instrument's state with its lights (beta)” on, and for the lamp wait always:
+
+- **Four waiting times in Preferences > Beta.** “i1Pro 2, wait after a light change:” was already there. New are “Dual scan, wait after the blue light:”, “Dual scan, blue light after the first pass:” and “X-Rite i1Pro and i1Pro 2: lamp wait before a reading (beta):”. Each field has an (i) that says what the wait is for, what X-Rite's i1Profiler was recorded doing, what ChromIQ used before and what can happen if the wait is too short. The defaults are the same as before: 2.1 s, 0.37 s, 0.55 s and 1.5 s. ChromIQ writes the waits into the app log at the start of every measurement.
+- **The lamp wait also reaches the i1iO table's patch by patch readings.** It does not reach the table's rows: they keep the table's own waits.
+
+### Changed
+
+Only with the beta option “X-Rite i1iO support” on:
+
+- **No pause after every patch.** Patch by patch, ChromIQ waited at least 1 second after each reading before the next move. i1Profiler sends the next move at once. So does ChromIQ now.
+- **A reading that fails with the arm on its patch is read once more by itself.** No question, and no countdown. Only if that reading fails too does ChromIQ ask you. The measurement does not turn guided for it. This is for reading patch by patch.
+- **Read a row again as often as you like.** Before, a page allowed two rows read again and five aimings. These limits are gone. You decide how often to try again.
+- **Guided, step by step measurement: the “first visit” question comes once per table.** It came at almost every row of every measurement. Now it comes only for a part of the table that this table's arm has not been to yet.
+- **Aims further to the right and further to the front are accepted.** If you aimed at a mark with the arm, the arm can be there. Before, ChromIQ refused marks beyond a limit that came from the recordings. On the left, beside the place where the table itself stops the arm, and in the strip at the back beside the white tile's holder, ChromIQ still sends nothing, and the page says so.
+- **A sheet that lies a little turned is accepted when you read patch by patch.** Up to 30 degrees. For reading in rows, the limit stays 3 degrees.
+- **When a row is still read patch by patch, the Measure tab says the true reason.** Before, it always said “too long”.
+- **With “Guided, step by step measurement” off, there is no countdown before the arm goes home at the end of a page.** The countdowns after you lay a sheet and after you aim stay, because your hands were just on the table. After any answer you give in the middle of a page, the countdown with its Stop button comes again before the next movement.
+- **The calibration on the table's white tile is about 6 seconds shorter.** ChromIQ reads the tile with the same connection to the instrument that made the calibration. The calibration itself is still made at every new measurement.
+- **“Skip initial calibration (-N)” works as in a measurement by hand.** ChromIQ first asks the instrument whether its last calibration is still valid. Only if it is not, ChromIQ calibrates, at the resting place, before you aim.
+- **After a move that did not arrive, the page names the table's power switch first.** Switch the table off and on again, then press START MEASUREMENT: ChromIQ starts the table the way i1Profiler does, and the table brings the arm home. i1Profiler 3.8.6 or older comes last, with its version limit. This is also true for the pages after a stop and for an arm left free.
+- **Two status checks after the aims instead of four,** as i1Profiler sends them.
+
+For every strip instrument:
+
+- **Strip recognition: “Auto” now decides from the instrument you measure with when the chart names none.** A chart that names no instrument (or another one), read with an i1 Pro, lost “read in both directions” under Auto. On a chart with a fixed order, strips were then accepted in one direction only. Now Auto chooses both directions for an i1 Pro also then. When you choose a direction yourself (Auto off), nothing changes. The app log says at every start which instrument Auto decided from and whether both directions are accepted.
+
+### Fixed
+
+- **One reading of the free arm far out made ChromIQ forget the whole table** (i1iO table beta). The table's remembered reach was then ignored at the next start, and the careful steps came back every time. Now nothing ChromIQ learns can make the record be ignored.
+- **The help of the lamp wait said it applies to every measurement.** It did not apply to the i1iO table. It now reaches the table's patch by patch readings, and the help says which readings it reaches and which not.
+- **The help of the wait after the blue light now says which wait really decides.** At the defaults ArgyllCMS's lamp wait holds the second pass of a dual scan until about 1.5 s after the first pass. A shorter wait after the blue light alone does not make the second pass start sooner.
+
+### Known issues
+
+- **Reading in rows has never been tried with ChromIQ on a real table.** The rows use only commands i1Profiler sends, in its order and at its speeds, but where each row runs is worked out by ChromIQ. Please keep the table's power switch in reach, and send the app log after your first try.
+- **None of the other table changes of this version has run on a real table either:** the faster patch by patch reading, the reading read again by itself, the careful first moves and what ChromIQ remembers, aims further out, a turned sheet, the countdown after your answers.
+- **ChromIQ cuts a row with fewer readings per patch than before** (at least 3, before 5). i1Profiler's own rows at 168 mm/s, cut this way, gave i1Profiler's values back closely. On other papers and instruments this has not been checked.
+- **Where the table's arm really ends its travel is not known.** If a move does not arrive, ChromIQ stops and sends nothing more; the arm stays where it stopped.
+- **The right blue light alone has not been seen in a recording of i1Profiler.** All 23 recorded first passes ran from left to right. The right light is the same program as the left one, on the other side. It has not been tried on a real instrument.
+- **Any wait shorter than its default has not been tried with ChromIQ on a real instrument.** A lamp wait that is too short may make readings slightly too dark, mostly in dark patches, without a warning. A wait after a light change or after the blue light that is too short may lose a reading. Please compare with a measurement at the defaults, and send the app log.
+- The new and changed texts of this version are shown as proposed texts and may still be reworded.
+
 ## v4.3.52
 
 **For owners of an X-Rite i1iO 2 table who try the beta option “X-Rite i1iO support”: when a measurement starts and the arm is not at its resting place, ChromIQ now offers to bring it home from where it is, with the table's own homing, as i1Profiler does at its own start. Two new sub-options let you measure without the step-by-step guidance and keep a shorter table log. For owners of an X-Rite i1Pro 2 who try the dual scan and the instrument lights (both beta): the left light now pulses blue when the second pass of a strip is due, as in i1Profiler, and you can set how long ChromIQ waits after a light change. None of this has run on a real table or a real instrument yet: please read the known issues at the end. With the beta options off, ChromIQ measures as 4.3.51 did, and the charts it makes, your measurements and your profiles do not change.**

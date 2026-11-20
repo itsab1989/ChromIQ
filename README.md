@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-4.3.52-7c5cff">
+  <img alt="Version" src="https://img.shields.io/badge/version-4.3.53-7c5cff">
   <img alt="Downloads" src="https://img.shields.io/endpoint?url=https://itsab1989.github.io/github-traffic-downloads-dashboard/assets/badges/itsab1989_ChromIQ-downloads.json">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2a9d8f">
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-blue">
@@ -692,6 +692,11 @@ ways:
 >   short countdown with a large Stop button comes before the first movement
 >   instead of a question. Neither the homing from far out nor a measurement
 >   without the guidance has run on a real table yet.
+> - New in 4.3.53: rows are read as rows wherever the chart lies, at the
+>   speed i1Profiler uses for the same patch size, and ChromIQ remembers each
+>   table, so after the first careful time it asks fewer questions and moves
+>   without extra steps. A reading that fails with the arm on its patch is
+>   read once more by itself. None of this has run on a real table yet.
 > - The option is off by default, and with it off nothing changes.
 
 Why it may be worth it all the same: X-Rite has ended support for these
@@ -736,8 +741,12 @@ first try: [The dual scan, step by step](docs/i1pro2_dual_scan.md).
 > left light pulses blue when the second pass of a strip is due, as in
 > i1Profiler, and you can set how long ChromIQ waits after a light change
 > before a reading. The blue light, ChromIQ's 0.37 s wait after it and any
-> wait shorter than 2.1 s have not been tried on a real instrument yet. With the
-> option off, nothing changes.
+> wait shorter than 2.1 s have not been tried on a real instrument yet. New in
+> 4.3.53: the blue light blinks on the side the second pass moves towards, and
+> four waits (after a light change, after the blue light, when the blue light
+> comes, and ArgyllCMS's lamp wait) can be set in Preferences > Beta. The defaults are
+> unchanged; any shorter wait and the right blue light have not been tried on a
+> real instrument yet. With the option off, nothing changes.
 
 ### Tools menu — standalone utilities
 The masthead **Tools** button opens a menu of conversions and checks you can run

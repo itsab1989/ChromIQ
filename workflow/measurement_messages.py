@@ -12999,7 +12999,7 @@ M_I1IO_DRIVE_ROW_M0_ONLY = _m(
     "not write its M1 and M2 values. So this row has no M1 and M2 yet; every other row keeps "
     "its own.\n\n"
     "\u2022  Read it again: ChromIQ first asks you to take your hands away, then reads the row "
-    "again with the UV light too. At most two rows of a page are read again.\n"
+    "again with the UV light too. You can read it again as often as you like.\n"
     "\u2022  Skip it: the row keeps M0 only. Continue Measurement, with the dual scan still "
     "switched on, reads it again later.\n"
     "\u2022  End this step: nothing more is read now, and nothing moves until you choose what "
@@ -13033,9 +13033,9 @@ M_I1IO_DRIVE_FRONT = _m(
 M_I1IO_DRIVE_FIRST_VISIT = _m(
     "M-I1IO-DRIVE-FIRST-VISIT",
     "A move to a part of the table not driven before",
-    "The next move takes the arm to a part of the table where ChromIQ has not "
-    "driven it before in this measurement. It stays inside the area ChromIQ "
-    "allows.\n\n"
+    "The next move takes the arm to a part of the table where this table's arm "
+    "has not been before. It stays inside the area ChromIQ allows. ChromIQ "
+    "remembers it for this table, so it asks this only once for each new part.\n\n"
     "To make this move, please take your hands away from the table and the "
     "arm, and then press “Make this move, my hands are away”: the arm makes "
     "it at once. If you say No, nothing moves and this step ends.",
@@ -13239,7 +13239,7 @@ M_I1IO_DRIVE_ROW_FAILED = _m(
     "missing until it has been read completely; the rows read before it are "
     "kept.\n\n"
     "\u2022  Read it again: ChromIQ first asks you to take your hands away, "
-    "then reads the row again. At most two rows of a page are read again.\n"
+    "then reads the row again. You can read it again as often as you like.\n"
     "\u2022  Skip it: the row stays missing; a later measurement with "
     "\u201cRefine / resume existing measurement (-r)\u201d reads it.\n"
     "\u2022  End this step: nothing more is read now, and nothing moves until "

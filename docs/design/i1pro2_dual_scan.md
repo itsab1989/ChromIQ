@@ -796,3 +796,24 @@ screen against the simulated helper; never on a real instrument. Tests:
   session's lights line (`quiet_ms=`, `blue_quiet_ms=`), and the session header's list of Beta
   settings (`i1pro2_lights_quiet_s`). The i1Pro 3 has no quiet time: its session line says
   `lights: instrument=i1pro3 quiet=not_used`.
+
+### 15. ⏳ Awaiting confirmation: the blue light's side, and the Auto strip recognition (2026-11-20, for 4.3.53)
+
+**Confirmed by:** *nobody yet.*
+
+The source: the tester's report on a real i1Pro 2 of 20 Nov 2026 (4.3.52): after a first pass from
+right to left the LEFT blue light still blinked; *"it should be the right light blinking towards
+the direction of the return scan"*. Decided by the coordinator for the owner (he delegates technical
+decisions; the lights are a Beta option and a light cannot harm anything).
+
+* After a first pass from left to right: the recorded left blue (mask 0x20), byte for byte.
+* After a first pass from right to left: the same 702-byte program with its side bytes 0x04
+  (ArgyllCMS's "Blue Right"); never seen alone in a recording (all 23 recorded first passes ran
+  left to right).
+* The direction is the ruler stream's net count when the blue is due; not known (fewer than 100
+  steps, no stream): the left blue. Timing, the 0.37 s, the skip when the button comes first:
+  unchanged.
+* Strip recognition, Auto: a chart that names no i1 Pro is decided from the instrument the
+  measurement is made with (its report this session, the one this app run has seen, or the dual
+  scan's instrument); an i1 Pro reads both directions (-b). Auto off: the person's choice, always.
+  The app log says what Auto decided from at every start.

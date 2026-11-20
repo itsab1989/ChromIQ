@@ -1617,3 +1617,40 @@ What 4.3.53 does (driven on the simulated table only; never run on a real table)
 * **Not in this round** (written down for the owner): one reader for all rows of a page (tried,
   changes the reader files the measurement is built from, left for its own round); the lamp wait
   inside ArgyllCMS's i1Pro 2 code; i1Profiler's first-pass strip speeds; the back-strip way out.
+
+### ⏳ Awaiting confirmation: the 4.3.53 fix round, what the vendor does and what a table has shown (2026-11-20, for 4.3.53)
+
+**Confirmed by:** *nobody yet.*
+
+The owner, 2026-11-20 (the sources of this section, his words): *"you had the recordings from
+i1profiler and instead of using all of them and copy them you were overly cautious and blocked
+things in our app that we now have to allow again which costs time and money. i hope you made or
+will make everything in a way that chromiq learns which movements are save at least so that after
+the first carefull attempt everything runs as fast as it is supposed to. like in i1profiler"*;
+of 19 Nov 2026: *"i assume if the user can aim at a crosshair with the device then it is in a safe
+area for the arm even if it would be spread out even further than on the data he sent so this
+should not be the strict limit either"*; of 20 Nov 2026: *"let chromiq offer to try it and if it
+does not work it suggests i1profiler. but the i1io 2 is not supported by the most recent
+i1profiler anymore so we should not rely on it"*.
+
+What 4.3.53 does after its fix round (driven on the simulated table only; never on a real table):
+
+* **The speed of a row is i1Profiler's first-pass speed for that patch pitch** (110 / 118 / 137 /
+  138 / 168 mm/s from the recordings; the rule ~25.3 / s x (pitch - 4.1 mm)); only a recorded
+  speed is sent. ChromIQ's own cut needs at least 3 readings in each patch's window (was 5).
+* **A person's answer brings the countdown back** (guidance off): after any answer in the middle of
+  a page the next movement has its countdown with Stop; movements that follow each other with
+  nobody asked have none.
+* **A patch row whose reading failed with the arm on its patch is read once more by itself**, no
+  question, no countdown, the sitting not turned guided; only then the person is asked.
+* **No pause after a patch** (it was 1 s); **no limit** on rows read again or runs per page (each
+  run a person asked for brings its own lines to the session's caps); **the first-visit question
+  once per table** (ground the reach record holds counts as visited); **two f4 after the aims**.
+* **No right and no front backstop** as refusals; only the protocol's own number range (a signed
+  16-bit field of 0.1 mm) guards against a corrupted number. The left side (where the table's own
+  m1 stops the arm) and the back strip stay. The creep takes the 5 mm steps the aimed front needs.
+* **A sheet read patch by patch may lie turned by up to 30 degrees** (rows: 3).
+* **What is learned is clamped to what is loaded**, so no reading can void a table's record.
+* **The way out after a move that did not arrive**: the power switch, then ChromIQ's own START,
+  i1Profiler 3.8.6 or older last.
+* **The lamp wait of Preferences > Beta reaches the table's patch by patch readers.**
