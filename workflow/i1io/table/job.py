@@ -115,7 +115,9 @@ class Confirm:
 
 
 CHOICES = {
-    Confirm.START_UP: ("yes", "i1profiler"),
+    # 4.3.52: "arm out" only on the unguided page (M-I1IO-DRIVE-START-UP-ARM, the one arm
+    # question after power-on): the start-up is never sent, as the 4.3.48 refusal
+    Confirm.START_UP: ("yes", "i1profiler", "arm out"),
     Confirm.GO: ("yes", "back"),
     Confirm.SHEET_LAID: ("yes", "stop"),
     Confirm.ARM_FELT: ("free", "holds", "not sure", "skip"),
@@ -241,6 +243,62 @@ HANDS_OFF_ANSWERS = frozenset({(Confirm.GO, "yes"), (Confirm.SHEET_LAID, "yes"),
 HANDS_OFF_WINDOW_ANSWERS: "frozenset[tuple[str, str]]" = frozenset()
 #: every movement the guard refused (a bug in the job: the tests fail on any entry)
 HANDS_OFF_BREACHES: "list[str]" = []
+
+
+# ---- 4.3.52: "Guided, step by step measurement" OFF (design3 F2/F3; FOR THE SAFETY REVIEW) ----
+# The owner, 2026-11-19 (W8): with the guidance off "the measurement shall be automatic ... so
+# the first measurement goes through smooth without interruptions". The POLICY lives here, in
+# the job: the window has no way to answer a question by itself. With ``guided`` False the job
+# does not yield the questions below; it records the answer itself (an ANSWER line that says so,
+# and :attr:`TableJob.auto_answers` for the app log) and goes on. Every other question is asked
+# exactly as in the guided mode. The wire is the same as a guided measurement answered with the
+# same answers (tests/i1io_table/test_4352_guidance_off.py, T7).
+
+#: THE COUNTDOWN. Decided by us, not by the owner (he said "without interruptions"); 0 removes
+#: every countdown page; the step still clears the hands-off guard. With the guidance off it
+#: stands where the hands-off question (GO) stood: the job waits this long on the table's
+#: clock, in COUNTDOWN_SLICE_S slices, sending nothing, and Stop ends it before any line.
+UNGUIDED_COUNTDOWN_S = 3.0
+COUNTDOWN_SLICE_S = 0.1
+#: the questions the job answers itself when the guidance is off, and with which answer
+BY_SETTING = {Confirm.READY_TO_OPEN: "yes", Confirm.SHEET_LAID: "yes",
+              Confirm.FRONT_CHOICE: "go on", Confirm.FIRST_VISIT: "yes",
+              # only when consent page v4 (which lists these facts) was given
+              Confirm.READER_CONSENT: "yes",
+              # only when every patch of the chart was read
+              Confirm.END: "save"}
+#: the questions a countdown replaces (not the homing offers after a stop or at a START, and
+#: not the homing of an ending that is not a complete, saved measurement: those stay)
+COUNTDOWN_INSTEAD = frozenset({Confirm.GO})
+#: the questions that are not asked at all (nothing answers them: the code does not ask)
+SKIPPED = frozenset({Confirm.ARM_FELT, Confirm.REPORT_AFTER_STEP})
+#: by-setting answers whose guided answer was the hands-off confirmation: the countdown takes
+#: its place before the next movement (the sheet laid, the front steps)
+COUNTDOWN_AFTER = frozenset({Confirm.SHEET_LAID, Confirm.FRONT_CHOICE})
+#: the consent page version that lists the reader's facts (M-I1IO-DRIVE-CONSENT-GUIDANCE)
+CONSENT_WITH_READER_FACTS = 4
+#: the message id of each question a person would have seen (the app log names it)
+QUESTION_ID = {Confirm.READY_TO_OPEN: "M-I1IO-DRIVE-READY",
+               Confirm.SHEET_LAID: "M-I1IO-DRIVE-SHEET-LAID",
+               Confirm.FRONT_CHOICE: "M-I1IO-DRIVE-FRONT",
+               Confirm.FIRST_VISIT: "M-I1IO-DRIVE-FIRST-VISIT",
+               Confirm.READER_CONSENT: "M-I1IO-DRIVE-READER-CONSENT",
+               Confirm.END: "M-I1IO-DRIVE-END", Confirm.GO: "M-I1IO-DRIVE-GO",
+               Confirm.ARM_FELT: "M-I1IO-DRIVE-ARM-FELT",
+               Confirm.REPORT_AFTER_STEP: "M-I1IO-DRIVE-AFTER-STEP"}
+#: the stop id of an automatic answer the job refused to give (a bug guard: the sitting ends)
+AUTO_ANSWER_REFUSED = "automatic_answer_refused"
+
+
+@dataclass(frozen=True)
+class Countdown:
+    """A job step with the guidance off: the arm moves after *seconds*; nothing is asked."""
+    seconds: float
+    detail: dict = field(default_factory=dict)
+
+
+class AutoAnswerRefused(Exception):
+    """The job was about to answer a question that is not on BY_SETTING (a bug guard)."""
 
 #: the tester's names for the answers in a result block (the analysis script reads them)
 BLOCK_LABEL = {Confirm.FRONT_CHOICE: "front part",
@@ -680,11 +738,35 @@ class TableJob:
 
     def __init__(self, sheet: dict, page: int = 0, *, run=None, stamp: "str | None" = None,
                  folder: "Path | None" = None, open_transport=None, preflight=None,
-                 other_program=None, ask_after_each_step: bool = True, reader_factory=None,
+                 other_program=None, guided: bool = True,
+                 ask_after_each_step: "bool | None" = None, reader_factory=None,
                  helper_check=None, instrument_check=None, chart_ti2=None,
                  app_marker_place: "tuple[Path, str] | None" = None, press_factory=None,
                  scan_factory=None, latency_guard=None, stored_tile_white: bool = False,
-                 reach_store=None):
+                 reach_store=None, extra_logging: bool = True, consent_version: int = 0):
+        #: 4.3.52: "Guided, step by step measurement" (Preferences > Beta, the one key
+        #: i1io_table_ask_after_each_step). True: every question is asked, and the report after
+        #: each step that moved. False: the questions on BY_SETTING are answered by the job,
+        #: a countdown stands where the hands-off question stood, SKIPPED is not asked
+        #: (design3 F2/F3). The window passes it; the job stores nothing about it.
+        self.guided = bool(guided)
+        #: the tests' own switch for the report after each step with every question still
+        #: asked (the quiet mode before 4.3.52, which the app no longer builds): None = the
+        #: report follows ``guided``
+        self._report_switch = None if ask_after_each_step is None else bool(ask_after_each_step)
+        #: 4.3.52: "Keep the table's detailed log" (read once at START)
+        self.extra_logging = bool(extra_logging)
+        #: 4.3.52: the version of the consent page the person has given (the window passes the
+        #: stored value): the reader consent is answered by the setting only from version 4 on
+        try:
+            self.consent_version = int(consent_version or 0)
+        except (TypeError, ValueError):
+            self.consent_version = 0
+        #: every question the job answered itself in this sitting, for the app log
+        #: ({"kind", "answer", "step", "id", "t"}), and every countdown
+        self.auto_answers: "list[dict]" = []
+        self.countdowns: "list[dict]" = []
+        self._end_state_seen: "dict | None" = None
         #: D-4b (an option, off until the owner decides): the white of this measurement scaled
         #: per band to the white tile values stored in the table's memory, as i1Profiler does.
         #: Off: the i1Pro 2's own white reference, as in a measurement by hand.
@@ -725,9 +807,9 @@ class TableJob:
         self.run, self.stamp = run, stamp
         if run is not None and stamp is not None:
             folder = run.i1io_table_session_dir(stamp)
-            self.diag = Diagnostics(folder, run.i1io_table_log(stamp))
+            self.diag = Diagnostics(folder, run.i1io_table_log(stamp), detail=self.extra_logging)
         else:
-            self.diag = Diagnostics(folder)
+            self.diag = Diagnostics(folder, detail=self.extra_logging)
         self._open_transport = open_transport or tbl.open_table
         self._preflight = preflight or us.preflight
         self._other_program = other_program
@@ -768,11 +850,6 @@ class TableJob:
         self.problems: "list[tuple[str, str | None, int]]" = []
         #: the person's notes that belong to no step (before the first one)
         self.session_notes: "list[dict]" = []
-        #: the owner's ruling: True = the "first measurement" mode (after every step that
-        #: moved, and after the start-up, REPORT_AFTER_STEP; the safety review's change B);
-        #: False = no question, report_problem() and the automatic checks (B'). The window
-        #: passes it; the job stores nothing about it.
-        self.ask_after_each_step = bool(ask_after_each_step)
         #: asking mode: the step whose report is due (None: none due); every moving step but
         #: the homing is refused until it is answered
         self.report_due: "str | None" = None
@@ -865,6 +942,9 @@ class TableJob:
         #: the white: {"place", "t" (the table's clock), "kind": "spot"} or None
         self.calibration: "dict | None" = None
         self.cal_place: "str | None" = None
+        #: 4.3.52: the calibration place chosen in Preferences > Beta (the window passes it;
+        #: None: the job asks CAL_PLACE, as the tests' callers want)
+        self.calibration_place_preference: "str | None" = None
         self.calibration_due = False
         #: the person lifted the i1Pro 2 out of the arm's holder for its own tile, and has not
         #: said "seated" since: nothing moves (its cable could catch), nothing but a calibration
@@ -921,6 +1001,116 @@ class TableJob:
         self._replacing = False
         self.diag.log("INFO", f"ChromIQ table job {JOB_VERSION} (table module "
                               f"{tbl.TOOL_NAME} {tbl.TOOL_VERSION}); page {self.page + 1}")
+
+    # ---- 4.3.52: the guidance ------------------------------------------------------------------
+    @property
+    def report_after_each_step(self) -> bool:
+        """REPORT_AFTER_STEP is asked after each step that moved: only with the guidance on
+        (and unless a test switched the report off)."""
+        return self.guided and (True if self._report_switch is None else self._report_switch)
+
+    @property
+    def ask_after_each_step(self) -> bool:
+        """Read only (the window's app-log lines and older callers): the report after each
+        step is asked."""
+        return self.report_after_each_step
+
+    def _ended_complete(self) -> bool:
+        """The measurement was saved with every patch of the chart read (W10: the homing after
+        it runs after a countdown, without its question)."""
+        st = self._end_state_seen or {}
+        return self.ended == "saved" and st.get("state") == "complete"
+
+    def _without_the_person(self, ask) -> "str | None":
+        """With the guidance off: "countdown" (a countdown stands where this question stood),
+        "auto" (the job answers it, BY_SETTING), or None (it is asked, as in the guided mode)."""
+        if self.guided or not isinstance(ask, Ask):
+            return None
+        kind, d = ask.kind, ask.detail or {}
+        if kind in COUNTDOWN_INSTEAD:
+            step = d.get("step")
+            if step == "home_after_stop" or d.get("at_start"):
+                return None               # the homing offer after a stop / at a START stays
+            if step == "home" and self.ended is not None and not self._ended_complete():
+                return None               # the homing of an incomplete ending stays (W10)
+            return "countdown"
+        if kind not in self.AUTO_KINDS:
+            return None
+        if kind == Confirm.READER_CONSENT and self.consent_version < CONSENT_WITH_READER_FACTS:
+            return None
+        if kind == Confirm.END and (d.get("end_state") or {}).get("state") != "complete":
+            return None
+        return "auto"
+
+    #: the kinds the policy hands to :meth:`_auto_answer` (a test plants another one here to
+    #: prove that the auto-answer path refuses it)
+    AUTO_KINDS = frozenset(BY_SETTING)
+
+    def _auto_answer(self, step: str, ask: Ask) -> str:
+        """The job's own answer to *ask* (guidance off). Refuses any kind not on BY_SETTING
+        (AutoAnswerRefused: the sitting ends as a fault, never with an answer). Bookkeeping as
+        for a person's answer (the notes, the result block, the line count of the answer, so a
+        computed move reads the arm afresh exactly as after a person's answer), except the
+        hands-off guard: nobody was at the table for it, so it stays as it was, and after
+        COUNTDOWN_AFTER the countdown is owed."""
+        kind = ask.kind
+        if kind not in BY_SETTING:
+            raise AutoAnswerRefused(kind)
+        value = BY_SETTING[kind]
+        if value not in CHOICES[kind]:
+            raise AutoAnswerRefused(kind)
+        self.notes.append((f"{step}: {kind}", value))
+        self.diag.log("ANSWER", f"{step}: {kind} -> {value} (answered by the setting 'Guided, "
+                                f"step by step measurement' (off), not by the person)")
+        if self._block is not None:
+            self._block["answers"].append((BLOCK_LABEL.get(kind, kind), value))
+        self._mark_answered()
+        if kind in COUNTDOWN_AFTER:
+            self._hands_off_due = True
+        d = self._table
+        self.auto_answers.append({"kind": kind, "answer": value, "step": step,
+                                  "id": QUESTION_ID.get(kind, kind),
+                                  "line": d.lines_sent if d is not None else 0})
+        return value
+
+    def _countdown(self, step: str, ask: Ask) -> None:
+        """The countdown in place of the hands-off question (guidance off). Nothing is sent:
+        the table is only listened to (``c_wait``), on its own clock. Stop (or a problem
+        reported) during it ends the step before any line (PersonStopped); the hard stop ends
+        it as every wait does. At its end it is what a GO "yes" is: the hands-off guard is
+        cleared, and the line count of the answer is taken (the next computed move reads the
+        arm afresh, as after the question it replaces)."""
+        d = self._table
+        seconds = max(0.0, float(UNGUIDED_COUNTDOWN_S))
+        entry = {"step": step, "seconds": seconds, "for": (ask.detail or {}).get("step"),
+                 "line": d.lines_sent if d is not None else 0, "result": "running"}
+        self.countdowns.append(entry)
+        self.diag.log("ANSWER", f"{step}: go -> a countdown of {seconds:g} s instead of the "
+                                "hands-off question (guidance off), nothing is sent during it")
+        if seconds > 0 and d is not None:
+            left_shown = math.ceil(seconds)
+            self._progress(event="countdown", left=left_shown, seconds=seconds, step=step)
+            end = d.t.now() + seconds
+            while True:
+                if self._pause_stop:
+                    self._pause_stop = False
+                    entry["result"] = "stopped"
+                    self.diag.log("ANSWER", f"{step}: the countdown was stopped: nothing moves")
+                    self._progress(event="countdown_end", stopped=True)
+                    raise PersonStopped(STOPPED_BEFORE_THE_NEXT_MOVE, during="countdown")
+                left = end - d.t.now()
+                if left <= 0:
+                    break
+                d.c_wait(min(COUNTDOWN_SLICE_S, left))
+                n = math.ceil(max(0.0, end - d.t.now()))
+                if n != left_shown and n > 0:
+                    left_shown = n
+                    self._progress(event="countdown", left=n, seconds=seconds, step=step)
+            self._progress(event="countdown_end", stopped=False)
+        entry["result"] = "done"
+        self._mark_answered()
+        self._hands_off_due = False
+        self._go_page = self.page
 
     # ---- the state, from the table's answers only ------------------------------------------
     def at_rest(self) -> bool:
@@ -1022,9 +1212,19 @@ class TableJob:
             pass
 
     # ---- results ---------------------------------------------------------------------------
+    #: refusals that are book-keeping of a call, not anything the table did (the detailed log
+    #: is not switched on for them)
+    _NOT_A_STOP = _NOT_A_STOP_IDS = ("nothing_waits_for_a_confirmation",
+                                     "not_the_confirmation_asked_for", "not_one_of_the_choices",
+                                     "no_report_due", "another_step_waits_for_a_confirmation")
+
     def _result(self, step: str, kind: str, reason: str = "", **detail) -> StepResult:
         if reason == SESSION_ENDED:
             detail.setdefault("ended", self.ended)
+        if kind in (Kind.REFUSED, Kind.STOPPED) and reason not in self._NOT_A_STOP:
+            # 4.3.52: with "Keep the table's detailed log" off, the lines before this and
+            # every line after it are written (never raises)
+            self.diag.trip(f"{step}: {kind} {reason}")
         if kind in (Kind.REFUSED, Kind.STOPPED):
             # the safety review of step 7 (REQUIRED): a step that ended refused or stopped (the
             # person's stop inside a row, a declined move, a failed row, any named refusal) may
@@ -1148,8 +1348,11 @@ class TableJob:
         self._mark_answered()
         # final fix round, M-1: the person was at the screen, and maybe at the table, for this
         # question; unless the answer is itself the hands-off confirmation, the next movement
-        # asks GO first
-        self._hands_off_due = (kind, value) not in HANDS_OFF_ANSWERS
+        # asks GO first. 4.3.52: with the guidance off only a GO that is still asked (the
+        # homing offers, whose pages ask the hands away) is that confirmation: after every other
+        # answer the countdown comes before the next movement
+        self._hands_off_due = (kind, value) not in HANDS_OFF_ANSWERS or (
+            not self.guided and kind != Confirm.GO)
         # review 8, S-1: Stop was pressed while this question was shown: the step ends here,
         # before the move the answer would allow (the reader, if open, is finished by the
         # step's own way out)
@@ -1222,7 +1425,7 @@ class TableJob:
         moves_before = getattr(self, "_moves_at_begin", 0)
         res = self._drive_inner(value, step, throw)
         t = self._table
-        if (self.ask_after_each_step and self._gen is None and t is not None
+        if (self.report_after_each_step and self._gen is None and t is not None
                 and t.closed_reason is None and step not in ("home", "home_after_stop", None)
                 and (
                     t.motions_sent > moves_before or (step == "start_up" and t.start_up_sent))):
@@ -1233,22 +1436,62 @@ class TableJob:
         return res
 
     def _drive_inner(self, value, step, throw=None) -> StepResult:
+        while True:
+            try:
+                ask = self._gen.throw(throw) if throw is not None else self._gen.send(value)
+            except StopIteration as done:
+                self._gen = self._gen_step = None
+                res = self._result(step, Kind.OK, "", **(done.value or {}))
+                self._end_block(res)
+                return res
+            except BaseException as exc:      # noqa: BLE001 - every way a step can end
+                self._gen = self._gen_step = None
+                res = self._from_exception(step, exc)
+                self._end_block(res)
+                if isinstance(exc, KeyboardInterrupt):
+                    raise
+                return res
+            throw, value = None, None
+            # 4.3.52: with the guidance off, a countdown or the job's own answer instead of the
+            # question (never anything the person must decide: _without_the_person)
+            how = "countdown" if isinstance(ask, Countdown) else self._without_the_person(ask)
+            if how is None:
+                self._pending = ask
+                return self._needs(step, ask)
+            try:
+                if how == "countdown":
+                    self._countdown(step, ask if isinstance(ask, Ask) else
+                                    Ask(Confirm.GO, dict(ask.detail)))
+                    value = "yes"
+                else:
+                    if self._stale_stop(step):
+                        # a Stop pressed while the step ran is honoured here, before the move
+                        # the answer would allow (as at a question the person answers)
+                        raise PersonStopped(STOPPED_BEFORE_THE_NEXT_MOVE)
+                    value = self._auto_answer(step, ask)
+            except AutoAnswerRefused as exc:
+                return self._auto_answer_refused(step, str(exc))
+            except BaseException as exc:      # noqa: BLE001 - into the step, as at its question
+                if isinstance(exc, KeyboardInterrupt):
+                    raise
+                throw = exc
+
+    def _auto_answer_refused(self, step: str, kind: str) -> StepResult:
+        """The bug guard of the auto-answer path: a kind not on BY_SETTING. Nothing is answered:
+        the step ends, nothing more is sent in this sitting."""
+        gen, self._gen, self._pending = self._gen, None, None
         try:
-            ask = self._gen.throw(throw) if throw is not None else self._gen.send(value)
-        except StopIteration as done:
-            self._gen = self._gen_step = None
-            res = self._result(step, Kind.OK, "", **(done.value or {}))
-            self._end_block(res)
-            return res
-        except BaseException as exc:      # noqa: BLE001 - every way a step can end
-            self._gen = self._gen_step = None
-            res = self._from_exception(step, exc)
-            self._end_block(res)
-            if isinstance(exc, KeyboardInterrupt):
-                raise
-            return res
-        self._pending = ask
-        return self._needs(step, ask)
+            gen.close()
+        except BaseException:         # noqa: BLE001
+            pass
+        self.diag.log("STOP", f"{step}: the job was about to answer {kind} by itself, which is "
+                              "not allowed (a bug): nothing is answered, nothing more is sent")
+        if self._table is not None:
+            self._table.close_for_sending(f"an automatic answer that is not allowed ({kind})")
+        res = self._result(step, Kind.STOPPED, AUTO_ANSWER_REFUSED, question=kind)
+        self._end_block(res)
+        self._gen_step = None
+        return res
 
     def _from_exception(self, step: str, exc: BaseException) -> StepResult:
         d = self._table
@@ -1338,7 +1581,11 @@ class TableJob:
                   "front_zone_reached_y": d.front_y, "way_back": res.way_back,
                   "state": {k: v for k, v in res.state.__dict__.items()}})
         second = self.beside_retries[self._beside_at_block:]
-        if second:
+        if second and not self.extra_logging and self.diag.tripped is None:
+            # 4.3.52: the detailed log off and nothing stopped: their number only (each one's
+            # movement has its MOVE line in the log)
+            b["data"]["second_moves_count"] = len(second)
+        elif second:
             # safety review 448, SHOULD-3: every automatic second move of this step, with its
             # readings and whether it cured the miss (diagnostics.py, "second_moves")
             b["data"]["second_moves"] = copy.deepcopy(second)
@@ -1552,7 +1799,16 @@ class TableJob:
 
     def _start_up(self):
         d = self._table
-        ans = yield Ask(Confirm.START_UP)
+        ans = yield Ask(Confirm.START_UP, {"guided": self.guided})
+        if ans == "arm out":
+            # 4.3.52 (the owner, W9: "if the question is important we have to ask it"): the
+            # unguided page asks whether the arm is at its resting place; "out" is the 4.3.48
+            # refusal (the start-up is recorded only with the arm at rest): nothing is sent
+            self.opened_with_arm_out = True
+            d.close_for_sending("the table has just been switched on and you said the arm is "
+                                "out over the table; its start-up is recorded only with the arm "
+                                "at its resting place")
+            raise PersonStopped("arm_out_start_up_not_recorded")
         if ans != "yes":
             d.close_for_sending("the table has just been switched on; you chose i1Profiler for "
                                 "the start-up")
@@ -1957,6 +2213,7 @@ class TableJob:
                                 choices=list(PROBLEM_KINDS))
         self.problems.append((kind, step, d.lines_sent if d is not None else 0))
         self.diag.log("ANSWER", f"problem reported{f' during {step}' if step else ''}: {kind}")
+        self.diag.trip(f"a problem was reported: {kind}")
         self._press_cancel("a problem was reported")
         waiting = self._gen is not None and self._pending is not None
         start_up_wrong = (d is not None and d.cold_done and d.motions_sent == d.cold_motions)
@@ -2300,6 +2557,10 @@ class TableJob:
         """reach.json in the session folder (every diagnostics zip): no serial, no unsalted
         hash; the salted key, the extremes and how each was learned, the readings."""
         out = dict(self.reach_diag)
+        if not self.extra_logging and self.diag.tripped is None:
+            # 4.3.52: the detailed log off and nothing stopped: the long lists by their length
+            for k in ("free_readings", "p0_after_aims", "events"):
+                out[k + "_count"] = len(out.pop(k, None) or [])
         if self.reach is not None:
             out["now"] = self.reach.as_dict()
         out["aimed_front_y"] = self._cap() if self.alignment is not None else None
@@ -2540,7 +2801,17 @@ class TableJob:
             # part B's recorded way out to the alignment start, the arm let go there
             self._run_b(C_HOME)
             self._run_b(C_ALIGN)
-            felt = yield Ask(Confirm.ARM_FELT)
+            if self.guided:
+                felt = yield Ask(Confirm.ARM_FELT)
+            else:
+                # 4.3.52 (SKIPPED with the guidance off): its only safe answer is "free", which
+                # ChromIQ cannot know; the aim page asks the person not to push an arm that
+                # resists, and the table's own answers (f4 = 01 after f1, the settle check of
+                # the freed arm) stay as they are
+                felt = "free"
+                self.diag.log("ANSWER", "align: arm_felt not asked (guidance off); the table "
+                                        "reported the arm free, the aim page asks not to push "
+                                        "it if it resists")
             d.out_touch = felt
             if felt != "free":
                 raise StageFailed("arm_did_not_give_way_at_the_alignment_start", felt=felt)
@@ -3497,6 +3768,14 @@ class TableJob:
                                   "on its own tile that did not finish: calibrating on its own "
                                   "tile again")
             place = "own tile"
+        elif self.cal_place is None and self.calibration_place_preference in (
+                "table tile", "own tile"):
+            # 4.3.52: the place chosen in Preferences > Beta (the window passes it): not a
+            # question at the table, so not asked (before 4.3.52 the window answered this
+            # question itself from the same setting; the window has no answer of its own now)
+            place = self.calibration_place_preference
+            self.diag.log("ANSWER", f"calibrate: calibration_place {place} (Preferences > "
+                                    "Beta; not asked)")
         elif self.cal_place is None:
             ans = yield Ask(Confirm.CAL_PLACE, {"recommended": CAL_PLACE_RECOMMENDED,
                                                 "measured": CAL_PLACE_MEASURED,
@@ -3803,6 +4082,8 @@ class TableJob:
                 self.row_status.setdefault(self.page, {})[plan.index] = "read"
                 break
             self.row_status.setdefault(self.page, {})[plan.index] = "failed"
+            # 4.3.52: a row that could not be read keeps the detailed lines before it
+            self.diag.trip(f"row {plan.index + 1} of page {self.page + 1} failed: {rec['why']}")
             self._go_page = None          # a failed row: hands may reach in; GO before any move
             ask = Confirm.ROW_FAILED_STRIP if plan.kind == "strip" else Confirm.ROW_FAILED
             ans = yield Ask(ask, {
@@ -4859,6 +5140,7 @@ class TableJob:
             return self._result("end", Kind.REFUSED, "no_run")
         self._go_page = None
         st = self.end_state()
+        self._end_state_seen = dict(st)
         self.diag.log("INFO", "end of the session asked: " + json.dumps(
             {k: v for k, v in st.items() if k != "missing"}, default=str))
         if st["state"] == se.EMPTY:
@@ -5262,7 +5544,8 @@ class TableJob:
                                   f"way back {wb}")
             self.diag.log("INFO", "the job has let go of the table's USB connection (nothing is "
                                   "sent when it does)")
-        clean = (self.ask_after_each_step and d is not None and d.motions_sent > 0
+        clean = (self.guided and self.report_after_each_step and d is not None
+                 and d.motions_sent > 0
                  and not self.problems and not self.stopped_by_person and not self.only_home
                  # fix round 10 (open point e): never after a Stop or a failed / skipped row
                  and not self.stop_pressed and not self._a_row_failed()
@@ -5274,6 +5557,11 @@ class TableJob:
         if clean:
             self.diag.log("INFO", "a clean measurement in the asking mode: the window may offer "
                                   "not to ask after each step")
+        if not (self.ended == "saved" and wb == WayBack.NONE and not self.problems
+                and not self.stopped_by_person and not st.movement_may_be_unfinished
+                and not st.link_lost and (d is None or d.closed_reason == "the session is over")):
+            # 4.3.52: an ending that is not a clean Save keeps the lines before it
+            self.diag.trip(f"the session ended: {self.ended or 'no ending'}, way back {wb}")
         if self.session_notes:
             self.diag.write_json("notes.json", self.session_notes)
         # step 8: the session's summary (beside summary.json, which the analysis script and
