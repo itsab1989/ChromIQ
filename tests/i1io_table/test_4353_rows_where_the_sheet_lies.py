@@ -182,11 +182,12 @@ def test_his_rows_start_and_end_where_the_chart_says_beyond_the_vendors_run(tmp_
     assert min(geo.decode_xyv(sl[2].encode())[1] for sl in _row_slices(sim.received)) < -1384
 
 
-def test_unguided_his_sheet_has_one_countdown_and_the_same_wire_as_guided(tmp_path):
+def test_unguided_his_sheet_has_the_same_wire_as_guided(tmp_path):
     job, sim, helper, p = _job(tmp_path / "u", HIS_AIMS, sight_offset=HIS_SIGHT)
     _read_all(job, p)
+    # the sheet laid and the aims (hands were on the table): two, as before; none elsewhere
     assert [c["seconds"] for c in job.countdowns if c["seconds"] > 0] == \
-        [J.UNGUIDED_COUNTDOWN_S]
+        [J.UNGUIDED_COUNTDOWN_S] * 2
     job2, sim2, helper2, p2 = _job(tmp_path / "g", HIS_AIMS, sight_offset=HIS_SIGHT,
                                    guided=True)
     _read_all(job2, p2)
@@ -406,3 +407,27 @@ def test_the_known_ground_is_the_vendors_targets_widened_by_this_tables_readings
     assert r.right_end_x == -1546
     r = rc.Reach.from_dict("0" * 16, {"right_end_x": -1801, "right_how": "free"})
     assert r.right_end_x == rc.DEFAULT_RIGHT_END_X
+
+
+# ---- group I: the countdown only where hands were on the table (guidance off) ----------------
+
+def test_the_countdown_runs_where_hands_were_on_the_table_and_not_before_the_end_homing(
+        tmp_path):
+    """4.3.53 (the owner on the guidance option: "without interruptions"): until 4.3.52 a 3 s
+    countdown ran at every hands-off point of an unguided page: after the sheet was laid, after
+    the aims, before the homing at the end (and before the start-up of a cold table). The one
+    before the homing at the end had no reason: the rows ran with nobody touching anything. The
+    other two have a STATE reason (a sheet was just laid by hand; the hand was on the free arm
+    at every aim) and stay. Nothing is sent during any of them."""
+    job, sim, helper, p = _job(tmp_path, HIS_AIMS, sight_offset=HIS_SIGHT)
+    _read_all(job, p)
+    secs = [(c["for"], c["seconds"]) for c in job.countdowns]
+    assert secs[:2] == [("align", J.UNGUIDED_COUNTDOWN_S), ("creep", J.UNGUIDED_COUNTDOWN_S)]
+    ask = J.Ask(J.Confirm.GO, {"step": "home"})
+    n = len(sim.received)
+    job._countdown("home", ask)                        # the homing at the end of the page
+    assert job.countdowns[-1]["seconds"] == 0.0 and sim.received[n:] == []
+    assert job._hands_off_due is False
+    job._countdown_owed = True                          # a new sheet laid by hand
+    job._countdown("align", J.Ask(J.Confirm.GO, {"step": "align"}))
+    assert job.countdowns[-1]["seconds"] == J.UNGUIDED_COUNTDOWN_S

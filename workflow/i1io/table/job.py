@@ -255,7 +255,9 @@ HANDS_OFF_BREACHES: "list[str]" = []
 # same answers (tests/i1io_table/test_4352_guidance_off.py, T7).
 
 #: THE COUNTDOWN. Decided by us, not by the owner (he said "without interruptions"); 0 removes
-#: every countdown page; the step still clears the hands-off guard. With the guidance off it
+#: every countdown page; the step still clears the hands-off guard. 4.3.53: it runs only where hands
+#: were last on the table or the arm (the START, a sheet laid, the aims: TableJob._countdown),
+#: not before the homing at the end of a page. With the guidance off it
 #: stands where the hands-off question (GO) stood: the job waits this long on the table's
 #: clock, in COUNTDOWN_SLICE_S slices, sending nothing, and Stop ends it before any line.
 UNGUIDED_COUNTDOWN_S = 3.0
@@ -1113,6 +1115,9 @@ class TableJob:
         self._mark_answered()
         if kind in COUNTDOWN_AFTER:
             self._hands_off_due = True
+            if kind == Confirm.SHEET_LAID:
+                # 4.3.53: a sheet was laid by hand: the next movement has its countdown
+                self._countdown_owed = True
         d = self._table
         self.auto_answers.append({"kind": kind, "answer": value, "step": step,
                                   "id": QUESTION_ID.get(kind, kind),
@@ -1128,11 +1133,23 @@ class TableJob:
         arm afresh, as after the question it replaces)."""
         d = self._table
         seconds = max(0.0, float(UNGUIDED_COUNTDOWN_S))
+        # 4.3.53 (the owner on this option: "the first measurement goes through smooth without
+        # interruptions"; one countdown at the first movement was what was told to him): the
+        # countdown runs only where a person's hands were last ON the table or the arm, a STATE
+        # reason (``_countdown_owed``): the START itself, a sheet laid by hand (its answer is the
+        # setting's), the aims (the hand is on the free arm at every press). Every other
+        # hands-off point (the homing at the end of a page, after rows ran untouched) is
+        # cleared at once, as the countdown's end clears it; nothing is sent either way
+        if not getattr(self, "_countdown_owed", True):
+            seconds = 0.0
+        self._countdown_owed = False
         entry = {"step": step, "seconds": seconds, "for": (ask.detail or {}).get("step"),
                  "line": d.lines_sent if d is not None else 0, "result": "running"}
         self.countdowns.append(entry)
         self.diag.log("ANSWER", f"{step}: go -> a countdown of {seconds:g} s instead of the "
-                                "hands-off question (guidance off), nothing is sent during it")
+                                "hands-off question (guidance off), nothing is sent during it"
+                      + (" (the page's first movement had its countdown)" if not seconds
+                         else ""))
         if seconds > 0 and d is not None:
             left_shown = math.ceil(seconds)
             self._progress(event="countdown", left=left_shown, seconds=seconds, step=step,
@@ -3119,6 +3136,8 @@ class TableJob:
         # or the homing) waits for a hands-off GO again, in both modes (one more question a page;
         # 4.3.50: for the creep, "Go forward carefully, my hands are away" is that GO)
         self._go_page = None
+        # 4.3.53: the hand was on the free arm at every aim: the next movement has its countdown
+        self._countdown_owed = True
         d.exchange("status")
         for _ in range(4):
             d._f4("01")
