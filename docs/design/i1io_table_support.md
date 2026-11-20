@@ -1509,7 +1509,9 @@ nothing of it has run on a real table.
   the SEND / RECV / move-time lines go into a ring of the last 300, written under "the 300 lines
   before this stop, kept because something stopped" at any stop, refusal, status, timeout, lost
   link, failed row, problem report or ending that is not a clean Save, and from then on every line
-  is written. The MOVE lines are written in both cases.
+  is written. The MOVE lines are written in both cases, and so is one DATA line with the table's
+  model answers, "the table's model answers: a1 = ..., k2 = ..." (fix round, S-5: they identify
+  the model, not the person; without it a clean sitting with the log off lost them).
 * **The app log** (the one log testers send) has the table's lines whatever the switch says, and
   gains: `guided=on/off`, `countdown_s`, `detailed_log=on/off` on the session line; one "question
   answer ... by=automatic answered_by_setting=<kind>" line with the message id for every question

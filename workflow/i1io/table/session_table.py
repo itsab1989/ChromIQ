@@ -1593,8 +1593,14 @@ class Table:
         self.busy += 1
         try:
             self.drain()
+            got = {}
             for key in OPEN_KEYS[:5]:
-                self.exchange(key)
+                got[key] = self.exchange(key).data
+            # 4.3.52 fix round (safety review S-5): the table's model answers, one DATA line
+            # that "Keep the table's detailed log" off never leaves out (they identify the
+            # model, not the person: both are checked against the one recorded form)
+            self.log("DATA", f"the table's model answers: a1 = {got.get('identity')}, "
+                             f"k2 = {got.get('k2')}")
             a0 = self.exchange("a0").data
             if a0 == A0_COLD:
                 # 0.6.0: nothing more is sent unless the person chooses the start-up
