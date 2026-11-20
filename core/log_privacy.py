@@ -452,8 +452,8 @@ def scrub(text: str) -> str:
     s = str(text)
     ident = _identity()
     low = s.lower()
-    if ident.printer_re is not None and any(p in s for p in ident.printers):
-        s = ident.printer_re.sub(lambda m: ident.printers.get(m.group(0), "<printer>"), s)
+    if ident.printer_re is not None and any(p in s for p in tuple(ident.printers)):
+        s = ident.printer_re.sub(lambda m: dict(ident.printers).get(m.group(0), "<printer>"), s)
     if ident.home_re is not None and any(h.lower() in low for h in ident.homes):
         s = ident.home_re.sub("~", s)
         low = s.lower()
