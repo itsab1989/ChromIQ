@@ -25,6 +25,18 @@ def test_the_panel_shows_the_answers_in_the_order_the_text_explains_them():
 def test_the_panel_shows_them_in_that_order(qtbot, monkeypatch, tmp_path, settings):  # noqa: F811
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
                                                     asking=True)
+    # The shared helper waits 15 s per step, which a full gate (every core busy) can exceed
+    # (seen once). Only in this test: wait up to 60 s and say what was being waited for.
+    wait_s = 60
+
+    def wait_loaded(cond):
+        try:
+            qtbot.waitUntil(cond, timeout=wait_s * 1000)
+        except Exception as exc:  # pytestqt raises TimeoutError
+            raise AssertionError(
+                f"the table window did not finish its opening step within {wait_s} s") from exc
+
+    p.wait = wait_loaded
     assert p.drive_until("ready_to_open") == "ready_to_open"
     assert not win._popups
     res = J.StepResult("align", J.Kind.NEEDS, confirm=J.Confirm.FRONT_CHOICE,

@@ -678,10 +678,11 @@ ways:
 >   the way back before it, have still run only on a simulated table.
 > - New in 4.3.51: when a measurement starts and the arm is not at its
 >   resting place, where the table reports the arm decides what ChromIQ
->   offers. From the line straight in front of the resting place, it offers
->   the homing i1Profiler was recorded sending there; over the rest of the
->   measuring area and the front of the table, it offers to try its homing and
->   says that it is a try. Elsewhere it moves nothing. None of this has run on
+>   offers. From places where a homing of the table was recorded (the line
+>   straight in front of the resting place, and about 12 to 25 cm in front of
+>   it), it offers that homing; over the rest of the measuring area and the
+>   front of the table, it offers to try one and says that it is a try.
+>   Elsewhere it moves nothing. None of this has run on
 >   a real table yet, so please keep the power switch in reach.
 > - The option is off by default, and with it off nothing changes.
 
