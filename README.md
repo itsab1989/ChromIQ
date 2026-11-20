@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-4.3.49-7c5cff">
+  <img alt="Version" src="https://img.shields.io/badge/version-4.3.50-7c5cff">
   <img alt="Downloads" src="https://img.shields.io/endpoint?url=https://itsab1989.github.io/github-traffic-downloads-dashboard/assets/badges/itsab1989_ChromIQ-downloads.json">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2a9d8f">
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-blue">
@@ -97,7 +97,7 @@ To build a profile you need three things:
    | Code | Instrument | Contributed by |
    |------|-----------|----------------|
    | `FD9` | Konica Minolta FD-9, an automatic chart reader that measures the whole sheet by itself, over your network (Ethernet), with ChromIQ's own driver and no Konica Minolta software. Tested on one FD-9 on macOS so far: your report helps | [lessbones](https://github.com/lessbones), thank you! |
-   | `IO2` | X-Rite i1iO 2, a measuring table that moves an i1Pro 2 over the chart by itself ("i1iO 2 + i1Pro 2" in Create Chart). Measure the chart in X-Rite i1Profiler and bring it back with IMPORT, or, new in 4.3.45, let ChromIQ drive the table itself. A first beta: the app's own drive has so far run only against a simulated table, see [Measuring with an X-Rite i1iO 2 table](#measuring-with-an-x-rite-i1io-2-table-beta) | Built by the project, on recordings and test runs by [crismi2](https://github.com/crismi2) on his own table, thank you! |
+   | `IO2` | X-Rite i1iO 2, a measuring table that moves an i1Pro 2 over the chart by itself ("i1iO 2 + i1Pro 2" in Create Chart). Measure the chart in X-Rite i1Profiler and bring it back with IMPORT, or, new in 4.3.45, let ChromIQ drive the table itself. A first beta: the app's own drive has read one complete page on a real table, patch by patch, and the rest of it has run only against a simulated table, see [Measuring with an X-Rite i1iO 2 table](#measuring-with-an-x-rite-i1io-2-table-beta) | Built by the project, on recordings and test runs by [crismi2](https://github.com/crismi2) on his own table, thank you! |
 
    Your instrument is not listed? See
    [Adding an instrument](docs/adding_an_instrument.md).
@@ -631,15 +631,17 @@ ways:
 > - On one real i1iO 2 with an i1Pro 2, on a Mac, ChromIQ's separate tester
 >   program has run the movements, the start-up of a table that had just been
 >   switched on, the white calibration and one reading of the table's white
->   tile. **The drive inside the app has so far run only against a simulated
->   table, and has not yet read a chart on a real one.**
+>   tile. **The drive inside the app has read one complete page on a real
+>   table, patch by patch, with 4.3.49 (528 patches). Reading in rows, the
+>   dual scan on the table, a second page and the end of the arm's travel have
+>   still run only against a simulated table.**
 > - 4.3.45 stopped at the white calibration on a real table, because of a
 >   fault of ours, which 4.3.46 fixes. The first real run of 4.3.46 then got
 >   past the calibration and stopped when the table let the arm go for the
 >   aiming, because a rule of ours was too strict for a real arm that settles
->   a little; 4.3.47 corrects that. Everything after that point (the three aims
->   and reading the rows) has still run only against a simulated table and may
->   stop further on.
+>   a little; 4.3.47 corrects that. With 4.3.49 a real table then read a whole
+>   page patch by patch. "Bring the arm home" after a stopped measurement has
+>   also worked once on a real table.
 > - Windows and Linux are untested. If it does not work there, ChromIQ stops
 >   with a message, and you can still measure in i1Profiler and use IMPORT.
 >   Since 4.3.46, ChromIQ on Windows offers to install the driver the table
@@ -664,6 +666,16 @@ ways:
 >   motor keeps working, switch the table off. Lay the sheet a few centimetres
 >   further away from you than in i1Profiler to avoid it. These changes come
 >   from one owner's first real run and have run only on a simulated table.
+> - New in 4.3.50, from that first real page: after Save and stop or Discard
+>   and stop, ChromIQ brings the arm home as part of the ending, after it asks
+>   you to take your hands away. "Not now" moves nothing; please do not move
+>   the arm then, because ChromIQ brings it home only from the place where it
+>   left it. If the arm is left out, the table stays in its aiming mode, and
+>   ChromIQ cannot start a new measurement on it until the arm is home. The
+>   check at the third mark is gone, one plain question comes before the arm
+>   goes forward, and with the dual scan the table keeps M1 and M2 for every
+>   row that has them. Bringing the arm home from the front of the table, and
+>   the way back before it, have still run only on a simulated table.
 > - The option is off by default, and with it off nothing changes.
 
 Why it may be worth it all the same: X-Rite has ended support for these
@@ -690,8 +702,10 @@ Step by step, with pictures, what to look for and what to send us after a
 first try: [The dual scan, step by step](docs/i1pro2_dual_scan.md).
 
 > [!WARNING]
-> **Honest limits.** New in 4.3.48 and a first try: **no part of it has run on
-> a real instrument or a real table yet.** It was built from USB recordings of
+> **Honest limits.** New in 4.3.48 and a first try. **A tester has made two
+> real dual scans by hand with an i1Pro 2: the pass with the lamp is sound,
+> and M1 and M2 have not yet been checked against a reference. Nothing of it
+> has run on a real table yet.** It was built from USB recordings of
 > X-Rite's i1Profiler and checked against them. On those recordings, ChromIQ's
 > M1 and M2 agree with i1Profiler's to a few hundredths of a ΔE00 on average
 > when the instrument's own factor is known; with the standard factor ChromIQ
@@ -699,8 +713,8 @@ first try: [The dual scan, step by step](docs/i1pro2_dual_scan.md).
 > brightened paper. By hand the dual scan needs the ruler, a failed pass means
 > both passes of the strip are read again, and a strip read with M0 only keeps
 > M0 only until it is read again with both passes; since 4.3.49, when measuring by hand,
-> every other strip keeps its M1 and M2, and Continue Measurement completes such strips (on
-> the i1iO 2 table M1 and M2 are still all or none).
+> every other strip keeps its M1 and M2, and Continue Measurement completes such strips;
+> since 4.3.50 the i1iO 2 table, too, keeps M1 and M2 for every row that has them.
 > "High resolution spectral mode (-H)" is refused with the dual scan. With the
 > option off, nothing changes.
 

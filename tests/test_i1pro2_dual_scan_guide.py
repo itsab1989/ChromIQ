@@ -63,7 +63,9 @@ def test_no_em_dash_and_the_simulation_is_said():
     text = _text()
     assert "—" not in text
     assert "simulated instrument" in text
-    assert "no part of it has run on a real" in text.lower()
+    # 4.3.50: a tester's two real dual scans by hand; M1 and M2 not yet checked against a reference
+    assert "m1 and m2 have not yet been checked against a reference" in text.lower()
+    assert "no part of it has run on a real" not in text.lower()
 
 
 def test_linked_from_readme_and_the_4348_entry():

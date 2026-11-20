@@ -2,8 +2,9 @@
 
 This guide shows how to measure a chart by hand with the **dual scan** of an X-Rite i1Pro 2,
 what to look for at each step, and what to send us after a first try. The dual scan is new in
-ChromIQ 4.3.48. It is a beta option and a first try: **no part of it has run on a real
-instrument yet.** Please read [Honest limits](#honest-limits) before you rely on it.
+ChromIQ 4.3.48. It is a beta option and a first try: **a tester has made two real dual scans by
+hand with an i1Pro 2; the pass with the lamp is sound, and M1 and M2 have not yet been checked
+against a reference.** Please read [Honest limits](#honest-limits) before you rely on it.
 
 > The pictures in this guide were made with the real ChromIQ app in a real window, but with a
 > **simulated instrument**: the readings are invented, and so are the three "suspected misreads"
@@ -235,7 +236,9 @@ All of it stays in the run's folder (`~/ChromIQ/<your project>/runs/runN/`):
 
 ## Honest limits
 
-* **No part of the dual scan has run on a real instrument yet.** It was built from USB
+* **The dual scan has been tried on a real instrument only twice.** A tester made two real dual
+  scans by hand with an i1Pro 2: the pass with the lamp is sound, and M1 and M2 have not
+  yet been checked against a reference. Nothing of it has run on a real table yet. It was built from USB
   recordings of X-Rite's i1Profiler, made with two i1Pro 2 instruments, and checked against those
   recordings and with a simulated instrument. Everything ChromIQ sends to the instrument for it is
   in the forms seen in those recordings, and nothing is written into the instrument. The first
