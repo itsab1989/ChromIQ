@@ -3769,6 +3769,16 @@ class WelcomeDialog(QDialog):
             lambda v: self._settings.set("show_welcome_dialog", bool(v))
         )
         _left_l.addWidget(self._show_cb)
+        # A9 (4.3.50): the log a tester is asked to send, one press away. The
+        # help card's error text points here ("Help → Show the log file").
+        self._log_btn = QPushButton(tr("Show the log file"), _left)
+        self._log_btn.setObjectName("help_show_log_file")
+        self._log_btn.setToolTip(tr(
+            "Opens the folder with ChromIQ's log file (chromiq.log) and selects "
+            "it. When you report a problem, please attach this file: it tells "
+            "us what ChromIQ did and what went wrong."))
+        self._log_btn.clicked.connect(self._show_log_file)
+        _left_l.addWidget(self._log_btn)
         _left_l.addStretch(1)
         # Quiet support link — the classic tucked-away spot: only people who
         # open the help find it, so it never feels pushy (Basti). Opens the
@@ -3935,8 +3945,14 @@ class WelcomeDialog(QDialog):
                 tr("Something went wrong while preparing this help card for "
                    "printing, so nothing was sent to your printer.\n\n"
                    "You can still reach the same information here on screen. "
-                   "If it keeps happening, the log (Help → Show log file) has "
+                   "If it keeps happening, the log (Help → Show the log file) has "
                    "the details."))
+
+    def _show_log_file(self) -> None:
+        """A9: the app log in the file manager, selected where the system can."""
+        from core.platform_paths import log_dir
+        from core.reveal_file import reveal_file
+        reveal_file(log_dir() / "chromiq.log")
 
     def _open_support_page(self) -> None:
         from PyQt6.QtCore import QUrl
