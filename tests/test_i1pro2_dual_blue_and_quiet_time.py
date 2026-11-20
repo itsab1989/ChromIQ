@@ -223,6 +223,36 @@ def test_a_write_after_the_blue_gives_the_users_quiet_time_back(traces):
     assert [a for _ms, a in _held(t, "blue_then_calibration")] == [0, 0]
 
 
+@pytest.mark.parametrize("scn", ["user_wait_single", "user_wait_ready_dual"])
+def test_without_the_blue_every_trigger_waits_the_users_quiet_time(traces, scn):
+    """4.3.52 release (re-review S1): the dual scan off, or "ready light only" (no blue): every
+    trigger after a light write waits the user's 1000 ms, and no hold is counted from the
+    blue. MUTATION, proven red: the blue's floor applied with the dual scan off."""
+    t = traces["i1pro2_dual_lights_test"]
+    gaps = [int(ln.split()[1]) for ln in _lines(t, scn) if ln.startswith("GAPMS")]
+    assert gaps and all(g >= 1000 for g in gaps), gaps
+    assert all(b == 0 for _ms, b in _held(t, scn)), _held(t, scn)
+    assert not _blue_writes(_wire(t, scn))
+
+
+def test_after_an_esc_in_the_second_pass_the_next_strip_waits_the_users_quiet_time(traces):
+    """4.3.52 release (re-review S2): the blue showing, the return pass left (Esc), the next
+    strip's FIRST pass: the user's 1000 ms, not the blue's 370 (the help says the 0.37 s is
+    "before the second pass can start"). Red before: 377 ms."""
+    t = traces["i1pro2_dual_lights_test"]
+    assert len(_blue_writes(_wire(t, "esc_then_next_lamp"))) == 1
+    assert _gap_after(t, "esc_then_next_lamp", "esc-then-lamp") >= 1000
+    lines = _lines(t, "esc_then_next_lamp")
+    k = lines.index("STEP esc-then-lamp")
+    assert all(ln.endswith(" 0") for ln in lines[k:] if ln.startswith("HELD "))
+
+
+def test_a_result_after_the_blue_gives_the_users_quiet_time_back(traces):
+    t = traces["i1pro2_dual_lights_test"]
+    assert _return_gap(t, "blue_then_result") >= 1000
+    assert all(b == 0 for _ms, b in _held(t, "blue_then_result"))
+
+
 # ---------------------------------------------------------------------------
 # The driver block (native/instlib/i1pro_imp.c, via scripts/vendor_instlib.py)
 # ---------------------------------------------------------------------------
@@ -264,6 +294,8 @@ def test_the_blues_own_quiet_time_is_the_vendors_shortest_gap():
             < q.index("i1pro2_cq_lights_quiet_ms >= 0"))
     blue = _body(t, "static int cq_lights_last_was_blue(i1proimp *m) {")
     assert "m->cq_lights == CQ_LIGHTS_LIT && m->cq_lights_prog == CQ_LIGHTS_BLUE" in blue
+    # 4.3.52 release (re-review S2): only while that strip's return pass is the one waiting
+    assert "i1pro2_cq_dual_phase(m->p) == CQ_DUAL_PHASE_UV" in blue
     # and the simulator holds the same number
     sim = (ROOT / "tests" / "helpers" / "dual_sim_helper.py").read_text(encoding="utf-8")
     assert "\nBLUE_QUIET_MS = 370\n" in sim
@@ -408,8 +440,8 @@ def test_the_helper_names_the_new_abilities_and_build():
     h = _helper()
     assert '\\"lights_quiet\\",\\"i1pro2_dual_blue\\"' in h
     ext = (HELPER_SRC / "chromiq_ext.h").read_text(encoding="utf-8")
-    assert '"chromiq-chartread 2026-11-20b ' in ext
-    assert "+conditions-kept+lights-quiet+i1pro2-dual-blue+blue-own-quiet\"" in ext
+    assert '"chromiq-chartread 2026-11-20c ' in ext
+    assert "+conditions-kept+lights-quiet+i1pro2-dual-blue+blue-own-quiet+blue-quiet-return-only\"" in ext
 
 
 def test_the_helper_says_a_hold_after_the_blue_and_both_numbers_from_the_driver():
@@ -428,7 +460,7 @@ def test_the_bundled_helper_is_this_build():
     if not exe.is_file():
         pytest.skip("no bundled helper in this checkout")
     data = exe.read_bytes()
-    assert b"chromiq-chartread 2026-11-20b " in data
+    assert b"chromiq-chartread 2026-11-20c " in data
     assert b'"why\\":\\"early\\"' in data or b'"why":"early"' in data
     assert b"blue_quiet_ms" in data and b'"after":"blue"' in data
 

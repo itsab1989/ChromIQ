@@ -763,7 +763,10 @@ screen against the simulated helper; never on a real instrument. Tests:
   (`CQ_LIGHTS_BLUE_QUIET_MS`), whatever the quiet time below is set to. i1Profiler triggered the
   return pass 0.372 to 1.389 s after this very program, 15 of 15, every reading came; 0.37 s is
   never closer than that. Any later light write (the OFF_SLOW before a calibration after an
-  abandoned return pass, an off during the hold) gives the quiet time below back. A hold after
+  abandoned return pass, an off during the hold) gives the quiet time below back, and so does
+  leaving the return pass: the 0.37 s applies only while that strip's return pass is the one
+  waiting, so after an Esc in the second pass the next strip's first pass waits the quiet time
+  below (4.3.52 release, helper 2026-11-20c, re-review S2). A hold after
   the blue goes to the app log only (`lights: held_ms=... after=blue quiet_ms=370`). Before the
   fix round the return pass waited the full quiet time after the blue (0.7 to 1.7 s of keeping
   still at the default, review S1). Why this is judged safe enough for a Beta, and what stays

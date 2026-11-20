@@ -146,7 +146,7 @@ def test_f4_the_helper_build_string_is_the_new_one():
     # table), 19a (its fix round), 19b (a calibration clears the armed pass), 19c (the hand dual
     # scan's gaps, 4.3.49) and 19d (the record kept after an end) keep every
     # token of 16d
-    assert re.search(r"chromiq-chartread 2026-11-(16d|17a|17b|18a|18b|18c|18d|18e|19a|19b|19c|19d|20a|20b) ", h)
+    assert re.search(r"chromiq-chartread 2026-11-(16d|17a|17b|18a|18b|18c|18d|18e|19a|19b|19c|19d|20a|20b|20c) ", h)
     assert "+conditions-commit-last" in h
 
 

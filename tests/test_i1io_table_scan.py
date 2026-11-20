@@ -257,11 +257,13 @@ def test_the_build_string():
     # scan's blue before the return pass (4.3.52, lights Beta; nothing for the table);
     # 2026-11-20b = 20a + the blue's own quiet time (4.3.52 fix round; nothing for the
     # table), last
-    assert "chromiq-chartread 2026-11-20b " in h
+    # 2026-11-20c = 20b + the blue's floor only before that strip's return pass (4.3.52
+    # release, re-review S2; nothing for the table), last
+    assert "chromiq-chartread 2026-11-20c " in h
     assert ("+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule"
             "+i1pro2-dual-device+i1pro2-dual-safety+i1io-table-dual+i1io-table-dual-fix2"
             "+i1io-table-dual-calreset+i1pro2-dual-gaps+conditions-kept+lights-quiet"
-            "+i1pro2-dual-blue+blue-own-quiet\"") in h
+            "+i1pro2-dual-blue+blue-own-quiet+blue-quiet-return-only\"") in h
 
 
 def _base_tree(tmp: Path) -> Path:

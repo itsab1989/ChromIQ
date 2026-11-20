@@ -62,7 +62,7 @@ later Continue Measurement takes them back (``"partial": true``) and reads
 with both passes again; reading an M0-only strip again with both passes
 completes it.
 
-THE LIGHTS (4.3.52, helper 2026-11-20b). With ``--i1pro2-lights`` and
+THE LIGHTS (4.3.52, helper 2026-11-20c). With ``--i1pro2-lights`` and
 ``--lights-signals`` the real helper's lights run only on a real i1Pro 2 (its
 replay says ``"active": false, "why": "instrument"``). The simulation then
 says what the real helper says on an i1Pro 2 (chromiq_chartread.c
@@ -74,7 +74,9 @@ the second swipe came first, which gives ``{"event":"lights","second_pass":
 "skipped","why":"early"}``; at the second swipe after a blue, the driver's
 hold until the BLUE's own 370 ms after the blue, whatever Q (CQ_LIGHTS_BLUE_
 QUIET_MS, helper 2026-11-20b: ``{"event":"lights","held_ms":n,"after":"blue",
-"quiet_ms":370}``, between the button and the beep); and ``"sent": "green2"`` /
+"quiet_ms":370}``, between the button and the beep; only at that strip's second
+swipe, helper 2026-11-20c: after an Esc the next strip's first swipe is not
+held by the blue); and ``"sent": "green2"`` /
 ``"red2"`` after the strip.
 
 LIMITS (said, not hidden): without that suffix the replay instrument

@@ -12699,9 +12699,14 @@ static int cq_lights_ready_prog(i1proimp *m) {
 }
 
 /* The last light write was the BLUE, it went out, and nothing came after it
- * (any later write changes cq_lights_prog, a failed one ends the lights). */
+ * (any later write changes cq_lights_prog, a failed one ends the lights), AND
+ * the return pass of that strip is the one waiting (the dual phase is still the
+ * UV pass; 4.3.52 release, re-review S2: after an Esc in the second pass the
+ * next strip's first pass waits the user's quiet time, not the blue's). */
+#include "cq_dual.h"
 static int cq_lights_last_was_blue(i1proimp *m) {
-	return m->cq_lights == CQ_LIGHTS_LIT && m->cq_lights_prog == CQ_LIGHTS_BLUE;
+	return m->cq_lights == CQ_LIGHTS_LIT && m->cq_lights_prog == CQ_LIGHTS_BLUE
+	    && i1pro2_cq_dual_phase(m->p) == CQ_DUAL_PHASE_UV;
 }
 
 /* The quiet time for the trigger now: the tests' own, else the BLUE's own

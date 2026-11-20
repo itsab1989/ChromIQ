@@ -313,7 +313,9 @@ static void close_it(i1pro *p) {
  *   wait     0 nothing, 1 the blue, 2 the button first then the blue,
  *            3 the blue twice, 4 the blue asked in the LAMP pass's wait,
  *            5 the blue, then the return pass is left unread and a
- *            calibration follows (its OFF_SLOW is the last write)
+ *            calibration follows (its OFF_SLOW is the last write),
+ *            6 the blue, then a result write before the press,
+ *            7 the blue, the return pass left (Esc), the next strip's lamp pass
  *   quiet    -2 do not set, else i1pro2_cq_lights_quiet_ms */
 static void life(const char *name, int lights, int signals, int dual, int wait, int quiet) {
 	i1pro *p;
@@ -358,6 +360,22 @@ static void life(const char *name, int lights, int signals, int dual, int wait, 
 			second_pass(p);
 		if (wait == 3)
 			second_pass(p);
+		if (wait == 6) {	/* a result write after the blue, before the press */
+			second_pass(p);
+			i1pro2_cq_lights_result(p, 1);
+		}
+		if (wait == 7) {	/* Esc with the blue showing, then a new strip's lamp pass */
+			second_pass(p);
+			pass_end(p);
+			i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_OFF);
+			step("esc-then-lamp");
+			pass_begin(p);
+			i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_LAMP);
+			press(p);
+			reading(p, 5, i1p_dark_cal, 5);
+			close_it(p);
+			return;
+		}
 		if (wait == 5) {
 			/* the return pass is left (Esc) with the blue showing, then a
 			 * calibration: it starts dark (OFF_SLOW), and the quiet time
@@ -430,6 +448,12 @@ int main(int argc, char *argv[]) {
 	/* 4.3.52 fix round: the blue's own quiet time */
 	life("quiet_default", 1, 1, 1, 1, -1);	/* the user never set one: 2100 ms, the blue 370 */
 	life("blue_then_calibration", 1, 1, 1, 5, 1000);
+	/* 4.3.52 release (re-review of the fix round, S1 and S2): the user's wait
+	 * wherever the blue is not the last write before the return pass */
+	life("blue_then_result", 1, 1, 1, 6, 1000);
+	life("esc_then_next_lamp", 1, 1, 1, 7, 1000);
+	life("user_wait_single", 1, 1, 0, 0, 1000);	/* dual scan off */
+	life("user_wait_ready_dual", 1, 0, 1, 1, 1000);	/* ready light only: no blue */
 #endif
 	printf("ALL DONE\n");
 	return 0;
