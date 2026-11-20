@@ -3954,7 +3954,11 @@ class SettingsDialog(QDialog):
         from workflow.dual_scan.session import mode_labels as _dual_modes
         from PyQt6.QtWidgets import QComboBox as _QCBm
         self._dual_mode_combo = _QCBm(self)
-        self._dual_mode_combo.setObjectName("i1pro2_dual_scan_mode")
+        # the themes' compact box (22 px, as the Measure tab's option rows): a
+        # Preferences box is 36 px tall and would make the row 14 px taller
+        # (measured on screen, 2026-11-20)
+        self._dual_mode_combo.setObjectName("compact_input")
+        self._dual_mode_combo.setAccessibleName("i1pro2_dual_scan_mode")
         for _data, _text in _dual_modes():
             self._dual_mode_combo.addItem(_text, _data)
         self._dual_mode_combo.setSizeAdjustPolicy(

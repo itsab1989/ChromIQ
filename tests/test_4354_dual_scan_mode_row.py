@@ -57,6 +57,9 @@ def test_the_box_fits_in_the_row_at_the_minimum_size(qapp, lang):
         cb, combo, tip = dlg._i1pro2_dual_check, dlg._dual_mode_combo, dlg._i1pro2_dual_tip
         page = dlg._beta_page
         assert combo.parentWidget() is cb.parentWidget()
+        # the themes pin a "compact_input" box to 22 px; an ordinary Preferences box is 36 px
+        # and made the row 14 px taller on screen (measured 2026-11-20, offscreen has no theme)
+        assert combo.objectName() == "compact_input"
         assert abs(combo.geometry().center().y() - cb.geometry().center().y()) <= 2, \
             "in the checkbox's row"
         assert cb.width() >= cb.sizeHint().width(), "the label is not cut off"
