@@ -7488,6 +7488,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         win.saved.connect(self._on_table_measurement_saved)
         win.finished_with.connect(self._on_table_window_finished)
         win.progress.connect(self._on_table_progress)
+        # 4.3.52: the switch-off alarm and the notice area, in both presentations
+        win.alarm.connect(self._on_table_alarm)
+        win.notice.connect(self._on_table_notice)
         self._table_window = win
         self._table_sheet = sheet
         self._table_patch_by_patch = "-p" in args
@@ -7619,6 +7622,36 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         win = getattr(self, "_table_window", None)
         if win is not None:
             win._on_problem()
+
+    def _on_table_alarm(self, event: str, ignores_setting: bool) -> None:
+        """4.3.52: the table window's switch-off alarm (W-4: a name core.sound does not have
+        is silent, never a crash). The outcome goes to the app log."""
+        import core.sound as _snd
+        outcome = "not_played"
+        try:
+            outcome = self._sound.play_alarm(getattr(_snd, event), bool(ignores_setting))
+        except Exception:      # noqa: BLE001 - a sound must never block a page
+            log.warning("could not play the table's alarm %s", event, exc_info=True)
+        try:
+            from core.app_log import line
+            line("table alarm sound", sound=event, outcome=outcome,
+                 ignores_sound_setting=bool(ignores_setting))
+        except Exception:      # noqa: BLE001
+            pass
+
+    def _on_table_notice(self, text: str) -> None:
+        """4.3.52: the table's line in the notice area under the chart preview (the guidance
+        is off; the countdown before the arm moves). "" gives the area back."""
+        try:
+            if text:
+                self._table_notice_on = True
+                self._preview.set_notice(str(text), warn=True)
+            elif getattr(self, "_table_notice_on", False):
+                self._table_notice_on = False
+                notice = getattr(self, "_dual_model_notice", "")
+                self._preview.set_notice(notice or None, warn=bool(notice))
+        except Exception:      # noqa: BLE001 - a notice, never a blocker
+            log.debug("the table's notice was not shown", exc_info=True)
 
     def _on_table_log_line(self, text: str) -> None:
         # A5: the table window writes its pages, answers and results to the

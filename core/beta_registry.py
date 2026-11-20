@@ -38,6 +38,7 @@ BETA_SUB_OPTIONS: "tuple[str, ...]" = (
     "dual_scan_instrument",
     "dual_scan_instrument_source",
     "i1io_table_ask_after_each_step",
+    "i1io_table_extra_logging",
     "i1io_table_calibration_place",
     "i1io_table_stored_tile_white",
     "i1io_table_patch_by_patch",
