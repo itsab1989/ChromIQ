@@ -180,7 +180,7 @@ def test_must1_after_a_stop_the_rest_of_the_sitting_is_guided(qtbot, monkeypatch
     turned = [m for m in msgs if m.startswith("table guidance:")]
     assert turned and "now=guided" in turned[0] and "stop_pressed" in turned[0], turned
     # and the session log too
-    log_text = job.diag.path.read_text() if getattr(job.diag, "path", None) else ""
+    log_text = job.diag.path.read_text(encoding="utf-8") if getattr(job.diag, "path", None) else ""
     if log_text:
         assert "the rest of this sitting is guided" in log_text
 
