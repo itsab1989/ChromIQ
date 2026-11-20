@@ -102,8 +102,12 @@ PRESENTATION_PANEL, PRESENTATION_POPUPS = "panel", "popups"
 POPUP_POS_KEY = "i1io_table_popup_pos"
 #: the pop-up's width (it stands over the Measure tab's left column, beside the chart preview)
 POPUP_MIN_W, POPUP_MAX_W = 380, 560
-#: the widest a pop-up gets so that its answers stay in one row (then they are stacked)
-POPUP_WIDE_MAX_W = 900
+#: the widest a pop-up gets so that its answers stay in one row (then they are stacked). 1000,
+#: not 900 (4.3.52 release): the widest German page needed 897 px on screen and the Russian one
+#: about 916; a 1280 px screen still has 280 px beside it (_popup_width also keeps 80 px of the
+#: screen free). tests/i1io_table/test_4352_every_popup_page_fits_the_cap.py measures every page
+#: in every language against it.
+POPUP_WIDE_MAX_W = 1000
 #: the sound a pop-up plays as it opens (measurement_window_sounds.md, rule W-1: a warning or an
 #: error window sounds as it appears; a question that is part of the normal flow, like the
 #: hand path's "Calibrate the instrument" or the pause after a page, makes none): a row that
@@ -1480,9 +1484,12 @@ def _pool() -> QThreadPool:
 #: panels finished and waiting for the pool to be idle before they are deleted (GUI thread)
 _RETIRING: "list[_Retire]" = []
 #: how often, and for how long, a finished panel waits for an idle pool (100 ms x 100 = 10 s);
-#: after that it is kept (hidden, its relay detached) rather than deleted under a running call
+#: after that it is kept (hidden, its relay detached) rather than deleted under a running call,
+#: and deleted once the call has returned
 RETIRE_POLL_MS = 100
 RETIRE_TRIES = 100
+#: ...and after that, how often it looks again until the call has returned (then it is deleted)
+RETIRE_SLOW_MS = 1000
 
 
 class _Retire:
@@ -1508,10 +1515,13 @@ class _Retire:
         if self.tries <= RETIRE_TRIES:
             QTimer.singleShot(RETIRE_POLL_MS, self.step)
             return
-        log.warning("i1iO table: a job call still runs %d ms after the panel finished; the "
-                    "panel is kept (hidden) rather than deleted under it",
-                    RETIRE_POLL_MS * RETIRE_TRIES)
-        self._drop()
+        if self.tries == RETIRE_TRIES + 1:
+            log.warning("i1iO table: a job call still runs %d ms after the panel finished; the "
+                        "panel is kept (hidden) until the call returns, never deleted under it",
+                        RETIRE_POLL_MS * RETIRE_TRIES)
+        # 4.3.52 release (re-review SHOULD-1): a call that outlived the bound still ends some
+        # day; the panel is deleted then, looked at once a second (before: kept for ever)
+        QTimer.singleShot(RETIRE_SLOW_MS, self.step)
 
     def _drop(self) -> None:
         self.win = None

@@ -98,7 +98,9 @@ def test_the_relay_closes_and_emits_nothing_after(qapp):
 def test_a_finished_panel_waits_for_an_idle_pool_and_never_blocks(qapp, monkeypatch):
     """retire_window: deleted at once when the pool is idle (as before); while a call runs it
     looks again on a timer (the GUI thread is never blocked) and, after the bound, keeps the
-    panel rather than delete it under the call."""
+    panel rather than delete it under the call, and deletes it once the call has returned.
+    MUTATION, proven red: the old give-up (``self._drop()`` after the bound) -> "the panel was
+    given up and would never be deleted"."""
     from PyQt6 import sip
     from PyQt6.QtCore import QEvent
     from PyQt6.QtWidgets import QApplication, QWidget
@@ -132,5 +134,21 @@ def test_a_finished_panel_waits_for_an_idle_pool_and_never_blocks(qapp, monkeypa
         time.sleep(0.002)
         qapp.processEvents()
     QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete.value)
-    assert not sip.isdeleted(w2) and not W._RETIRING
-    w2.deleteLater()
+    assert not sip.isdeleted(w2)
+    # 4.3.52 release (re-review SHOULD-1): past the bound it keeps looking, slowly, and the
+    # panel is deleted once the call has returned (before: kept for the whole session)
+    assert W._RETIRING, "the panel was given up and would never be deleted"
+    monkeypatch.setattr(W, "RETIRE_SLOW_MS", 1)
+    for _ in range(50):
+        time.sleep(0.002)
+        qapp.processEvents()
+    QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete.value)
+    assert not sip.isdeleted(w2)                           # the call still runs: kept
+    pool.active = 0
+    for _ in range(1500):
+        time.sleep(0.002)
+        qapp.processEvents()
+        QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete.value)
+        if sip.isdeleted(w2):
+            break
+    assert sip.isdeleted(w2) and not W._RETIRING           # the call returned: deleted

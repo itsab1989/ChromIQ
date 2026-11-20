@@ -1,0 +1,336 @@
+{
+ "note": "The answer pages of the table window (page id, English labels), as the window's tests showed them (recorded 2026-11-20, ChromIQ-work 2026-11-20_subopt452_fix2/buttons/pages.json) plus the driver offer. tests/i1io_table/test_4352_every_popup_page_fits_the_cap.py adds every page whose answers are literal in ui/i1io_table_window.py and every confirmation of choice_label().",
+ "pages": [
+  [
+   "after_problem",
+   [
+    "Bring the arm home"
+   ]
+  ],
+  [
+   "after_problem",
+   [
+    "End measurement"
+   ]
+  ],
+  [
+   "aimed",
+   [
+    "Aimed",
+    "End this step"
+   ]
+  ],
+  [
+   "arm_felt",
+   [
+    "It moves freely",
+    "It does not move",
+    "Not sure"
+   ]
+  ],
+  [
+   "cal_choice",
+   [
+    "Table's tile",
+    "Its own white tile",
+    "Not now"
+   ]
+  ],
+  [
+   "calibration_own_tile",
+   [
+    "Ready",
+    "End this step"
+   ]
+  ],
+  [
+   "calibration_reseated",
+   [
+    "Seated",
+    "End this step"
+   ]
+  ],
+  [
+   "consent",
+   [
+    "Not now",
+    "I understand, drive my table"
+   ]
+  ],
+  [
+   "done",
+   [
+    "Close"
+   ]
+  ],
+  [
+   "done",
+   [
+    "Not now",
+    "Yes, make strips the default"
+   ]
+  ],
+  [
+   "earlier",
+   [
+    "Complete it",
+    "Discard it",
+    "Cancel"
+   ]
+  ],
+  [
+   "end_of_session",
+   [
+    "Save and stop",
+    "Discard and stop",
+    "Keep measuring"
+   ]
+  ],
+  [
+   "ending_closed",
+   [
+    "Carry on",
+    "Bring the arm home"
+   ]
+  ],
+  [
+   "first_visit",
+   [
+    "Make this move, my hands are away",
+    "No"
+   ]
+  ],
+  [
+   "front_choice",
+   [
+    "Go forward carefully, my hands are away",
+    "I will move the sheet"
+   ]
+  ],
+  [
+   "go",
+   [
+    "Go",
+    "Back"
+   ]
+  ],
+  [
+   "home_at_end",
+   [
+    "Not now",
+    "Bring the arm home, my hands are away"
+   ]
+  ],
+  [
+   "home_at_start",
+   [
+    "Not now",
+    "Bring the arm home, my hands are away"
+   ]
+  ],
+  [
+   "home_not_now",
+   [
+    "Close",
+    "Bring the arm home, my hands are away"
+   ]
+  ],
+  [
+   "next_page",
+   [
+    "End measurement",
+    "Go on"
+   ]
+  ],
+  [
+   "options_fields",
+   [
+    "Measure the rest that way",
+    "Cancel"
+   ]
+  ],
+  [
+   "pending_marker",
+   [
+    "I switched it off and on",
+    "Not now"
+   ]
+  ],
+  [
+   "prepare",
+   [
+    "Not now",
+    "Start",
+    "Change where it is calibrated"
+   ]
+  ],
+  [
+   "problem",
+   [
+    "Cancel",
+    "Send nothing more",
+    "Something looks or sounds wrong"
+   ]
+  ],
+  [
+   "reader_consent",
+   [
+    "Open the instrument",
+    "No"
+   ]
+  ],
+  [
+   "ready_to_open",
+   [
+    "Not now",
+    "The arm is out",
+    "Start"
+   ]
+  ],
+  [
+   "refused",
+   [
+    "Bring the arm home"
+   ]
+  ],
+  [
+   "refused",
+   [
+    "Bring the arm home",
+    "Close"
+   ]
+  ],
+  [
+   "refused",
+   [
+    "Bring the arm home",
+    "End measurement"
+   ]
+  ],
+  [
+   "refused",
+   [
+    "Carry on"
+   ]
+  ],
+  [
+   "refused",
+   [
+    "Carry on",
+    "Bring the arm home"
+   ]
+  ],
+  [
+   "refused",
+   [
+    "Carry on",
+    "Bring the arm home",
+    "End measurement"
+   ]
+  ],
+  [
+   "refused",
+   [
+    "Close"
+   ]
+  ],
+  [
+   "refused",
+   [
+    "End measurement"
+   ]
+  ],
+  [
+   "report_after_step",
+   [
+    "As described, my hands are away",
+    "Something was wrong",
+    "Not sure"
+   ]
+  ],
+  [
+   "row_failed",
+   [
+    "Read it again",
+    "Skip it",
+    "End this step"
+   ]
+  ],
+  [
+   "row_failed_strip",
+   [
+    "Read it again as a strip",
+    "Read it patch by patch",
+    "Skip it",
+    "End this step"
+   ]
+  ],
+  [
+   "sheet_laid",
+   [
+    "The page is laid, and my hands are away from the table",
+    "End this step"
+   ]
+  ],
+  [
+   "start_up_arm",
+   [
+    "Let i1Profiler start it",
+    "No, the arm is out over the table",
+    "Yes. Start the table"
+   ]
+  ],
+  [
+   "stopped",
+   [
+    "Close"
+   ]
+  ],
+  [
+   "stopped",
+   [
+    "End measurement"
+   ]
+  ],
+  [
+   "stopped_by_you",
+   [
+    "Carry on"
+   ]
+  ],
+  [
+   "stopped_by_you",
+   [
+    "Carry on",
+    "Bring the arm home"
+   ]
+  ],
+  [
+   "stored_white_refused",
+   [
+    "Go on"
+   ]
+  ],
+  [
+   "white_later_refused",
+   [
+    "Save what was read and end",
+    "Calibrate again"
+   ]
+  ],
+  [
+   "driver_offer",
+   [
+    "Not now",
+    "Install the driver for the table now"
+   ]
+  ],
+  [
+   "driver_offer",
+   [
+    "Not now",
+    "Install the driver for the i1Pro 2 now"
+   ]
+  ]
+ ]
+}
