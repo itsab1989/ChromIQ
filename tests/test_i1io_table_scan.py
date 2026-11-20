@@ -190,8 +190,10 @@ def test_the_driver_file_is_4_3_44s_plus_one_include():
     # them undone the file is 4.3.44's plus this one include, as before
     from tests.test_engine_embeds_a_numeric_calibration import _vendor_module
     text = now.decode("utf-8", "surrogateescape")
-    # 4.3.52: the lights' dual-scan blue and quiet time, applied last (their own list)
-    for old, new in (list(reversed(_vendor_module()["I1PRO_IMP_C_LIGHTS_452"]))
+    # 4.3.52: the lights' dual-scan blue and quiet time, applied last (their own list);
+    # 4.3.53: the waits as values, applied after those (undone first)
+    for old, new in (list(reversed(_vendor_module()["I1PRO_IMP_C_WAITS_453"]))
+                     + list(reversed(_vendor_module()["I1PRO_IMP_C_LIGHTS_452"]))
                      + list(reversed(_vendor_module()["I1PRO_IMP_C_DUAL"]))):
         assert text.count(new) == 1, old[:60]
         text = text.replace(new, old)
@@ -227,12 +229,13 @@ def test_only_the_switch_reaches_the_new_code():
     # 2026-11-18a: one word more, the i1Pro 2 dual-scan conditions (step 1);
     # 2026-11-18c: and its device side (step 2); 2026-11-19d: conditions_kept
     # (4.3.49, the record outlives an end; nothing for the table); 2026-11-20a:
-    # lights_quiet and i1pro2_dual_blue (4.3.52, the lights Beta; nothing for the table)
+    # lights_quiet and i1pro2_dual_blue (4.3.52, the lights Beta; nothing for the table);
+    # 2026-11-20d: instrument_waits (4.3.53; the table passes none)
     assert caps and base and caps == [base[0].replace(
         '\\"margin_tolerance\\"]',
         '\\"margin_tolerance\\",\\"i1pro2_dual_conditions\\",\\"i1pro2_dual_scan\\",'
         '\\"i1io_table_dual\\",\\"conditions_kept\\",\\"lights_quiet\\",'
-        '\\"i1pro2_dual_blue\\"]')]
+        '\\"i1pro2_dual_blue\\",\\"instrument_waits\\"]')]
 
 
 def test_the_build_string():
@@ -265,7 +268,7 @@ def test_the_build_string():
     assert ("+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule"
             "+i1pro2-dual-device+i1pro2-dual-safety+i1io-table-dual+i1io-table-dual-fix2"
             "+i1io-table-dual-calreset+i1pro2-dual-gaps+conditions-kept+lights-quiet"
-            "+i1pro2-dual-blue+blue-own-quiet+blue-quiet-return-only\"") in h
+            "+i1pro2-dual-blue+blue-own-quiet+blue-quiet-return-only+instrument-waits\"") in h
 
 
 def _base_tree(tmp: Path) -> Path:
