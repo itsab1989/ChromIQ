@@ -532,7 +532,8 @@ def no_file_reason(main: Path) -> str:
             "“{option}” in {where}, choose M1 or M2 in the Measure tab (or "
             "“{always}” beside the option), and measure the chart again as a new "
             "measurement: each strip is then read twice.").format(
-                option=switch_label(), where=where_label(), always=tr("always"))
+                option=switch_label(), where=where_label(), always=tr("always")) + " " + tr(
+            "Instrument: {instrument}.").format(instrument=inst)
     if inst and model_key(inst) not in ("i1pro3", "i1pro3plus"):
         return tr(
             "Only an X-Rite i1Pro 3 gives all three conditions from one "

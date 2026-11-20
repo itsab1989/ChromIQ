@@ -9635,5 +9635,6 @@
  "only for M1 or M2": "bare for M1 eller M2",
  "{reason} “{start}” will not start this measurement.": "{reason} «{start}» starter ikke denne målingen.",
  "{why} Without it, each strip is read once and only M0 is saved.": "{why} Uten den leses hver stripe én gang, og bare M0 lagres.",
- "{why} It is measured as without the dual scan.": "{why} Det måles som uten dobbeltskanningen."
+ "{why} It is measured as without the dual scan.": "{why} Det måles som uten dobbeltskanningen.",
+ "Instrument: {instrument}.": "Måleinstrument: {instrument}."
 }

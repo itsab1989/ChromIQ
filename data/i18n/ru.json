@@ -10663,5 +10663,6 @@
  "only for M1 or M2": "только для M1 или M2",
  "{reason} “{start}” will not start this measurement.": "{reason} «{start}» не запустит это измерение.",
  "{why} Without it, each strip is read once and only M0 is saved.": "{why} Без него каждая полоса считывается один раз и сохраняется только M0.",
- "{why} It is measured as without the dual scan.": "{why} Она измеряется как без двойного сканирования."
+ "{why} It is measured as without the dual scan.": "{why} Она измеряется как без двойного сканирования.",
+ "Instrument: {instrument}.": "Прибор: {instrument}."
 }

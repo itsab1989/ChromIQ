@@ -9635,5 +9635,6 @@
  "only for M1 or M2": "M1 か M2 のときだけ",
  "{reason} “{start}” will not start this measurement.": "{reason} 「{start}」はこの測定を開始しません。",
  "{why} Without it, each strip is read once and only M0 is saved.": "{why} これがない場合、各ストリップは 1 回読み取られ、M0 だけが保存されます。",
- "{why} It is measured as without the dual scan.": "{why} デュアルスキャンなしで測定します。"
+ "{why} It is measured as without the dual scan.": "{why} デュアルスキャンなしで測定します。",
+ "Instrument: {instrument}.": "測定器: {instrument}。"
 }

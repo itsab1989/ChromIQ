@@ -9635,5 +9635,6 @@
  "only for M1 or M2": "仅限 M1 或 M2",
  "{reason} “{start}” will not start this measurement.": "{reason}「{start}」不会开始本次测量。",
  "{why} Without it, each strip is read once and only M0 is saved.": "{why}没有它时，每条色条读取一次，只保存 M0。",
- "{why} It is measured as without the dual scan.": "{why}按没有双重扫描的方式测量。"
+ "{why} It is measured as without the dual scan.": "{why}按没有双重扫描的方式测量。",
+ "Instrument: {instrument}.": "仪器：{instrument}。"
 }

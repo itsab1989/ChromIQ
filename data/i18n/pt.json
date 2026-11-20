@@ -9635,5 +9635,6 @@
  "only for M1 or M2": "só para M1 ou M2",
  "{reason} “{start}” will not start this measurement.": "{reason} «{start}» não inicia esta medição.",
  "{why} Without it, each strip is read once and only M0 is saved.": "{why} Sem ele, cada tira é lida uma vez e só M0 é guardado.",
- "{why} It is measured as without the dual scan.": "{why} É medida como sem a leitura dupla."
+ "{why} It is measured as without the dual scan.": "{why} É medida como sem a leitura dupla.",
+ "Instrument: {instrument}.": "Instrumento: {instrument}."
 }
