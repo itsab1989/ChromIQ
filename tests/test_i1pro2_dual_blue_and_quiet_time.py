@@ -550,6 +550,117 @@ def test_preferences_saves_the_wait(dialog):
     assert s.get("i1pro2_lights_quiet_s") == pytest.approx(0.4)
 
 
+# ---------------------------------------------------------------------------
+# The field (fix round, review S2): two decimals, both marks, the app's mark,
+# never a silent snap back, and the value reaches the helper exactly
+# ---------------------------------------------------------------------------
+def _type(spin, text):
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtTest import QTest
+    le = spin.lineEdit()
+    spin.setFocus()
+    le.selectAll()
+    QTest.keyClick(le, Qt.Key.Key_Delete)
+    QTest.keyClicks(le, text)
+    QTest.keyClick(le, Qt.Key.Key_Return)
+
+
+@pytest.fixture
+def german():
+    from core import i18n
+    i18n.set_language("de")
+    yield
+    i18n.set_language(i18n.SOURCE_LANGUAGE)
+
+
+def test_the_field_has_two_decimals_and_steps_of_0_05(dialog):
+    dlg, _s = dialog
+    spin = dlg._lights_quiet_spin
+    assert spin.decimals() == 2 and spin.singleStep() == pytest.approx(0.05)
+    dlg._i1pro2_lights_check.setChecked(True)
+    spin.setValue(0.37)
+    assert spin.value() == pytest.approx(0.37)          # not 0.4 any more
+    spin.stepBy(1)
+    assert spin.value() == pytest.approx(0.42)
+
+
+@pytest.mark.parametrize("typed", ["0,37", "0.37"])
+def test_both_marks_are_taken_in_english_and_shown_with_a_point(dialog, typed):
+    dlg, _s = dialog
+    dlg._i1pro2_lights_check.setChecked(True)
+    spin = dlg._lights_quiet_spin
+    spin.show()
+    _type(spin, typed)
+    assert spin.value() == pytest.approx(0.37)
+    assert spin.text() == "0.37 s"
+    assert dlg._lights_quiet_back.isHidden()
+
+
+@pytest.mark.parametrize("typed", ["0,37", "0.37"])
+def test_both_marks_are_taken_in_german_and_shown_with_a_comma(german, qapp, tmp_path, typed):
+    from PyQt6.QtCore import QSettings
+    from core.settings import AppSettings
+    from ui.dialogs.settings_dialog import SettingsDialog
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "p.ini"), QSettings.Format.IniFormat)
+    dlg = SettingsDialog(s)
+    try:
+        dlg._i1pro2_lights_check.setChecked(True)
+        spin = dlg._lights_quiet_spin
+        spin.show()
+        assert spin.text() == "2,10 s"
+        _type(spin, typed)
+        assert spin.value() == pytest.approx(0.37)
+        assert spin.text() == "0,37 s"
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_value_that_cannot_be_taken_is_said_not_silently_undone(dialog):
+    dlg, _s = dialog
+    dlg._i1pro2_lights_check.setChecked(True)
+    spin = dlg._lights_quiet_spin
+    spin.show()
+    spin.setValue(0.46)
+    _type(spin, "")                                      # an empty field
+    spin.editingFinished.emit()
+    assert spin.value() == pytest.approx(0.46)
+    back = dlg._lights_quiet_back
+    assert not back.isHidden()
+    assert back.text() == "This is not a number from 0 to 10 s, so the wait stays at 0.46 s."
+    _type(spin, "0.5")                                   # a good one hides it again
+    assert back.isHidden() and spin.value() == pytest.approx(0.5)
+
+
+@pytest.mark.parametrize("typed,ms", [("0.05", 50), ("0.37", 370), ("0.46", 460),
+                                      ("2.1", 2100), ("10", 10000)])
+def test_the_typed_value_reaches_the_helper_exactly(dialog, tmp_path, monkeypatch, caplog,
+                                                    typed, ms):
+    """Typed in Preferences -> stored -> the Measure tab's parameters ->
+    --lights-quiet-ms -> the app log, with no rounding on the way."""
+    dlg, s = dialog
+    dlg._i1pro2_lights_check.setChecked(True)
+    spin = dlg._lights_quiet_spin
+    spin.show()
+    _type(spin, typed)
+    dlg._save_and_close()
+    stored = s.get("i1pro2_lights_quiet_s")
+    from core import i1pro2_lights_quiet as lq
+    assert lq.to_ms(stored) == ms
+    args, m = _args(tmp_path, monkeypatch, quiet=stored)
+    if ms == 2100:
+        assert "--lights-quiet-ms" not in args          # the default: 4.3.51's line
+    else:
+        assert args[args.index("--lights-quiet-ms") + 1] == str(ms)
+    assert m._lights_quiet_ms == ms
+    with caplog.at_level("INFO"):
+        _events(None, [{"event": "lights", "active": True, "instrument": "i1pro2",
+                        "signals": True, "during_reading": "off", "firmware": 634,
+                        "quiet_ms": ms, "blue_quiet_ms": 370}])
+    assert any(f"lights: instrument=i1pro2 quiet_ms={ms} " in r.getMessage()
+               for r in caplog.records)
+
+
 def test_the_help_names_the_recorded_numbers_and_the_risk():
     from ui.dialogs.settings_dialog import (i1pro2_lights_help, i1pro2_lights_quiet_help,
                                             i1pro2_lights_quiet_note)

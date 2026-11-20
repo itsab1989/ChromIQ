@@ -3799,9 +3799,18 @@ class SettingsDialog(QDialog):
             tr("i1Pro 2, wait after a light change:"), self)
         self._lights_quiet_spin = NoScrollDoubleSpinBox(self)
         self._lights_quiet_spin.setObjectName("i1pro2_lights_quiet_s")
+        # fix round (review S2): two decimals and steps of 0.05 s, so the
+        # recorded 0.37 and 0.46 s can be typed; "0,37" and "0.37" are both
+        # taken (NoScrollDoubleSpinBox), and the field shows the decimal mark
+        # of ChromIQ's language, like every number beside it (decimal_text),
+        # not the computer's (the pattern of ti3_info_dialog's tolerance)
+        from PyQt6.QtCore import QLocale
+        from core.i18n import uses_decimal_comma
+        self._lights_quiet_spin.setLocale(QLocale(QLocale.Language.German)
+                                          if uses_decimal_comma() else QLocale.c())
         self._lights_quiet_spin.setRange(_lq.MIN_S, _lq.MAX_S)
-        self._lights_quiet_spin.setDecimals(1)
-        self._lights_quiet_spin.setSingleStep(0.1)
+        self._lights_quiet_spin.setDecimals(_lq.DECIMALS)
+        self._lights_quiet_spin.setSingleStep(_lq.STEP_S)
         self._lights_quiet_spin.setSuffix(" s")    # the SI symbol, as in every language
         self._lights_quiet_spin.setMinimumWidth(90)
         self._lights_quiet_label.setBuddy(self._lights_quiet_spin)
@@ -3819,6 +3828,17 @@ class SettingsDialog(QDialog):
         self._lights_quiet_note.setWordWrap(True)
         self._lights_quiet_note.setContentsMargins(28, 0, 0, 0)
         _beta.addWidget(self._lights_quiet_note)
+        # fix round (S2): what was typed and not taken (an empty field, a
+        # lone sign) is said, never a silent snap back to the old value
+        self._lights_quiet_back = QLabel("", self)
+        self._lights_quiet_back.setObjectName("i1pro2_lights_quiet_back")
+        self._lights_quiet_back.setWordWrap(True)
+        self._lights_quiet_back.setContentsMargins(28, 0, 0, 0)
+        self._lights_quiet_back.setVisible(False)
+        _beta.addWidget(self._lights_quiet_back)
+        self._lights_quiet_typed = None
+        self._lights_quiet_spin.lineEdit().textEdited.connect(self._lights_quiet_edited)
+        self._lights_quiet_spin.editingFinished.connect(self._lights_quiet_finished)
         # the three boxes start at the same place, whatever the language
         _lw = max(self._lights_signals_label.sizeHint().width(),
                   self._lights_reading_label.sizeHint().width(),
@@ -6998,11 +7018,8 @@ class SettingsDialog(QDialog):
             1 if bool(s.get("i1pro2_lights_signals", True)) else 0)
         self._lights_reading_combo.setCurrentIndex(
             1 if bool(s.get("i1pro2_lights_during_reading", False)) else 0)
-        try:
-            _q = float(s.get("i1pro2_lights_quiet_s", 2.1))
-        except (TypeError, ValueError):
-            _q = 2.1
-        self._lights_quiet_spin.setValue(_q if 0.0 <= _q <= 10.0 else 2.1)
+        from core import i1pro2_lights_quiet as _lq
+        self._lights_quiet_spin.setValue(_lq.seconds(s.get("i1pro2_lights_quiet_s")))
         self._lights_choices_follow()
         self._i1p_turned_check.setChecked(
             bool(s.get("i1profiler_turned_export", False)))
@@ -7269,6 +7286,30 @@ class SettingsDialog(QDialog):
         self._lights_signals_combo.setToolTip(tip)
         self._lights_reading_combo.setToolTip(tip)
         self._lights_quiet_spin.setToolTip(tip)
+
+    def _lights_quiet_edited(self, text: str) -> None:
+        """The quiet-time field was typed in (fix round S2)."""
+        self._lights_quiet_typed = text
+        self._lights_quiet_back.setVisible(False)
+
+    def _lights_quiet_finished(self) -> None:
+        """Typing ended: if what was typed could not be taken, the field went
+        back to its value, and that is said under it (fix round S2)."""
+        from PyQt6.QtGui import QValidator
+        typed, self._lights_quiet_typed = self._lights_quiet_typed, None
+        if typed is None:
+            return
+        spin = self._lights_quiet_spin
+        state = spin.validate(typed, len(typed))[0]
+        if state == QValidator.State.Acceptable:
+            self._lights_quiet_back.setVisible(False)
+            return
+        from core import i1pro2_lights_quiet as _lq
+        self._lights_quiet_back.setText(tr(
+            "This is not a number from {low} to {high} s, so the wait stays at "
+            "{value} s.").format(low=decimal_text(_lq.MIN_S), high=decimal_text(_lq.MAX_S),
+                                 value=decimal_text(spin.value())))
+        self._lights_quiet_back.setVisible(True)
 
     def _fd9_rotation_follow(self, *_a) -> None:
         """The FD-9 screen rotation is greyed while FD-9 support is off."""
@@ -8647,8 +8688,8 @@ class SettingsDialog(QDialog):
               bool(self._lights_signals_combo.currentData()))
         s.set("i1pro2_lights_during_reading",
               bool(self._lights_reading_combo.currentData()))
-        s.set("i1pro2_lights_quiet_s",
-              round(float(self._lights_quiet_spin.value()), 1))
+        from core import i1pro2_lights_quiet as _lq
+        s.set("i1pro2_lights_quiet_s", _lq.seconds(self._lights_quiet_spin.value()))
         s.set("i1profiler_turned_export", self._i1p_turned_check.isChecked())
         s.set("fd9_support_beta", self._fd9_support_check.isChecked())
         s.set("i1io_support_beta", self._i1io_support_check.isChecked())

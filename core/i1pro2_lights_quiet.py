@@ -38,6 +38,25 @@ RECORDED_CALIBRATION_S = 0.01
 BLUE_QUIET_MS = 370
 
 
+#: the Preferences field (fix round, review S2): two decimals, steps of 0.05 s,
+#: so the recorded 0.37 and 0.46 s can be typed
+DECIMALS = 2
+STEP_S = 0.05
+
+
+def seconds(value) -> float:
+    """The setting as stored and shown: seconds on the field's two-decimal
+    grid, so that it reaches the helper exactly (0.37 -> 370 ms); anything that
+    is not a number from 0 to 10 s gives the default."""
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return DEFAULT_S
+    if not (MIN_S <= v <= MAX_S):
+        return DEFAULT_S
+    return round(v, DECIMALS)
+
+
 def to_ms(value) -> int:
     """The setting as the helper's whole milliseconds; anything that is not a
     number from 0 to 10 s gives the default."""
