@@ -1444,6 +1444,20 @@ nothing of it has run on a real table.
   says it was answered by the setting, not by the person. On the wire an unguided measurement
   writes exactly the lines a guided one answered "yes / go on / save / home" writes (warm, cold,
   with the 5 mm steps, with a row read again).
+* **After a Stop, a problem report or a fault, the rest of the sitting is guided** (fix round
+  after the independent safety review, MUST-1). Once a sitting has had the person's Stop (also
+  during a countdown), "Report a problem", the person's end of the sitting, "only the homing from
+  now on", a 5 mm step that stopped short, or any step that ended on a fault (a refusal, a
+  doubt, a stop), EVERY question is asked again for the rest of that sitting: the hands-off
+  question included, nothing is answered by the setting, no countdown stands in for a question
+  (`job.TURNS_GUIDED`, `TableJob.guided_now`; the policy is the job's, the window only shows
+  it). So "Bring the arm home" after a Stop asks the hands-off question, and after that homing
+  the sitting does not go on by itself: the sheet laid is asked again before the arm drives out.
+  The wire is the guided run's, up to the Stop and after it. The notice area and the Measure
+  tab's log say: "The measurement was stopped, or something did not go as expected. So ChromIQ
+  now asks every question again until this measurement ends, also before the arm moves." The
+  app log has a "table guidance: now=guided was=off why=..." line. Found by the review on the
+  simulator and on screen: the arm drove out over the bed again by itself (5 movements).
 * **The countdown.** DECIDED BY US, NOT BY THE OWNER (he said "without interruptions"):
   `job.UNGUIDED_COUNTDOWN_S` = 3 s, 0 removes every countdown page. It stands where the hands-off
   question stood: before the first movement of a sitting, after the third aim, after the sheet

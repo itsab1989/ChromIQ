@@ -3518,7 +3518,7 @@ class TableMeasureWindow(QFrame):
             self._status.setText(tr("ChromIQ waits for your answer. Nothing moves until you "
                                     "answer."))
             return
-        if kind == "start_up" and not self.job.guided:
+        if kind == "start_up" and self._guidance_off_now():
             # 4.3.52 (the owner, W9): with the guidance off, the ONE arm question after the
             # table was switched on (M-I1IO-DRIVE-START-UP-ARM); "Yes" is followed by the
             # countdown, "No" sends nothing (the 4.3.48 refusal)
@@ -4834,9 +4834,38 @@ class TableMeasureWindow(QFrame):
 
     def _relay_progress(self, ev: dict) -> None:
         self._live_event(ev)
+        self._turned_guided_event(ev)
         self._countdown_event(ev)
         self.progress.emit(dict(ev))
         _applog_table_row(self, ev)
+
+    # ---- 4.3.52 fix round (MUST-1): the rest of the sitting is guided ----------------------
+    def turned_guided_text(self) -> str:
+        return tr("The measurement was stopped, or something did not go as expected. So "
+                  "ChromIQ now asks every question again until this measurement ends, also "
+                  "before the arm moves.")
+
+    def _turned_guided_event(self, ev: dict) -> None:
+        """The job turned the rest of the sitting guided (a Stop, a problem, a fault): the app
+        log says so and why; the notice area and the tab's log say what it means. Display and
+        record only (the policy is the job's); never raises."""
+        try:
+            kind = ev.get("event")
+            if kind not in ("turned_guided",):
+                return
+            from core.app_log import line
+            line("table guidance", now="guided", was="off", why=str(ev.get("why") or ""),
+                 rest_of_sitting="every question asked, no countdown, nothing answered by "
+                                 "the setting")
+            text = self.turned_guided_text()
+            self.notice.emit(text)
+            self._say(text)
+        except Exception:      # noqa: BLE001 - a record, never in the way
+            log.debug("i1iO table: the guided rest of the sitting was not shown", exc_info=True)
+
+    def _guidance_off_now(self) -> bool:
+        j = self.job
+        return j is not None and not getattr(j, "guided_now", j.guided)
 
     # ---- 4.3.52: the countdown (guidance off) ----------------------------------------------
     def _countdown_event(self, ev: dict) -> None:
@@ -4868,8 +4897,10 @@ class TableMeasureWindow(QFrame):
                 return
             self._counting = False
             if self._popups:
-                if self.job is not None and not self.job.guided:
+                if self._guidance_off_now():
                     self.notice.emit(self.guidance_notice_text())
+                elif self.job is not None and getattr(self.job, "turned_guided", None):
+                    self.notice.emit(self.turned_guided_text())
                 else:
                     self.notice.emit("")
             elif self._busy:

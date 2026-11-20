@@ -275,6 +275,14 @@ SKIPPED = frozenset({Confirm.ARM_FELT, Confirm.REPORT_AFTER_STEP})
 #: by-setting answers whose guided answer was the hands-off confirmation: the countdown takes
 #: its place before the next movement (the sheet laid, the front steps)
 COUNTDOWN_AFTER = frozenset({Confirm.SHEET_LAID, Confirm.FRONT_CHOICE})
+#: 4.3.52 fix round (safety review S-3): the questions that are ASKED in both modes, always
+#: (faults, the person's aim, physical handling, the one arm question after power-on, a failed
+#: row). Every Confirm kind is in exactly one of BY_SETTING, COUNTDOWN_INSTEAD, SKIPPED and
+#: ALWAYS_ASKED (tests/i1io_table/test_4352_fix_round.py): a new kind must be given its fate
+#: here before any test passes
+ALWAYS_ASKED = frozenset({Confirm.START_UP, Confirm.AIMED, Confirm.MARKER, Confirm.CAL_PLACE,
+                          Confirm.CAL_OWN_TILE, Confirm.CAL_RESEAT, Confirm.ROW_FAILED,
+                          Confirm.ROW_FAILED_STRIP})
 #: the consent page version that lists the reader's facts (M-I1IO-DRIVE-CONSENT-GUIDANCE)
 CONSENT_WITH_READER_FACTS = 4
 #: the message id of each question a person would have seen (the app log names it)
@@ -288,6 +296,12 @@ QUESTION_ID = {Confirm.READY_TO_OPEN: "M-I1IO-DRIVE-READY",
                Confirm.REPORT_AFTER_STEP: "M-I1IO-DRIVE-AFTER-STEP"}
 #: the stop id of an automatic answer the job refused to give (a bug guard: the sitting ends)
 AUTO_ANSWER_REFUSED = "automatic_answer_refused"
+#: 4.3.52 fix round (safety review MUST-1): what turns the REST OF A SITTING guided although the
+#: guidance is off (TableJob.guided_now): the person's Stop, a problem reported, the person's
+#: end of the sitting, "only the homing from now on", a creep that stopped short, and any step
+#: that ended on a fault (a refusal, a doubt, a stop: TableJob._from_exception)
+TURNS_GUIDED = ("stop_pressed", "problems", "stopped_by_person", "only_home", "creep_stopped",
+                "fault")
 
 
 @dataclass(frozen=True)
@@ -767,6 +781,12 @@ class TableJob:
         self.auto_answers: "list[dict]" = []
         self.countdowns: "list[dict]" = []
         self._end_state_seen: "dict | None" = None
+        #: 4.3.52 fix round (safety review MUST-1): why the rest of this sitting is guided
+        #: although the guidance is off (a Stop, a problem report, a fault: TURNS_GUIDED), or
+        #: None. Set once, never cleared: see :attr:`guided_now`
+        self.turned_guided: "str | None" = None
+        #: the first step that ended on a fault (an exception: a refusal, a doubt, a stop)
+        self._fault_seen: "str | None" = None
         #: D-4b (an option, off until the owner decides): the white of this measurement scaled
         #: per band to the white tile values stored in the table's memory, as i1Profiler does.
         #: Off: the i1Pro 2's own white reference, as in a measurement by hand.
@@ -1006,8 +1026,52 @@ class TableJob:
     @property
     def report_after_each_step(self) -> bool:
         """REPORT_AFTER_STEP is asked after each step that moved: only with the guidance on
-        (and unless a test switched the report off)."""
-        return self.guided and (True if self._report_switch is None else self._report_switch)
+        (and unless a test switched the report off), or for the rest of a sitting that turned
+        guided (a Stop, a problem, a fault)."""
+        return self.guided_now and (True if self._report_switch is None else
+                                    self._report_switch)
+
+    def _trouble_why(self) -> "str | None":
+        """The first of TURNS_GUIDED this sitting has had, or None."""
+        for flag in TURNS_GUIDED:
+            if flag == "fault":
+                if self._fault_seen is not None:
+                    return f"fault: {self._fault_seen}"
+            elif getattr(self, flag, None):
+                return flag
+        return None
+
+    @property
+    def guided_now(self) -> bool:
+        """4.3.52 fix round (safety review MUST-1): the guidance as it holds NOW. With the
+        guidance off, ONCE A SITTING HAS HAD A STOP, A PROBLEM REPORT OR A FAULT
+        (TURNS_GUIDED), THE REST OF THAT SITTING IS GUIDED: every question is asked again, the
+        hands-off question included, nothing is answered by the setting and no countdown
+        stands in for a question. A Stop is the moment the person may have a hand in the
+        table, so nothing after it may go on by itself (a homing after a Stop is asked, and
+        the sheet laid after it too, so the arm never drives out again on its own). The
+        policy lives here, in the job; the window only shows it."""
+        if self.guided:
+            return True
+        if self.turned_guided is None:
+            why = self._trouble_why()
+            if why is not None:
+                self._turn_guided(why)
+        return self.turned_guided is not None
+
+    def _turn_guided(self, why: str) -> None:
+        """Records once that the rest of this sitting is guided, and why (the session log, the
+        window: the app log and the notice area). Never raises."""
+        if self.guided or self.turned_guided is not None:
+            return
+        self.turned_guided = str(why)
+        try:
+            self.diag.log("INFO", f"the rest of this sitting is guided (every question is asked "
+                                  f"again, no countdown, nothing answered by the setting): "
+                                  f"{why}")
+        except Exception:      # noqa: BLE001 - a record only
+            pass
+        self._progress(event="turned_guided", why=str(why))
 
     @property
     def ask_after_each_step(self) -> bool:
@@ -1024,7 +1088,7 @@ class TableJob:
     def _without_the_person(self, ask) -> "str | None":
         """With the guidance off: "countdown" (a countdown stands where this question stood),
         "auto" (the job answers it, BY_SETTING), or None (it is asked, as in the guided mode)."""
-        if self.guided or not isinstance(ask, Ask):
+        if self.guided_now or not isinstance(ask, Ask):
             return None
         kind, d = ask.kind, ask.detail or {}
         if kind in COUNTDOWN_INSTEAD:
@@ -1352,7 +1416,7 @@ class TableJob:
         # homing offers, whose pages ask the hands away) is that confirmation: after every other
         # answer the countdown comes before the next movement
         self._hands_off_due = (kind, value) not in HANDS_OFF_ANSWERS or (
-            not self.guided and kind != Confirm.GO)
+            not self.guided_now and kind != Confirm.GO)
         # review 8, S-1: Stop was pressed while this question was shown: the step ends here,
         # before the move the answer would allow (the reader, if open, is finished by the
         # step's own way out)
@@ -1365,6 +1429,7 @@ class TableJob:
         at a confirmation, the job ends at once."""
         step = self._gen_step or "cancel"
         self.stopped_by_person = True
+        self._turn_guided("stopped_by_person")
         self._press_cancel("cancelled")
         if self._table is not None:
             self._table.request_stop()
@@ -1392,6 +1457,7 @@ class TableJob:
         hands-off GO is asked again; the homing is never refused for it."""
         self._pause_stop = True
         self.stop_pressed = True
+        self._turn_guided("stop_pressed")
         # round B: Stop cancels the wait for the instrument's button (the question on screen
         # may still be answered in the panel; a press is no longer taken)
         self._press_cancel("stop pressed")
@@ -1488,6 +1554,8 @@ class TableJob:
                               "not allowed (a bug): nothing is answered, nothing more is sent")
         if self._table is not None:
             self._table.close_for_sending(f"an automatic answer that is not allowed ({kind})")
+        self._fault_seen = self._fault_seen or f"{step}: {AUTO_ANSWER_REFUSED}"
+        self._turn_guided(f"fault: {step}: {AUTO_ANSWER_REFUSED}")
         res = self._result(step, Kind.STOPPED, AUTO_ANSWER_REFUSED, question=kind)
         self._end_block(res)
         self._gen_step = None
@@ -1548,6 +1616,11 @@ class TableJob:
         if res.kind == Kind.REFUSED and d is not None and (d.motion_unconfirmed
                                                            or d.closed_reason):
             res = replace(res, kind=Kind.STOPPED)
+        # 4.3.52 fix round (MUST-1): a step that ended on a fault turns the rest of the sitting
+        # guided (with the guidance off)
+        if self._fault_seen is None:
+            self._fault_seen = f"{step}: {res.reason}"
+        self._turn_guided(f"fault: {step}: {res.reason}")
         return res
 
     # ---- result blocks (the tester's RESULT blocks, same keys) -------------------------------
@@ -2212,6 +2285,7 @@ class TableJob:
             return self._result("problem", Kind.REFUSED, "not_one_of_the_choices",
                                 choices=list(PROBLEM_KINDS))
         self.problems.append((kind, step, d.lines_sent if d is not None else 0))
+        self._turn_guided(f"problems: {kind}")
         self.diag.log("ANSWER", f"problem reported{f' during {step}' if step else ''}: {kind}")
         self.diag.trip(f"a problem was reported: {kind}")
         self._press_cancel("a problem was reported")
@@ -2253,6 +2327,7 @@ class TableJob:
         asks the hands-off GO again (review 8, M-1: also when no step was waiting)."""
         self.only_home = True
         self._go_page = None
+        self._turn_guided("only_home")
         if self._table is not None:
             self._table.log("DATA", f"only the homing from now on: {why}")
 
@@ -2801,7 +2876,7 @@ class TableJob:
             # part B's recorded way out to the alignment start, the arm let go there
             self._run_b(C_HOME)
             self._run_b(C_ALIGN)
-            if self.guided:
+            if self.guided_now:
                 felt = yield Ask(Confirm.ARM_FELT)
             else:
                 # 4.3.52 (SKIPPED with the guidance off): its only safe answer is "free", which
@@ -3016,6 +3091,7 @@ class TableJob:
     def _creep_failed(self, target, got, why: str, **more) -> None:
         self._table.outside_at = got
         self.only_home = True
+        self._turn_guided("creep_stopped")
         #: 4.3.49 fix round: why only the homing is left (the window's page after the homing
         #: says what is true: no problem was reported)
         self.creep_stopped = True
