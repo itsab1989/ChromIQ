@@ -555,11 +555,36 @@ def test_the_help_names_the_recorded_numbers_and_the_risk():
                                             i1pro2_lights_quiet_note)
     note = i1pro2_lights_quiet_note()
     assert "2.1 s" in note and "0.37 s" in note and "0.46 s" in note and "app log" in note
+    assert "a measurement can even end" in note                  # fix round, M2
     h = i1pro2_lights_quiet_help()
     for need in ("0.37", "0.46", "0.01", "lost communication", "M1 and M2", "0 to 10 s",
                  "app log"):
         assert need in h, need
+    # fix round M2: the worst case is said, and "nothing worse" is gone
+    assert "If it keeps failing, the measurement ends, and you must start it again" in h
+    assert "Continue Measurement keeps the strips you already read" in h
+    assert "you must read the strip again" in h
+    assert "Nothing worse is known" not in h
+    # fix round S4: the wait is a change in ChromIQ's copy of the instrument code
+    assert ("**This changes how ChromIQ talks to the instrument:** the wait is in ChromIQ's "
+            "copy of ArgyllCMS's instrument code.") in h
+    # fix round, item 4: the blue's own wait, said in both places
+    assert "after the blue light of a dual scan, ChromIQ always waits 0.37 s" in h
     lights = i1pro2_lights_help()
     assert "second pass of this strip is due" in lights
     assert "changes how ChromIQ talks to the instrument" in lights
     assert "left light pulses blue" in lights and "either direction" in lights
+    assert ("After the blue light, ChromIQ waits 0.37 s before the second pass can start, "
+            "whatever wait after a light change you set below.") in lights
+    assert "keep the instrument still until it beeps, then slide" in lights
+
+
+def test_the_german_help_says_the_same_and_plainly():
+    """N5 (review): "ist dran" was colloquial; and the German text carries the
+    new sentences (the catalogue test checks every language has the keys)."""
+    import json
+    de = json.loads((ROOT / "data" / "i18n" / "de.json").read_text(encoding="utf-8"))
+    vals = "\n".join(v for v in de.values() if isinstance(v, str))
+    assert "ist dran" not in vals
+    assert "Der zweite Durchgang dieses Streifens ist jetzt an der Reihe." in vals
+    assert "Schlägt sie immer wieder fehl, endet die Messung" in vals

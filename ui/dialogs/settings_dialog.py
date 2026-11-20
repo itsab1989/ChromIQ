@@ -9866,8 +9866,8 @@ def i1pro2_lights_quiet_note() -> str:
     return tr(
         "Default {default} s. X-Rite's i1Profiler was recorded waiting only "
         "{low} s (usually about {typical} s) before a reading by hand. If the "
-        "wait is too short, a reading can be lost and you read the strip "
-        "again. ChromIQ writes the wait into the app log.").format(
+        "wait is too short, a reading can be lost, and a measurement can even "
+        "end. ChromIQ writes the wait into the app log.").format(
             default=decimal_text(_lq.DEFAULT_S),
             low=decimal_text(_lq.RECORDED_HAND_MIN_S),
             typical=decimal_text(_lq.RECORDED_HAND_TYPICAL_S))
@@ -9882,9 +9882,14 @@ def i1pro2_lights_quiet_help() -> str:
     return "\n\n".join((
         tr("With the lights option on, ChromIQ does not let an i1Pro 2 measure "
            "right after its light has changed. It waits this long first. This "
-           "applies to every reading and every calibration. It changes only how "
-           "long ChromIQ waits: the commands sent to the instrument stay the "
-           "same. The i1Pro 3 does not wait."),
+           "applies to every reading and every calibration, with one "
+           "exception: after the blue light of a dual scan, ChromIQ always "
+           "waits {blue} s. That is the shortest wait i1Profiler was recorded "
+           "using after this light. The i1Pro 3 does not wait. **This changes "
+           "how ChromIQ talks to the instrument:** the wait is in ChromIQ's "
+           "copy of ArgyllCMS's instrument code. The commands sent to the "
+           "instrument stay the same.").format(
+               blue=decimal_text(_lq.BLUE_QUIET_MS / 1000.0)),
         tr("**Why it waits.** A tester's i1Pro 2 lost about two readings in "
            "three when ChromIQ changed its light a few milliseconds before a "
            "reading. Without a light change just before, none was lost. Since "
@@ -9903,12 +9908,14 @@ def i1pro2_lights_quiet_help() -> str:
                cal=decimal_text(_lq.RECORDED_CALIBRATION_S)),
         tr("**If the wait is too short:** the instrument may not send the "
            "first part of a reading. After about two seconds ChromIQ shows "
-           "“The instrument lost communication with the computer”, "
-           "and you read the strip again. A calibration is tried again by "
-           "itself. In a dual scan, a lost second pass also ends M1 and M2 for "
-           "the rest of that measurement (M0 goes on). Nothing worse is known: "
-           "nothing is written into the instrument, and readings you already "
-           "took do not change."),
+           "“The instrument lost communication with the computer”. "
+           "That reading is lost, and you must read the strip again. A "
+           "calibration is tried again by itself. If it keeps failing, the "
+           "measurement ends, and you must start it again (Continue "
+           "Measurement keeps the strips you already read). In a dual scan, a "
+           "lost second pass ends M1 and M2 for the rest of that measurement. "
+           "M0 goes on. Nothing is written into the instrument, and readings "
+           "you already took do not change."),
         tr("**Range:** 0 to {max} s. 0 means no wait at all, below anything "
            "that was recorded. If you try a shorter wait, please tell us how "
            "many readings were lost. ChromIQ writes the wait you chose into "
@@ -9927,6 +9934,7 @@ def i1pro2_lights_help() -> str:
     recorded sequences, white after a measurement or calibration, off before
     every trigger, at the close and before an EEPROM read; a failed request
     gives the lights up) and the recording it comes from (issue #129)."""
+    from core import i1pro2_lights_quiet as _lq
     return "\n\n".join((
         tr("The X-Rite i1Pro 2 and i1Pro 3 have small indicator lights. "
            "X-Rite's own program, i1Profiler, uses them to show what the "
@@ -9983,11 +9991,16 @@ def i1pro2_lights_help() -> str:
            "this strip is due. You can read the second pass in either "
            "direction, as before. If you press the button before the blue "
            "light comes, ChromIQ leaves it out for that strip. Green or red "
-           "follows after the second pass. **This changes how ChromIQ talks "
+           "follows after the second pass. After the blue light, ChromIQ waits "
+           "{blue} s before the second pass can start, whatever wait after a "
+           "light change you set below. This is the shortest wait recorded "
+           "with i1Profiler after the blue light. Press the button, keep the "
+           "instrument still until it beeps, then slide. **This changes how ChromIQ talks "
            "to the instrument:** for the blue light ChromIQ changed its copy "
            "of ArgyllCMS's instrument code a little. It sends only the blue "
            "pattern i1Profiler was recorded sending, at the same moment. "
-           "With this option or the dual scan off, nothing changes."),
+           "With this option or the dual scan off, nothing changes.").format(
+               blue=decimal_text(_lq.BLUE_QUIET_MS / 1000.0)),
         tr("**With this on and “Ready light and result signals”, an i1Pro 3 "
            "shows** (an i1Pro 3 Plus too, which ArgyllCMS handles in exactly "
            "the same way):\n"
