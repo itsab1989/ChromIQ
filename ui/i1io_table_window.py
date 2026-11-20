@@ -2064,8 +2064,9 @@ class TableMeasureWindow(QFrame):
         counting = getattr(self, "_page_id", "") == "countdown"
         pop.stop_btn.setVisible(counting)
         if counting:
-            pop.stop_btn.setStyleSheet(getattr(self, "_stop_qss", "") or stop_button_qss(
-                "QPushButton#i1io_table_popup_stop"))
+            # the panel's own Stop look (red), by this button's own name (the tab's style
+            # sheet names the tab's button, so it would not apply here: seen on screen)
+            pop.stop_btn.setStyleSheet(stop_button_qss("QPushButton#i1io_table_popup_stop"))
         for mine, theirs in pairs:
             mine.setVisible(not theirs.isHidden() and mine.text() not in labels
                             and not ((on_ending or counting) and mine is pop.end_btn)

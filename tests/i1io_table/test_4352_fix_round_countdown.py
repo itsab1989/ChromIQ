@@ -46,6 +46,9 @@ def test_s1_the_countdown_is_a_large_pop_up_with_stop_and_a_sound(qtbot, monkeyp
     # ONE button: Stop. No answer, no End measurement (it would be ignored while the job runs)
     assert win._buttons == []
     assert pop.stop_btn.isVisibleTo(pop) and not pop.end_btn.isVisibleTo(pop)
+    # in the Stop look, by its own name (found on screen: the tab's sheet did not apply)
+    assert "#i1io_table_popup_stop" in pop.stop_btn.styleSheet()
+    assert pop.stop_btn.styleSheet() == W.stop_button_qss("QPushButton#i1io_table_popup_stop")
     assert cues == ["INSTRUMENT_ERROR"]                          # W-1: as it opens
     assert notices and notices[-1] == body.split("\n\n")[0]      # the strip too
     # the next seconds: the same page, the number changes, no second sound
