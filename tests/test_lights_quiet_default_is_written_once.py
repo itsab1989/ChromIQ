@@ -14,7 +14,7 @@ import tokenize
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SITES = ["core/settings.py", "workflow/measure_manager.py", "ui/tabs/tab_measure.py",
+SITES = ["core/i1pro2_lights_quiet.py", "core/settings.py", "workflow/measure_manager.py", "ui/tabs/tab_measure.py",
          "ui/dialogs/settings_dialog.py", "workflow/measure_log.py",
          "workflow/measure_settings.py", "core/beta_registry.py"]
 
@@ -28,7 +28,10 @@ def _numbers(path: Path) -> "list[tuple[int, str]]":
 def test_no_second_python_literal():
     for rel in SITES:
         assert _numbers(ROOT / rel) == [], rel
-    own = _numbers(ROOT / "core" / "i1pro2_lights_quiet.py")
+    # 4.3.53: the default lives in the one table of waits; the 4.3.52
+    # module reads it from there
+    assert _numbers(ROOT / "core" / "i1pro2_lights_quiet.py") == []
+    own = _numbers(ROOT / "core" / "instrument_waits.py")
     assert [n for _l, n in own] == ["2.1"], own
 
 

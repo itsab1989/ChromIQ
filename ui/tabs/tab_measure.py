@@ -25831,6 +25831,16 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         from core import i1pro2_lights_quiet as _lq
         p.engine_lights_quiet_s = _lq.seconds(
             self._settings.get("i1pro2_lights_quiet_s"))
+        # 4.3.53: every wait around a reading (Preferences > Beta, or a line
+        # in the settings file), in ms; unusable -> the default, said in the log
+        from core import instrument_waits as _iw
+        p.engine_waits_ms = _iw.from_settings(self._settings.get)
+        for _w in _iw.WAITS:
+            _raw = self._settings.get(_w.key, _w.default_s)
+            if not _iw.is_usable(_w, _raw):
+                log.warning("instrument waits: %s=%r is not a number from 0 "
+                            "to %s s; the default %s s is used", _w.key, _raw,
+                            _w.max_s, _w.default_s)
         p.engine_ruler_check = bool(
             self._settings.get("ruler_check_beta", False))
         p.engine_margin_tolerance = bool(

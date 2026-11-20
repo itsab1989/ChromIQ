@@ -2613,11 +2613,46 @@ static int cq_lights_quiet_ms = -1;
 #define CQ_LIGHTS_BLUE_AFTER_MS 550
 static unsigned int cq_lights_blue_due = 0;	/* msec_time() the blue is due; 0 = none */
 
+/* 4.3.53 (the owner, 2026-11-20: "make it so it does not take a day to change
+ * them again"): the waits ChromIQ passes at start, in ms; -1 = not given, the
+ * compiled value as before (core/instrument_waits.py holds the app's table).
+ *   --lights-blue-after-ms  pass 1's end -> the blue (CQ_LIGHTS_BLUE_AFTER_MS)
+ *   --lights-blue-quiet-ms  the blue -> the return pass's trigger (driver,
+ *                           i1pro2_cq_lights_blue_quiet_set_ms)
+ *   --lamp-off-ms           ArgyllCMS's lamp wait before a dark reading
+ *                           (driver, i1pro_cq_lamp_off_ms)
+ * A value that is not a whole number in range is not taken (said once in the
+ * "waits" event) and the compiled value stays. */
+static int cq_lights_blue_after_ms = -1;
+static int cq_lights_blue_quiet_set_ms = -1;
+static int cq_lamp_off_set_ms = -1;
+static int cq_waits_given = 0;			/* any of the three on the command line */
+static char cq_waits_ignored[160] = "";	/* the flags whose value was not taken */
+
+/* A whole number 0..max, else -1; a refused one is noted by flag name. */
+static int cq_wait_arg(const char *flag, const char *s, int max) {
+	char *end = NULL;
+	long v = strtol(s, &end, 10);
+	cq_waits_given = 1;
+	if (end != NULL && end != s && *end == '\0' && v >= 0 && v <= max)
+		return (int)v;
+	if (strlen(cq_waits_ignored) + strlen(flag) + 2 < sizeof(cq_waits_ignored)) {
+		if (cq_waits_ignored[0] != '\0')
+			strcat(cq_waits_ignored, " ");
+		strcat(cq_waits_ignored, flag);
+	}
+	return -1;
+}
+
+static int cq_lights_blue_after_now(void) {
+	return cq_lights_blue_after_ms >= 0 ? cq_lights_blue_after_ms : CQ_LIGHTS_BLUE_AFTER_MS;
+}
+
 static void cq_lights_second_pass_due(void) {
 	cq_lights_blue_due = 0;
 	if (!cq_lights_signals_on() || cq_lights_gen != 2)
 		return;
-	if ((cq_lights_blue_due = msec_time() + CQ_LIGHTS_BLUE_AFTER_MS) == 0)
+	if ((cq_lights_blue_due = msec_time() + (unsigned int)cq_lights_blue_after_now()) == 0)
 		cq_lights_blue_due = 1;
 }
 
@@ -2644,7 +2679,8 @@ static void cq_lights_held2(int ms) {
 	 * blue's own quiet time (i1pro2_cq_lights_blue_quiet_ms), not the user's */
 	if (i1pro2_cq_lights_held_after_blue)
 		cq_emit_raw("{\"event\":\"lights\",\"held_ms\":%d,\"after\":\"blue\","
-		            "\"quiet_ms\":%d}", ms, i1pro2_cq_lights_blue_quiet_ms);
+		            "\"quiet_ms\":%d}", ms, cq_lights_blue_quiet_set_ms >= 0
+		            ? cq_lights_blue_quiet_set_ms : i1pro2_cq_lights_blue_quiet_ms);
 	else
 		cq_emit_raw("{\"event\":\"lights\",\"held_ms\":%d}", ms);
 }
@@ -2801,6 +2837,7 @@ static void cq_lights_for_session(inst *it, int rmode, int emis, int trans,
 		if (cq_lights_gen == 2) {
 			i1pro2_cq_lights_options(it, cq_lights_signals, cq_lights_left_on);
 			i1pro2_cq_lights_quiet_ms = cq_lights_quiet_ms;	/* 4.3.52; -1 = 2100 ms */
+			i1pro2_cq_lights_blue_quiet_set_ms = cq_lights_blue_quiet_set_ms;	/* 4.3.53; -1 = 370 ms */
 			i1pro2_cq_lights_sent = cq_lights_sent2;
 			i1pro2_cq_lights_held = cq_lights_held2;
 			i1pro2_cq_lights_hold_poll = cq_lights_take_pending;	/* 4.3.37 M3 */
@@ -2846,7 +2883,9 @@ static void cq_lights_for_session(inst *it, int rmode, int emis, int trans,
 		            cq_lights_gen == 3 ? -1
 		            : cq_lights_quiet_ms >= 0 ? cq_lights_quiet_ms
 		            : i1pro2_cq_lights_quiet_default_ms,
-		            cq_lights_gen == 3 ? -1 : i1pro2_cq_lights_blue_quiet_ms);
+		            cq_lights_gen == 3 ? -1
+		            : cq_lights_blue_quiet_set_ms >= 0 ? cq_lights_blue_quiet_set_ms
+		            : i1pro2_cq_lights_blue_quiet_ms);
 	else
 		cq_emit_raw("{\"event\":\"lights\",\"active\":false,\"why\":\"%s\"}",
 		            why);
@@ -6759,6 +6798,17 @@ int main(int argc, char *argv[]) {
 				 && v >= 0 && v <= 10000)
 					cq_lights_quiet_ms = (int)v;
 				eat = 2;
+			} else if (strcmp(argv[ai], "--lights-blue-after-ms") == 0 && ai + 1 < argc) {
+				/* CHROMIQ_EXT 4.3.53: the waits as values (see cq_wait_arg) */
+				cq_lights_blue_after_ms = cq_wait_arg(argv[ai], argv[ai + 1], 5000);
+				eat = 2;
+			} else if (strcmp(argv[ai], "--lights-blue-quiet-ms") == 0 && ai + 1 < argc) {
+				cq_lights_blue_quiet_set_ms = cq_wait_arg(argv[ai], argv[ai + 1], 10000);
+				eat = 2;
+			} else if (strcmp(argv[ai], "--lamp-off-ms") == 0 && ai + 1 < argc) {
+				cq_lamp_off_set_ms = cq_wait_arg(argv[ai], argv[ai + 1], 5000);
+				i1pro_cq_lamp_off_ms = cq_lamp_off_set_ms;	/* the driver's; -1 = 1500 ms */
+				eat = 2;
 			} else if (strcmp(argv[ai], "--condition-dir") == 0 && ai + 1 < argc) {
 				/* CHROMIQ_EXT: Preferences > Beta, "X-Rite i1Pro 3: keep
 				 * M0, M1 and M2": the folder the condition files go to. */
@@ -6803,7 +6853,7 @@ int main(int argc, char *argv[]) {
 				 * before it relies on it. One JSON line, then exit 0.
 				 * "legacy_labels": reads sheets ChromIQ's layout engine
 				 * printed with its pre-4.3.3-beta.7 labels as printed. */
-				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"turn\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\",\"lights_signals\",\"lights_during_reading\",\"ruler_check\",\"i1pro3_conditions\",\"margin_tolerance\",\"i1pro2_dual_conditions\",\"i1pro2_dual_scan\",\"i1io_table_dual\",\"conditions_kept\",\"lights_quiet\",\"i1pro2_dual_blue\"],\"build\":\"%s\"}\n",
+				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"turn\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\",\"lights_signals\",\"lights_during_reading\",\"ruler_check\",\"i1pro3_conditions\",\"margin_tolerance\",\"i1pro2_dual_conditions\",\"i1pro2_dual_scan\",\"i1io_table_dual\",\"conditions_kept\",\"lights_quiet\",\"i1pro2_dual_blue\",\"instrument_waits\"],\"build\":\"%s\"}\n",
 				       cq_helper_build_string());
 				fflush(stdout);
 				return 0;
@@ -6864,6 +6914,13 @@ int main(int argc, char *argv[]) {
 		}
 		if (cq_json)
 			cq_cmd_start();
+		/* 4.3.53: the waits in use, said once, only when ChromIQ passed any
+		 * (without them nothing is printed, as before) */
+		if (cq_json && cq_waits_given)
+			cq_emit_raw("{\"event\":\"waits\",\"lamp_off_ms\":%d,"
+			            "\"blue_quiet_ms\":%d,\"blue_after_ms\":%d,\"ignored\":\"%s\"}",
+			            cq_lamp_off_set_ms, cq_lights_blue_quiet_set_ms,
+			            cq_lights_blue_after_now(), cq_waits_ignored);
 		if (cq_replay_path != NULL && cq_replay_load(cq_replay_path))
 			error("Failed to load replay script '%s'", cq_replay_path);
 	}

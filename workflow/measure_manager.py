@@ -343,6 +343,11 @@ class MeasureParams:
     #: is not 4.3.37's 2.1 s, with --i1pro2-lights, and only to a helper whose
     #: caps name "lights_quiet": at 2.1 s the command line stays as it was.
     engine_lights_quiet_s: float = LIGHTS_QUIET_DEFAULT_S
+    #: ...and (4.3.53) every wait around a reading, in ms, by name
+    #: (core/instrument_waits.py: lights_quiet, blue_quiet, blue_after,
+    #: lamp_off); None = the table's defaults. Passed to a helper whose caps
+    #: name "instrument_waits", every wait that applies, also at its default.
+    engine_waits_ms: "dict | None" = None
     #: Preferences > Beta, the ruler check (2026-11-14; stage 1, check only):
     #: pass --ruler, and only to a helper whose caps name "ruler_check". Off:
     #: the command line is exactly the one it was.
@@ -468,6 +473,7 @@ def _keeps_the_computer_awake(start):
 class MeasureManager(QObject):
     #: 4.3.52: the i1Pro 2's quiet time in use, ms (set at every Start)
     _lights_quiet_ms = LIGHTS_QUIET_DEFAULT_MS
+    _waits_ms = None      # 4.3.53: the waits passed (ms by name), None = none
     stripe_changed         = pyqtSignal(str)  # emits strip ID string e.g. "A01"
     all_stripes_done       = pyqtSignal()    # emitted when chartread reports all rows read
     # Emitted when the instrument asks to be calibrated, carrying what it
@@ -1048,6 +1054,7 @@ class MeasureManager(QObject):
         #: Measure log says so once per session.
         self._lights_held_said = False
         self._lights_quiet_ms = LIGHTS_QUIET_DEFAULT_MS
+        self._waits_ms = None      # 4.3.53: set where the helper takes them
         #: External values (-x): ChromIQ reads the instrument itself and the
         #: helper opens none. Kept because the SAVE-AND-STOP path differs — see
         #: `save_partial_and_quit`.
@@ -1241,6 +1248,18 @@ class MeasureManager(QObject):
                 eargs += ["--safenet"]
             if params.engine_xy_chart:
                 eargs += ["--xychart"]
+            # 4.3.53: the waits (core/instrument_waits.py), every one that
+            # applies, from the one table, to a helper that takes them
+            from core import instrument_waits as _iw
+            from workflow.chartread_engine import helper_caps as _hcaps
+            waits_ms = dict(_iw.from_settings(lambda _k, d: d))
+            waits_ms.update(params.engine_waits_ms or {})
+            if params.engine_i1pro2_lights:
+                # the 4.3.52 field stays the quiet time's source
+                waits_ms[_iw.LIGHTS_QUIET.name] = lights_quiet_ms(
+                    params.engine_lights_quiet_s)
+            self._waits_ms = None
+            waits_lights = False
             if params.engine_i1pro2_lights:
                 from workflow.chartread_engine import helper_caps
                 caps = helper_caps(params.engine_helper)
@@ -1258,7 +1277,11 @@ class MeasureManager(QObject):
                     # 4.3.52: the user's quiet time, only when not the default
                     quiet_ms = lights_quiet_ms(params.engine_lights_quiet_s)
                     self._lights_quiet_ms = LIGHTS_QUIET_DEFAULT_MS
-                    if quiet_ms != LIGHTS_QUIET_DEFAULT_MS:
+                    waits_lights = True
+                    if "instrument_waits" in caps:
+                        # 4.3.53: passed with the other waits, below
+                        self._lights_quiet_ms = quiet_ms
+                    elif quiet_ms != LIGHTS_QUIET_DEFAULT_MS:
                         if "lights_quiet" in caps:
                             eargs += ["--lights-quiet-ms", str(quiet_ms)]
                             self._lights_quiet_ms = quiet_ms
@@ -1269,6 +1292,14 @@ class MeasureManager(QObject):
                 else:
                     log.info("i1Pro 2 lights: this helper does not know "
                              "--i1pro2-lights; not passed")
+            if "instrument_waits" in _hcaps(params.engine_helper):
+                eargs += _iw.helper_args(waits_ms, lights=waits_lights)
+                self._waits_ms = waits_ms if waits_lights else {
+                    k: v for k, v in waits_ms.items()
+                    if k == _iw.LAMP_OFF.name}
+            else:
+                log.info("instrument waits: this helper does not take them; "
+                         "its own compiled waits are used")
             self._ruler = None
             if params.engine_ruler_check:
                 from workflow.chartread_engine import helper_caps
@@ -1513,6 +1544,7 @@ class MeasureManager(QObject):
                       lights_quiet_s=(getattr(self, "_lights_quiet_ms",
                                               LIGHTS_QUIET_DEFAULT_MS) / 1000.0
                                       if self._lights_option else None),
+                      waits_ms=getattr(self, "_waits_ms", None),
                       conditions=("on" if "--condition-dir" in eargs else
                                   "off" if params.engine_condition_dir is None else
                                   "off(helper_cannot)"))
@@ -4663,6 +4695,21 @@ class MeasureManager(QObject):
 
         elif kind == "lights":
             self._on_lights_event(ev, on_line)
+
+        elif kind == "waits":
+            # 4.3.53: the waits the helper took (ms; -1 = its compiled one),
+            # and any value it did not take, for the app log only
+            try:
+                from core.app_log import line as _al_line
+                _al_line("helper waits", lamp_off_ms=ev.get("lamp_off_ms"),
+                         blue_quiet_ms=ev.get("blue_quiet_ms"),
+                         blue_after_ms=ev.get("blue_after_ms"),
+                         ignored=ev.get("ignored") or None)
+            except Exception:      # noqa: BLE001
+                log.info("engine: waits %s", ev)
+            if ev.get("ignored"):
+                log.warning("engine: the helper did not take %s; it keeps "
+                            "its own wait", ev.get("ignored"))
 
         elif kind == "conditions":
             # "X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2" (Preferences > Beta,

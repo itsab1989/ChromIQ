@@ -2140,6 +2140,56 @@ PATCHES["i1pro_imp.c"] = _fold_dual(I1PRO_IMP_C_LIGHTS + I1PRO_IMP_C_RULER + I1P
 PATCHES["i1pro_imp.c"] = _fold_dual(PATCHES["i1pro_imp.c"], I1PRO_IMP_C_LIGHTS_452)
 PATCHES["i1pro_imp.h"] = _fold_dual(PATCHES["i1pro_imp.h"], I1PRO_IMP_H_LIGHTS_452)
 
+# ---- 4.3.53: the waits as values the helper passes (the owner, 2026-11-20: "make it so it
+# does not take a day to change them again"). (1) i1pro_cq_lamp_off_ms: ArgyllCMS's own lamp
+# wait before a dark reading (LAMP_OFF_TIME, 1500 ms) unless the helper passes --lamp-off-ms;
+# (2) i1pro2_cq_lights_blue_quiet_set_ms: the blue's own quiet time (CQ_LIGHTS_BLUE_QUIET_MS,
+# 370 ms) unless the helper passes --lights-blue-quiet-ms. Without either argument the driver
+# does exactly what 4.3.52's did (tests/test_instrument_waits.py, against 4.3.52's driver on
+# the fake USB layer). The two lamp pairs patch ArgyllCMS's own text and stay patches of their
+# own; the blue pairs change text the 4.3.52 lights patches added and are folded into them.
+I1PRO_IMP_C_WAITS_453 = [
+    ("#define LAMP_OFF_TIME 1500\t\t/* msec to make sure lamp is dark for dark measurement */\n",
+     "#define LAMP_OFF_TIME 1500\t\t/* msec to make sure lamp is dark for dark measurement */\n"
+     "/* CHROMIQ PATCH (4.3.53): ChromIQ's helper may pass the wait above in ms\n"
+     " * (--lamp-off-ms, 0 to 5000). -1, always without that argument, and any value\n"
+     " * out of range = LAMP_OFF_TIME, ArgyllCMS's own: the same wait as before. */\n"
+     "int i1pro_cq_lamp_off_ms = -1;\n"
+     "#define CQ_LAMP_OFF_TIME ((i1pro_cq_lamp_off_ms >= 0 && i1pro_cq_lamp_off_ms <= 5000) \\\n"
+     "                          ? (unsigned int)i1pro_cq_lamp_off_ms : (unsigned int)LAMP_OFF_TIME)\n"),
+    ("\t && (timssinceoff = (msec_time() - m->llamponoff)) < LAMP_OFF_TIME) {\n"
+     "\t\ta1logd(p->log,3,\"Sleep %d msec for lamp cooldown\\n\",LAMP_OFF_TIME - timssinceoff);\n"
+     "\t\tmsec_sleep(LAMP_OFF_TIME - timssinceoff);\t/* Make sure time adds up to 1.5 seconds */\n",
+     "\t && (timssinceoff = (msec_time() - m->llamponoff)) < CQ_LAMP_OFF_TIME) {\n"
+     "\t\ta1logd(p->log,3,\"Sleep %d msec for lamp cooldown\\n\",CQ_LAMP_OFF_TIME - timssinceoff);\n"
+     "\t\tmsec_sleep(CQ_LAMP_OFF_TIME - timssinceoff);\t/* Make sure time adds up to 1.5 seconds */\n"),
+    ("const int i1pro2_cq_lights_blue_quiet_ms = CQ_LIGHTS_BLUE_QUIET_MS;\n"
+     "int i1pro2_cq_lights_held_after_blue = 0;\n",
+     "const int i1pro2_cq_lights_blue_quiet_ms = CQ_LIGHTS_BLUE_QUIET_MS;\n"
+     "int i1pro2_cq_lights_held_after_blue = 0;\n"
+     "\n"
+     "/* 4.3.53 (the owner, 2026-11-20: \"make it so it does not take a day to change\n"
+     " * them again\"): the BLUE's own quiet time as ChromIQ's helper passes it\n"
+     " * (--lights-blue-quiet-ms), 0 to CQ_LIGHTS_QUIET_MAX_MS. -1, always without\n"
+     " * that argument, and any value out of range = CQ_LIGHTS_BLUE_QUIET_MS. A wait\n"
+     " * only: it never changes what is sent. */\n"
+     "int i1pro2_cq_lights_blue_quiet_set_ms = -1;\n"),
+    ("\tif (cq_lights_last_was_blue(m))\n"
+     "\t\treturn CQ_LIGHTS_BLUE_QUIET_MS;\n",
+     "\tif (cq_lights_last_was_blue(m))\n"
+     "\t\treturn (i1pro2_cq_lights_blue_quiet_set_ms >= 0\n"
+     "\t\t        && i1pro2_cq_lights_blue_quiet_set_ms <= CQ_LIGHTS_QUIET_MAX_MS)\n"
+     "\t\t       ? i1pro2_cq_lights_blue_quiet_set_ms : CQ_LIGHTS_BLUE_QUIET_MS;\n"),
+]
+I1PRO_IMP_H_WAITS_453 = [
+    ("extern int i1pro2_cq_lights_held_after_blue;\t/* the last hold counted from the BLUE (4.3.52) */\n",
+     "extern int i1pro2_cq_lights_held_after_blue;\t/* the last hold counted from the BLUE (4.3.52) */\n"
+     "extern int i1pro2_cq_lights_blue_quiet_set_ms;\t/* the BLUE's quiet time from the helper, ms (4.3.53); -1 = CQ_LIGHTS_BLUE_QUIET_MS */\n"
+     "extern int i1pro_cq_lamp_off_ms;\t/* the lamp wait from the helper, ms (4.3.53); -1 = LAMP_OFF_TIME */\n"),
+]
+PATCHES["i1pro_imp.c"] = _fold_dual(PATCHES["i1pro_imp.c"], I1PRO_IMP_C_WAITS_453)
+PATCHES["i1pro_imp.h"] = _fold_dual(PATCHES["i1pro_imp.h"], I1PRO_IMP_H_WAITS_453)
+
 # (source-relative, dest-name) — dest flat like the instlib zip
 FILES = []
 
@@ -2302,6 +2352,13 @@ prov.write_text(
     "  after an Esc in the second pass, the next strip's first pass waits the\n"
     "  quiet time (4.3.52 release, helper 2026-11-20c).\n"
     "  These changes are listed one by one in `I1PRO_IMP_C_LIGHTS_452`.\n"
+    "  **Since ChromIQ 4.3.53:** the helper may pass the BLUE's own wait\n"
+    "  (`--lights-blue-quiet-ms`, into `i1pro2_cq_lights_blue_quiet_set_ms`) and\n"
+    "  ArgyllCMS's lamp wait before a dark reading (`--lamp-off-ms`, 0 to 5000 ms,\n"
+    "  into `i1pro_cq_lamp_off_ms`, used by `CQ_LAMP_OFF_TIME` in place of\n"
+    "  `LAMP_OFF_TIME`, any i1Pro or i1Pro 2). Without them, or out of range,\n"
+    "  370 ms and ArgyllCMS's own 1500 ms as before. Only how long a trigger\n"
+    "  waits changes, never a byte; listed in `I1PRO_IMP_C_WAITS_453`.\n"
     "- **`i1pro3_imp.c`, `i1pro3_imp.h`, `i1pro3.c`: the same Beta for the\n"
     "  i1Pro 3** (2026-11-13). Its own request and format (0x29, LE32 length,\n"
     "  bytes on bulk endpoint 0x02, Argyll's `i1pro3_indLEDseq`). Exactly four\n"

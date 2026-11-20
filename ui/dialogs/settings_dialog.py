@@ -3839,14 +3839,44 @@ class SettingsDialog(QDialog):
         self._lights_quiet_typed = None
         self._lights_quiet_spin.lineEdit().textEdited.connect(self._lights_quiet_edited)
         self._lights_quiet_spin.editingFinished.connect(self._lights_quiet_finished)
-        # the three boxes start at the same place, whatever the language
+        # 4.3.53 (the owner, 2026-11-20: "repurpose the one waiting time option
+        # to all of the waiting times ... so they can be changed by the users
+        # directly"): the dual scan's two waits around its blue light, the same
+        # kind of field, under the quiet time (core/instrument_waits.py). Greyed
+        # unless the lights with result signals AND the dual scan are on: only
+        # then is there a blue light.
+        from core import instrument_waits as _iw
+        self._wait_fields = {}      # settings key -> (label, spin, tip, back)
+        self._wait_fields[_iw.LIGHTS_QUIET.key] = (
+            self._lights_quiet_label, self._lights_quiet_spin,
+            self._lights_quiet_tip, self._lights_quiet_back)
+        self._add_wait_row(_beta, _iw.BLUE_QUIET, 28,
+                           tr("Dual scan, wait after the blue light:"),
+                           tr("Dual scan: wait after the blue light (beta)"),
+                           i1pro2_blue_quiet_help())
+        self._add_wait_row(_beta, _iw.BLUE_AFTER, 28,
+                           tr("Dual scan, blue light after the first pass:"),
+                           tr("Dual scan: blue light after the first pass (beta)"),
+                           i1pro2_blue_after_help())
+        # the boxes start at the same place, whatever the language
         _lw = max(self._lights_signals_label.sizeHint().width(),
                   self._lights_reading_label.sizeHint().width(),
-                  self._lights_quiet_label.sizeHint().width())
+                  self._lights_quiet_label.sizeHint().width(),
+                  self._wait_fields[_iw.BLUE_QUIET.key][0].sizeHint().width(),
+                  self._wait_fields[_iw.BLUE_AFTER.key][0].sizeHint().width())
         self._lights_signals_label.setMinimumWidth(_lw)
         self._lights_reading_label.setMinimumWidth(_lw)
         self._lights_quiet_label.setMinimumWidth(_lw)
+        self._wait_fields[_iw.BLUE_QUIET.key][0].setMinimumWidth(_lw)
+        self._wait_fields[_iw.BLUE_AFTER.key][0].setMinimumWidth(_lw)
         self._i1pro2_lights_check.toggled.connect(self._lights_choices_follow)
+        self._lights_signals_combo.currentIndexChanged.connect(self._lights_choices_follow)
+        # ArgyllCMS's lamp wait (4.3.53): every i1Pro / i1Pro 2 reading, not
+        # part of the lights, so its own line at the left, never greyed
+        self._add_wait_row(_beta, _iw.LAMP_OFF, 0,
+                           tr("X-Rite i1Pro and i1Pro 2: lamp wait before a reading (beta):"),
+                           tr("i1Pro and i1Pro 2: lamp wait (beta)"),
+                           i1pro_lamp_off_help())
 
         # THE RULER CHECK (Basti, 2026-11-14: "build the first ruler Beta now
         # ... clearly labeled as a beta option anyway and off by default").
@@ -3951,6 +3981,9 @@ class SettingsDialog(QDialog):
         _beta.addLayout(_noterow)
         self._i1pro2_dual_check.toggled.connect(self._dual_follows)
         self._i1pro3_conditions_check.toggled.connect(self._dual_follows)
+        # 4.3.53: the dual scan's two waits follow the dual scan too
+        self._i1pro2_dual_check.toggled.connect(self._lights_choices_follow)
+        self._i1pro3_conditions_check.toggled.connect(self._lights_choices_follow)
 
         # Konica Minolta FD-9 support (PR #213, written and contributed by
         # lessbones). Restart-to-apply: `workflow.fd9.support` reads it once
@@ -7031,6 +7064,9 @@ class SettingsDialog(QDialog):
             1 if bool(s.get("i1pro2_lights_during_reading", False)) else 0)
         from core import i1pro2_lights_quiet as _lq
         self._lights_quiet_spin.setValue(_lq.seconds(s.get("i1pro2_lights_quiet_s")))
+        from core import instrument_waits as _iw
+        for _w in (_iw.BLUE_QUIET, _iw.BLUE_AFTER, _iw.LAMP_OFF):
+            self._wait_fields[_w.key][1].setValue(_iw.seconds(_w, s.get(_w.key)))
         self._lights_choices_follow()
         self._i1p_turned_check.setChecked(
             bool(s.get("i1profiler_turned_export", False)))
@@ -7301,6 +7337,94 @@ class SettingsDialog(QDialog):
         self._lights_signals_combo.setToolTip(tip)
         self._lights_reading_combo.setToolTip(tip)
         self._lights_quiet_spin.setToolTip(tip)
+        # 4.3.53: the blue light's two waits need the lights with result
+        # signals and the dual scan (only then is a blue light sent)
+        fields = getattr(self, "_wait_fields", None)
+        if fields is None:
+            return
+        dual = getattr(self, "_i1pro2_dual_check", None)
+        cond = getattr(self, "_i1pro3_conditions_check", None)
+        blue = (on and bool(self._lights_signals_combo.currentData())
+                and dual is not None and dual.isChecked()
+                and cond is not None and cond.isChecked())
+        from core import instrument_waits as _iw
+        for _w in (_iw.BLUE_QUIET, _iw.BLUE_AFTER):
+            label, spin, _tip, _back = fields[_w.key]
+            label.setEnabled(blue)
+            spin.setEnabled(blue)
+            spin.setToolTip("" if blue else tr(
+                "Switch on the instrument lights with result signals and the "
+                "dual scan to choose this."))
+
+    def _add_wait_row(self, layout, wait, indent: int, label_text: str,
+                      title: str, help_text: str) -> None:
+        """One waiting-time field of Preferences > Beta (4.3.53), the same
+        kind as 4.3.52's quiet time: two decimals, steps of 0.05 s, comma or
+        point, ChromIQ's decimal mark, and a line under it for text that
+        could not be taken."""
+        from PyQt6.QtCore import QLocale
+        from core import instrument_waits as _iw
+        from core.i18n import uses_decimal_comma
+        label = QLabel(label_text, self)
+        spin = NoScrollDoubleSpinBox(self)
+        spin.setObjectName(wait.key)
+        spin.setLocale(QLocale(QLocale.Language.German)
+                       if uses_decimal_comma() else QLocale.c())
+        spin.setRange(_iw.MIN_S, wait.max_s)
+        spin.setDecimals(_iw.DECIMALS)
+        spin.setSingleStep(_iw.STEP_S)
+        spin.setSuffix(" s")
+        spin.setMinimumWidth(90)
+        spin.setValue(wait.default_s)
+        label.setBuddy(spin)
+        tip = TooltipButton(title, help_text, self, min_width=620)
+        row = QHBoxLayout()
+        row.setContentsMargins(indent, 0, 0, 0)
+        row.addWidget(label)
+        row.addWidget(spin)
+        row.addStretch()
+        row.addWidget(tip)
+        layout.addLayout(row)
+        back = QLabel("", self)
+        back.setObjectName(wait.key + "_back")
+        back.setWordWrap(True)
+        back.setContentsMargins(indent, 0, 0, 0)
+        back.setVisible(False)
+        layout.addWidget(back)
+        spin.setProperty("cq_wait_key", wait.key)
+        spin.lineEdit().setProperty("cq_wait_key", wait.key)
+        spin.lineEdit().textEdited.connect(self._wait_edited)
+        spin.editingFinished.connect(self._wait_finished)
+        self._wait_typed = getattr(self, "_wait_typed", {})
+        self._wait_fields[wait.key] = (label, spin, tip, back)
+
+    def _wait_edited(self, text: str) -> None:
+        """A waiting-time field was typed in (4.3.53, as the quiet time's)."""
+        key = self.sender().property("cq_wait_key") if self.sender() else None
+        if key in getattr(self, "_wait_fields", {}):
+            self._wait_typed[key] = text
+            self._wait_fields[key][3].setVisible(False)
+
+    def _wait_finished(self) -> None:
+        """Typing in a waiting-time field ended: text that could not be taken
+        is said under the field, never a silent snap back (4.3.53)."""
+        from PyQt6.QtGui import QValidator
+        key = self.sender().property("cq_wait_key") if self.sender() else None
+        if key not in getattr(self, "_wait_fields", {}):
+            return
+        typed = self._wait_typed.pop(key, None)
+        if typed is None:
+            return
+        _label, spin, _tip, back = self._wait_fields[key]
+        if spin.validate(typed, len(typed))[0] == QValidator.State.Acceptable:
+            back.setVisible(False)
+            return
+        back.setText(tr(
+            "This is not a number from {low} to {high} s, so the wait stays at "
+            "{value} s.").format(low=decimal_text(spin.minimum()),
+                                 high=decimal_text(spin.maximum()),
+                                 value=decimal_text(spin.value())))
+        back.setVisible(True)
 
     def _lights_quiet_edited(self, text: str) -> None:
         """The quiet-time field was typed in (fix round S2)."""
@@ -8721,6 +8845,10 @@ class SettingsDialog(QDialog):
               bool(self._lights_reading_combo.currentData()))
         from core import i1pro2_lights_quiet as _lq
         s.set("i1pro2_lights_quiet_s", _lq.seconds(self._lights_quiet_spin.value()))
+        # 4.3.53: the other waits, the same values as their settings-file keys
+        from core import instrument_waits as _iw
+        for _w in (_iw.BLUE_QUIET, _iw.BLUE_AFTER, _iw.LAMP_OFF):
+            s.set(_w.key, _iw.seconds(_w, self._wait_fields[_w.key][1].value()))
         s.set("i1profiler_turned_export", self._i1p_turned_check.isChecked())
         s.set("fd9_support_beta", self._fd9_support_check.isChecked())
         s.set("i1io_support_beta", self._i1io_support_check.isChecked())
@@ -9949,6 +10077,116 @@ def i1pro2_lights_quiet_note() -> str:
             typical=decimal_text(_lq.RECORDED_HAND_TYPICAL_S))
 
 
+def _wait_range_text(wait) -> str:
+    """The last paragraph of each 4.3.53 waiting-time help."""
+    return tr("**Range:** 0 to {max} s. **Default:** {default} s. ChromIQ writes "
+              "the wait into the app log at the start of every "
+              "measurement.").format(max=decimal_text(wait.max_s),
+                                     default=decimal_text(wait.default_s))
+
+
+def i1pro2_blue_quiet_help() -> str:
+    """The (i) of Preferences > Beta > the dual scan's wait after the blue
+    light (4.3.53). Numbers: the study of 2026-11-20 (quiet_study.txt, 0.372 to
+    1.389 s from the start of the light command, 15 of 15 readings came) and
+    the re-review's decode of the same recordings (0.308 s from its end);
+    the driver: native/instlib/i1pro_imp.c ``cq_lights_quiet_now``."""
+    from core import instrument_waits as _iw
+    return "\n\n".join((
+        tr("In a dual scan with the lights and result signals on, the "
+           "instrument shows a blue light when the second pass is due. After "
+           "this light, ChromIQ waits this long before the instrument measures "
+           "the second pass. The wait after a light change above does not "
+           "apply here. **This changes how ChromIQ talks to the instrument:** "
+           "the wait is in ChromIQ's copy of ArgyllCMS's instrument code. The "
+           "commands sent to the instrument stay the same."),
+        tr("**What X-Rite's i1Profiler does** (recordings of a tester's "
+           "i1Pro 2): it measured the second pass {low} to {high} s after it "
+           "began to send the blue light, and every reading came. Counted as "
+           "ChromIQ counts, from the end of that command, its shortest wait "
+           "was {end} s.").format(
+               low=decimal_text(_iw.RECORDED_BLUE_QUIET_LOW_S),
+               high=decimal_text(_iw.RECORDED_BLUE_QUIET_HIGH_S),
+               end=decimal_text(_iw.RECORDED_BLUE_QUIET_END_S)),
+        tr("**What ChromIQ used before:** ChromIQ 4.3.52 waited {default} s "
+           "here, without a field. The default is the same.").format(
+               default=decimal_text(_iw.BLUE_QUIET.default_s)),
+        tr("**If the wait is too short:** the instrument may not send the "
+           "first part of the second pass. ChromIQ then shows “The instrument "
+           "lost communication with the computer”. M1 and M2 end for the rest "
+           "of that measurement. M0 goes on. Readings you already took do not "
+           "change."),
+        _wait_range_text(_iw.BLUE_QUIET),
+    ))
+
+
+def i1pro2_blue_after_help() -> str:
+    """The (i) of Preferences > Beta > the dual scan's delay from the first
+    pass to the blue light (4.3.53). Numbers: the 4.3.52 review's decode of
+    i1Profiler 3.8.6's blue writes (0.531 to 0.679 s after pass 1's last data
+    at normal speed); the helper: chromiq_chartread.c
+    ``cq_lights_second_pass_due``."""
+    from core import instrument_waits as _iw
+    return "\n\n".join((
+        tr("In a dual scan with the lights and result signals on, ChromIQ "
+           "sends the blue light this long after the first pass has ended. It "
+           "tells you that the second pass is due. If you press the button "
+           "before the blue light comes, ChromIQ leaves it out for that "
+           "strip. This wait is in ChromIQ's own program. It changes only when "
+           "the light is sent."),
+        tr("**What X-Rite's i1Profiler does** (recordings of a tester's "
+           "i1Pro 2): it sent the blue light {low} to {high} s after the last "
+           "data of the first pass.").format(
+               low=decimal_text(_iw.RECORDED_BLUE_AFTER_LOW_S),
+               high=decimal_text(_iw.RECORDED_BLUE_AFTER_HIGH_S)),
+        tr("**What ChromIQ used before:** ChromIQ 4.3.52 sent it after "
+           "{default} s, without a field. That is the early end of i1Profiler's "
+           "range, so you have the most time to press the button. The default "
+           "is the same.").format(default=decimal_text(_iw.BLUE_AFTER.default_s)),
+        tr("**If the wait is too short or too long:** no reading is lost. "
+           "With a short wait the blue light comes at once. With a long wait "
+           "you may press the button first, and the blue light is left out "
+           "for that strip."),
+        _wait_range_text(_iw.BLUE_AFTER),
+    ))
+
+
+def i1pro_lamp_off_help() -> str:
+    """The (i) of Preferences > Beta > ArgyllCMS's lamp wait (4.3.53).
+    Checked against native/instlib/i1pro_imp.c (LAMP_OFF_TIME, "msec to make
+    sure lamp is dark for dark measurement"; i1pro_dark_measure_2 refuses a
+    dark only when it is inconsistent or above twice the dark threshold) and
+    the table-speed audit of 2026-11-20 (i1Profiler on the i1iO table: lamp
+    off -> next dark trigger 1.059 s, recording R12)."""
+    from core import instrument_waits as _iw
+    return "\n\n".join((
+        tr("Before every dark reading, ArgyllCMS waits until the lamp of an "
+           "i1Pro or i1Pro 2 has been off this long. Its code says why: to "
+           "make sure the lamp is dark for the dark measurement. This applies "
+           "to every measurement with these instruments, not only with the "
+           "lights. **This changes how ChromIQ's copy of ArgyllCMS's "
+           "instrument code works** when you move it off the default. The "
+           "commands sent to the instrument stay the same."),
+        tr("**What X-Rite's i1Profiler does:** on an i1iO table it took the "
+           "next dark reading about {vendor} s after the lamp went off "
+           "(recordings of a tester's i1Pro 2).").format(
+               vendor=decimal_text(_iw.RECORDED_LAMP_OFF_S)),
+        tr("**What ChromIQ used before:** {default} s, ArgyllCMS's own value, "
+           "in every version. The default is the same.").format(
+               default=decimal_text(_iw.LAMP_OFF.default_s)),
+        tr("**If the wait is too short, readings can be slightly wrong, and "
+           "you cannot see it.** The dark reading is taken away from every "
+           "patch reading. If the lamp still glows a little, the dark reading "
+           "is too high, and patches can read a little too dark, most of all "
+           "dark colours. ArgyllCMS refuses a dark reading only when it is "
+           "clearly too bright or uneven, so such a reading is usually kept "
+           "without a warning. Nobody has measured yet how much a shorter wait "
+           "changes the values. Change it only to test it, and compare the "
+           "result with a measurement made at the default."),
+        _wait_range_text(_iw.LAMP_OFF),
+    ))
+
+
 def i1pro2_lights_quiet_help() -> str:
     """The (i) of Preferences > Beta > the i1Pro 2's wait after a light
     change (4.3.52). Every sentence is checked against the study of
@@ -9959,13 +10197,12 @@ def i1pro2_lights_quiet_help() -> str:
         tr("With the lights option on, ChromIQ does not let an i1Pro 2 measure "
            "right after its light has changed. It waits this long first. This "
            "applies to every reading and every calibration, with one "
-           "exception: after the blue light of a dual scan, ChromIQ always "
-           "waits {blue} s. That is the shortest wait i1Profiler was recorded "
-           "using after this light. The i1Pro 3 does not wait. **This changes "
+           "exception: after the blue light of a dual scan, ChromIQ waits the "
+           "time set below in “Dual scan, wait after the blue light”. The "
+           "i1Pro 3 does not wait. **This changes "
            "how ChromIQ talks to the instrument:** the wait is in ChromIQ's "
            "copy of ArgyllCMS's instrument code. The commands sent to the "
-           "instrument stay the same.").format(
-               blue=decimal_text(_lq.BLUE_QUIET_MS / 1000.0)),
+           "instrument stay the same."),
         tr("**Why it waits.** A tester's i1Pro 2 lost about two readings in "
            "three when ChromIQ changed its light a few milliseconds before a "
            "reading. Without a light change just before, none was lost. Since "
@@ -10068,9 +10305,9 @@ def i1pro2_lights_help() -> str:
            "direction, as before. If you press the button before the blue "
            "light comes, ChromIQ leaves it out for that strip. Green or red "
            "follows after the second pass. After the blue light, ChromIQ waits "
-           "{blue} s before the second pass can start, whatever wait after a "
-           "light change you set below. This is the shortest wait recorded "
-           "with i1Profiler after the blue light. Press the button, keep the "
+           "the time set below in “Dual scan, wait after the blue light” "
+           "(default {blue} s) before the second pass can start. Press the "
+           "button, keep the "
            "instrument still until it beeps, then slide. **This changes how ChromIQ talks "
            "to the instrument:** for the blue light ChromIQ changed its copy "
            "of ArgyllCMS's instrument code a little. It sends only the blue "

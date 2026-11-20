@@ -111,6 +111,8 @@ PASS_S = float(os.environ.get("CHROMIQ_DUAL_SIM_PASS_S", "0.4"))
 #: the commands the helper holds while the second pass is due (4.3.49)
 #: the driver's CQ_LIGHTS_BLUE_QUIET_MS (core/i1pro2_lights_quiet.py BLUE_QUIET_MS)
 BLUE_QUIET_MS = 370
+#: the helper's CQ_LIGHTS_BLUE_AFTER_MS (4.3.53: --lights-blue-after-ms when the app passes it)
+BLUE_AFTER_MS = 550
 #: ...and its CQ_LIGHTS_QUIET_MS (core/i1pro2_lights_quiet.py DEFAULT_MS); this script
 #: runs on its own, so it holds a copy, pinned by tests/test_lights_quiet_default_is_written_once.py
 QUIET_DEFAULT_MS = 2100
@@ -127,6 +129,23 @@ def main(argv: "list[str]") -> int:
             q = int(argv[argv.index("--lights-quiet-ms") + 1])
             if 0 <= q <= 10000:
                 quiet_ms = q
+        except (ValueError, IndexError):
+            pass
+    # 4.3.53: the blue's own wait as the app passes it (the helper's rule)
+    blue_quiet_ms = BLUE_QUIET_MS
+    if "--lights-blue-quiet-ms" in argv:
+        try:
+            q = int(argv[argv.index("--lights-blue-quiet-ms") + 1])
+            if 0 <= q <= 10000:
+                blue_quiet_ms = q
+        except (ValueError, IndexError):
+            pass
+    blue_after_ms = BLUE_AFTER_MS
+    if "--lights-blue-after-ms" in argv:
+        try:
+            q = int(argv[argv.index("--lights-blue-after-ms") + 1])
+            if 0 <= q <= 5000:
+                blue_after_ms = q
         except (ValueError, IndexError):
             pass
     child = subprocess.Popen([str(REAL), *argv], stdin=subprocess.PIPE,
@@ -186,7 +205,7 @@ def main(argv: "list[str]") -> int:
                     and ev.get("why") == "instrument"):
                 emit({"event": "lights", "active": True, "instrument": "i1pro2",
                       "signals": True, "during_reading": "off", "firmware": 634,
-                      "quiet_ms": quiet_ms, "blue_quiet_ms": BLUE_QUIET_MS})
+                      "quiet_ms": quiet_ms, "blue_quiet_ms": blue_quiet_ms})
                 continue
             if kind == "scan_ready":
                 ready.set()
@@ -324,7 +343,7 @@ def main(argv: "list[str]") -> int:
                 st["blue_due"], st["blue_at"] = token, None
 
                 def _blue(tok=token):
-                    time.sleep(0.55)
+                    time.sleep(blue_after_ms / 1000.0)
                     if st["blue_due"] is tok and st["phase"] == "uv":
                         st["blue_due"] = None
                         st["blue_at"] = time.monotonic()
@@ -342,11 +361,11 @@ def main(argv: "list[str]") -> int:
             elif st["blue_at"] is not None:
                 # the driver's hold (RULE B): after the blue alone it is the
                 # blue's own quiet time, not the user's (fix round, 20b)
-                wait = BLUE_QUIET_MS / 1000.0 - (time.monotonic() - st["blue_at"])
+                wait = blue_quiet_ms / 1000.0 - (time.monotonic() - st["blue_at"])
                 if wait > 0:
                     time.sleep(wait)
                     emit({"event": "lights", "held_ms": int(wait * 1000),
-                          "after": "blue", "quiet_ms": BLUE_QUIET_MS})
+                          "after": "blue", "quiet_ms": blue_quiet_ms})
             st["blue_at"] = None
         emit({"event": "scan_ready"})    # ... the beep, then the slide
         time.sleep(PASS_S)

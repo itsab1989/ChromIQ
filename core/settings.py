@@ -18,6 +18,7 @@ from core.beta_registry import show as _beta_show  # noqa: E402
 #: hides such a value in an older line. ``settings.set`` logs the key only.
 from core.log_privacy import UNLOGGED_SETTING_KEYS as UNLOGGED_VALUE_KEYS  # noqa: E402
 from core.i1pro2_lights_quiet import DEFAULT_S as _LIGHTS_QUIET_DEFAULT_S  # noqa: E402
+from core import instrument_waits as _WAITS  # noqa: E402  (4.3.53)
 
 #: S5 (4.3.50): the app log's per-install salt (``core.log_privacy``)
 LOG_PRIVACY_SALT_KEY = "log_privacy_salt"
@@ -354,6 +355,17 @@ DEFAULTS: dict[str, Any] = {
     #: ChromIQ's driver); 0 to 10. Not 2.1 = --lights-quiet-ms; 2.1 = the
     #: command line stays as it was. The i1Pro 3 has no quiet time.
     "i1pro2_lights_quiet_s":     _LIGHTS_QUIET_DEFAULT_S,   # 2.1, written once
+    #: ...and (4.3.53; the owner, 2026-11-20: "repurpose the one waiting time
+    #: option to all of the waiting times") the other waits around a reading,
+    #: in seconds, each default written once in core/instrument_waits.py: after
+    #: the dual scan's blue light, from a first pass's end to that light, and
+    #: ArgyllCMS's lamp wait before every dark reading of an i1Pro / i1Pro 2
+    #: (not part of the lights). Passed to a helper that names
+    #: "instrument_waits" as --lights-blue-quiet-ms, --lights-blue-after-ms and
+    #: --lamp-off-ms. A tester may set one by a line in the settings file.
+    _WAITS.BLUE_QUIET.key:       _WAITS.BLUE_QUIET.default_s,
+    _WAITS.BLUE_AFTER.key:       _WAITS.BLUE_AFTER.default_s,
+    _WAITS.LAMP_OFF.key:         _WAITS.LAMP_OFF.default_s,
     #: Beta (Settings -> Beta, 2026-11-14): the i1Pro 2 / i1Pro 3 ruler check
     #: (stage 1, CHECK ONLY; workflow/ruler_check.py). With the ChromIQ
     #: chart-reading engine: after each strip the ruler's travel, direction and

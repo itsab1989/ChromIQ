@@ -19,6 +19,12 @@
  * Built a second time against ChromIQ 4.3.51's i1pro.c / i1pro_imp.c /
  * i1pro_imp.h (CQ_V4351, the new entries left out): every life that does not
  * ask for anything new must print exactly the same requests there.
+ * 4.3.53 (tests/test_instrument_waits.py): built a third time against 4.3.52's
+ * driver (CQ_V4352): the 4.3.52 lives and the lamp lives print the same
+ * requests and the same waits there; the lives that pass a wait (the blue's
+ * own, i1pro2_cq_lights_blue_quiet_set_ms, and ArgyllCMS's lamp wait,
+ * i1pro_cq_lamp_off_ms) change only how long a trigger waits. A lamp life
+ * prints "<scn> LAMPGAP <ms since the lamp went off>" before each 0xD4.
  *
  * Lines: "<scn> CTL <req> <hex>", "<scn> WR <ep> <len> <sha-free prefix>",
  * "<scn> RD <ep> <n>", "<scn> GAPMS <ms since the last 0x03 write>" before a
@@ -60,6 +66,8 @@ static int scan_ms = 0;
 static volatile int cancelled = 0;
 static unsigned int last_wr_end = 0;	/* msec_time() of the last 0x03 write */
 static const unsigned char quad[4] = { 0, 1, 3, 2 };
+static i1pro *cur = NULL;		/* the instrument of this life (LAMPGAP) */
+static int show_lamp = 0;		/* print LAMPGAP (the lamp lives only) */
 
 static void hex(const unsigned char *b, int n) {
 	int i;
@@ -73,6 +81,9 @@ static int fake_control(icoms *p, int requesttype, int request, int value,
 	(void)p; (void)value; (void)index; (void)tout;
 	if ((request & 0xff) == 0xD4 && last_wr_end != 0)
 		printf("%s GAPMS %d\n", scn, (int)(msec_time() - last_wr_end));
+	if ((request & 0xff) == 0xD4 && show_lamp && cur != NULL)
+		printf("%s LAMPGAP %d\n", scn,
+		       (int)(msec_time() - ((i1proimp *)cur->m)->llamponoff));
 	printf("%s CTL %02x ", scn, request & 0xff);
 	if ((requesttype & IUSB_ENDPOINT_DIR_MASK) == IUSB_ENDPOINT_OUT)
 		hex(rwbuf, rwsize);
@@ -237,6 +248,7 @@ static i1pro *make(int caps2) {
 	m->data = (struct _i1data *)calloc(1, sizeof(struct _i1data));
 	m->data->get_doubles = fake_get_doubles;
 	m->data->del = fake_data_del;
+	cur = p;
 	return p;
 }
 
@@ -300,6 +312,7 @@ static void close_it(i1pro *p) {
 	free(p);
 	free(ic);
 	del_a1log(lg);
+	cur = NULL;
 	printf("%s END\n", scn);
 	fflush(stdout);
 }
@@ -423,6 +436,33 @@ static void life(const char *name, int lights, int signals, int dual, int wait, 
 	close_it(p);
 }
 
+/* 4.3.53: ArgyllCMS's lamp wait before a dark reading. The lamp went off
+ * (llamponoff = now, as i1pro_readmeasurement records it after a lit
+ * reading), then a dark reading and a lit one. lamp -2: do not set (and in
+ * 4.3.52's driver there is nothing to set), else i1pro_cq_lamp_off_ms. */
+static void lamp_life(const char *name, int lamp) {
+	i1pro *p;
+	scn = name;
+	scan_ms = 0;
+	p = make(I1PRO_CAP2_UV_LED | I1PRO_CAP2_ZEB_RUL | I1PRO_CAP2_IND_LED);
+	i1pro2_cq_lights_quiet_ms_for_test = 150;
+#if !defined(CQ_V4351) && !defined(CQ_V4352)
+	i1pro_cq_lamp_off_ms = lamp == -2 ? -1 : lamp;
+#else
+	(void)lamp;
+#endif
+	show_lamp = 1;
+	step("dark");
+	((i1proimp *)p->m)->llamponoff = msec_time();
+	reading(p, 5, i1p_dark_cal, 5);
+	reading(p, 10, i1p_norm, 40);
+	show_lamp = 0;
+	close_it(p);
+#if !defined(CQ_V4351) && !defined(CQ_V4352)
+	i1pro_cq_lamp_off_ms = -1;
+#endif
+}
+
 int main(int argc, char *argv[]) {
 	(void)argc; (void)argv;
 	i1pro2_cq_dual_noproc_for_test = 1;
@@ -432,6 +472,8 @@ int main(int argc, char *argv[]) {
 	life("same_lights_single", 1, 1, 0, 0, -2);
 	life("same_lights_dual", 1, 1, 1, 0, -2);
 	life("same_ready_dual", 1, 0, 1, 0, -2);
+	/* 4.3.53: the lamp wait as ArgyllCMS has it (nothing passed) */
+	lamp_life("lamp_default", -2);
 #ifndef CQ_V4351
 	/* the blue, and where it is refused */
 	life("blue_sent", 1, 1, 1, 1, -2);
@@ -454,6 +496,24 @@ int main(int argc, char *argv[]) {
 	life("esc_then_next_lamp", 1, 1, 1, 7, 1000);
 	life("user_wait_single", 1, 1, 0, 0, 1000);	/* dual scan off */
 	life("user_wait_ready_dual", 1, 0, 1, 1, 1000);	/* ready light only: no blue */
+#endif
+#if !defined(CQ_V4351) && !defined(CQ_V4352)
+	/* 4.3.53: the waits as values the helper passes. The blue's own wait
+	 * (the user's quiet time left at its 2100 ms default) */
+	i1pro2_cq_lights_blue_quiet_set_ms = 600;
+	life("blue_wait_600", 1, 1, 1, 1, -1);
+	i1pro2_cq_lights_blue_quiet_set_ms = 0;
+	life("blue_wait_0", 1, 1, 1, 1, -1);
+	i1pro2_cq_lights_blue_quiet_set_ms = 99999;	/* out of range: 370 ms */
+	life("blue_wait_bad", 1, 1, 1, 1, -1);
+	i1pro2_cq_lights_blue_quiet_set_ms = 370;	/* passed at the default */
+	life("blue_wait_370", 1, 1, 1, 1, -1);
+	i1pro2_cq_lights_blue_quiet_set_ms = -1;
+	/* ArgyllCMS's lamp wait */
+	lamp_life("lamp_300", 300);
+	lamp_life("lamp_0", 0);
+	lamp_life("lamp_bad", 99999);			/* out of range: 1500 ms */
+	lamp_life("lamp_1500", 1500);			/* passed at the default */
 #endif
 	printf("ALL DONE\n");
 	return 0;

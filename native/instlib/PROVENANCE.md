@@ -94,6 +94,13 @@ stops if one no longer applies.
   after an Esc in the second pass, the next strip's first pass waits the
   quiet time (4.3.52 release, helper 2026-11-20c).
   These changes are listed one by one in `I1PRO_IMP_C_LIGHTS_452`.
+  **Since ChromIQ 4.3.53:** the helper may pass the BLUE's own wait
+  (`--lights-blue-quiet-ms`, into `i1pro2_cq_lights_blue_quiet_set_ms`) and
+  ArgyllCMS's lamp wait before a dark reading (`--lamp-off-ms`, 0 to 5000 ms,
+  into `i1pro_cq_lamp_off_ms`, used by `CQ_LAMP_OFF_TIME` in place of
+  `LAMP_OFF_TIME`, any i1Pro or i1Pro 2). Without them, or out of range,
+  370 ms and ArgyllCMS's own 1500 ms as before. Only how long a trigger
+  waits changes, never a byte; listed in `I1PRO_IMP_C_WAITS_453`.
 - **`i1pro3_imp.c`, `i1pro3_imp.h`, `i1pro3.c`: the same Beta for the
   i1Pro 3** (2026-11-13). Its own request and format (0x29, LE32 length,
   bytes on bulk endpoint 0x02, Argyll's `i1pro3_indLEDseq`). Exactly four
@@ -208,8 +215,8 @@ stops if one no longer applies.
 | `rspl1.c` | `5c7b0509abf97f44…` | `d53a8d37b30b6e14…` |
 | `conv.c` | `c6b04014888cb6f4…` | `1b88327ee6e6d9df…` |
 | `i1pro.c` | `ac75b6e3f47537b8…` | `833d46b27134f93e…` |
-| `i1pro_imp.h` | `c37813e4b43a9bff…` | `eec732424472b201…` |
-| `i1pro_imp.c` | `8b8516cdd89e21de…` | `f9b878f02b21ad66…` |
+| `i1pro_imp.h` | `c37813e4b43a9bff…` | `fd3ee6abc9cb0114…` |
+| `i1pro_imp.c` | `8b8516cdd89e21de…` | `3e2d7fd769eb1e0c…` |
 | `i1pro3.c` | `9c4b1ac9f8af507a…` | `347235c6d10f9677…` |
 | `i1pro3_imp.h` | `190cceb46fe8bc33…` | `ef7245eb1a92eb5e…` |
 | `i1pro3_imp.c` | `42c684afa3bbb15d…` | `d78f1a6596886bf6…` |
