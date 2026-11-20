@@ -511,7 +511,12 @@ STOP_REASONS = ("stopped_before_the_next_move", "stopped_between_patches",
 
 #: the choices the window offers (the job's ``CHOICES``, in the order shown; "skip" at the free
 #: arm is not offered: every answer but "free" ends the alignment the same way)
-SHOWN_CHOICES = {"arm_felt": ("free", "holds", "not sure")}
+SHOWN_CHOICES = {"arm_felt": ("free", "holds", "not sure"),
+                 # 4.3.51 (review of 4.3.50): the page explains "Go forward carefully, my hands
+                 # are away" first, and the app shows a page's confirming answer first (its
+                 # dialogs use the Windows button order on every platform, main.py; the table's
+                 # pop-ups place it by role, first): so does the panel now, on this page
+                 "front_choice": ("go on", "back")}
 
 
 def step_done_text(step: str, detail: dict, page: "int | None" = None,
