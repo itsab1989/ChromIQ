@@ -30,6 +30,13 @@ RECORDED_HAND_MIN_S = 0.37
 RECORDED_HAND_TYPICAL_S = 0.46
 RECORDED_CALIBRATION_S = 0.01
 
+#: 4.3.52 fix round: after the dual scan's blue alone (it went out and nothing
+#: was written after it) the driver waits this long, whatever the setting:
+#: i1Profiler's shortest recorded gap after that very program (0.372 s, 15 of
+#: 15 readings came). native/instlib/i1pro_imp.c CQ_LIGHTS_BLUE_QUIET_MS holds
+#: the same number (tests/test_i1pro2_dual_blue_and_quiet_time.py).
+BLUE_QUIET_MS = 370
+
 
 def to_ms(value) -> int:
     """The setting as the helper's whole milliseconds; anything that is not a

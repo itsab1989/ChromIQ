@@ -1547,6 +1547,9 @@ extern void (*i1pro2_cq_lights_held)(int ms);	/* a trigger waited for the quiet 
 extern int i1pro2_cq_lights_quiet_ms_for_test;	/* fake-USB tests only; 0 = 2100 ms */
 extern int i1pro2_cq_lights_quiet_ms;	/* the user's quiet time, ms (4.3.52); -1 = 2100 ms */
 int i1pro2_cq_lights_second_pass(void *pp);	/* dual scan: the blue before the return pass (4.3.52); 1 = sent */
+extern const int i1pro2_cq_lights_quiet_default_ms;	/* CQ_LIGHTS_QUIET_MS (4.3.52) */
+extern const int i1pro2_cq_lights_blue_quiet_ms;	/* the BLUE's own quiet time (4.3.52) */
+extern int i1pro2_cq_lights_held_after_blue;	/* the last hold counted from the BLUE (4.3.52) */
 extern void (*i1pro2_cq_lights_hold_poll)(void);	/* asked during a hold (4.3.37) */
 
 #ifdef __cplusplus

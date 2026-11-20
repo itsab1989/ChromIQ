@@ -12461,7 +12461,9 @@ i1pro2_indLEDoff(void *pp) {
  *                its button press (4.3.52, ..._second_pass), as recorded;
  *   every trigger waits until CQ_LIGHTS_QUIET_MS (or the user's quiet time,
  *                4.3.52) after the END of the last light write (RULE B): a
- *                plain wait, no byte is added.
+ *                plain wait, no byte is added. After the BLUE alone the wait
+ *                is CQ_LIGHTS_BLUE_QUIET_MS (4.3.52 fix round), i1Profiler's
+ *                shortest recorded gap after that very program.
  * left_on has no effect on the i1Pro 2 since 4.3.37 (nothing is sent around
  * a reading with either choice); it is kept for the helper's report.
  *
@@ -12516,6 +12518,15 @@ i1pro2_indLEDoff(void *pp) {
  * set; since 4.3.52 the user may choose another (i1pro2_cq_lights_quiet_ms). */
 #define CQ_LIGHTS_QUIET_MS   2100
 #define CQ_LIGHTS_QUIET_MAX_MS 10000	/* the largest the helper accepts */
+/* 4.3.52 fix round: RULE B's wait when the last light write was the BLUE of a
+ * dual scan (it went out, and nothing was written after it), whatever the
+ * user's quiet time. i1Profiler 3.8.6 on the same tester's i1Pro 2 triggered
+ * the return pass 0.372-1.389 s after this very program, 15 of 15, with the
+ * button read pending as here; every reading came. The vendor does it every
+ * time, so ChromIQ does too, never closer than the vendor's shortest gap.
+ * The incident's losses came with a write 1-14 ms before the trigger; 370 ms
+ * is far from that, but no ChromIQ driver run has measured it (no hardware). */
+#define CQ_LIGHTS_BLUE_QUIET_MS 370
 /* PULSE, GREEN2 and RED2 were recorded on an i1Pro 2 with firmware 634 (as
  * was every other i1Pro 2 recording). They go to any i1Pro 2 this block
  * accepts, exactly as 4.3.33's three sequences do: Argyll's light code has
@@ -12577,6 +12588,13 @@ int i1pro2_cq_lights_quiet_ms_for_test = 0;
  * set one, = CQ_LIGHTS_QUIET_MS. It changes how long a trigger waits, never
  * what is sent. */
 int i1pro2_cq_lights_quiet_ms = -1;
+
+/* 4.3.52 fix round, read by ChromIQ's helper for its log lines, so that each
+ * number is written in ONE place (here): the default quiet time, the BLUE's
+ * own, and whether the last hold counted from the BLUE (1) or not (0). */
+const int i1pro2_cq_lights_quiet_default_ms = CQ_LIGHTS_QUIET_MS;
+const int i1pro2_cq_lights_blue_quiet_ms = CQ_LIGHTS_BLUE_QUIET_MS;
+int i1pro2_cq_lights_held_after_blue = 0;
 
 /* Set by ChromIQ's helper: asked every few ms while a trigger is held for the
  * quiet time, so a request to switch the lights off and end (Stop, quitting
@@ -12680,20 +12698,39 @@ static int cq_lights_ready_prog(i1proimp *m) {
 	return CQ_LIGHTS_PULSE;
 }
 
+/* The last light write was the BLUE, it went out, and nothing came after it
+ * (any later write changes cq_lights_prog, a failed one ends the lights). */
+static int cq_lights_last_was_blue(i1proimp *m) {
+	return m->cq_lights == CQ_LIGHTS_LIT && m->cq_lights_prog == CQ_LIGHTS_BLUE;
+}
+
+/* The quiet time for the trigger now: the tests' own, else the BLUE's own
+ * (4.3.52 fix round), else the user's (0 to CQ_LIGHTS_QUIET_MAX_MS), else
+ * CQ_LIGHTS_QUIET_MS. */
+static int cq_lights_quiet_now(i1proimp *m) {
+	if (i1pro2_cq_lights_quiet_ms_for_test > 0)
+		return i1pro2_cq_lights_quiet_ms_for_test;
+	if (cq_lights_last_was_blue(m))
+		return CQ_LIGHTS_BLUE_QUIET_MS;
+	if (i1pro2_cq_lights_quiet_ms >= 0 && i1pro2_cq_lights_quiet_ms <= CQ_LIGHTS_QUIET_MAX_MS)
+		return i1pro2_cq_lights_quiet_ms;
+	return CQ_LIGHTS_QUIET_MS;
+}
+
 /* RULE B (4.3.37): hold the trigger until the quiet time after the end of the
  * last light write has passed. A plain wait; nothing is sent. */
 static void cq_lights_quiet(i1proimp *m) {
-	int quiet = i1pro2_cq_lights_quiet_ms_for_test > 0
-	          ? i1pro2_cq_lights_quiet_ms_for_test
-	          : (i1pro2_cq_lights_quiet_ms >= 0 && i1pro2_cq_lights_quiet_ms <= CQ_LIGHTS_QUIET_MAX_MS)
-	          ? i1pro2_cq_lights_quiet_ms : CQ_LIGHTS_QUIET_MS;
+	int quiet;
 	int since, waited = 0;
 	unsigned int t0 = msec_time();
 	for (;;) {
 		if (m->cq_lights_end_ms == 0)
 			break;
 		/* again every time: a request carried out below (an off) is a
-		 * light write of its own, and the quiet time counts from it */
+		 * light write of its own, and the quiet time counts from it (and
+		 * after an off it is no longer the BLUE's) */
+		quiet = cq_lights_quiet_now(m);
+		i1pro2_cq_lights_held_after_blue = cq_lights_last_was_blue(m);
 		since = (int)(msec_time() - m->cq_lights_end_ms);
 		if (since < 0)
 			since = 0;		/* never skip the wait on a clock oddity */
@@ -12828,7 +12865,7 @@ void i1pro2_cq_lights_result(void *pp, int good) {
  *  - inside that reading's wait (cq_lights_reading), no trigger pending, and
  *    the button not pressed yet (RULE A: nothing between the press and the
  *    data). A press during the transfer is caught by RULE B: the trigger
- *    then waits for the quiet time, as after every light write;
+ *    then waits for the BLUE's own quiet time (CQ_LIGHTS_BLUE_QUIET_MS);
  *  - the blue is not already showing: once per return pass, as recorded.
  * Returns 1 when the blue went out. */
 #include "cq_dual.h"

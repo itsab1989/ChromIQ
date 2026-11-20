@@ -18,6 +18,9 @@ nothing new:
   signals, outside the return pass's wait, in a single scan, once the button
   was pressed, and a second time in one wait;
 * the user's quiet time changes only how long the next trigger waits;
+* after the blue alone the next trigger waits the blue's own 370 ms
+  (i1Profiler's shortest recorded gap after that program, fix round), and any
+  later write gives the user's quiet time back;
 * everything else on the wire is 4.3.51's, byte for byte.
 
 And the helper's and the app's side: the 550 ms, the skip, the flag, the
@@ -163,19 +166,61 @@ def test_once_per_return_pass_and_never_after_its_wait(traces):
         ["SECOND-PASS 1", "SECOND-PASS 0", "SECOND-PASS 0"]
 
 
-def _return_gap(t: str, scn: str) -> int:
+def _gap_after(t: str, scn: str, step: str) -> int:
+    """The gap before the first trigger after STEP *step*."""
     lines = _lines(t, scn)
-    k = lines.index("STEP return-pass")
+    k = lines.index("STEP " + step)
     return int(next(ln for ln in lines[k:] if ln.startswith("GAPMS")).split()[1])
 
 
+def _return_gap(t: str, scn: str) -> int:
+    return _gap_after(t, scn, "return-pass")
+
+
+def _held(t: str, scn: str) -> "list[tuple[int, int]]":
+    return [(int(a), int(b)) for a, b in
+            (ln.split()[1:3] for ln in _lines(t, scn) if ln.startswith("HELD "))]
+
+
 def test_the_quiet_time_changes_the_wait_and_never_a_byte(traces):
+    """The lamp pass's first trigger comes after the open's light write: it
+    waits the user's quiet time (none, 400 ms, out of range = 2100 ms)."""
     t = traces["i1pro2_dual_lights_test"]
-    for scn in ("quiet_0", "quiet_400", "quiet_bad"):
+    for scn in ("quiet_0", "quiet_400", "quiet_bad", "quiet_default"):
         assert _wire(t, scn) == _wire(t, "blue_sent"), scn
-    assert _return_gap(t, "quiet_0") < 150           # no wait at all
-    assert 400 <= _return_gap(t, "quiet_400") < 1500
-    assert _return_gap(t, "quiet_bad") >= 2100       # out of range: 4.3.37's 2100 ms
+    assert _gap_after(t, "quiet_0", "lamp-pass") < 150           # no wait at all
+    assert 400 <= _gap_after(t, "quiet_400", "lamp-pass") < 1500
+    assert _gap_after(t, "quiet_bad", "lamp-pass") >= 2100       # out of range: 4.3.37's 2100 ms
+    assert _gap_after(t, "quiet_default", "lamp-pass") >= 2100   # never set: 2100 ms
+
+
+@pytest.mark.parametrize("scn", ["quiet_0", "quiet_400", "quiet_bad", "quiet_default"])
+def test_after_the_blue_the_wait_is_the_blues_own_370_ms(traces, scn):
+    """4.3.52 fix round: i1Profiler triggered the return pass 0.37-1.39 s after
+    the blue (15 of 15). After the blue alone ChromIQ waits 370 ms, whatever
+    the user's quiet time: never closer (quiet 0), never the default 2.1 s."""
+    t = traces["i1pro2_dual_lights_test"]
+    gap = _return_gap(t, scn)
+    assert 370 <= gap < 1500, gap                  # < 2100: not the default; >= 370: the floor
+    # the hold before the return pass is said as "after the blue"; every other
+    # hold is not
+    holds = _held(t, scn)
+    assert [b for _ms, b in holds].count(1) == 1, holds
+    lines = _lines(t, scn)
+    k = lines.index("STEP return-pass")
+    assert next(ln for ln in lines[k:] if ln.startswith("HELD ")).endswith(" 1")
+
+
+def test_a_write_after_the_blue_gives_the_users_quiet_time_back(traces):
+    """The blue showing, the return pass left, a calibration: it starts dark
+    (OFF_SLOW, as always) and the wait after that write is the user's
+    (1000 ms here), not the blue's 370."""
+    t = traces["i1pro2_dual_lights_test"]
+    wire = _wire(t, "blue_then_calibration")
+    (b,) = _blue_writes(wire)
+    assert wire[b + 1:b + 3] == ["CTL d6 00000012", "WR 03 18 000000010000000a00000002003640000001"]
+    assert _gap_after(t, "blue_then_calibration", "calibration") >= 1000
+    assert [a for _ms, a in _held(t, "blue_then_calibration")] == [0, 0]
 
 
 # ---------------------------------------------------------------------------
@@ -194,11 +239,34 @@ def test_the_default_quiet_time_is_still_2100_ms():
     t = _driver()
     assert "#define CQ_LIGHTS_QUIET_MS   2100" in t
     assert "int i1pro2_cq_lights_quiet_ms = -1;" in t
-    q = _body(t, "static void cq_lights_quiet(i1proimp *m) {")
+    q = _body(t, "static int cq_lights_quiet_now(i1proimp *m) {")
     assert ("(i1pro2_cq_lights_quiet_ms >= 0 && i1pro2_cq_lights_quiet_ms <= CQ_LIGHTS_QUIET_MAX_MS)"
             in q)
-    assert "CQ_LIGHTS_QUIET_MS;" in q
+    assert q.rstrip().endswith("return CQ_LIGHTS_QUIET_MS;")
     assert "#define CQ_LIGHTS_QUIET_MAX_MS 10000" in t
+    # asked again at every turn of the hold: an off carried out during it ends
+    # the blue's own quiet time
+    loop = _body(t, "static void cq_lights_quiet(i1proimp *m) {")
+    assert loop.index("for (;;) {") < loop.index("quiet = cq_lights_quiet_now(m);")
+
+
+def test_the_blues_own_quiet_time_is_the_vendors_shortest_gap():
+    """One number, in the driver; the app's help quotes the same recorded value."""
+    from core import i1pro2_lights_quiet as lq
+    t = _driver()
+    assert "#define CQ_LIGHTS_BLUE_QUIET_MS 370\n" in t
+    assert round(lq.RECORDED_HAND_MIN_S * 1000) == 370 == lq.BLUE_QUIET_MS
+    q = _body(t, "static int cq_lights_quiet_now(i1proimp *m) {")
+    # the tests' own first, then the blue's, then the user's
+    assert (q.index("i1pro2_cq_lights_quiet_ms_for_test > 0")
+            < q.index("if (cq_lights_last_was_blue(m))")
+            < q.index("return CQ_LIGHTS_BLUE_QUIET_MS;")
+            < q.index("i1pro2_cq_lights_quiet_ms >= 0"))
+    blue = _body(t, "static int cq_lights_last_was_blue(i1proimp *m) {")
+    assert "m->cq_lights == CQ_LIGHTS_LIT && m->cq_lights_prog == CQ_LIGHTS_BLUE" in blue
+    # and the simulator holds the same number
+    sim = (ROOT / "tests" / "helpers" / "dual_sim_helper.py").read_text(encoding="utf-8")
+    assert "\nBLUE_QUIET_MS = 370\n" in sim
 
 
 def test_the_blue_entry_checks_everything_before_it_sends():
@@ -272,8 +340,19 @@ def test_the_helper_names_the_new_abilities_and_build():
     h = _helper()
     assert '\\"lights_quiet\\",\\"i1pro2_dual_blue\\"' in h
     ext = (HELPER_SRC / "chromiq_ext.h").read_text(encoding="utf-8")
-    assert '"chromiq-chartread 2026-11-20a ' in ext
-    assert "+conditions-kept+lights-quiet+i1pro2-dual-blue\"" in ext
+    assert '"chromiq-chartread 2026-11-20b ' in ext
+    assert "+conditions-kept+lights-quiet+i1pro2-dual-blue+blue-own-quiet\"" in ext
+
+
+def test_the_helper_says_a_hold_after_the_blue_and_both_numbers_from_the_driver():
+    h = _helper()
+    held = _body(h, "static void cq_lights_held2(int ms) {")
+    assert "if (i1pro2_cq_lights_held_after_blue)" in held
+    assert '\\"after\\":\\"blue\\"' in held and "i1pro2_cq_lights_blue_quiet_ms" in held
+    s = h[h.index('"\\"during_reading\\":\\"%s\\",\\"firmware\\":%d,\\"quiet_ms\\":%d,"'):]
+    s = s[:s.index("else")]
+    assert "i1pro2_cq_lights_quiet_default_ms" in s and "i1pro2_cq_lights_blue_quiet_ms" in s
+    assert "2100" not in s
 
 
 def test_the_bundled_helper_is_this_build():
@@ -281,8 +360,9 @@ def test_the_bundled_helper_is_this_build():
     if not exe.is_file():
         pytest.skip("no bundled helper in this checkout")
     data = exe.read_bytes()
-    assert b"chromiq-chartread 2026-11-20a " in data
+    assert b"chromiq-chartread 2026-11-20b " in data
     assert b'"why\\":\\"early\\"' in data or b'"why":"early"' in data
+    assert b"blue_quiet_ms" in data and b'"after":"blue"' in data
 
 
 # ---------------------------------------------------------------------------
@@ -404,6 +484,24 @@ def test_a_skipped_blue_goes_to_the_app_log_only(qapp, caplog):
     assert out == []
     assert any("second_pass=skipped" in r.getMessage() and "why=early" in r.getMessage()
                for r in caplog.records)
+
+
+def test_a_hold_after_the_blue_goes_to_the_app_log_only(qapp, caplog):
+    """Fix round: the return pass's hold after the blue is the blue's own
+    370 ms, not the user's quiet time: the once-per-session Measure-log line
+    (which names the user's wait) is kept for a real hold."""
+    from workflow.measure_manager import MeasureManager
+    m = MeasureManager(_Runner())
+    m._lights_quiet_ms, m._lights_held_said, m._lights_option = 2100, False, True
+    out = []
+    with caplog.at_level("INFO"):
+        m._on_lights_event({"event": "lights", "held_ms": 250, "after": "blue",
+                            "quiet_ms": 370}, out.append)
+    assert out == [] and m._lights_held_said is False
+    assert any("lights: held_ms=250 after=blue quiet_ms=370" in r.getMessage()
+               for r in caplog.records)
+    m._on_lights_event({"event": "lights", "held_ms": 1500}, out.append)
+    assert len(out) == 1 and "about two seconds" in out[0]
 
 
 def test_the_wait_is_said_with_the_users_value(qapp):

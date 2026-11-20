@@ -11,14 +11,19 @@
  *    signals, outside the return pass's wait, in the lamp pass, once the
  *    button was pressed, in a single scan, and a second time in one wait;
  *  - the user's quiet time (i1pro2_cq_lights_quiet_ms) changes how long the
- *    next trigger waits after a light write, never a byte.
+ *    next trigger waits after a light write, never a byte;
+ *  - after the blue alone the next trigger waits the blue's own 370 ms
+ *    (CQ_LIGHTS_BLUE_QUIET_MS, 4.3.52 fix round), whatever the user's quiet
+ *    time, and after any later write (the OFF_SLOW before a calibration) the
+ *    user's quiet time again.
  * Built a second time against ChromIQ 4.3.51's i1pro.c / i1pro_imp.c /
  * i1pro_imp.h (CQ_V4351, the new entries left out): every life that does not
  * ask for anything new must print exactly the same requests there.
  *
  * Lines: "<scn> CTL <req> <hex>", "<scn> WR <ep> <len> <sha-free prefix>",
  * "<scn> RD <ep> <n>", "<scn> GAPMS <ms since the last 0x03 write>" before a
- * 0xD4, "<scn> STEP <what>", "<scn> SECOND-PASS <0|1>".
+ * 0xD4, "<scn> STEP <what>", "<scn> SECOND-PASS <0|1>", and (not in the
+ * lives that must match 4.3.51) "<scn> HELD <ms> <after_blue>" for each hold.
  * AGPL-3.0 like the rest of the helper (see ../../instlib/License.txt). */
 
 #ifdef SALONEINSTLIB
@@ -278,6 +283,13 @@ static void press(i1pro *p) {	/* the instrument's button (the switch thread coun
 	((i1proimp *)p->m)->switch_count++;
 }
 
+#ifndef CQ_V4351
+static void held(int ms) {	/* the helper's i1pro2_cq_lights_held */
+	printf("%s HELD %d %d\n", scn, ms, i1pro2_cq_lights_held_after_blue);
+	fflush(stdout);
+}
+#endif
+
 static void close_it(i1pro *p) {
 	icoms *ic = p->icom;
 	a1log *lg = p->log;
@@ -299,7 +311,9 @@ static void close_it(i1pro *p) {
  *   signals  the lights' result signals
  *   dual     the dual scan on (else a single scan: no return pass)
  *   wait     0 nothing, 1 the blue, 2 the button first then the blue,
- *            3 the blue twice, 4 the blue asked in the LAMP pass's wait
+ *            3 the blue twice, 4 the blue asked in the LAMP pass's wait,
+ *            5 the blue, then the return pass is left unread and a
+ *            calibration follows (its OFF_SLOW is the last write)
  *   quiet    -2 do not set, else i1pro2_cq_lights_quiet_ms */
 static void life(const char *name, int lights, int signals, int dual, int wait, int quiet) {
 	i1pro *p;
@@ -312,6 +326,7 @@ static void life(const char *name, int lights, int signals, int dual, int wait, 
 	i1pro2_cq_lights_quiet_ms_for_test = quiet == -2 ? 150 : 0;
 #ifndef CQ_V4351
 	i1pro2_cq_lights_quiet_ms = quiet == -2 ? -1 : quiet;
+	i1pro2_cq_lights_held = strncmp(name, "same_", 5) == 0 ? NULL : held;
 #else
 	(void)quiet;
 #endif
@@ -339,10 +354,21 @@ static void life(const char *name, int lights, int signals, int dual, int wait, 
 		pass_begin(p);
 		if (wait == 2)
 			press(p);
-		if (wait == 1 || wait == 2 || wait == 3)
+		if (wait == 1 || wait == 2 || wait == 3 || wait == 5)
 			second_pass(p);
 		if (wait == 3)
 			second_pass(p);
+		if (wait == 5) {
+			/* the return pass is left (Esc) with the blue showing, then a
+			 * calibration: it starts dark (OFF_SLOW), and the quiet time
+			 * after that write is the user's again, not the blue's */
+			pass_end(p);
+			i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_OFF);
+			step("calibration");
+			reading(p, 5, i1p_dark_cal, 5);
+			close_it(p);
+			return;
+		}
 		if (wait != 2)
 			press(p);
 		step("return-pass");
@@ -401,6 +427,9 @@ int main(int argc, char *argv[]) {
 	life("quiet_0", 1, 1, 1, 1, 0);
 	life("quiet_400", 1, 1, 1, 1, 400);
 	life("quiet_bad", 1, 1, 1, 1, 99999);	/* out of range: the 2100 ms default */
+	/* 4.3.52 fix round: the blue's own quiet time */
+	life("quiet_default", 1, 1, 1, 1, -1);	/* the user never set one: 2100 ms, the blue 370 */
+	life("blue_then_calibration", 1, 1, 1, 5, 1000);
 #endif
 	printf("ALL DONE\n");
 	return 0;

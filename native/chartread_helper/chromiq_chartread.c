@@ -2640,7 +2640,13 @@ static void cq_lights_second_pass_over(void) {
 /* The i1Pro 2's driver held a trigger for the quiet time after a light write
  * (RULE B, 4.3.37): one event per hold; ChromIQ says it once per session. */
 static void cq_lights_held2(int ms) {
-	cq_emit_raw("{\"event\":\"lights\",\"held_ms\":%d}", ms);
+	/* 4.3.52 fix round: a hold after the dual scan's blue counts from the
+	 * blue's own quiet time (i1pro2_cq_lights_blue_quiet_ms), not the user's */
+	if (i1pro2_cq_lights_held_after_blue)
+		cq_emit_raw("{\"event\":\"lights\",\"held_ms\":%d,\"after\":\"blue\","
+		            "\"quiet_ms\":%d}", ms, i1pro2_cq_lights_blue_quiet_ms);
+	else
+		cq_emit_raw("{\"event\":\"lights\",\"held_ms\":%d}", ms);
 }
 
 /* A sequence the i1Pro 2's driver sent: one line for ChromIQ's log. */
@@ -2827,15 +2833,20 @@ static void cq_lights_for_session(inst *it, int rmode, int emis, int trans,
 	if (why == NULL)
 		cq_emit_raw("{\"event\":\"lights\",\"active\":true,"
 		            "\"instrument\":\"%s\",\"signals\":%s,"
-		            "\"during_reading\":\"%s\",\"firmware\":%d,\"quiet_ms\":%d}",
+		            "\"during_reading\":\"%s\",\"firmware\":%d,\"quiet_ms\":%d,"
+		            "\"blue_quiet_ms\":%d}",
 		            cq_lights_gen == 3 ? "i1pro3" : "i1pro2",
 		            choices & 1 ? "true" : "false",
 		            choices & 2 ? "on" : "off",
 		            cq_lights_gen == 3 ? i1pro3_cq_lights_firmware(it)
 		                               : i1pro2_cq_lights_firmware(it),
-		            /* 4.3.52: the quiet time in use (-1: none, an i1Pro 3) */
+		            /* 4.3.52: the quiet time in use (-1: none, an i1Pro 3), and
+		             * the dual scan's blue's own (fix round); both numbers are
+		             * the driver's, written there once */
 		            cq_lights_gen == 3 ? -1
-		            : cq_lights_quiet_ms >= 0 ? cq_lights_quiet_ms : 2100);
+		            : cq_lights_quiet_ms >= 0 ? cq_lights_quiet_ms
+		            : i1pro2_cq_lights_quiet_default_ms,
+		            cq_lights_gen == 3 ? -1 : i1pro2_cq_lights_blue_quiet_ms);
 	else
 		cq_emit_raw("{\"event\":\"lights\",\"active\":false,\"why\":\"%s\"}",
 		            why);

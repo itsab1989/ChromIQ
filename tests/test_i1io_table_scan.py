@@ -254,12 +254,14 @@ def test_the_build_string():
     # 2026-11-19d = 19c + the record of the other conditions kept after an end, partial
     # files, Continue completes them (4.3.49; nothing for the table);
     # 2026-11-20a = 19d + the i1Pro 2 lights' quiet time set by the user and the dual
-    # scan's blue before the return pass (4.3.52, lights Beta; nothing for the table), last
-    assert "chromiq-chartread 2026-11-20a " in h
+    # scan's blue before the return pass (4.3.52, lights Beta; nothing for the table);
+    # 2026-11-20b = 20a + the blue's own quiet time (4.3.52 fix round; nothing for the
+    # table), last
+    assert "chromiq-chartread 2026-11-20b " in h
     assert ("+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule"
             "+i1pro2-dual-device+i1pro2-dual-safety+i1io-table-dual+i1io-table-dual-fix2"
             "+i1io-table-dual-calreset+i1pro2-dual-gaps+conditions-kept+lights-quiet"
-            "+i1pro2-dual-blue\"") in h
+            "+i1pro2-dual-blue+blue-own-quiet\"") in h
 
 
 def _base_tree(tmp: Path) -> Path:

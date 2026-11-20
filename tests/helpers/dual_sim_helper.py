@@ -62,7 +62,7 @@ later Continue Measurement takes them back (``"partial": true``) and reads
 with both passes again; reading an M0-only strip again with both passes
 completes it.
 
-THE LIGHTS (4.3.52, helper 2026-11-20a). With ``--i1pro2-lights`` and
+THE LIGHTS (4.3.52, helper 2026-11-20b). With ``--i1pro2-lights`` and
 ``--lights-signals`` the real helper's lights run only on a real i1Pro 2 (its
 replay says ``"active": false, "why": "instrument"``). The simulation then
 says what the real helper says on an i1Pro 2 (chromiq_chartread.c
@@ -72,8 +72,10 @@ line (Q from ``--lights-quiet-ms``, else 2100); ``{"event":"lights","sent":
 "blue"}`` 0.55 s after a strip's first pass (CQ_LIGHTS_BLUE_AFTER_MS) unless
 the second swipe came first, which gives ``{"event":"lights","second_pass":
 "skipped","why":"early"}``; at the second swipe after a blue, the driver's
-hold until Q after the blue (``{"event":"lights","held_ms":n}``, between the
-button and the beep); and ``"sent": "green2"`` / ``"red2"`` after the strip.
+hold until the BLUE's own 370 ms after the blue, whatever Q (CQ_LIGHTS_BLUE_
+QUIET_MS, helper 2026-11-20b: ``{"event":"lights","held_ms":n,"after":"blue",
+"quiet_ms":370}``, between the button and the beep); and ``"sent": "green2"`` /
+``"red2"`` after the strip.
 
 LIMITS (said, not hidden): without that suffix the replay instrument
 computes M1 / M2 for every strip it reads, so after ``needs_ruler`` the files
@@ -105,6 +107,8 @@ M0_SUFFIX = os.environ.get("CHROMIQ_DUAL_SIM_M0_SUFFIX", "")
 #: the person moving the instrument back over the strip
 PASS_S = float(os.environ.get("CHROMIQ_DUAL_SIM_PASS_S", "0.4"))
 #: the commands the helper holds while the second pass is due (4.3.49)
+#: the driver's CQ_LIGHTS_BLUE_QUIET_MS (core/i1pro2_lights_quiet.py BLUE_QUIET_MS)
+BLUE_QUIET_MS = 370
 HELD = ("goto", "forward", "back", "next_unread", "file_as", "turn")
 
 
@@ -177,7 +181,7 @@ def main(argv: "list[str]") -> int:
                     and ev.get("why") == "instrument"):
                 emit({"event": "lights", "active": True, "instrument": "i1pro2",
                       "signals": True, "during_reading": "off", "firmware": 634,
-                      "quiet_ms": quiet_ms})
+                      "quiet_ms": quiet_ms, "blue_quiet_ms": BLUE_QUIET_MS})
                 continue
             if kind == "scan_ready":
                 ready.set()
@@ -331,10 +335,13 @@ def main(argv: "list[str]") -> int:
                 st["blue_due"] = None
                 emit({"event": "lights", "second_pass": "skipped", "why": "early"})
             elif st["blue_at"] is not None:
-                wait = quiet_ms / 1000.0 - (time.monotonic() - st["blue_at"])
-                if wait > 0:             # the driver's hold (RULE B)
+                # the driver's hold (RULE B): after the blue alone it is the
+                # blue's own quiet time, not the user's (fix round, 20b)
+                wait = BLUE_QUIET_MS / 1000.0 - (time.monotonic() - st["blue_at"])
+                if wait > 0:
                     time.sleep(wait)
-                    emit({"event": "lights", "held_ms": int(wait * 1000)})
+                    emit({"event": "lights", "held_ms": int(wait * 1000),
+                          "after": "blue", "quiet_ms": BLUE_QUIET_MS})
             st["blue_at"] = None
         emit({"event": "scan_ready"})    # ... the beep, then the slide
         time.sleep(PASS_S)

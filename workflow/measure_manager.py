@@ -3993,6 +3993,18 @@ class MeasureManager(QObject):
         light request failed or the lights were switched off. Only ever seen
         when the option is on (the helper is started with --i1pro2-lights)."""
         from core import i1pro2_lights_marker as _marker
+        if "held_ms" in ev and ev.get("after") == "blue":
+            # 4.3.52 fix round: the return pass of a dual scan waited the
+            # blue's own quiet time (at most 0.37 s, i1Profiler's shortest
+            # recorded gap after the blue), not the user's. App log only: it
+            # is shorter than any beep delay the Measure log explains.
+            from core.app_log import line as _applog
+            _applog("lights", held_ms=ev.get("held_ms"), after="blue",
+                    quiet_ms=ev.get("quiet_ms"))
+            log.info("i1Pro 2 lights: the second pass waited %s ms after the "
+                     "blue (its own quiet time %s ms)", ev.get("held_ms"),
+                     ev.get("quiet_ms"))
+            return
         if "held_ms" in ev:
             # 4.3.37 (RULE B): a trigger waited until the quiet time after a
             # light write had passed. Every one in the app log; once in the
@@ -4132,7 +4144,9 @@ class MeasureManager(QObject):
                     qms = LIGHTS_QUIET_DEFAULT_MS
                 from core.app_log import line as _applog
                 _applog("lights", instrument="i1pro2", quiet_ms=qms,
-                        quiet_default=qms == LIGHTS_QUIET_DEFAULT_MS)
+                        quiet_default=qms == LIGHTS_QUIET_DEFAULT_MS,
+                        # fix round: after the dual scan's blue (helper 20b)
+                        blue_quiet_ms=ev.get("blue_quiet_ms"))
             signals = bool(ev.get("signals"))
             left_on = str(ev.get("during_reading") or "off") == "on"
             try:
