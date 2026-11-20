@@ -86,7 +86,10 @@ def test_the_hand_path_never_uses_the_stored_values():
             text = p.read_text(encoding="utf-8", errors="ignore")
             if W.STORED_WHITE_KEY in text or "white_scale" in text:
                 hits.append(p.relative_to(ROOT).as_posix())
-    allowed = {"core/settings.py", "ui/i1io_table_window.py", "ui/dialogs/settings_dialog.py"}
+    # core/beta_registry.py (4.3.50, A1): the app log's session header NAMES the option's
+    # state; it reads it for the log only and scales nothing
+    allowed = {"core/settings.py", "ui/i1io_table_window.py", "ui/dialogs/settings_dialog.py",
+               "core/beta_registry.py"}
     assert {h for h in hits if not h.startswith("workflow/i1io/table/")} <= allowed, hits
 
 
