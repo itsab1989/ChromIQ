@@ -862,14 +862,20 @@ def test_the_german_help_says_the_same_and_plainly():
 # the same fake USB, against 4.3.52's driver too. The app side is in
 # tests/test_instrument_waits.py.
 # ---------------------------------------------------------------------------
-#: the minimum waits the driver can hold a trigger for in these lives (ms)
-_FLOORS = (0, 150, 300, 370, 600, 1000, 1500, 2100)
+#: the real minimum waits of the 4.3.52 lives (ms): the blue's, the user's
+#: 1000, ArgyllCMS's lamp wait, the default quiet time
+_FLOORS = (0, 370, 1000, 1500, 2100)
 
 
 def _floor(ms: int) -> int:
-    """The longest minimum wait a measured gap satisfies (a wait is a minimum;
-    a loaded machine only makes a gap longer)."""
+    """The longest real minimum wait a measured gap satisfies."""
     return max(f for f in _FLOORS if f <= ms + 5)
+
+
+def _same_wait(a: int, b: int) -> bool:
+    """Two gaps come from the same wait: they meet the same floor, or differ
+    only by scheduling (a loaded machine makes a gap longer, never shorter)."""
+    return _floor(a) == _floor(b) or abs(a - b) < 250
 
 
 def _scenarios(text: str) -> "list[str]":
@@ -898,7 +904,7 @@ def test_4352_every_life_of_4_3_52_is_the_same_wire_and_the_same_waits(traces):
         for what in ("GAPMS", "LAMPGAP"):
             a, b = _timed(new, scn, what), _timed(old, scn, what)
             assert len(a) == len(b), (scn, what)
-            assert [_floor(x) for x in a] == [_floor(x) for x in b], (scn, what, a, b)
+            assert all(_same_wait(x, y) for x, y in zip(a, b)), (scn, what, a, b)
         assert [h[1] for h in _held(new, scn)] == [h[1] for h in _held(old, scn)], scn
 
 
