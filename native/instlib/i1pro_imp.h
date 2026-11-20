@@ -1550,6 +1550,8 @@ int i1pro2_cq_lights_second_pass(void *pp);	/* dual scan: the blue before the re
 extern const int i1pro2_cq_lights_quiet_default_ms;	/* CQ_LIGHTS_QUIET_MS (4.3.52) */
 extern const int i1pro2_cq_lights_blue_quiet_ms;	/* the BLUE's own quiet time (4.3.52) */
 extern int i1pro2_cq_lights_held_after_blue;	/* the last hold counted from the BLUE (4.3.52) */
+extern int i1pro2_cq_lights_blue_quiet_set_ms;	/* the BLUE's quiet time from the helper, ms (4.3.53); -1 = CQ_LIGHTS_BLUE_QUIET_MS */
+extern int i1pro_cq_lamp_off_ms;	/* the lamp wait from the helper, ms (4.3.53); -1 = LAMP_OFF_TIME */
 extern void (*i1pro2_cq_lights_hold_poll)(void);	/* asked during a hold (4.3.37) */
 
 #ifdef __cplusplus

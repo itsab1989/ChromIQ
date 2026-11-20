@@ -258,8 +258,10 @@ def test_the_build_string():
     # 2026-11-20b = 20a + the blue's own quiet time (4.3.52 fix round; nothing for the
     # table), last
     # 2026-11-20c = 20b + the blue's floor only before that strip's return pass (4.3.52
-    # release, re-review S2; nothing for the table), last
-    assert "chromiq-chartread 2026-11-20c " in h
+    # release, re-review S2; nothing for the table);
+    # 2026-11-20d = 20c + the waits as values passed by the app (4.3.53; for the table
+    # only ArgyllCMS's lamp wait, at its default 1500 ms unless changed), last
+    assert "chromiq-chartread 2026-11-20d " in h
     assert ("+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule"
             "+i1pro2-dual-device+i1pro2-dual-safety+i1io-table-dual+i1io-table-dual-fix2"
             "+i1io-table-dual-calreset+i1pro2-dual-gaps+conditions-kept+lights-quiet"

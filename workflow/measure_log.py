@@ -86,10 +86,26 @@ def run_kind(ti1_path) -> str:
         return "?"
 
 
+def _waits_fields(waits_ms) -> dict:
+    """The start line's wait fields (4.3.53): ``waits=helper_default`` when
+    the helper was given none (an old helper, stock chartread), else one field
+    per wait passed, marked "(changed)" when not the default."""
+    if not waits_ms:
+        return {"waits": "helper_default"}
+    try:
+        from core import instrument_waits as _iw
+        full = {w.name: int(round(w.default_s * 1000)) for w in _iw.WAITS}
+        full.update(waits_ms)
+        return {k: v for k, v in _iw.log_fields(full).items()
+                if k[:-2] in waits_ms}
+    except Exception:      # noqa: BLE001
+        return {"waits": "?"}
+
+
 @never_raises
 def log_start(params, *, reader: str, helper_build: str = "", ruler: bool = False,
               dual: str = "off", lights: bool = False, conditions: str = "off",
-              lights_quiet_s=None) -> None:
+              lights_quiet_s=None, waits_ms=None) -> None:
     """The one line at a measurement's start. Never raises."""
     try:
         from workflow.measurement_condition import filter_code_from_args
@@ -117,6 +133,9 @@ def log_start(params, *, reader: str, helper_build: str = "", ruler: bool = Fals
              # Named for the i1Pro 2: at Start the instrument is not known yet,
              # and an i1Pro 3 has none (its session line says "not_used").
              i1pro2_lights_quiet_s=lights_quiet_s,
+             # 4.3.53: every wait passed to the helper, in seconds
+             # (core/instrument_waits.py); "-" when none was passed
+             **_waits_fields(waits_ms),
              high_res=bool(params.high_res), resume=bool(params.resume),
              run_kind=run_kind(ti1), page_pause=bool(getattr(params, "page_pause", False)),
              replay=getattr(params, "engine_replay", None) is not None,

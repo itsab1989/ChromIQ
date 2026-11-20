@@ -52,20 +52,26 @@ def traces(tmp_path_factory) -> "dict[str, str]":
     if cmake is None:
         pytest.skip("cmake not available: the helper is not built here")
     tmp = tmp_path_factory.mktemp("dualblue")
-    old = tmp / "v4351"
-    old.mkdir()
-    for f in ("i1pro.c", "i1pro_imp.c", "i1pro_imp.h"):
-        r = subprocess.run(["git", "-C", str(ROOT), "show", f"v4.3.51:native/instlib/{f}"],
-                           capture_output=True, timeout=60)
-        if r.returncode != 0:
-            pytest.skip("the v4.3.51 tag is not in this checkout")
-        (old / f).write_bytes(r.stdout)
+    dirs = {}
+    # 4.3.53: also against 4.3.52's driver (tests/test_instrument_waits.py reads it)
+    for tag in ("v4.3.51", "v4.3.52"):
+        old = tmp / tag.replace(".", "")
+        old.mkdir()
+        for f in ("i1pro.c", "i1pro_imp.c", "i1pro_imp.h"):
+            r = subprocess.run(["git", "-C", str(ROOT), "show", f"{tag}:native/instlib/{f}"],
+                               capture_output=True, timeout=60)
+            if r.returncode != 0:
+                pytest.skip(f"the {tag} tag is not in this checkout")
+            (old / f).write_bytes(r.stdout)
+        dirs[tag] = old
     build = tmp / "build"
     subprocess.run([cmake, "-S", str(HELPER_SRC), "-B", str(build),
-                    "-DCMAKE_BUILD_TYPE=Release", f"-DCQ_V4351_I1PRO_DIR={old}"],
+                    "-DCMAKE_BUILD_TYPE=Release", f"-DCQ_V4351_I1PRO_DIR={dirs['v4.3.51']}",
+                    f"-DCQ_V4352_I1PRO_DIR={dirs['v4.3.52']}"],
                    check=True, capture_output=True, timeout=600)
     jobs = str(max(2, (os.cpu_count() or 4) // 2))
-    targets = ("i1pro2_dual_lights_test", "i1pro2_dual_lights_test_v4351")
+    targets = ("i1pro2_dual_lights_test", "i1pro2_dual_lights_test_v4351",
+               "i1pro2_dual_lights_test_v4352")
     r = subprocess.run([cmake, "--build", str(build), "--target", *targets, "-j", jobs],
                        capture_output=True, text=True, encoding="utf-8", errors="replace",
                        timeout=1500)
@@ -290,7 +296,7 @@ def test_the_blues_own_quiet_time_is_the_vendors_shortest_gap():
     # the tests' own first, then the blue's, then the user's
     assert (q.index("i1pro2_cq_lights_quiet_ms_for_test > 0")
             < q.index("if (cq_lights_last_was_blue(m))")
-            < q.index("return CQ_LIGHTS_BLUE_QUIET_MS;")
+            < q.index(": CQ_LIGHTS_BLUE_QUIET_MS;")     # 4.3.53: unless the helper passed one
             < q.index("i1pro2_cq_lights_quiet_ms >= 0"))
     blue = _body(t, "static int cq_lights_last_was_blue(i1proimp *m) {")
     assert "m->cq_lights == CQ_LIGHTS_LIT && m->cq_lights_prog == CQ_LIGHTS_BLUE" in blue
@@ -348,6 +354,8 @@ def test_the_helper_sends_the_blue_550_ms_after_pass_1_from_the_armed_wait():
 _BLUE_HARNESS = r"""
 #include <stdio.h>
 #include <stdarg.h>
+#include <stdlib.h>
+#include <string.h>
 typedef struct _inst inst;
 static unsigned int now_ms = 5000;
 static unsigned int msec_time(void) { return now_ms; }
@@ -440,8 +448,9 @@ def test_the_helper_names_the_new_abilities_and_build():
     h = _helper()
     assert '\\"lights_quiet\\",\\"i1pro2_dual_blue\\"' in h
     ext = (HELPER_SRC / "chromiq_ext.h").read_text(encoding="utf-8")
-    assert '"chromiq-chartread 2026-11-20c ' in ext
-    assert "+conditions-kept+lights-quiet+i1pro2-dual-blue+blue-own-quiet+blue-quiet-return-only\"" in ext
+    # 4.3.53: 2026-11-20d = 20c + the waits as values (tests/test_instrument_waits.py)
+    assert '"chromiq-chartread 2026-11-20d ' in ext
+    assert "+conditions-kept+lights-quiet+i1pro2-dual-blue+blue-own-quiet+blue-quiet-return-only" in ext
 
 
 def test_the_helper_says_a_hold_after_the_blue_and_both_numbers_from_the_driver():
@@ -460,7 +469,7 @@ def test_the_bundled_helper_is_this_build():
     if not exe.is_file():
         pytest.skip("no bundled helper in this checkout")
     data = exe.read_bytes()
-    assert b"chromiq-chartread 2026-11-20c " in data
+    assert b"chromiq-chartread 2026-11-20d " in data
     assert b'"why\\":\\"early\\"' in data or b'"why":"early"' in data
     assert b"blue_quiet_ms" in data and b'"after":"blue"' in data
 
@@ -824,14 +833,16 @@ def test_the_help_names_the_recorded_numbers_and_the_risk():
     # fix round S4: the wait is a change in ChromIQ's copy of the instrument code
     assert ("**This changes how ChromIQ talks to the instrument:** the wait is in ChromIQ's "
             "copy of ArgyllCMS's instrument code.") in h
-    # fix round, item 4: the blue's own wait, said in both places
-    assert "after the blue light of a dual scan, ChromIQ always waits 0.37 s" in h
+    # fix round, item 4: the blue's own wait, said in both places (4.3.53:
+    # its own field, named by its label)
+    assert ("after the blue light of a dual scan, ChromIQ waits the time set below in "
+            "“Dual scan, wait after the blue light”") in h
     lights = i1pro2_lights_help()
     assert "second pass of this strip is due" in lights
     assert "changes how ChromIQ talks to the instrument" in lights
     assert "left light pulses blue" in lights and "either direction" in lights
-    assert ("After the blue light, ChromIQ waits 0.37 s before the second pass can start, "
-            "whatever wait after a light change you set below.") in lights
+    assert ("After the blue light, ChromIQ waits the time set below in “Dual scan, wait "
+            "after the blue light” (default 0.37 s) before the second pass can start.") in lights
     assert "keep the instrument still until it beeps, then slide" in lights
 
 
@@ -844,3 +855,83 @@ def test_the_german_help_says_the_same_and_plainly():
     assert "ist dran" not in vals
     assert "Der zweite Durchgang dieses Streifens ist jetzt an der Reihe." in vals
     assert "Schlägt sie immer wieder fehl, endet die Messung" in vals
+
+
+# ---------------------------------------------------------------------------
+# 4.3.53: the waits as values the helper passes (core/instrument_waits.py);
+# the same fake USB, against 4.3.52's driver too. The app side is in
+# tests/test_instrument_waits.py.
+# ---------------------------------------------------------------------------
+#: the minimum waits the driver can hold a trigger for in these lives (ms)
+_FLOORS = (0, 150, 300, 370, 600, 1000, 1500, 2100)
+
+
+def _floor(ms: int) -> int:
+    """The longest minimum wait a measured gap satisfies (a wait is a minimum;
+    a loaded machine only makes a gap longer)."""
+    return max(f for f in _FLOORS if f <= ms + 5)
+
+
+def _scenarios(text: str) -> "list[str]":
+    seen = []
+    for ln in text.splitlines():
+        s = ln.split(" ", 1)[0]
+        if s not in seen and s != "ALL":
+            seen.append(s)
+    return seen
+
+
+def _timed(text: str, scn: str, what: str) -> "list[int]":
+    return [int(ln.split()[1]) for ln in _lines(text, scn) if ln.startswith(what + " ")]
+
+
+def test_4352_every_life_of_4_3_52_is_the_same_wire_and_the_same_waits(traces):
+    """Nothing passed: the driver is 4.3.52's, request for request, and every
+    trigger waits as long as there (a wait is a minimum: the gaps meet the
+    same floors). The lamp life included: ArgyllCMS's own 1500 ms."""
+    new = traces["i1pro2_dual_lights_test"]
+    old = traces["i1pro2_dual_lights_test_v4352"]
+    lives = _scenarios(old)
+    assert "lamp_default" in lives and "quiet_default" in lives and len(lives) >= 20
+    for scn in lives:
+        assert _wire(new, scn) == _wire(old, scn), scn
+        for what in ("GAPMS", "LAMPGAP"):
+            a, b = _timed(new, scn, what), _timed(old, scn, what)
+            assert len(a) == len(b), (scn, what)
+            assert [_floor(x) for x in a] == [_floor(x) for x in b], (scn, what, a, b)
+        assert [h[1] for h in _held(new, scn)] == [h[1] for h in _held(old, scn)], scn
+
+
+@pytest.mark.parametrize("scn,low,high", [
+    ("blue_wait_600", 600, 2100),     # passed: 600 ms, not the 2100 of the quiet time
+    ("blue_wait_0", 0, 150),          # passed: no wait at all
+    ("blue_wait_bad", 370, 2100),     # out of range: the compiled 370 ms
+    ("blue_wait_370", 370, 2100),     # passed at the default: as 4.3.52
+])
+def test_4353_the_blue_wait_passed_changes_only_that_wait(traces, scn, low, high):
+    t = traces["i1pro2_dual_lights_test"]
+    assert _wire(t, scn) == _wire(t, "quiet_default"), scn       # not a byte more or less
+    gap = _return_gap(t, scn)
+    assert low <= gap < high, gap
+    # every other trigger keeps the quiet time (2100 ms, never set)
+    lines = _lines(t, scn)
+    k = lines.index("STEP return-pass")
+    gaps = [i for i, ln in enumerate(lines) if ln.startswith("GAPMS")]
+    ret = [i for i in gaps if i > k][:2]           # the return pass's two triggers
+    others = [int(lines[i].split()[1]) for i in gaps if i not in ret]
+    assert len(others) == 4 and all(g >= 2100 for g in others), others
+
+
+@pytest.mark.parametrize("scn,low,high", [
+    ("lamp_300", 300, 1500),          # passed: 300 ms
+    ("lamp_0", 0, 300),               # passed: no wait
+    ("lamp_bad", 1500, 10 ** 6),      # out of range: ArgyllCMS's 1500 ms
+    ("lamp_1500", 1500, 10 ** 6),     # passed at the default
+    ("lamp_default", 1500, 10 ** 6),  # nothing passed: ArgyllCMS's 1500 ms
+])
+def test_4353_the_lamp_wait_passed_changes_only_that_wait(traces, scn, low, high):
+    t = traces["i1pro2_dual_lights_test"]
+    assert _wire(t, scn) == _wire(t, "lamp_default"), scn
+    gaps = _timed(t, scn, "LAMPGAP")
+    assert len(gaps) == 2
+    assert low <= gaps[0] < high, gaps          # the dark reading waited this long

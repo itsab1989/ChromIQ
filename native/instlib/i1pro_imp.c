@@ -186,6 +186,12 @@
 
 /* - - - - - - - - - - - - - - - - - - */
 #define LAMP_OFF_TIME 1500		/* msec to make sure lamp is dark for dark measurement */
+/* CHROMIQ PATCH (4.3.53): ChromIQ's helper may pass the wait above in ms
+ * (--lamp-off-ms, 0 to 5000). -1, always without that argument, and any value
+ * out of range = LAMP_OFF_TIME, ArgyllCMS's own: the same wait as before. */
+int i1pro_cq_lamp_off_ms = -1;
+#define CQ_LAMP_OFF_TIME ((i1pro_cq_lamp_off_ms >= 0 && i1pro_cq_lamp_off_ms <= 5000) \
+                          ? (unsigned int)i1pro_cq_lamp_off_ms : (unsigned int)LAMP_OFF_TIME)
 #define PATCH_CONS_THR 0.1		/* Dark measurement consistency threshold */
 
 #define USE_RD_SYNC				/* Use mutex syncronisation, else depend on TRIG_DELAY */
@@ -6213,9 +6219,9 @@ i1pro_trigger_one_measure(
 	/* If the lamp needs to be off, make sure at least 1.5 seconds */
 	/* have elapsed since it was last on, to make sure it's dark. */
 	if ((measmodeflags & I1PRO_MMF_NOLAMP)
-	 && (timssinceoff = (msec_time() - m->llamponoff)) < LAMP_OFF_TIME) {
-		a1logd(p->log,3,"Sleep %d msec for lamp cooldown\n",LAMP_OFF_TIME - timssinceoff);
-		msec_sleep(LAMP_OFF_TIME - timssinceoff);	/* Make sure time adds up to 1.5 seconds */
+	 && (timssinceoff = (msec_time() - m->llamponoff)) < CQ_LAMP_OFF_TIME) {
+		a1logd(p->log,3,"Sleep %d msec for lamp cooldown\n",CQ_LAMP_OFF_TIME - timssinceoff);
+		msec_sleep(CQ_LAMP_OFF_TIME - timssinceoff);	/* Make sure time adds up to 1.5 seconds */
 	}
 
 	/* CHROMIQ PATCH: ruler check (Beta): its reader starts first and the */
@@ -12596,6 +12602,13 @@ const int i1pro2_cq_lights_quiet_default_ms = CQ_LIGHTS_QUIET_MS;
 const int i1pro2_cq_lights_blue_quiet_ms = CQ_LIGHTS_BLUE_QUIET_MS;
 int i1pro2_cq_lights_held_after_blue = 0;
 
+/* 4.3.53 (the owner, 2026-11-20: "make it so it does not take a day to change
+ * them again"): the BLUE's own quiet time as ChromIQ's helper passes it
+ * (--lights-blue-quiet-ms), 0 to CQ_LIGHTS_QUIET_MAX_MS. -1, always without
+ * that argument, and any value out of range = CQ_LIGHTS_BLUE_QUIET_MS. A wait
+ * only: it never changes what is sent. */
+int i1pro2_cq_lights_blue_quiet_set_ms = -1;
+
 /* Set by ChromIQ's helper: asked every few ms while a trigger is held for the
  * quiet time, so a request to switch the lights off and end (Stop, quitting
  * ChromIQ) is carried out at once on this thread, as between two requests,
@@ -12716,7 +12729,9 @@ static int cq_lights_quiet_now(i1proimp *m) {
 	if (i1pro2_cq_lights_quiet_ms_for_test > 0)
 		return i1pro2_cq_lights_quiet_ms_for_test;
 	if (cq_lights_last_was_blue(m))
-		return CQ_LIGHTS_BLUE_QUIET_MS;
+		return (i1pro2_cq_lights_blue_quiet_set_ms >= 0
+		        && i1pro2_cq_lights_blue_quiet_set_ms <= CQ_LIGHTS_QUIET_MAX_MS)
+		       ? i1pro2_cq_lights_blue_quiet_set_ms : CQ_LIGHTS_BLUE_QUIET_MS;
 	if (i1pro2_cq_lights_quiet_ms >= 0 && i1pro2_cq_lights_quiet_ms <= CQ_LIGHTS_QUIET_MAX_MS)
 		return i1pro2_cq_lights_quiet_ms;
 	return CQ_LIGHTS_QUIET_MS;
