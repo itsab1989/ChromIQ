@@ -1544,4 +1544,6 @@ measurement has been completed this way?"*
   and at least one page with every row read, none of them patch by patch instead). The table is
   remembered by the same salted key as its reach record (no serial): `i1io_table_rows_completed_on`
   lists those tables, `i1io_table_last_key` names the one connected last. Another table, or no
-  table known yet, shows the line. The app log has a line "table rows note retired" when it goes.
+  table known yet, shows the line. The table connected last is learned only from a sitting, so
+  after switching to another table the line follows the old table until the first sitting on
+  the new one (safety review S-7: acceptable). The app log has a line "table rows note retired" when it goes.
