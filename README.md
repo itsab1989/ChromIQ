@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-4.3.51-7c5cff">
+  <img alt="Version" src="https://img.shields.io/badge/version-4.3.52-7c5cff">
   <img alt="Downloads" src="https://img.shields.io/endpoint?url=https://itsab1989.github.io/github-traffic-downloads-dashboard/assets/badges/itsab1989_ChromIQ-downloads.json">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2a9d8f">
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-blue">
@@ -684,6 +684,14 @@ ways:
 >   front of the table, it offers to try one and says that it is a try.
 >   Elsewhere it moves nothing. None of this has run on
 >   a real table yet, so please keep the power switch in reach.
+> - New in 4.3.52: when a measurement starts and the arm is not at its
+>   resting place, ChromIQ offers to bring it home from wherever it is, with
+>   the table's own homing, after you take your hands away. Two new choices
+>   under the option, "Guided, step by step measurement" and "Keep the
+>   table's detailed log", are both on at first. With the guidance off, a
+>   short countdown with a large Stop button comes before the first movement
+>   instead of a question. Neither the homing from far out nor a measurement
+>   without the guidance has run on a real table yet.
 > - The option is off by default, and with it off nothing changes.
 
 Why it may be worth it all the same: X-Rite has ended support for these
@@ -723,7 +731,12 @@ first try: [The dual scan, step by step](docs/i1pro2_dual_scan.md).
 > M0 only until it is read again with both passes; since 4.3.49, when measuring by hand,
 > every other strip keeps its M1 and M2, and Continue Measurement completes such strips;
 > since 4.3.50 the i1iO 2 table, too, keeps M1 and M2 for every row that has them.
-> "High resolution spectral mode (-H)" is refused with the dual scan. With the
+> "High resolution spectral mode (-H)" is refused with the dual scan. New in
+> 4.3.52: with the instrument lights option (beta) on as well, the i1Pro 2's
+> left light pulses blue when the second pass of a strip is due, as in
+> i1Profiler, and you can set how long ChromIQ waits after a light change
+> before a reading. The blue light, ChromIQ's 0.37 s wait after it and any
+> wait shorter than 2.1 s have not been tried on a real instrument yet. With the
 > option off, nothing changes.
 
 ### Tools menu — standalone utilities

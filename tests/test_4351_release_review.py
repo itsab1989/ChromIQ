@@ -68,14 +68,7 @@ def test_the_entry_names_things_as_the_app_shows_them():
     assert "there is no diagnostics file of that run" in text
 
 
-def test_the_version_is_4351_everywhere():
-    from core.version import APP_VERSION
-    assert APP_VERSION == "4.3.51"
-    assert "badge/version-4.3.51-" in (ROOT / "README.md").read_text(encoding="utf-8")
-    assert '"softwareVersion": "4.3.51"' in (ROOT / "docs/index.html").read_text(
-        encoding="utf-8")
-    certs = json.loads((ROOT / "data/preset_certificates.json").read_text(encoding="utf-8"))
-    assert certs["code_version"].startswith("4.3.51/")
+# The version pin moved to tests/test_4352_release_review.py with the 4.3.52 bump.
 
 
 def test_readme_and_site_say_what_4351_changes_and_that_it_ran_only_simulated():

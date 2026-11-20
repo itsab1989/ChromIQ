@@ -2,36 +2,60 @@
 
 ## v4.3.52
 
-**For owners of an X-Rite i1iO 2 table who try the beta option “X-Rite i1iO support”: when a measurement starts and the arm is not at its resting place, ChromIQ now brings it home from wherever it is, as i1Profiler does at its own start. ChromIQ asks once and moves nothing until you answer. With “Guided, step by step measurement” off, a short countdown comes instead of the question, and the measurement then continues by itself. Two new sub-options of the beta option let you switch off the guidance and the table's detailed log. None of this has run on a real table yet: please read the known issues at the end. With the beta options off, ChromIQ measures as 4.3.51 did, and the charts it makes, your measurements and your profiles do not change.**
+**For owners of an X-Rite i1iO 2 table who try the beta option “X-Rite i1iO support”: when a measurement starts and the arm is not at its resting place, ChromIQ now offers to bring it home from where it is, with the table's own homing, as i1Profiler does at its own start. Two new sub-options let you measure without the step-by-step guidance and keep a shorter table log. For owners of an X-Rite i1Pro 2 who try the dual scan and the instrument lights (both beta): the left light now pulses blue when the second pass of a strip is due, as in i1Profiler, and you can set how long ChromIQ waits after a light change. None of this has run on a real table or a real instrument yet: please read the known issues at the end. With the beta options off, ChromIQ measures as 4.3.51 did, and the charts it makes, your measurements and your profiles do not change.**
 
 ### New
 
 Only with the beta option “X-Rite i1iO support” on:
 
-- **Two sub-options in Preferences > Beta, under “X-Rite i1iO support”: “Guided, step by step measurement” and “Keep the table's detailed log”.** Both are on by default and greyed while the beta option is off. With the guidance off, ChromIQ asks only what it cannot know: your aims, a row that could not be read, the end of a measurement that is not complete, and any page about a problem. Before each first movement it shows a countdown of 3 seconds, with a large Stop button, and with a sound when “Play sounds during measurement” is on. After a Stop, a problem or a fault, every question is asked again for the rest of that measurement. With the detailed log off, the session log keeps one short line per movement and writes everything once something stops or goes wrong.
-- **The first page's tick and the done page's offer change the same setting** as Preferences > Beta.
+- **Two sub-options in Preferences > Beta, under “X-Rite i1iO support”: “Guided, step by step measurement” and “Keep the table's detailed log”.** Both are on at first. They are greyed while “X-Rite i1iO support” is off.
+  - With the guidance off, ChromIQ asks only what it cannot know: your aims, a row that could not be read, the end of a measurement that is not complete, and any page about a problem. Before each first movement it shows a countdown of 3 seconds with a large Stop button, and it plays a sound when “Play sounds during measurement” is on. After a Stop, a problem or a fault, ChromIQ asks every question again for the rest of that measurement.
+  - With the detailed log off, the session log keeps one short line per movement. When something stops or goes wrong, it writes everything.
+  - The tick on the first page and the offer on the last page of a table measurement change the same setting as Preferences > Beta.
+
+Only with the beta options “X-Rite i1Pro 2 and i1Pro 3: show the instrument's state with its lights (beta)” and “X-Rite i1Pro 2: also M1 and M2, by a dual scan (beta, first try)” both on, and “What the lights show” set to “Ready light and result signals (green / red)”:
+
+- **The blue light for the second pass.** After the first pass of a strip, the i1Pro 2's left light pulses blue, as with X-Rite's i1Profiler. It means: the second pass of this strip is due. You can read the second pass in either direction, as before. If you press the button before the blue light comes, ChromIQ leaves it out for that strip. Green or red follows after the second pass. After the blue light ChromIQ waits 0.37 s before the second pass can start. So press the button, keep the instrument still until it beeps, then slide.
+
+Only with the beta option “X-Rite i1Pro 2 and i1Pro 3: show the instrument's state with its lights (beta)” on:
+
+- **“i1Pro 2, wait after a light change:” in Preferences > Beta.** This is how long ChromIQ waits after the i1Pro 2's light changed before it lets the instrument measure. You can set 0 to 10 s, in steps of 0.05 s. The default stays 2.1 s, as before. The line under the field and its (i) say what X-Rite's i1Profiler was recorded doing (about 0.37 s at the least, about 0.46 s as a rule) and what can happen if the wait is too short. ChromIQ writes the wait into the app log. The i1Pro 3 does not wait.
 
 ### Changed
 
 Only with the beta option “X-Rite i1iO support” on:
 
-- **When a measurement starts and the arm is not at its resting place, ChromIQ brings it home from wherever it is.** This has not been tried on a real table yet.
-  - The page “The arm is not at its resting place” says only that ChromIQ can bring the arm home, and asks you to take your hands away. Press “Bring the arm home, my hands are away”, or “Not now”: then nothing moves.
-  - ChromIQ sends the table's own homing, the same commands i1Profiler sends when it starts, and then checks that the arm is at its resting place. The measurement then continues.
-  - The rules of 4.3.51 that depended on where the arm was (a narrow line in front of the resting place, an area about 12 to 25 cm out, a “try” over the rest of the table, and places where nothing moved) are gone. The homing is the table's own command, and i1Profiler sends it without looking where the arm is: it sends the same homing at its start with the arm at rest and with the arm far out. Whether it works from every place the arm can reach is not known (see the known issues). One place is left: at the back of the table, beside the holder of the white tile, ChromIQ moves nothing and says what you can do.
-- **A table that was just switched on is started whatever you answered about the arm.** Its start-up is the table's own, so the question whether the arm is at its resting place no longer changes anything and is not asked. If the arm is still not at its resting place after the start-up, ChromIQ brings it home as above.
-- **“Bring the arm home” after a Stop or a problem goes straight home** from wherever the arm is, as i1Profiler ends a measurement. Before, ChromIQ first moved the arm back along the way it came when it was in front of the measuring area.
-- **When the homing does not bring the arm home**, ChromIQ sends nothing more, and the page “The arm did not get home” says what you can do, with the table's power switch first and i1Profiler last.
-- **The line under “Patch-by-patch mode (-p)” is shorter and disappears by itself.** With rows (the box not ticked) it says that reading in rows has not been tried on a real table yet. Once a measurement in rows has been completed on the table connected last, it is no longer shown for that table.
-- **The pages for an arm left away from its resting place after a measurement, and for a table still in its aiming mode, give the table's power switch first** and i1Profiler last, with its version limit. Before, i1Profiler was the only way out they named.
+- **When a measurement starts and the arm is not at its resting place, ChromIQ offers to bring it home from where it is.** This has not been tried on a real table yet.
+  - The page “The arm is not at its resting place” says that ChromIQ can bring the arm home and asks you to take your hands away. Press “Bring the arm home, my hands are away”, or “Not now”: then nothing moves.
+  - ChromIQ sends the table's own homing, the same commands i1Profiler sends when it starts, and then checks that the arm is at its resting place. Then the measurement starts.
+  - The rules of 4.3.51 that depended on where the arm was (the narrow line in front of the resting place, the area about 12 to 25 cm out, the “try” over the rest of the table) are gone. One place is left: at the back of the table, beside the holder of the white tile, ChromIQ moves nothing and says what you can do.
+- **A table that was just switched on is started, whatever you answered about the arm.** Its start-up is the table's own, so the question whether the arm is at its resting place no longer changes anything and is not asked. If the arm is still not at its resting place after the start-up, ChromIQ offers to bring it home as above.
+- **“Bring the arm home” after a Stop or a problem goes straight home** from where the arm is, as i1Profiler ends a measurement. Before, ChromIQ first moved the arm back along the way it came when it was in front of the measuring area.
+- **When the homing does not bring the arm home**, ChromIQ sends nothing more. The page “The arm did not get home” says what you can do, with the table's power switch first and i1Profiler last.
+- **The pages for an arm left away from its resting place after a measurement, and for a table still in its aiming mode, name the table's power switch first** and i1Profiler last, with its version limit. Before, i1Profiler was the only way out they named.
+- **The line under “Patch-by-patch mode (-p)” is shorter.** With rows (the box not ticked) it says that reading in rows has not been tried on a real table yet. Once a measurement in rows has been completed on the table you connected last, it is no longer shown for that table.
 - **The consent page asks once more** (its version 4), with “Guided, step by step measurement” ticked, also if you had switched off the earlier question.
+- **A table pop-up widens so that its answers stay side by side**, up to 1000 pixels and the width of your screen. Before, a pop-up kept the width of the Measure tab's left column and put its buttons under each other when they did not fit, in English on 6 pages and in German on 15.
+
+Only with the beta option “X-Rite i1Pro 2: also M1 and M2, by a dual scan (beta, first try)” on:
+
+- **When the first pass of a strip did not read, ChromIQ says so at once.** The status line then shows “Strip A: pass 1 did not read. Read pass 2 anyway” (with the strip's letter), and you hear the “Strip read failed” sound. Read the second pass anyway, because it closes the strip, and then read both passes of that strip again. Nothing new is sent to the instrument.
+
+### Fixed
+
+- **The strip marks on an imported chart whose strips stand apart.** With an imported chart file and its TIFF where the strips stand apart and the strip letters are not in a band above them, the chart preview drew every strip inside the first one. The marks for the strip to read, for a click and for the mouse pointer used the same wrong places. ChromIQ now finds the strips on the page itself in such a chart. Charts that ChromIQ drew right before are drawn as before.
+- **The chart preview follows a fast table reading** (i1iO table beta). When many changes came quickly, the preview was redrawn only at the end. Now it is redrawn about every 80 milliseconds while they come.
 
 ### Known issues
 
-- **None of this has run on a real table with the arm out.** The homing from far out is the table's own and i1Profiler was recorded sending it from 76 mm out; ChromIQ has sent it only to a simulated table. Keep the power switch in reach.
+- **None of the table's new START behaviour has run on a real table with the arm out.** The homing from far out is the table's own, and i1Profiler was recorded sending it from 76 mm out. ChromIQ has sent it only to a simulated table. Keep the power switch in reach.
+- **A table measurement with “Guided, step by step measurement” off has not run on a real table yet.** It has run only on a simulated table.
 - **What a real table does when its homing starts at an end of the arm's travel is not known.** No recording shows it.
-- **A table that is still in its aiming mode** (for example after a measurement ended with the arm left out) is not moved: ChromIQ sends nothing that could move the arm, and the page “The table is still in its aiming mode” says what you can do. No recording shows i1Profiler finding a table in that mode.
-- **A table that was just switched on with the arm out:** no recording shows the table's start-up from there. If the arm is not near its resting place afterwards, ChromIQ brings it home as above; if that does not work, it stops.
+- **A table that is still in its aiming mode** (for example after a measurement ended with the arm left out) is not moved. ChromIQ sends nothing that could move the arm, and the page “The table is still in its aiming mode” says what you can do. No recording shows i1Profiler finding a table in that mode.
+- **A table that was just switched on with the arm out:** no recording shows the table's start-up from there. If the arm is not near its resting place afterwards, ChromIQ offers to bring it home as above. If that does not work, it stops.
+- **The blue light of the i1Pro 2 dual scan and ChromIQ's 0.37 s wait after it have not been tried on a real instrument.** The wait is a little longer than the shortest one i1Profiler was recorded using. If it is still too short for an instrument, the second pass of that strip is lost and ChromIQ says so. M1 and M2 then stop for the rest of that measurement, and M0 is still measured. If you would rather not have the blue light, set “What the lights show” to “Ready light; the instrument's own green / red (i1Pro 3)”. Then no blue light is sent, but the green and red signals after a strip are not shown either.
+- **A wait after a light change shorter than 2.1 s has not been tried with ChromIQ on a real i1Pro 2.** A tester's i1Pro 2 lost about two readings in three when ChromIQ changed its light a few milliseconds before a reading. If the wait is too short, a reading can be lost, and you must read that strip again. A calibration is tried again by itself, and if it keeps failing, the measurement ends. Please tell us how many readings were lost if you try a shorter wait.
+- **From 4.3.51, still true:** reading in rows, the dual scan on the table, a second page and the end of the arm's travel have still run only on a simulated table.
 - The new and changed texts of this version are shown as proposed texts and may still be reworded.
 
 ## v4.3.51
