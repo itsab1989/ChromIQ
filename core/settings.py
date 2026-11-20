@@ -10,6 +10,9 @@ from core.platform_paths import default_argyll_bin_dir, is_macos, is_windows
 
 log = get_logger(__name__)
 
+from core.beta_registry import LOGGED_KEYS as _LOGGED_OPTION_KEYS  # noqa: E402
+from core.beta_registry import show as _beta_show  # noqa: E402
+
 DEFAULTS: dict[str, Any] = {
     # ArgyllCMS
     "argyll_bin_path":           default_argyll_bin_dir(),
@@ -2163,6 +2166,17 @@ class AppSettings:
 
     def set(self, key: str, value: Any) -> None:
         log.debug("settings.set %s = %r", key, value)
+        if key in _LOGGED_OPTION_KEYS:
+            # A1 (4.3.50): a Beta switch or an option a reading depends on is
+            # named in the app log when it CHANGES (Preferences writes every
+            # key on OK, changed or not). Never raises into the caller.
+            try:
+                was = self.get(key)
+                if _beta_show(was) != _beta_show(value):
+                    log.info("option changed: %s=%s (was %s)", key,
+                             _beta_show(value), _beta_show(was))
+            except Exception:      # noqa: BLE001
+                pass
         # **NO WRITE LEAVES AN ISO DEFAULT TYPE BESIDE A NON-ISO DEFAULT SET
         # (K36-1, challenge 4 of beta 42, B8-1072).** Guarded here, at the
         # one door every writer goes through, and not only in the windows

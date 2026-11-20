@@ -307,6 +307,15 @@ def main() -> int:
     from workflow.page_output.support import latch_from as _latch_page
     _latch_page(settings)
 
+    # A1 (4.3.50): the session header, after the latches so it says what this
+    # session runs. ArgyllCMS's version and the helper's build follow from a
+    # background thread; the window is not held for them.
+    try:
+        from core.session_header import write_session_header
+        write_session_header(settings)
+    except Exception:      # noqa: BLE001  # never let logging block startup
+        log.debug("session header not written", exc_info=True)
+
     # Heavy UI import + construction, now visibly covered by the splash.
     from ui.main_window import MainWindow
     win = MainWindow(settings)
