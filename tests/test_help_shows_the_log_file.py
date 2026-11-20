@@ -13,11 +13,11 @@ def test_each_platform_gets_its_own_command(tmp_path):
     f = tmp_path / "chromiq.log"
     f.write_text("x", encoding="utf-8")
     assert reveal_command(f, "darwin") == ["open", "-R", str(f)]
-    assert reveal_command(f, "win32") == ["explorer", f"/select,{f}"]
+    assert reveal_command(f, "win32") == f'explorer /select,"{f}"'
     assert reveal_command(f, "linux") == ["xdg-open", str(tmp_path)]
     missing = tmp_path / "logs" / "chromiq.log"
     assert reveal_command(missing, "darwin") == ["open", str(missing.parent)]
-    assert reveal_command(missing, "win32") == ["explorer", str(missing.parent)]
+    assert reveal_command(missing, "win32") == f'explorer "{missing.parent}"'
 
 
 def test_reveal_never_raises_and_makes_the_folder(tmp_path):
@@ -55,3 +55,16 @@ def test_the_help_text_names_the_button_by_its_label():
     from ui.dialogs import welcome_dialog as wd
     src = inspect.getsource(wd)
     assert "Help → Show the log file" in src and 'tr("Show the log file")' in src
+
+
+def test_a_windows_path_with_a_space_is_quoted_round_the_path_only(tmp_path):
+    """S7: the list form made Python quote "/select,<path>" as one argument when
+    the account name has a space, and Explorer then opens Documents."""
+    from core.reveal_file import reveal_command
+    d = tmp_path / "Ann Lee"
+    d.mkdir()
+    f = d / "chromiq.log"
+    f.write_text("x", encoding="utf-8")
+    cmd = reveal_command(f, "win32")
+    assert isinstance(cmd, str)
+    assert cmd == f'explorer /select,"{f}"' and '"/select' not in cmd

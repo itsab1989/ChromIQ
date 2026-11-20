@@ -16,15 +16,21 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 
-def reveal_command(path: Path, platform: "str | None" = None) -> "list[str]":
-    """The command that shows *path* (the file selected where the system can)."""
+def reveal_command(path: Path, platform: "str | None" = None) -> "list[str] | str":
+    """The command that shows *path* (the file selected where the system can).
+
+    Windows (S7 of the review of 20 Nov): a STRING, ``explorer /select,"<path>"``.
+    Given a list, Python quotes the whole argument when the path has a space
+    (``explorer "/select,C:\\Users\\Ann Lee\\..."``), a form Explorer
+    ignores (it opens Documents). Explorer parses its own command line, so the
+    quotes go round the path only. A path cannot contain a quote on Windows."""
     plat = platform or sys.platform
     p = Path(path)
     if plat == "darwin":
         return ["open", "-R", str(p)] if p.is_file() else ["open", str(p.parent)]
     if plat == "win32":
-        return (["explorer", f"/select,{p}"] if p.is_file()
-                else ["explorer", str(p.parent)])
+        return (f'explorer /select,"{p}"' if p.is_file()
+                else f'explorer "{p.parent}"')
     return ["xdg-open", str(p.parent)]
 
 
