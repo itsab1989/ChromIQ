@@ -46,7 +46,13 @@ def configure_logging() -> None:
         return
     root.setLevel(logging.DEBUG)
 
-    fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    # A0 (4.3.50): every line passes the privacy filter, whoever wrote it
+    # (core/log_privacy.py: home folder, account name, serial numbers, ...).
+    try:
+        from core.log_privacy import ScrubbingFormatter as _Fmt
+    except Exception:      # noqa: BLE001  # never let the filter stop logging
+        _Fmt = logging.Formatter
+    fmt = _Fmt("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
     path = _log_path()
     _write_session_banner(path)

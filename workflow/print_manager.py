@@ -39,6 +39,16 @@ def _windows_spooler() -> bool:
     return sys.platform == "win32" and not CUPS_AVAILABLE
 
 
+def _note_printers_for_the_log(names) -> None:
+    """A0: the log's privacy filter replaces a queue name only when it contains
+    the account name; it learns the names here. Never raises."""
+    try:
+        from core.log_privacy import note_printer_names
+        note_printer_names(names)
+    except Exception:      # noqa: BLE001
+        pass
+
+
 class PrintModule:
     """Detect installed printers and query their supported options."""
 
@@ -66,6 +76,7 @@ class PrintModule:
             except OSError as exc:
                 log.warning("detect_printers (spooler) error: %s", exc)
                 return []
+            _note_printers_for_the_log(result)
             log.debug("Detected printers: %s", result)
             return result
         if not CUPS_AVAILABLE:
@@ -83,6 +94,7 @@ class PrintModule:
             # every printer whose name starts with a capital instead of beside
             # the other b's.
             result = sort_names(result)
+            _note_printers_for_the_log(result)
             log.debug("Detected printers: %s", result)
             return result
         except Exception as exc:
