@@ -167,7 +167,9 @@ CAL_PLACE_MEASURED = "own_tile_and_table_tile_0.13_dE00_apart_on_one_real_table_
 #: on something brighter than a white tile, or a tile not under the opening, below 82.
 WHITE_TILE_Y = (82.0, 97.0)
 
-#: NEXT_STEPS 4d: at most this many rows of a page are read again, whatever the session total
+#: NEXT_STEPS 4d: until 4.3.52 at most this many rows of a page were read again. 4.3.53 fix
+#: round (inventory D7): NOT A LIMIT ANY MORE (the person decides how often to try again); kept
+#: as the number the caps' own allowance counts with (caps.ALLOWANCE_ROWS)
 ROWS_READ_AGAIN_PER_PAGE = 2
 #: round B (the owner, 2026-11-17: "can you confirm the device being on each crosshair point by
 #: pressing the button on the device instead of the button in the app?"): while an aiming
@@ -412,7 +414,10 @@ class PersonStopped(Exception):
         self.reason, self.detail = reason, detail
 
 
-#: part C's per-stage runs, per page (the tester's max_runs per sitting, now per sheet laid)
+#: part C's per-stage runs, per page (the tester's max_runs per sitting, then per sheet laid).
+#: 4.3.53 fix round (inventory D8): NOT A LIMIT ANY MORE (nothing refuses a run by this count);
+#: each run beyond the first adds its own lines to the caps (TableJob.RUN_GRANT). Kept for the
+#: tests' copy of tester 0.6.0 only.
 MAX_RUNS = {"park": 8, "d1": 5, "dz": 3, "f": 8, "c1": 3, "c2": 3}
 #: the steps and the tester's stage key each writes its result block under (4.3.50: no "d2")
 STAGE_KEY = {"park": "park", "align": "d1", "creep": "dz", "home": "f",
@@ -826,6 +831,12 @@ class TableJob:
         self._way_back_cache = None
         self.worked: "set[str]" = set()
         self.runs: "dict[tuple[int, str], int]" = {}
+        #: 4.3.53 fix round: every addition to the session's caps for a run asked again
+        self.caps_granted: "list[tuple[str, int, int]]" = []
+        #: how many answers a PERSON gave in this sitting (the job's questions, the window's
+        #: pages, the instrument's button); the setting's own answers are not counted
+        self.person_answers = 0
+        self._granted_at: "dict[str, int]" = {}
         self.only_home = False
         self.creep_stopped = False
         #: 4.3.50 (safety review 449, SHOULD-2): the creep step on its way (from, to), set
@@ -850,6 +861,9 @@ class TableJob:
         self.stopped_by_person = False
         #: GO is asked once per page (the owner's ruling: no question after every step)
         self._go_page: "int | None" = None
+        #: 4.3.53 fix round: (page, row, why) of every patch row read once more by itself
+        #: after a reading failed with the arm on its patch (nobody was asked)
+        self.rows_reread_by_itself: "list[tuple[int, int, str]]" = []
         #: final fix round, M-1: a question was answered since the last hands-off
         #: confirmation; the next movement asks GO first (True from the start: the first
         #: question, READY_TO_OPEN, is answered before anything can move)
@@ -1140,7 +1154,8 @@ class TableJob:
         # interruptions"; one countdown at the first movement was what was told to him): the
         # countdown runs only where a person's hands were last ON the table or the arm, a STATE
         # reason (``_countdown_owed``): the START itself, a sheet laid by hand (its answer is the
-        # setting's), the aims (the hand is on the free arm at every press). Every other
+        # setting's), the aims (the hand is on the free arm at every press), and (fix round,
+        # MUST-1) after EVERY answer a person gave since the last movement. Every other
         # hands-off point (the homing at the end of a page, after rows ran untouched) is
         # cleared at once, as the countdown's end clears it; nothing is sent either way
         if not getattr(self, "_countdown_owed", True):
@@ -1446,6 +1461,14 @@ class TableJob:
         # answer the countdown comes before the next movement
         self._hands_off_due = (kind, value) not in HANDS_OFF_ANSWERS or (
             not self.guided_now and kind != Confirm.GO)
+        self.person_answers += 1
+        if self._hands_off_due:
+            # 4.3.53 fix round (rows review MUST-1): a PERSON answered (at the mouse or the
+            # instrument's button, maybe with a hand at the table: after a failed row the
+            # sheet is checked), so with the guidance off the next movement has its countdown
+            # with Stop again. Only movements that follow each other with nobody asked go on
+            # without one (a STATE reason: where a person was last, not where the arm is)
+            self._countdown_owed = True
         # review 8, S-1: Stop was pressed while this question was shown: the step ends here,
         # before the move the answer would allow (the reader, if open, is finished by the
         # step's own way out)
@@ -2000,8 +2023,10 @@ class TableJob:
             return "nothing_missing_on_this_page"
         if key in ("c1", "c2", "row"):
             return self._reading_ready(step)
-        if self.runs.get((self.page, key), 0) >= self.MAX_RUNS[key]:
-            return "ran_as_often_as_allowed"
+        # 4.3.53 fix round (inventory D8): no "ran as often as a page allows" any more: the
+        # person decides how often a step is tried again (aiming again, homing, ...); each run
+        # beyond the first adds its own lines to the session's caps (_grant_for_run), so the
+        # runaway protection still holds for every single run
         rest = self.at_rest() or self.unread_rest() or self.parked()
         if step == "park" and not rest:
             return "arm_not_at_rest"
@@ -2063,6 +2088,7 @@ class TableJob:
             self._check_other_program()
             key = self.STAGE_KEY[step]
             self.runs[(self.page, key)] = self.runs.get((self.page, key), 0) + 1
+            self._grant_for_run(key)
             self._start_block(step)
             try:
                 out = yield from body()
@@ -2281,6 +2307,7 @@ class TableJob:
         if stopped_because is not None:
             d.reopen_for_homing(stopped_because, cp.HOME)
         self.runs[(self.page, "f")] = self.runs.get((self.page, "f"), 0) + 1
+        self._grant_for_run("f")
         self._start_block("home_after_stop")
         goes_on = False
         try:
@@ -2389,6 +2416,9 @@ class TableJob:
         # final fix round, M-1: "As described" is the hands-off confirmation (its page says so
         # and names the move that follows); any other answer makes the next movement ask GO
         self._hands_off_due = (Confirm.REPORT_AFTER_STEP, value) not in HANDS_OFF_ANSWERS
+        self.person_answers += 1
+        if self._hands_off_due:
+            self._countdown_owed = True     # 4.3.53 fix round (MUST-1): a person answered
         self._mark_answered()
         self.reports.append((step, value))
         self.notes.append((f"{step}: report", value))
@@ -2496,6 +2526,11 @@ class TableJob:
             self.diag.log("ANSWER", f"{question_id} -> {answer} (while a step runs)")
             return
         self._hands_off_due = (question_id, answer) not in HANDS_OFF_WINDOW_ANSWERS
+        self.person_answers += 1
+        if self._hands_off_due:
+            # 4.3.53 fix round (MUST-1): a person answered the window's own page: the next
+            # movement has its countdown (guidance off) or its GO (guided)
+            self._countdown_owed = True
         self._mark_answered()
         self.diag.log("ANSWER", f"{question_id} -> {answer}"
                       + ("" if self._hands_off_due else " (the hands-off confirmation)"))
@@ -3596,8 +3631,7 @@ class TableJob:
             return "option_refused"
         rest = self.at_rest() or self.unread_rest() or self.parked()
         if key in ("c1", "c2"):
-            if self.runs.get((self.page, key), 0) >= MAX_RUNS[key]:
-                return "ran_as_often_as_allowed"
+            # 4.3.53 fix round (D8): no limit per page (see _ready)
             if not rest:
                 return "arm_not_at_rest"
             if key == "c2" and not self._has_white():
@@ -3628,9 +3662,57 @@ class TableJob:
         return left is not None and left < sp.row_seconds(n) + sp.CAL_MARGIN_S
 
     def _again_refused(self) -> "str | None":
-        if self.rows_again.get(self.page, 0) >= ROWS_READ_AGAIN_PER_PAGE:
-            return "rows_read_again_limit"
+        """4.3.53 fix round (inventory D7): None. Until 4.3.52 a third row read again on one
+        page was refused ("rows_read_again_limit"); that limit only bounded the caps' allowance,
+        never anything physical, and the person decides how often to try again. Each row read
+        again now adds its own lines to the session's caps (:meth:`_grant_for_row`)."""
         return None
+
+    #: 4.3.53 fix round (D7 / D8): what one more run of a stage may send (lines, movements),
+    #: added to the session's caps when it starts (the caps keep their own allowance as well)
+    RUN_GRANT = {"park": cp.PARK, "d1": cp.ALIGN_CYCLE, "dz": cp.CREEP,
+                 "f": (cp.HOME[0] + cp.WAY_BACK[0] + 2, cp.HOME[1] + cp.WAY_BACK[1]),
+                 "c1": cp.CALIBRATION, "c2": cp.TILE_READING}
+
+    def _grant(self, why: str, lines: int, moves: int) -> None:
+        """Adds (lines, moves) to the session's caps for a run a person asked for or the job
+        repeats once by itself (never raises; nothing is sent)."""
+        d = self._table
+        if d is None or getattr(d, "c_caps", None) is None or (lines <= 0 and moves <= 0):
+            return
+        d.c_caps = (d.c_caps[0] + int(lines), d.c_caps[1] + int(moves))
+        self.caps_granted.append((why, int(lines), int(moves)))
+        try:
+            d.log("DATA", f"caps +{lines} lines / +{moves} movements for {why}: now "
+                          f"{d.c_caps[0]} / {d.c_caps[1]}")
+        except Exception:      # noqa: BLE001 - a record only
+            pass
+
+    def _grant_for_run(self, key: str) -> None:
+        """A stage run beyond the first of its kind on this page brings its own allowance, but
+        only when a PERSON answered something since the last run of that kind was granted (the
+        person decides how often to try again; a program that repeats a step with nobody
+        answering still meets the caps: the runaway protection)."""
+        if self.runs.get((self.page, key), 0) <= 1 or key not in self.RUN_GRANT:
+            return
+        if self.person_answers <= self._granted_at.get(key, -1):
+            return
+        self._granted_at[key] = self.person_answers
+        ln, mv = self.RUN_GRANT[key]
+        self._grant(f"run {self.runs[(self.page, key)]} of {key} on page {self.page + 1}",
+                    ln, mv)
+
+    def _grant_for_row(self, plan) -> None:
+        """A row read again (by the person's answer, or once by itself) brings its own
+        allowance: the row's cost and its automatic second moves."""
+        n = len(plan.patches)
+        ln, mv = cp.row_cost(n, self.dual is not None)
+        ln += cp.BESIDE_RETRIES_PER_ROW * cp.BESIDE_RETRY[0]
+        mv += cp.BESIDE_RETRIES_PER_ROW * cp.BESIDE_RETRY[1]
+        if plan.kind == "spot":
+            sl, sm = cp.spot_row_step(n)
+            ln, mv = max(ln, sl), max(mv, sm)
+        self._grant(f"row {plan.index + 1} of page {self.page + 1} read again", ln, mv)
 
     # ---- the reader ------------------------------------------------------------------------
     def _consent_facts(self) -> "list[str]":
@@ -4318,12 +4400,14 @@ class TableJob:
         if again:
             # counted when the row really starts (after GO), never for a refused request
             self.rows_again[self.page] = self.rows_again.get(self.page, 0) + 1
+            self._grant_for_row(plan)
         if fallback:
             self.strip_fallbacks.setdefault(self.page, {})[plan.index] = fallback
             det = getattr(self, "_fallback_detail", None) or {}
             self._progress(event="strip_fallback", row=plan.index + 1, why=fallback,
                            where=det.get("where"))
         attempt = 1
+        reread_by_itself = False
         while True:
             if plan.kind == "strip" and self.dual is not None:
                 rec = yield from self._dual_strip_attempt(plan, attempt)
@@ -4337,6 +4421,27 @@ class TableJob:
             self.row_status.setdefault(self.page, {})[plan.index] = "failed"
             # 4.3.52: a row that could not be read keeps the detailed lines before it
             self.diag.trip(f"row {plan.index + 1} of page {self.page + 1} failed: {rec['why']}")
+            if (plan.kind == "spot" and not reread_by_itself
+                    and rec["why"] in sp.READ_AGAIN_BY_ITSELF
+                    and not self._calibration_due_for(len(plan.patches))):
+                # 4.3.53 fix round (inventory D5 / D6, the owner's yardstick: do what the
+                # vendor's software does, which repeats a failed row without asking anybody):
+                # a READING failed while the arm stood where it should (nothing about the table
+                # changed, nobody was asked, so no hand came near it), so the row is read once
+                # more BY ITSELF, the same plan, the same recorded lines, no question and no
+                # countdown; only if that fails too is the person asked. The sitting does not
+                # turn guided for it.
+                reread_by_itself = True
+                self.rows_reread_by_itself.append((self.page + 1, plan.index + 1, rec["why"]))
+                self.diag.log("DATA", f"row {plan.index + 1} of page {self.page + 1}: the "
+                                      f"reading failed ({rec['why']}) with the arm on its "
+                                      "patch; the row is read once more by itself, nobody "
+                                      "is asked")
+                self._progress(event="row_again_by_itself", row=plan.index + 1,
+                               why=rec["why"])
+                self._grant_for_row(plan)
+                attempt += 1
+                continue
             self._go_page = None          # a failed row: hands may reach in; GO before any move
             ask = Confirm.ROW_FAILED_STRIP if plan.kind == "strip" else Confirm.ROW_FAILED
             ans = yield Ask(ask, {
@@ -4366,6 +4471,7 @@ class TableJob:
                 plan = sp.plan_row(self.sheet, self.page, plan.index, self.alignment,
                                    self._table.front_y, cap_y=self._cap(), kind="spot", only_locs=self.only_locs)
                 self.strip_fallbacks.setdefault(self.page, {})[plan.index] = "chosen_by_you"
+                self._grant_for_row(plan)
                 attempt += 1
                 continue
             if ans == "again":
@@ -4379,6 +4485,7 @@ class TableJob:
                     raise PersonStopped("person_chose_back", row=plan.index + 1)
                 self._go_page = self.page
                 self.rows_again[self.page] = self.rows_again.get(self.page, 0) + 1
+                self._grant_for_row(plan)
                 attempt += 1
                 continue
             if ans == "skip":

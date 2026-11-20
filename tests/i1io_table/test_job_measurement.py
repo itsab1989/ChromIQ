@@ -58,7 +58,7 @@ def test_a_whole_page_becomes_a_complete_measurement_in_the_charts_order(tmp_pat
 
 def test_a_session_with_a_row_missing_never_looks_complete(tmp_path):
     job, sim, helper, run, p = job_for(tmp_path, {J.Confirm.ROW_FAILED: "skip"},
-                                       faults={"read": {1: "dies"}})
+                                       faults={"read": {1: "dies_twice"}})
     ready_to_read(job, p)
     read_page(job, p)
     r = job.save()

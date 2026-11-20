@@ -20,6 +20,11 @@ Faults (``HelperSim(faults=...)``):
               helper ends before its autosave), slow, cal_required
   read_loc    {loc: kind}: every reading of that patch (a patch that always fails)
   read_once   {loc: kind}: the first reading of that patch only
+  read_twice  {loc: kind}: the first TWO readings of that patch (4.3.53: a patch row whose
+              reading failed is read once more by itself, so a failure the person is asked
+              about needs a patch that fails in the re-read too)
+  read        a kind ending in "_twice" ({n: "dies_twice"}): the n-th reading fails with that
+              kind AND the next reading of the same patch (the row's re-read by itself)
   read_s      seconds of the simulator's clock per reading (default 0.9)
 The tester's own simulator objects (part C 0.6.0's CSimTable) work here unchanged.
 """
@@ -107,6 +112,9 @@ class HelperSim:
         #: report while a reading is on its way)
         self.on_read = None
         self.failed_once: "set[str]" = set()
+        #: 4.3.53: read_twice / "_twice": the patches still owed one more failure
+        self.fail_again: "dict[str, str]" = {}
+        self.failed_twice: "dict[str, int]" = {}
         #: round B: every button wait started (FakePressProc)
         self.press_procs: "list[FakePressProc]" = []
         #: round B: every table-scan reader started (folders), and the readers themselves
@@ -481,7 +489,17 @@ class FakeHelperProc:
         if loc in once and loc not in h.failed_once:
             h.failed_once.add(loc)
             return once[loc]
-        return h.faults.get("read", {}).get(h.reads)
+        twice = h.faults.get("read_twice", {})
+        if loc in twice and h.failed_twice.get(loc, 0) < 2:
+            h.failed_twice[loc] = h.failed_twice.get(loc, 0) + 1
+            return twice[loc]
+        if loc in h.fail_again:
+            return h.fail_again.pop(loc)
+        kind = h.faults.get("read", {}).get(h.reads)
+        if isinstance(kind, str) and kind.endswith("_twice"):
+            kind = kind[:-len("_twice")]
+            h.fail_again[loc] = kind
+        return kind
 
     def _xyz_here(self):
         x, y = self.helper.sim.pos

@@ -191,14 +191,23 @@ def test_a_failed_strip_read_patch_by_patch_asks_go_first_and_counts_as_again(tm
     assert seen["moves_at_go"] == before + 2 and not seen["moving"]
 
 
-def test_a_failed_strip_again_twice_then_the_third_is_refused(tmp_path, monkeypatch):
+def test_a_failed_strip_is_read_again_as_often_as_the_person_asks(tmp_path, monkeypatch):
+    """4.3.53 fix round (inventory D7): "again" three times, then "skip": never refused (until
+    4.3.52 the third "again" of a page was)."""
     _broken_stream(monkeypatch)
     job, sim, helper, run, p = _job(tmp_path, script={J.Confirm.ROW_FAILED_STRIP: "again"})
     _ready(job, p)
+    answers = iter(["again", "again", "again", "skip"])
+
+    def on_ask(person, res):
+        if res.confirm == J.Confirm.ROW_FAILED_STRIP:
+            person.script[J.Confirm.ROW_FAILED_STRIP] = next(answers)
+        return None
+    p.on_ask = on_ask
     r = p.drive(job.read_row())
-    assert getattr(p, "refused_again", 0) == 1      # the third "again" was refused
-    assert job.rows_again[0] == 2
-    assert sum(1 for ln in sim.received if ln.startswith(";m2")) == 3
+    assert getattr(p, "refused_again", 0) == 0
+    assert job.rows_again[0] == 3
+    assert sum(1 for ln in sim.received if ln.startswith(";m2")) == 4
 
 
 def test_a_row_too_long_for_one_strip_is_read_patch_by_patch_and_said(tmp_path, monkeypatch):

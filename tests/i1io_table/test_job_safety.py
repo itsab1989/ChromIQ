@@ -184,29 +184,27 @@ def test_the_caps_are_on_the_table_before_the_first_line():
     assert job._table.c_gate is not None
 
 
-def test_a_session_that_exceeds_its_derived_cap_is_stopped(monkeypatch):
-    """Runaway protection: a session that keeps aligning and homing past its chart's caps is
-    stopped by the table module's own cap check, and nothing more is sent after it."""
+def test_a_session_that_exceeds_its_derived_cap_is_stopped():
+    """Runaway protection: a session that keeps running a step with NOBODY answering anything
+    (the guidance off: the countdown is not an answer) is stopped by the table module's own cap
+    check, and nothing more is sent after it. 4.3.53 fix round: there is no count per page any
+    more (inventory D8); a run beyond the first brings its own allowance only after a person
+    answered, so a program alone still meets the caps."""
     sheet = shaped_sheet([1])
-    monkeypatch.setitem(J.MAX_RUNS, "d1", 99)
-    monkeypatch.setitem(J.MAX_RUNS, "f", 99)
     job, sim, _t = H.make_job(sheet=sheet, aims=None)
+    job.guided = False
     p = H.Person(job, sim)
-    sim.aims = H.demo_aims()           # the sheet's marks are not checked here: refused aims
     assert p.drive(job.open()).ok
     cap = job._table.c_caps[0]
     res = None
-    for _ in range(200):
-        res = p.drive(job.align())
-        if res.kind == J.Kind.STOPPED:
-            break
-        res = p.drive(job.home())
+    for _ in range(500):
+        res = p.drive(job.park())
         if res.kind == J.Kind.STOPPED:
             break
     assert res.kind == J.Kind.STOPPED and res.reason in ("session_line_cap",
-                                                         "session_movement_cap")
+                                                         "session_movement_cap"), res.reason
     n = len(sim.received)
-    assert n <= cap
+    assert n <= job._table.c_caps[0] + 1 and job._table.c_caps[0] >= cap
     assert p.drive(job.home()).kind == J.Kind.REFUSED and len(sim.received) == n
 
 
@@ -401,15 +399,19 @@ def test_a_free_arm_that_moves_between_two_readings_is_not_moved():
     assert moves(sim.received[n:]) == []
 
 
-def test_a_stage_runs_at_most_as_often_as_the_tester_allowed_per_page():
-    # step 7: the calibration and the tile reading as the tester's C1 and C2 (3 runs each)
+def test_a_stage_runs_as_often_as_the_person_asks():
+    """4.3.53 fix round (inventory D8): MAX_RUNS is no longer a limit (it was the tester's
+    runaway count per page). A person who answers between runs gets every run; each one beyond
+    the first adds its own lines to the caps."""
     assert J.MAX_RUNS == {"park": 8, "d1": 5, "dz": 3, "f": 8, "c1": 3, "c2": 3}
     job, sim, _t = H.make_job()
     p = H.Person(job, sim)
     assert p.drive(job.open()).ok
-    for _ in range(8):
-        assert p.drive(job.park()).ok
-    assert job.park().reason == "ran_as_often_as_allowed"
+    for i in range(12):
+        job.person_answered("a_window_page", "carry on")      # the person, between the runs
+        r = p.drive(job.park())
+        assert r.ok, (i, r.reason)
+    assert len([g for g in job.caps_granted if " of park " in g[0]]) == 11
 
 
 # ---- the lost link, at every line -----------------------------------------------------------

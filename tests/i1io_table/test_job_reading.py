@@ -295,10 +295,17 @@ def test_every_failure_kind_at_every_patch_of_a_small_page(tmp_path, kind, at):
         extra = [x for x in sim.received if x.startswith(";p0")]
         assert len(extra) == len([x for x in _clean(tmp_path / "c2").received
                                   if x.startswith(";p0")]) + 1
+    elif kind == "dies":
+        # 4.3.53 fix round (inventory D5): a reading that failed with the arm on its patch
+        # (here the reader died) makes the row be read once more BY ITSELF: no question, no
+        # row counted as read again by the person, the sitting not turned guided
+        assert fails == []
+        assert [w for _pg, _row, w in job.rows_reread_by_itself] == ["reader_died"]
+        assert job.rows_again.get(0, 0) == 0 and job.turned_guided is None
     else:
         assert len(fails) == 1 and fails[0]["again_allowed"] is True
         assert fails[0]["why"] == {"other_loc": "reading_of_another_patch",
-                                   "dies": "reader_died", "slow": "reading_timed_out"}[kind]
+                                   "slow": "reading_timed_out"}[kind]
         assert job.rows_again[0] == 1
     m = job.measurement()
     assert m.ok and m.detail["measurement"]["state"] == "complete", m.detail
@@ -326,7 +333,7 @@ def test_a_patch_that_fails_twice_fails_the_row_and_its_values_never_reach_the_f
 
 def test_a_failed_row_offers_again_skip_stop_and_stop_holds_the_arm(tmp_path):
     job, sim, helper, run, p = job_for(tmp_path, {J.Confirm.ROW_FAILED: "stop"},
-                                       faults={"read": {2: "dies"}})
+                                       faults={"read": {2: "dies_twice"}})
     ready_to_read(job, p)
     r = p.drive(job.read_row())
     assert (r.kind, r.reason) == (J.Kind.REFUSED, "stopped_after_a_failed_row")
@@ -338,50 +345,47 @@ def test_a_failed_row_offers_again_skip_stop_and_stop_holds_the_arm(tmp_path):
     assert p.drive(job.home()).ok
 
 
-def test_a_page_reads_at_most_two_rows_again(tmp_path):
-    """NEXT_STEPS 4d: read a page, ask for the same row a third time: refused with that reason,
-    nothing sent; on the next page the count starts again."""
+def test_a_page_reads_its_rows_again_as_often_as_the_person_asks(tmp_path):
+    """NEXT_STEPS 4d said at most two rows of a page are read again. 4.3.53 fix round
+    (inventory D7, the owner's yardstick: the person decides how often to try again): no limit;
+    each row read again brings its own allowance to the session's caps, so nothing is ever
+    refused by the caps either. Five times the same row, then another row: all read."""
     sheet = small_sheet(pages=2)
     job, sim, helper, run, p = job_for(tmp_path, sheet=sheet)
     ready_to_read(job, p)
     read_page(job, p)
-    assert p.drive(job.read_row(1)).ok
-    assert p.drive(job.read_row(1)).ok
-    n = len(sim.received)
-    r = job.read_row(1)
-    assert (r.kind, r.reason) == (J.Kind.REFUSED, "rows_read_again_limit")
-    assert len(sim.received) == n and job._gen is None
-    assert job.read_row(2).reason == "rows_read_again_limit"        # any row of the page
-    # the next page: its own count
-    assert p.drive(job.home()).ok and job.next_page().ok
-    assert p.drive(job.align()).ok
-    read_page(job, p)
-    assert p.drive(job.read_row(1)).ok and p.drive(job.read_row(2)).ok
-    assert job.read_row(1).reason == "rows_read_again_limit"
-    assert job.rows_again == {0: 2, 1: 2}
+    lines0 = job._table.c_caps[0]
+    for _ in range(5):
+        assert p.drive(job.read_row(1)).ok
+    assert p.drive(job.read_row(2)).ok
+    assert job.rows_again == {0: 6}
+    assert job._table.c_caps[0] > lines0 and len(job.caps_granted) == 6
+    assert sim.violations == []
 
 
-def test_again_after_a_failed_row_counts_and_a_third_again_is_refused_with_nothing_sent(
-        tmp_path):
+def test_again_after_a_failed_row_counts_and_is_never_refused(tmp_path):
+    """4.3.53 fix round (inventory D7): a patch that always fails: the row is read once more
+    by itself, then the person is asked; "again" four times, then "skip". Nothing is refused
+    ("again" was refused the third time until 4.3.52)."""
     job, sim, helper, run, p = job_for(tmp_path, faults={"read_loc": {"0-1": "dies"}})
     ready_to_read(job, p)
-    lines_at_refusal = []
+    answers = iter(["again"] * 4 + ["skip"])
 
     def on_ask(person, res):
-        if res.confirm == J.Confirm.ROW_FAILED and job.rows_again.get(0, 0) >= 2:
-            lines_at_refusal.append(len(sim.received))
+        if res.confirm == J.Confirm.ROW_FAILED:
+            person.script[J.Confirm.ROW_FAILED] = next(answers)
         return None
     p.on_ask = on_ask
     r = p.drive(job.read_row())
-    assert r.ok and r.detail["status"] == "skipped" and r.detail["attempts"] == 3
-    assert job.rows_again[0] == 2 and p.refused_again == 1
-    assert len(sim.received) == lines_at_refusal[0]               # the refused again sent nothing
-    assert job.read_row(1).reason == "rows_read_again_limit"
+    assert r.ok and r.detail["status"] == "skipped" and r.detail["attempts"] == 6
+    assert job.rows_again[0] == 4 and getattr(p, "refused_again", 0) == 0
+    assert len(job.rows_reread_by_itself) == 1
+    assert sim.violations == []
 
 
 def test_a_skipped_row_leaves_a_partial_measurement(tmp_path):
     job, sim, helper, run, p = job_for(tmp_path, {J.Confirm.ROW_FAILED: "skip"},
-                                       faults={"read": {6: "dies"}})
+                                       faults={"read": {6: "dies_twice"}})
     ready_to_read(job, p)
     res = read_page(job, p)
     assert [r.detail["status"] for r in res] == ["read", "skipped"]

@@ -53,11 +53,12 @@ ENDINGS = {
     # (faults, script, how the row is ended)
     "stop between patches": ({}, {}, _stop_mid),
     "stop during the last patch": ({}, {}, _stop_last),
-    "failed row, skip": ({"read": {2: "dies"}}, {J.Confirm.ROW_FAILED: "skip"}, None),
-    "failed row, stop": ({"read": {2: "dies"}}, {J.Confirm.ROW_FAILED: "stop"}, None),
+    # 4.3.53 fix round: "_twice": the row's own re-read fails too, so the person is asked
+    "failed row, skip": ({"read": {2: "dies_twice"}}, {J.Confirm.ROW_FAILED: "skip"}, None),
+    "failed row, stop": ({"read": {2: "dies_twice"}}, {J.Confirm.ROW_FAILED: "stop"}, None),
     "first visit declined": ({}, {J.Confirm.FIRST_VISIT: "no"}, None),
     "reader cannot open": ({"open": "busy", "open_at": 2}, {}, None),
-    "again then back": ({"read": {2: "dies"}}, {J.Confirm.ROW_FAILED: "again"}, "again_back"),
+    "again then back": ({"read": {2: "dies_twice"}}, {J.Confirm.ROW_FAILED: "again"}, "again_back"),
 }
 
 
@@ -97,7 +98,7 @@ def test_every_bad_ending_of_a_row_makes_the_next_moving_step_ask_go(tmp_path, n
 @pytest.mark.parametrize("asking", [True, False], ids=["asking", "quiet"])
 def test_again_on_a_failed_row_asks_go_before_the_arm_moves(tmp_path, asking):
     job, sim, helper, run, p = job_for(tmp_path, sheet=small_sheet(THREE),
-                                       faults={"read": {2: "dies"}}, asking=asking)
+                                       faults={"read": {2: "dies_twice"}}, asking=asking)
     ready_to_read(job, p)
     seen = []
 
@@ -106,7 +107,8 @@ def test_again_on_a_failed_row_asks_go_before_the_arm_moves(tmp_path, asking):
         return None
     p.on_ask = on_ask
     r = p.drive(job.read_row())
-    assert r.ok and r.detail["attempts"] == 2
+    # 4.3.53 fix round: attempt 2 is the row's own re-read (nobody asked), 3 the person's again
+    assert r.ok and r.detail["attempts"] == 3
     kinds = [k for k, *_ in seen]
     i = kinds.index(J.Confirm.ROW_FAILED)
     assert kinds[i + 1] == J.Confirm.GO and seen[i + 1][1] == seen[i][1]   # nothing moved between

@@ -49,16 +49,21 @@ def test_a_refused_alignment_is_aimed_again_at_once_without_a_move(bad):
     assert sim.violations == []
 
 
-def test_the_alignment_may_be_aimed_again_up_to_the_pages_limit():
+def test_the_alignment_may_be_aimed_again_as_often_as_the_person_aims():
+    """4.3.53 fix round (inventory D8): until 4.3.52 a page could be aimed at most five times
+    ("ran_as_often_as_allowed"). The person decides how often to aim again: ten wrong aimings
+    are each refused for their own reason, never for a count, and the homing is still offered.
+    Each run after the first brings its own allowance to the caps (the person answered)."""
     good = H.demo_aims()
     wrong = [good[0], good[1], (good[2][0] + 100, good[2][1])]
     job, sim, _t = H.make_job(aims=wrong, jitter=False)
     p = H.Person(job, sim)
     assert p.drive(job.open()).ok
-    reasons = [p.drive(job.align()).reason for _ in range(J.MAX_RUNS["d1"])]
+    reasons = [p.drive(job.align()).reason for _ in range(2 * J.MAX_RUNS["d1"])]
     assert all(r.startswith("aims_") for r in reasons), reasons
+    assert len([g for g in job.caps_granted if " of d1 " in g[0]]) == 2 * J.MAX_RUNS["d1"] - 1
     r = p.drive(job.align())
-    assert r.reason == "ran_as_often_as_allowed"
+    assert r.reason != "ran_as_often_as_allowed"
     assert r.way_back == J.WayBack.HOME_OFFERED      # the homing is still offered
 
 

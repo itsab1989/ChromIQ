@@ -143,7 +143,7 @@ def _sc_consent_in_a_row(tmp_path, asking):
 
 def _sc_failed_rows(tmp_path, asking):
     job, sim, helper, run, p = job_for(tmp_path, asking=asking, sheet=small_sheet([3, 3, 3]),
-                                       faults={"read": {2: "dies", 9: "dies"}},
+                                       faults={"read": {2: "dies_twice", 9: "dies_twice"}},
                                        script={J.Confirm.ROW_FAILED: "again"})
     tl = _Timeline(job, sim)
     ready_to_read(job, p)
@@ -416,7 +416,7 @@ def test_the_panel_failed_row_skip_and_keep_measuring(qtbot, monkeypatch, tmp_pa
         p.press("Keep measuring")
     bad, pages = _panel_walk(qtbot, monkeypatch, tmp_path, settings, asking,
                              sheet=small_sheet([4, 4, 4]),
-                             sim=WindowSim(faults={"read": {2: "dies"}}),
+                             sim=WindowSim(faults={"read": {2: "dies_twice"}}),
                              script={"row_failed": "Skip it"}, before=before,
                              presentation=presentation)
     assert bad == [], pages

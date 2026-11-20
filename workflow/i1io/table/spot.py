@@ -402,6 +402,13 @@ BUSY_WORDS = ("busy", "in use", "access", "claim")
 #: the patch); every other failure ends the reader, and the row
 RETRYABLE = ("reading_failed", "reading_implausible", "reading_without_values",
              "reading_off_target")
+#: 4.3.53 fix round (inventory D5): a patch row whose READING failed with the arm where it
+#: should be (the arrival was checked before the reading) is read once more by itself, without
+#: a question, as the vendor's software repeats a failed row without asking. Not for an
+#: arrival beside its target, a calibration the instrument asks for, a wrong instrument or a
+#: reader that never opened: those keep their question or their page.
+READ_AGAIN_BY_ITSELF = ("reading_failed", "reading_implausible", "reading_without_values",
+                        "reader_died", "reader_error", "uv_spot_failed")
 
 
 def failure_id(message: str, events: "list[dict]", alive: bool) -> "tuple[str, dict]":

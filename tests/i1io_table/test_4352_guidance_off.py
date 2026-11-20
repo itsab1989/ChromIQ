@@ -382,7 +382,7 @@ def test_t6_stop_during_the_countdown_moves_nothing(tmp_path):
 CASES = {
     "warm": dict(),
     "cold": dict(cold=True),
-    "failed_row": dict(faults={"read_once": {"1-2": "dies"}}),
+    "failed_row": dict(faults={"read_twice": {"1-2": "dies"}}),
 }
 
 
