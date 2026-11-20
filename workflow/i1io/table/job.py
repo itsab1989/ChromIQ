@@ -627,6 +627,21 @@ def _beyond_mm(a, b) -> float:
     return worst
 
 
+def plan_front_y(sheet: dict, page: int, al: geo.Alignment) -> "int | None":
+    """4.3.53: the frontmost table Y of every target the page's plan computes (patch centres
+    and row run ends, through the alignment), or None when the side file gives none."""
+    ys = []
+    try:
+        for st in sheet["pages"][page]["strips"]:
+            for q in st["patches"]:
+                ys.append(al.to_table(sc.sheet_table_mm(sheet, q["centre_mm"]))[1])
+            for r in st["run_mm"]:
+                ys.append(al.to_table(sc.sheet_table_mm(sheet, (st["x_mm"], r)))[1])
+    except (KeyError, IndexError, TypeError, ValueError):
+        return None
+    return max(ys) if ys else None
+
+
 def page_fit(sheet: dict, page: int, al: geo.Alignment) -> dict:
     """Part C's page check after the aims (nothing moves): which spot targets and which strip
     rows of the page lie inside the area, and how far the sheet reaches into the front zone.
@@ -641,7 +656,9 @@ def page_fit(sheet: dict, page: int, al: geo.Alignment) -> dict:
             u = sc.sheet_table_mm(sheet, q["centre_mm"])
             p = al.to_table(u)
             spot_pts.append(p)
-            if not (area.contains(p) and al.on_sheet(u, 0.5)):
+            # 4.3.53: the aimed marks' rectangle no longer refuses a patch (both ways of
+            # reading: the owner's ruling of 2026-11-20); only the target area does
+            if not area.contains(p):
                 spot_out += 1
                 if k not in spot_out_rows:
                     spot_out_rows.append(k)
@@ -1188,9 +1205,19 @@ class TableJob:
     def _cap(self) -> int:
         """4.3.49 (Basti's ruling): the front of the target area: the area the person aimed at
         on this sheet (geometry.Alignment.aimed_front_y); the proven measuring area without an
-        alignment."""
+        alignment. 4.3.53 (the owner, 2026-11-20: the aimed points are not the edge): or the
+        frontmost target the page's plan needs, when that lies further forward (a chart aimed
+        on its corner patches); never beyond the absolute backstop (geometry.table_cap)."""
         al = self.alignment
-        return geo.table_cap(al.aimed_front_y() if al is not None else None)
+        if al is None:
+            return geo.table_cap(None)
+        front = al.aimed_front_y()
+        if getattr(self, "_plan_front_for", None) is not al:
+            self._plan_front_for = al
+            self._plan_front = plan_front_y(self.sheet, self.page, al)
+        if self._plan_front is not None:
+            front = max(front, self._plan_front)
+        return geo.table_cap(front)
 
     def state(self) -> TableState:
         d = self._table
@@ -2579,6 +2606,41 @@ class TableJob:
         yield from self._start_homing(found)
         return self._table.position_now
 
+    # ---- 4.3.53: the ground this table is known to reach (FOR THE SAFETY REVIEW) ------------
+    def known_ground_x(self) -> "tuple[int, int]":
+        """(right, left) X this table is known to reach: the vendor's own motor targets and
+        what this table's opening has been read at, free or under motor (the reach record,
+        this sitting included). geometry.known_x."""
+        r = self.reach
+        return geo.known_x(r.right_end_x if r is not None else None,
+                           r.left_x if r is not None else None)
+
+    def _row_ends_beyond(self, *pts) -> "list[str]":
+        """Which sides of the known ground the points *pts* (a strip row's start and end)
+        lie beyond: "right side", "left side", "front" (beyond what this sitting has confirmed
+        with the creep or from this table's motors). Empty: the row runs on known ground and
+        is read at once, as i1Profiler reads it."""
+        right, left = self.known_ground_x()
+        d = self._table
+        front = max(geo.MEASURING_AREA.ymax, int(d.front_y or 0)) if d is not None else \
+            geo.MEASURING_AREA.ymax
+        out = []
+        if any(p[0] < right for p in pts):
+            out.append("right side")
+        if any(p[0] > left for p in pts):
+            out.append("left side")
+        if any(p[1] > front for p in pts):
+            out.append("front")
+        return out
+
+    def _learn_strip_ends(self, res, scan_plan) -> None:
+        """A strip row that ended normally read the arm at its start and its end, each within
+        the arrival tolerance: both are places this table's motors reached."""
+        for got, target in ((getattr(res, "at_start", None), scan_plan.start),
+                            (getattr(res, "end_xy", None), scan_plan.end)):
+            if got is not None and _near(got, target):
+                self._learn(got, "motor", target)
+
     def _visited(self, p) -> bool:
         return (any(box.contains(p) for box in geo.DRIVEN)
                 or any(_rect_contains(r, p) for r in self.driven))
@@ -3125,7 +3187,8 @@ class TableJob:
         need = min(int(self.front_need), self._cap())
         self._block["data"]["front_need_y"] = need
         mark = max(al.readings, key=lambda p: p[1])
-        x = min(max(int(mark[0]), geo.MEASURING_AREA.xmin), geo.MEASURING_AREA.xmax)
+        # 4.3.53: the target area's sides (the backstop), no longer the recorded extent
+        x = min(max(int(mark[0]), geo.CAP_AREA.xmin), geo.CAP_AREA.xmax)
         self._step("dz", *DZ_CAPS)
         a = d.position()
         if d.arm_free:
@@ -4133,13 +4196,13 @@ class TableJob:
                         sp.plan_row(self.sheet, self.page, k, self.alignment,
                                     self._table.front_y, cap_y=self._cap(), kind=kind, only_locs=self.only_locs))
             except sp.RowRefused as exc:
-                if kind != "strip" or exc.reason not in ("strip_row_too_long",
-                                                         "strip_only_some_patches",
-                                                         "dual_row_patches_too_short"):
+                if kind != "strip" or exc.reason not in sp.STRIP_FALLBACK_REASONS:
                     raise
                 fallback = exc.reason
+                # 4.3.53: the TRUE reason, in the log and in the event the window shows
                 self.diag.log("DATA", f"row {row} is read patch by patch: {exc.reason} "
                                       + json.dumps(exc.detail, default=str))
+                self._fallback_detail = dict(exc.detail)
                 plan = sp.plan_row(self.sheet, self.page, k, self.alignment,
                                    self._table.front_y, cap_y=self._cap(), kind="spot", only_locs=self.only_locs)
         except sp.RowRefused as exc:
@@ -4164,7 +4227,9 @@ class TableJob:
             self.rows_again[self.page] = self.rows_again.get(self.page, 0) + 1
         if fallback:
             self.strip_fallbacks.setdefault(self.page, {})[plan.index] = fallback
-            self._progress(event="strip_fallback", row=plan.index + 1, why=fallback)
+            det = getattr(self, "_fallback_detail", None) or {}
+            self._progress(event="strip_fallback", row=plan.index + 1, why=fallback,
+                           where=det.get("where"))
         attempt = 1
         while True:
             if plan.kind == "strip" and self.dual is not None:
@@ -4509,9 +4574,20 @@ class TableJob:
             if self._pause_stop:
                 self._pause_stop = False
                 raise PersonStopped("stopped_before_the_strip")
-            if geo.in_front_zone(scan_plan.start) or geo.in_front_zone(scan_plan.end):
-                # tester fix 2: the creep confirmed the front Y at one X only; the strip runs
-                # along X, so both ends of the row are first reached by a spot move each
+            beyond = self._row_ends_beyond(scan_plan.start, scan_plan.end)
+            rec["row_ends_beyond_known_ground"] = beyond
+            if beyond:
+                # 4.3.53 (the owner, 2026-11-20: care for the first time only): until 4.3.52
+                # every front-zone row (Y beyond 2723) got these two moves, every sitting. Now
+                # only a row whose start or end lies beyond the ground THIS table is known to
+                # reach (self._row_ends_beyond: the side reached by the vendor's own targets
+                # or this table's readings, the front this sitting confirmed) is first driven
+                # to by a spot move to each end, each arrival checked; the arrivals are learned
+                # and stored (reach record), so the next row and the next sitting skip it
+                self.diag.log("DATA", f"row {plan.index + 1}: its "
+                                      + " and ".join(beyond) + " lie beyond the ground this "
+                                      "table is known to reach: both row ends are driven to "
+                                      "first, once (then remembered for this table)")
                 self._step("row_ends", 9, 2)     # +2: S-7, each arrival read again once
                 a = d.position()
                 if d.arm_free:
@@ -4522,6 +4598,7 @@ class TableJob:
                 except _ArrivedBeside as exc:
                     raise _RowFailed(exc.reason, "") from None
                 rec["front_row_ends_confirmed"] = True
+                rec["row_ends_confirmed"] = True
             if self._hands_off_due:
                 # final fix round, M-1 (never expected: every question of this row is asked
                 # before the reader opens, and GO follows it there); no GO is asked with the
@@ -4556,6 +4633,8 @@ class TableJob:
             # arrival tolerance (a doubt otherwise)
             self._arrived_at(scan_plan.start)
             self._arrived_at(scan_plan.end)
+            # 4.3.53: both ends are places this table's motors brought the opening to
+            self._learn_strip_ends(res, scan_plan)
             cut = stp.cut_row(scan_plan, str(folder), res.fired)
             stp.save_cut_info(str(folder), name, cut)
             rec["cut"] = {"ok": cut.ok, "reason": cut.reason,
@@ -4651,7 +4730,15 @@ class TableJob:
             if self._pause_stop:
                 self._pause_stop = False
                 raise PersonStopped("stopped_before_the_strip")
-            if geo.in_front_zone(lamp.start) or geo.in_front_zone(lamp.end):
+            beyond = self._row_ends_beyond(lamp.start, lamp.end)
+            rec["row_ends_beyond_known_ground"] = beyond
+            if beyond:
+                # 4.3.53: as for a strip row, only beyond the ground this table is known to
+                # reach, once (then learned and stored)
+                self.diag.log("DATA", f"row {plan.index + 1}: its "
+                                      + " and ".join(beyond) + " lie beyond the ground this "
+                                      "table is known to reach: both row ends are driven to "
+                                      "first, once (then remembered for this table)")
                 self._step("row_ends", 9, 2)
                 a = d.position()
                 if d.arm_free:
@@ -4664,6 +4751,7 @@ class TableJob:
                     # twice: the row fails cleanly and may be read again
                     raise _RowFailed(exc.reason, "") from None
                 rec["front_row_ends_confirmed"] = True
+                rec["row_ends_confirmed"] = True
             if self._hands_off_due:
                 raise _RowFailed("strip_move_refused_here", "")
             for which, pplan in (("lamp", lamp), ("uv", uv)):
@@ -4707,6 +4795,9 @@ class TableJob:
                 files = sc.save_row(str(folder), res) if which == "lamp" else \
                     _save_pass(str(folder), res)
                 results[which] = res
+                if res.kind == "done":
+                    # 4.3.53: the pass's ends are places this table's motors reached
+                    self._learn_strip_ends(res, pplan)
                 rec.setdefault("scan", {})[which] = {
                     "kind": res.kind, "why": res.why, "notes": res.notes, "files": files,
                     "c4": res.c4, "a3": res.a3, "start_read": res.start_read,

@@ -95,8 +95,10 @@ CAP = geo.CAP_AREA
 
 @pytest.mark.parametrize("x,y,ok", [(A.xmin, A.ymin, True), (A.xmax, A.ymax, True),
                                     (A.xmax, CAP.ymax, True),
-                                    (A.xmin - 1, 2000, False), (A.xmax + 1, 2000, False),
-                                    (0, A.ymin - 1, False), (0, CAP.ymax + 1, False),
+                                    # 4.3.53: the sides are the backstop, not A's
+                                    (CAP.xmin, 2000, True), (CAP.xmax, 2000, True),
+                                    (CAP.xmin - 1, 2000, False), (CAP.xmax + 1, 2000, False),
+                                    (0, CAP.ymin - 1, False), (0, CAP.ymax + 1, False),
                                     (0, 2000, True)])
 def test_a_computed_line_is_built_and_passed_only_inside_the_cap(x, y, ok):
     """The builders and classify (stateless) never pass a line beyond the front zone's cap;
@@ -409,8 +411,11 @@ def test_the_plan_check_refuses_an_unrecorded_speed_and_a_way_from_outside():
     # body. The way from a fresh reading outside AREA_RAW is judged by its target alone (the
     # arm IS where it reads); a row whose own end lies outside stays refused
     sc.check_plan(plan, at=(-1500, 2000))
+    # 4.3.53: a row may end where patch by patch may go (the backstop, not the recorded extent)
+    sc.check_plan(sc.plan_row("x", (-1500, 2000), (1000, 2000), 54), at=(0, 2000))
     with pytest.raises(sc.PlanRefused):
-        sc.check_plan(sc.plan_row("x", (-1500, 2000), (1000, 2000), 54), at=(0, 2000))
+        sc.check_plan(sc.plan_row("x", (geo.CAP_AREA.xmin - 1, 2000), (1000, 2000), 54),
+                      at=(0, 2000))
     with pytest.raises(sc.PlanRefused):
         sc.check_plan(sc.plan_row("x", (-1000, 2000), (1000, 2000), 200))
 

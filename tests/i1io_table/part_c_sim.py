@@ -46,8 +46,10 @@ C_SPEEDS_M2 = (40, 53, 54, 61, 87, 88, 110, 118, 137, 138, 168)
 #: in a sitting the simulator was told reads dual rows (``CSimTable.dual``)
 C_D1_UV = ";d100d23a"
 C_SPEEDS_DUAL = (132,)
-C_TARGET_BOX = (-1384, 1716, 523, 3109)        # targets: never beyond the front zone's cap
-#                                                (until 4.3.49; see FRONT_END_Y below)
+#: targets: 4.3.53 the sides are the absolute backstop (X -1800 / 2507, the simulator's own
+#: copy; until 4.3.52 the recorded extent -1384 / 1716); the front is physical since 4.3.49
+#: (FRONT_END_Y below; the 3109 is kept for the record only)
+C_TARGET_BOX = (-1800, 2507, 483, 3109)
 C_SWEEP_BOX = (-1434, 1766, 473, 3114)         # the swept rectangle from where the arm is
 #                                                (the cap plus the 5-unit arrival tolerance)
 #: fix 2, the simulator's own copy of the front-zone rule: in front of the proven zone (targets
@@ -254,6 +256,9 @@ class CSimTable(SimTable):
                            (x, y)):
                 raise SimViolation(f"{cid} to ({x}, {y}) outside the area")
             if self.front_end is not None and y > self.front_end - FRONT_END_MARGIN:
+                self.end_targets.append((cid, x, y))
+            if self.right_end is not None and x < self.right_end:
+                # 4.3.53: a target beyond the simulated right end (the arm stalls there)
                 self.end_targets.append((cid, x, y))
             # 4.3.49 (Basti's ruling of 19 Nov 2026): the arm stands where the simulated table
             # has it, so the way from there is not judged against where recordings happened to

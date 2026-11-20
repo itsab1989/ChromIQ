@@ -12923,6 +12923,42 @@ M_I1IO_DRIVE_STRIP_TOO_LONG = _m(
     "patch by patch instead. Nothing else changes.",
     approved=False)
 
+M_I1IO_DRIVE_STRIP_OUTSIDE_AREA = _m(
+    "M-I1IO-DRIVE-STRIP-OUTSIDE-AREA",
+    "This row is read patch by patch",
+    "To read row {row} as a strip, the arm would have to start or end the strip outside the "
+    "part of the table ChromIQ may send it to now. So ChromIQ reads this row patch by patch "
+    "instead. Nothing else changes.",
+    approved=False)
+
+M_I1IO_DRIVE_STRIP_NOT_POSSIBLE = _m(
+    "M-I1IO-DRIVE-STRIP-NOT-POSSIBLE",
+    "This row is read patch by patch",
+    "In the chart's side file, row {row} is not one straight run of at least 10 mm. So "
+    "ChromIQ reads this row patch by patch instead. Nothing else changes.",
+    approved=False)
+
+#: 4.3.53: the message of each reason a row is read patch by patch in a strip session (the
+#: job's strip_fallback event; the panel's state line and the Measure tab's log), None for a
+#: reason that has its own words (only some patches wanted)
+STRIP_FALLBACK_MESSAGE = {
+    "strip_row_too_long": "M_I1IO_DRIVE_STRIP_TOO_LONG",
+    "strip_row_outside_area": "M_I1IO_DRIVE_STRIP_OUTSIDE_AREA",
+    "strip_row_too_short": "M_I1IO_DRIVE_STRIP_NOT_POSSIBLE",
+    "strip_row_not_on_a_line": "M_I1IO_DRIVE_STRIP_NOT_POSSIBLE",
+    "dual_row_patches_too_short": "M_I1IO_DRIVE_DUAL_PATCHES_TOO_SHORT",
+}
+
+
+def strip_fallback_text(why: str, row) -> "str | None":
+    """The body of the message for a row read patch by patch for the reason *why* (4.3.53),
+    or None when *why* has no message of its own."""
+    name = STRIP_FALLBACK_MESSAGE.get(str(why or ""))
+    if name is None:
+        return None
+    return globals()[name].render(row=row)[1]
+
+
 M_I1IO_DRIVE_ROW_FAILED_STRIP = _m(
     "M-I1IO-DRIVE-ROW-FAILED-STRIP",
     "Row {row} could not be read as a strip",
@@ -13988,6 +14024,7 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_AIM, M_I1IO_DRIVE_AIM_BUTTON, M_I1IO_DRIVE_AIM_PATCH,
     M_I1IO_DRIVE_AIM_BUTTON_PATCH, M_I1IO_DRIVE_STRIP_OPTION,
     M_I1IO_DRIVE_STRIP_FIRST_TRY, M_I1IO_DRIVE_STRIP_TOO_LONG, M_I1IO_DRIVE_STRIP_DEFAULT_OFFER,
+    M_I1IO_DRIVE_STRIP_OUTSIDE_AREA, M_I1IO_DRIVE_STRIP_NOT_POSSIBLE,
     M_I1IO_DRIVE_DUAL_ROWS, M_I1IO_DRIVE_DUAL_SPOT, M_I1IO_DRIVE_DUAL_PATCHES_TOO_SHORT,
     M_I1IO_DRIVE_ROW_FAILED_STRIP, M_I1IO_DRIVE_FRONT,
     M_I1IO_DRIVE_FIRST_VISIT, M_I1IO_DRIVE_READER_CONSENT,

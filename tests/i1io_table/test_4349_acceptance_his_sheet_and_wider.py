@@ -20,8 +20,8 @@ What these tests pin:
   reads the first row; nothing is refused and no sheet is moved;
 * a second run on the same table does not ask the front-zone question again (the motors have
   been there); another table (other serial) does;
-* Q2: the largest sheet laid as far forward as its crosses allow: read; laid where his lay, the
-  right side refuses it with how far (the X side is kept: evidence of the right stop);
+* Q2: the largest sheet laid as far forward as its crosses allow, and where his lay: read
+  (4.3.53: the right side, the recorded extent X -1384, no longer refuses it);
 * a front end in front of the aimed area: the creep stops at the first step that does not
   arrive, cleanly, and the page says how far short the arm stopped.
 """
@@ -164,30 +164,29 @@ def _aims(sheet, origin):
     return H.demo_aims(sheet, origin=origin)
 
 
-def test_q2_the_largest_sheet_laid_where_his_lay_is_refused_by_the_right_side_with_how_far(
+def test_q2_the_largest_sheet_laid_where_his_lay_is_no_longer_refused_by_the_right_side(
         tmp_path):
+    """4.3.53 (replaces ..._is_refused_by_the_right_side_with_how_far): the right side was the
+    recorded extent (X -1384), not an end of travel; the largest sheet laid where his lay is
+    aimed, felt for at the front and read, as a smaller one."""
     sheet = _largest_sheet()
     aims = _aims(sheet, (1504, 1259))                 # his sheet's corner, as on 19 Nov
     res, job, sim, _p = H.run_steps(["open", "align"], sheet=sheet, aims=aims,
-                                    reach_store=rc.MemoryReachStore())
-    r = res[1]
-    assert r.reason == "aims_outside_area"
-    mv = r.detail["sheet_move"]
-    assert mv["left_mm"] > 0 and mv["back_mm"] == 0       # the front no longer refuses
+                                    reach_store=rc.MemoryReachStore(),
+                                    script={J.Confirm.FRONT_CHOICE: "go on"})
+    assert res[1].ok, (res[1].reason, res[1].detail)
+    assert min(a[0] for a in aims) < -1384             # beyond the old right side
 
 
 @pytest.mark.parametrize("front", [3253, 3330], ids=["front marks where his lay",
                                                    "front marks 7.7 mm further"])
-def test_q2_the_largest_sheet_as_far_forward_as_its_side_allows_reads_its_first_row(tmp_path,
-                                                                                    front):
-    """The largest sheet, moved across only as far as the right side asks, its front marks where
-    his lay and further to the front (the simulated front end at Y 3400 is invented)."""
+def test_q2_the_largest_sheet_where_his_lay_reads_its_first_row(tmp_path, front):
+    """The largest sheet, its right side where his lay (4.3.53: no move across asked for), its
+    front marks where his lay and further to the front (the simulated front end at Y 3450 is
+    assumed)."""
     sheet = _largest_sheet()
-    first = H.run_steps(["open", "align"], sheet=sheet, aims=_aims(sheet, (1504, 1259)),
-                        reach_store=rc.MemoryReachStore())[0][1]
-    mv = first.detail["sheet_move"]
     span = max(a[1] for a in _aims(sheet, (0, 0)))
-    origin = (1504 + 10 * mv["left_mm"], front - span)
+    origin = (1504, front - span)
     aims = _aims(sheet, origin)
     out, job, sim, p = _through_first_row(tmp_path, sheet, aims, right_end=None,
                                           sight_offset=(-106, -323))

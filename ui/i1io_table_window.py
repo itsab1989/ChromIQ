@@ -994,6 +994,10 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
         "strip_move_refused_by_the_table": tr("the table refused the strip move"),
         "strip_failed": tr("the strip could not be read"),
         "strip_row_too_long": tr("the row is too long for one strip move"),
+        "strip_row_outside_area": tr("the strip would start or end outside the part of the "
+                                     "table ChromIQ may send the arm to now"),
+        "strip_row_too_short": tr("the row is not one straight run of at least 10 mm"),
+        "strip_row_not_on_a_line": tr("the row is not one straight run of at least 10 mm"),
         "strip_only_some_patches": tr("only some patches of the row are to be read"),
         "stopped_before_the_next_move": tr("You pressed Stop, so ChromIQ stopped before the "
                                            "next move."),
@@ -2995,13 +2999,10 @@ class TableMeasureWindow(QFrame):
         elif kind == "strip_fallback":
             from workflow import measurement_messages as M
             why = ev.get("why")
-            live["now"] = (M.M_I1IO_DRIVE_STRIP_TOO_LONG.render(row=ev.get("row", "?"))[1]
-                           if why == "strip_row_too_long" else
-                           M.M_I1IO_DRIVE_DUAL_PATCHES_TOO_SHORT.render(
-                               row=ev.get("row", "?"))[1]
-                           if why == "dual_row_patches_too_short" else
-                           tr("Now: row {row} is read patch by patch, because only some of its "
-                              "patches are to be read.").format(row=ev.get("row", "?")))
+            # 4.3.53: every reason in its own true words (M.strip_fallback_text)
+            live["now"] = (M.strip_fallback_text(why, ev.get("row", "?"))
+                           or tr("Now: row {row} is read patch by patch, because only some of "
+                                 "its patches are to be read.").format(row=ev.get("row", "?")))
         elif kind == "strip_move" and ev.get("dual_pass") == "lamp":
             live["now"] = tr("Now: the arm drives along row {row} of page {page} while the "
                              "instrument reads it with its lamp (the first of two passes).").format(
