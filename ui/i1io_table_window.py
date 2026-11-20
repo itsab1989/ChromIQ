@@ -2468,6 +2468,11 @@ class TableMeasureWindow(QFrame):
             # answer the arm moves at once says it itself (in the panel too: one definition of
             # every page)
             text = text + "\n\n" + switch_off_line()
+        if "3.8.6" in text and "3.8.7" not in text:
+            # 4.3.51, the owner's decision of 2026-11-20: "the i1io 2 is not supported by the
+            # most recent i1profiler anymore so we should not rely on it"
+            from workflow import measurement_messages as _M
+            text = text + "\n\n" + _M.M_I1IO_DRIVE_I1PROFILER_LIMIT.render()[1]
         self._title.setText(title)
         self._text.setText(text)
         self._scroll.verticalScrollBar().setValue(0)
@@ -3783,6 +3788,9 @@ class TableMeasureWindow(QFrame):
             # what is offered (job.start_homing_form), never the answer to the ready question
             if j.way_back() == "home_after_stop":
                 msg = M.M_I1IO_DRIVE_ARM_OUT_AT_START
+                if self._start_form() == "try":
+                    # the owner's decision of 2026-11-20: a try, and the page says so
+                    msg = M.M_I1IO_DRIVE_ARM_OUT_TRY
                 # the offer first, as the pop-up places its confirming answer (review of
                 # 4.3.51, SHOULD-2: the panel showed them the other way round)
                 buttons = [(tr("Bring the arm home"), self._on_home_after_stop),
@@ -3790,7 +3798,8 @@ class TableMeasureWindow(QFrame):
             else:
                 msg = M.M_I1IO_DRIVE_ARM_OUT_NOT_HERE
                 buttons = [(tr("End measurement"), self._on_end_pressed)]
-            title, body = msg.render(where=self._where())
+            title, body = msg.render(**_fill(msg, where=self._where(),
+                                             way=M.M_I1IO_DRIVE_ARM_WAY_OUT.render()[1]))
             self._show("refused", title, body, buttons)
             return
         if res.reason == "arm_not_at_rest" and after is None:
@@ -3875,7 +3884,23 @@ class TableMeasureWindow(QFrame):
                 "home_offered": M.M_I1IO_DRIVE_HOME_OFFERED,
                 "home_after_stop": M.M_I1IO_DRIVE_HOME_AFTER_STOP}
         msg = msgs.get(wb)
+        if wb == "home_after_stop" and self._start_form() == "try":
+            msg = M.M_I1IO_DRIVE_ARM_OUT_TRY
         self._says_switch_off = wb in SWITCH_OFF_WAYS
+        if getattr(res, "step", "") == "home_after_stop" and wb not in SWITCH_OFF_WAYS \
+                and not str(wb).startswith("link_lost") and res.reason not in (
+                    "stopped_by_person", "cancelled_by_person", "person_chose_back"):
+            # 4.3.51, the owner's decision of 2026-11-20: ONE page when the homing at a START
+            # did not bring the arm home: the power switch first, i1Profiler only as a further
+            # option, with its version limit (a move that may still wait keeps its switch-off
+            # page above everything)
+            title, body = M.M_I1IO_DRIVE_HOME_TRY_FAILED.render(
+                why=reason_text(res.reason, res.detail), where=where,
+                way=M.M_I1IO_DRIVE_ARM_WAY_OUT.render()[1], log=self._log_name)
+            self._show("stopped", title, body, self._way_on_buttons())
+            self._after_stop_controls()
+            self._show_note()
+            return
         front = self._front_stop_page(res)
         if front is not None:
             # 4.3.50 (safety review 449, SHOULD-2): the table part ended inside one of the
@@ -4207,6 +4232,15 @@ class TableMeasureWindow(QFrame):
         if self.job is None or self._busy:
             return
         self._call(self.job.home_after_stop, status=tr("Bringing the arm home..."))
+
+    def _start_form(self) -> "str | None":
+        """The START rule's form for where the arm was last read (job.start_homing_form)."""
+        from workflow.i1io.table import job as _J
+        j = self.job
+        try:
+            return _J.start_homing_form(j.state().position_now) if j is not None else None
+        except Exception:      # noqa: BLE001 - a page never fails on this
+            return None
 
     def _show_home_after_stop_done(self) -> None:
         from workflow import measurement_messages as M

@@ -363,13 +363,16 @@ def test_a_far_away_arm_is_not_homed_at_the_start():
 
 
 def test_an_arm_further_out_on_the_home_line_is_not_homed_at_the_start():
-    """4.3.51: beyond the recorded Y 815 (and short of Y 1202) nothing is offered."""
+    """4.3.51: beyond the recorded Y 815 (and short of Y 1202) the home line's own homing is not
+    offered; since the owner's decision of 2026-11-20 the TRY is (4.3.48's lines, not s0 p0 i1
+    s0 p0), and nothing moves before it is taken."""
     job, sim, _t = H.make_job(pos=[1102.0, 1000.0])
     p = H.Person(job, sim)
     assert p.drive(job.open()).ok
     r = p.drive(job.park())
     assert r.kind == J.Kind.STOPPED and r.reason == "arm_not_where_expected"
-    assert moves(sim.received) == [] and r.way_back == J.WayBack.OPEN_I1PROFILER_ONCE
+    assert moves(sim.received) == []
+    assert J.start_homing_form((1102, 1000)) == "try"
 
 
 def test_a_free_arm_that_moves_between_two_readings_is_not_moved():

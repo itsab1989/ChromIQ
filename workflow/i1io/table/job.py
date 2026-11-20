@@ -541,6 +541,17 @@ def start_homing_form(p) -> "str | None":
         return "start"
     if HOME_AFTER_STOP_AREA.contains(p) and homing_starts_here(p, False):
         return "end_of_job"
+    if homing_starts_here(p, False):
+        # 4.3.51, THE OWNER'S DECISION (Basti, 2026-11-20: "let chromiq offer to try it and if
+        # it does not work it suggests i1profiler. but the i1io 2 is not supported by the most
+        # recent i1profiler anymore so we should not rely on it"): over the measuring area and
+        # the held front zone (4.3.47's region, where 4.3.50 offered its homing after "The arm
+        # is out"), a TRY with 4.3.48's lines, unchanged (s0 p0 i1 s0 f0 f4 f4 p0). No recording
+        # shows the table's homing starting from these places at a start; the page says so.
+        # The one homing on record that answered a status (R1 272.124, status 3) was a FREE arm
+        # at the right end; a free arm and the aiming mode stay refused (arm_not_held), and the
+        # held homings on record from that end (X -1437, -1438, 18 Nov) answered status 0.
+        return "try"
     return None
 
 
@@ -556,6 +567,8 @@ def start_place(p) -> "str | None":
         return "out_along_the_home_line"
     if start_homing_form(p) == "end_of_job":
         return "where_recorded_homings_start"
+    if start_homing_form(p) == "try":
+        return "over_the_table_a_try"
     return "elsewhere"
 
 
@@ -1806,6 +1819,10 @@ class TableJob:
         try:
             if form == "start":
                 self._home_from_the_home_line(found)
+            elif form == "try":
+                # the owner's decision of 2026-11-20: the same lines, from where the try is
+                # offered only (the reading right before i1 must still be there)
+                self._end_of_job(where=lambda q: start_homing_form(q) == "try")
             else:
                 self._end_of_job(where=HOME_AFTER_STOP_AREA.contains)
         finally:

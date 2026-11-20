@@ -32,22 +32,23 @@ F1_PLUS = [";s022", ";p025", ";i12b", ";s022", ";p025"]
 F2 = [";s022", ";p025", ";i12b", ";s022", ";f02f", ";f42b", ";f42b", ";p025"]
 MOVES = ("m0", "m1", "m2", "i1", "i0")
 
-#: (name, place, the form offered or None)
+#: (name, place, the form offered or None; "try": the owner's decision of 2026-11-20, 4.3.48's
+#: lines from where 4.3.50 offered its homing, test_4351_owner_try.py)
 PLACES = [
     ("C3 near rest on the home line", (1102, 150), "start"),
     ("C3 beside the home line", (1092, 200), "start"),
     ("C4 home line 40 mm out", (1100, 400), "start"),
     ("C5 the recorded place", (1098, 810), "start"),
     ("C5 recorded plus the tolerance", (1102, 815), "start"),
-    ("C6 home line beyond the record", (1102, 900), None),
-    ("C6 home line just short of 1202", (1102, 1150), None),
+    ("C6 home line beyond the record", (1102, 900), "try"),
+    ("C6 home line just short of 1202", (1102, 1150), "try"),
     ("C7 back strip off the line", (1058, 317), None),
     ("C8 where recorded homings start", (0, 1600), "end_of_job"),
     ("C8 next to the recorded at-open place", (1102, 1210), "end_of_job"),
-    ("C9 off the line, in front of rest", (800, 800), None),
-    ("C9 left of the envelope", (1300, 1600), None),
-    ("C9 in front of the envelope", (0, 2700), None),
-    ("C10 the front zone", (0, 3000), None),
+    ("C9 off the line, in front of rest", (800, 800), "try"),
+    ("C9 left of the envelope", (1300, 1600), "try"),
+    ("C9 in front of the envelope", (0, 2700), "try"),
+    ("C10 the front zone", (0, 3000), "try"),
     ("C11 the alignment start", (2507, 1429), None),
 ]
 IDS = [p[0] for p in PLACES]
@@ -240,7 +241,7 @@ def test_the_start_case_is_recorded(tmp_path, path):
 
 
 def test_the_start_case_says_why_nothing_is_offered(tmp_path):
-    job, sim, p, r = _found(tmp_path, "cal", (0, 3000))
+    job, sim, p, r = _found(tmp_path, "cal", (2507, 1429))
     case = job.start_case
     assert case["offered"] == "nothing" and case["why"] == "homing_not_from_here"
 
@@ -322,7 +323,7 @@ def test_the_window_says_why_where_nothing_is_offered(qtbot, monkeypatch, tmp_pa
                                                       settings):  # noqa: F811
     from tests.i1io_table.window_sim import WindowSim
     win, sim, run, p, saved, finished = open_window(
-        qtbot, monkeypatch, tmp_path, settings, sim=WindowSim(pos=[0.0, 3000.0]), asking=False)
+        qtbot, monkeypatch, tmp_path, settings, sim=WindowSim(pos=[2507.0, 1429.0]), asking=False)
     assert p.drive_until("ready_to_open") == "ready_to_open"
     for cb in win._tick_widgets:
         cb.setChecked(True)

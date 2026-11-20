@@ -16,7 +16,8 @@ RECORDED = [(-1314, 1643), (-1285, 1757), (-1263, 1785), (1169, 2560), (-1088, 1
             (-1307, 2182), (-1343, 1864), (1102, 1202)]
 #: recorded, but 3-4 units beyond the measuring area's raw box: 4.3.47's homing refuses there
 BEYOND_THE_RAW_BOX = [(-1437, 1794), (-1438, 1868)]
-#: inside 4.3.47's region, outside every recorded start: never offered
+#: inside 4.3.47's region, outside every recorded start: offered as a TRY since the owner's
+#: decision of 2026-11-20
 NOT_RECORDED = [(1300, 1600), (1700, 2000), (0, 2700), (0, 3000), (0, 1100), (0, 600),
                 (1180, 1600), (0, 2561), (-1000, 1201)]
 
@@ -56,14 +57,18 @@ def test_offered_where_a_recorded_homing_started(tmp_path, pos):
 
 
 @pytest.mark.parametrize("pos", NOT_RECORDED)
-def test_not_offered_where_no_recorded_homing_started(tmp_path, pos):
+def test_where_no_recorded_homing_started_it_is_offered_as_a_try(tmp_path, pos):
+    """4.3.51, the owner's decision of 2026-11-20: inside 4.3.47's wider region, outside every
+    recorded start, the same lines are offered as a TRY (its page says so)."""
     assert J.homing_starts_here(pos, False)          # 4.3.47's wider region holds it
+    assert J.start_homing_form(pos) == "try"
     job, sim, p, r = _stopped_at_the_homing(tmp_path, pos)
-    assert r.way_back != J.WayBack.HOME_AFTER_STOP
+    assert r.way_back == J.WayBack.HOME_AFTER_STOP
     n = len(sim.received)
-    res = job.home_after_stop()
-    assert (res.kind, res.reason) == (J.Kind.REFUSED, "homing_not_from_here")
-    assert sim.received[n:] == []
+    res = p.drive(job.home_after_stop())
+    assert res.ok, (res.kind, res.reason)
+    assert sim.received[n:] == [";s022", ";p025", ";i12b", ";s022", ";f02f", ";f42b", ";f42b",
+                                ";p025"]
 
 
 def test_the_fresh_reading_before_the_homing_is_checked_against_the_envelope(tmp_path):

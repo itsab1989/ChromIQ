@@ -83,7 +83,7 @@ def test_start_with_the_arm_out_at_the_alignment_start_keeps_the_old_advice(
     text = win._text.text()
     # 4.3.51: M-I1IO-DRIVE-ARM-OUT-NOT-HERE (why, and what works)
     assert "ChromIQ does not bring it home from there" in text
-    assert "Open i1Profiler 3.8.6 or older" in text and "power switch" in text
+    assert "i1Profiler 3.8.6 or older" in text and "power switch" in text
     assert "Bring the arm home" not in p.labels()
     assert p.labels() == ["End measurement"]
     assert not [ln for ln in sim.sim.received if ln[1:3] in ("m0", "m1", "m2", "i1", "i0")]

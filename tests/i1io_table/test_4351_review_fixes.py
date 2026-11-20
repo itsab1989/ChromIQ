@@ -87,10 +87,12 @@ def test_the_window_says_the_truth_after_a_homing_that_stops_short(
 
 # ---- SHOULD-1: the edges of the home line, pinned (plants P1b, P2b and P8 of the review) -------
 #: (place, the form) right at and right beyond each edge: X 1090..1115, Y up to 815
+#: (beside the line from Y 473 on, and beyond Y 815, the owner's decision of 2026-11-20 offers a
+#: try with 4.3.48's lines instead: "try" there, never "start")
 EDGES = [((1089, 400), None), ((1090, 400), "start"), ((1115, 400), "start"),
-         ((1116, 400), None), ((1089, 810), None), ((1090, 810), "start"),
-         ((1115, 810), "start"), ((1116, 810), None), ((1102, 815), "start"),
-         ((1102, 816), None), ((1090, 815), "start"), ((1115, 816), None)]
+         ((1116, 400), None), ((1089, 810), "try"), ((1090, 810), "start"),
+         ((1115, 810), "start"), ((1116, 810), "try"), ((1102, 815), "start"),
+         ((1102, 816), "try"), ((1090, 815), "start"), ((1115, 816), "try")]
 
 
 @pytest.mark.parametrize("pos,form", EDGES, ids=[f"{p[0]}-{p[1]}" for p, _f in EDGES])
@@ -98,9 +100,11 @@ def test_the_home_line_ends_exactly_where_it_says(pos, form):
     assert J.start_homing_form(pos) == form
 
 
-@pytest.mark.parametrize("pos,form", [((1089, 810), None), ((1090, 810), "start"),
-                                      ((1115, 600), "start"), ((1116, 600), None)])
+@pytest.mark.parametrize("pos,form", [((1089, 810), "try"), ((1090, 810), "start"),
+                                      ((1115, 600), "start"), ((1116, 600), "try"),
+                                      ((1089, 400), None), ((1116, 400), None)])
 def test_the_edges_decide_at_a_real_start(tmp_path, pos, form):
+    from tests.i1io_table.test_4351_one_start_rule import F2
     job, sim, p, r = _found(tmp_path, "cal", pos)
     want = J.WayBack.HOME_AFTER_STOP if form else J.WayBack.OPEN_I1PROFILER_ONCE
     assert r.way_back == want, (pos, r.reason)
@@ -109,7 +113,7 @@ def test_the_edges_decide_at_a_real_start(tmp_path, pos, form):
     if form is None:
         assert res.kind == J.Kind.REFUSED and sim.received[n:] == []
     else:
-        assert res.ok and sim.received[n:] == F1_PLUS
+        assert res.ok and sim.received[n:] == (F1_PLUS if form == "start" else F2)
 
 
 def test_the_line_is_checked_again_right_before_the_homing(tmp_path):
@@ -189,15 +193,17 @@ def test_an_arm_beside_the_line_is_not_told_it_is_in_front(qtbot, monkeypatch, t
     part lies."""
     from tests.i1io_table.window_sim import WindowSim
     win, sim, run, p, saved, finished = open_window(
-        qtbot, monkeypatch, tmp_path, settings, sim=WindowSim(pos=[1502.0, 600.0]),
+        qtbot, monkeypatch, tmp_path, settings, sim=WindowSim(pos=[1058.0, 317.0]),
         asking=False)
     assert p.drive_until("ready_to_open") == "ready_to_open"
     win._tick_widgets[1].setChecked(True)
     p.press("The arm is out")
+    # (since the owner's decision of 2026-11-20 an arm 4 cm beside the line further out is
+    # offered a try; the place beside the line that stays refused is the back strip, here
+    # 4.4 mm beside it, where i1Profiler once did not home directly)
     assert p.page() == "refused" and p.labels() == ["End measurement"]
     text = win._text.text()
     assert "This line is very narrow: the arm must be no more than about 1 mm to either side " \
            "of it." in text
-    assert "from that line to the right as you face the table" in text
     assert "—" not in text
     assert not [ln for ln in sim.sim.received if ln[1:3] in MOVES]

@@ -13288,21 +13288,13 @@ M_I1IO_DRIVE_ARM_OUT_AT_START = _m(
 M_I1IO_DRIVE_ARM_OUT_NOT_HERE = _m(
     "M-I1IO-DRIVE-ARM-OUT-NOT-HERE",
     "The arm is not at its resting place",
-    "The arm is not at its resting place. The table reports it at {where}.\n\n"
-    "ChromIQ does not bring it home from there, so it moves nothing. No recording shows the "
-    "table's homing starting from that place when a measurement starts. At a start, ChromIQ "
-    "brings the arm home itself only from two parts of the table. The first is the line straight in "
-    "front of the resting place, up to about 8 cm out. This line is very narrow: the arm must be "
-    "no more than about 1 mm to either side of it. The second is the part of the table where "
-    "i1Profiler's recorded homings started: about 12 to 25 cm in front of the resting place, "
-    "from that line to the right as you face the table.\n\n"
-    "What you can do:\n"
-    "1. Press End measurement.\n"
-    "2. Stay beside the table, with its power switch in reach. Open i1Profiler 3.8.6 or older "
-    "once and let it find the table. It should bring the arm home, but no recording shows it "
-    "doing that from where the arm is now.\n"
-    "3. When the arm is at its resting place, quit i1Profiler. Then press START MEASUREMENT "
-    "again.",
+    "The arm is not at its resting place. The table reports it at {where}.\n\nChromIQ does "
+    "not bring it home from there, so it moves nothing. No recording shows the table's homing "
+    "starting from that place. At a start, ChromIQ brings the arm home from the line straight "
+    "in front of the resting place, up to about 8 cm out. This line is very narrow: the arm "
+    "must be no more than about 1 mm to either side of it. From anywhere over the measuring "
+    "area and the front part of the table, ChromIQ offers to try it. The arm is outside those "
+    "parts now.\n\n{way}",
     approved=False)
 
 M_I1IO_DRIVE_HOME_AT_START_DONE = _m(
@@ -13310,6 +13302,61 @@ M_I1IO_DRIVE_HOME_AT_START_DONE = _m(
     "The arm is at its resting place",
     "ChromIQ has brought the arm home, and the table reports it at its resting place. The "
     "measurement goes on as usual: press Go on.",
+    approved=False)
+
+# --- PROPOSED (4.3.51, the owner's decision of 2026-11-20): the try from over the bed -------
+#: Basti, 2026-11-20: "let chromiq offer to try it and if it does not work it suggests
+#: i1profiler. but the i1io 2 is not supported by the most recent i1profiler anymore so we
+#: should not rely on it". {where}: as above.
+M_I1IO_DRIVE_ARM_OUT_TRY = _m(
+    "M-I1IO-DRIVE-ARM-OUT-TRY",
+    "The arm is not at its resting place",
+    "The arm is not at its resting place. The table reports it at {where}.\n\nChromIQ can try "
+    "to bring it home from there. This is a try: ChromIQ has no recording of the table's own "
+    "homing starting from this place when a measurement starts.\n\nTo try it, press Bring the "
+    "arm home. ChromIQ first asks you to take your hands away from the table and the arm. "
+    "Please stay beside the table with its power switch in reach: switching the table off "
+    "stops the arm at once. ChromIQ then reads where the arm is once more, sends the table's "
+    "own homing and checks that the arm arrived at its resting place. If the arm does not "
+    "move or does not arrive, ChromIQ sends nothing more to the table and tells you what you "
+    "can do. If it arrives, the next page says how to go on.\n\nIf you would rather not try, "
+    "press End measurement. ChromIQ then moves nothing.",
+    approved=False)
+
+#: the way on when ChromIQ cannot bring the arm home at a START: the power switch first,
+#: i1Profiler only as a further option with its version limit (its title is not shown)
+M_I1IO_DRIVE_ARM_WAY_OUT = _m(
+    "M-I1IO-DRIVE-ARM-WAY-OUT",
+    "The arm is not at its resting place",
+    "What you can do:\n1. Press End measurement. Until you do, ChromIQ still holds the "
+    "table's USB connection.\n2. Switch the table off at its power switch.\n3. With the table "
+    "switched off, try to push the arm gently by hand to its resting place, over the small "
+    "white tile. We do not know yet whether the arm moves by hand while the table is off. If "
+    "it does not move easily, stop and do not force it.\n4. When the arm is at its resting "
+    "place, switch the table on and press START MEASUREMENT again.\n5. If the arm does not "
+    "move by hand, i1Profiler 3.8.6 or older may bring it home: open it once and let it find "
+    "the table. Stay beside the table with the power switch in reach, because no recording "
+    "shows i1Profiler doing this from where the arm is now. i1Profiler 3.8.7 and newer no "
+    "longer work with the i1iO 2, so you may not have a version that can do this.",
+    approved=False)
+
+#: {why}: the reason in plain words; {where}; {way}: M-I1IO-DRIVE-ARM-WAY-OUT; {log}
+M_I1IO_DRIVE_HOME_TRY_FAILED = _m(
+    "M-I1IO-DRIVE-HOME-TRY-FAILED",
+    "The arm did not get home",
+    "ChromIQ could not bring the arm home. {why}\n\nThe table last reported the arm at "
+    "{where}. ChromIQ sends nothing more to the table in this measurement.\n\n{way}\n\nPlease "
+    "send us the diagnostics file of this measurement: {log}.",
+    approved=False)
+
+#: added by the table window to every one of its pages that names i1Profiler 3.8.6 and
+#: does not already say that newer versions no longer work with the table (its title is
+#: not shown)
+M_I1IO_DRIVE_I1PROFILER_LIMIT = _m(
+    "M-I1IO-DRIVE-I1PROFILER-LIMIT",
+    "The arm is not at its resting place",
+    "Please note: i1Profiler 3.8.7 and newer no longer work with the i1iO 2. Only i1Profiler "
+    "3.8.6 or older can do what this page describes, so you may not have a version that can.",
     approved=False)
 
 M_I1IO_DRIVE_END = _m(
@@ -13786,6 +13833,8 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_HOME_AFTER_STOP, M_I1IO_DRIVE_HOME_AFTER_STOP_DONE,
     M_I1IO_DRIVE_ARM_OUT_AT_START, M_I1IO_DRIVE_ARM_OUT_NOT_HERE,
     M_I1IO_DRIVE_HOME_AT_START_DONE,
+    M_I1IO_DRIVE_ARM_OUT_TRY, M_I1IO_DRIVE_ARM_WAY_OUT, M_I1IO_DRIVE_HOME_TRY_FAILED,
+    M_I1IO_DRIVE_I1PROFILER_LIMIT,
     M_I1IO_DRIVE_END,
     M_I1IO_DRIVE_HOME_AT_END, M_I1IO_DRIVE_HOME_NOT_NOW, M_I1IO_DRIVE_LEFT_OUT,
     M_I1IO_DRIVE_STILL_AIMING, M_I1IO_DRIVE_STOPPED_AT_OPENING, M_I1IO_DRIVE_HOME_ARM_MOVED,
