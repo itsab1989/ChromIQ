@@ -13,6 +13,15 @@ log = get_logger(__name__)
 from core.beta_registry import LOGGED_KEYS as _LOGGED_OPTION_KEYS  # noqa: E402
 from core.beta_registry import show as _beta_show  # noqa: E402
 
+#: 4.3.50: settings whose VALUE never goes into the app log, because it names
+#: a device (the CR30's serial and internal id, the ids its tile signatures are
+#: filed under, its Bluetooth address). ``settings.set`` logs the key only.
+UNLOGGED_VALUE_KEYS: "frozenset[str]" = frozenset({
+    "cr30_last_device_info",
+    "cr30_tile_signatures",
+    "cr30_ble_address",
+})
+
 DEFAULTS: dict[str, Any] = {
     # ArgyllCMS
     "argyll_bin_path":           default_argyll_bin_dir(),
@@ -2165,7 +2174,14 @@ class AppSettings:
             return set_id
 
     def set(self, key: str, value: Any) -> None:
-        log.debug("settings.set %s = %r", key, value)
+        if key in UNLOGGED_VALUE_KEYS:
+            # 4.3.50: the value names a device (a serial, an id, an address)
+            # or is a salt: the app log, the file a tester sends, says only
+            # that the key was written
+            log.debug("settings.set %s = <%d characters, not logged>", key,
+                      len(str(value)) if value is not None else 0)
+        else:
+            log.debug("settings.set %s = %r", key, value)
         if key in _LOGGED_OPTION_KEYS:
             # A1 (4.3.50): a Beta switch or an option a reading depends on is
             # named in the app log when it CHANGES (Preferences writes every

@@ -64,13 +64,22 @@ class DeviceInfo:
         """
         return not self.software or _norm(self.software) == _norm(TESTED_SOFTWARE)
 
-    def summary(self) -> str:
-        """One line for the log and the report. English, like the log."""
+    def summary(self, *, for_log: bool = False) -> str:
+        """One line, English. For the report (``for_log=False``) with the
+        serial and internal id as the unit states them; for the app log
+        (``for_log=True``, 4.3.50) with both as the short hash the log's
+        privacy filter uses, so the line never carries the raw identifier
+        (the same unit still reads the same in two lines)."""
         via = {"usb": "USB", "ble": "Bluetooth"}.get(self.transport,
                                                     self.transport or "?")
+        if for_log:
+            from core.log_privacy import device_tag
+            serial, internal = device_tag(self.serial), device_tag(self.internal_id)
+        else:
+            serial, internal = self.serial or "?", self.internal_id or "?"
         return (f"CR30 connected over {via}: model {self.model or '?'}, "
-                f"serial {self.serial or '?'}, internal id "
-                f"{self.internal_id or '?'}, software {self.software or '?'}, "
+                f"serial {serial}, internal id "
+                f"{internal}, software {self.software or '?'}, "
                 f"hardware {self.hardware or '?'}")
 
 
@@ -181,7 +190,7 @@ def build_ble_reply(*, code: int = 793, internal_id: str = "PT694D01E7",
 
 def log_connect(info: DeviceInfo) -> None:
     """The line a bug report needs, and the mark when the firmware is new."""
-    log.info("%s", info.summary())
+    log.info("%s", info.summary(for_log=True))
     if not info.tested_firmware:
         log.warning("CR30: this unit's software version %s is not the one "
                     "ChromIQ was tested with (%s). Readings are taken the "

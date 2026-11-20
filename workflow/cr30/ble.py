@@ -364,8 +364,9 @@ class BleTransport:
             if not self.name:
                 self.name = _connected_name(c)
                 if self.name:
+                    from core.log_privacy import device_tag
                     log.info("CR30 BLE: the connected unit calls itself %s",
-                             self.name)
+                             device_tag(self.name))
             await c.start_notify(FFE1, self._on_notify)
             # TIMED, BECAUSE THIS IS WHERE THE OWNER'S FIRST GAP LIVES.
             # The first connection of a session is made when he presses

@@ -53,6 +53,12 @@ from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
 log = logging.getLogger(__name__)
 
+
+def _device_tag(value) -> str:
+    """A unit id for the app log, as its short hash (4.3.50)."""
+    from core.log_privacy import device_tag
+    return device_tag(value)
+
 #: How a dropped or refused reading is reported, so the strings live in one
 #: place and the tab can show whichever it wants to.
 DROPPED_NAVIGATING = "navigating"
@@ -1071,7 +1077,8 @@ class DeviceReader:
             dev.learned_tile = learned_signature(self.unit_id)
             if dev.learned_tile:
                 log.info("CR30: magnet guard armed with the learned tile "
-                         "signature of unit %s", self.unit_id or "(this one)")
+                         "signature of unit %s",
+                         _device_tag(self.unit_id) if self.unit_id else "(this one)")
         except Exception:            # noqa: BLE001 — never fail an open over it
             log.debug("could not arm the learned tile guard", exc_info=True)
         return dev

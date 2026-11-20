@@ -26,8 +26,11 @@ WHAT IS REPLACED
 * instrument and table serial numbers in every shape ArgyllCMS and the helper
   print them (``Serial Number:     1234567``, ``Serial number = 1234567``,
   ``serial number '1234'``, ``Spectrometer serial number: 12``, JSON
-  ``"serial": "..."``, the calibration file names ``.i1p_<n>.cal``,
-  ``.i1p3_<n>.cal``, ``.mk_<s>.cal``, the i1Pro 2 ``Chip ID``), Bluetooth and
+  ``"serial": "..."``, a bare ``serial CM454M0223``, ``USB serial string:``,
+  ``S/N 1234567``, CxF ``...SerialNumber>``, the calibration file names
+  ``.i1p_<n>.cal``, ``.i1p3_<n>.cal``, ``.mk_<s>.cal``, the i1Pro 2 ``Chip ID``
+  and Argyll's ``getchipid: returning ...``, the CR30's ``internal id`` and the
+  id string it names itself by after ``unit`` / ``calls itself``), Bluetooth and
   network hardware addresses, and UUIDs -> ``<sn:xxxxxxxx>``, a short hash that is
   STABLE on one computer (two lines about the same device still match) and keyed
   with values that never reach the log, so it cannot be turned back into the
@@ -78,24 +81,45 @@ _OTHER_HOME = re.compile(
     r"[\\/]{2}[^\\/\s]+[\\/]+Users[\\/]+))(?P<name>" + _COMPONENT + ")",
     re.IGNORECASE)
 
-_SERIAL_VALUE = r"(?P<val>(?=[A-Za-z0-9-]*\d)[A-Za-z0-9][A-Za-z0-9-]{2,})"
+#: a value a word labels as a serial: two or more characters, at least one digit
+_SERIAL_VALUE = r"(?P<val>(?=[A-Za-z0-9-]*\d)[A-Za-z0-9][A-Za-z0-9-]{1,})"
+#: a value after a bare "serial" (no ":" or "number"): four or more, one digit,
+#: so "serial port" and "serial 2" stay
+_BARE_VALUE = r"(?P<val>(?=[A-Za-z0-9-]*\d)[A-Za-z0-9][A-Za-z0-9-]{3,})"
 _SERIALS = [
     # "Serial Number:     1234567", "Serial number = 1234567", "serial number '1234'",
-    # "Spectrometer serial number: 12", "serial no. 1234", "serial_no=...", "Serial#1234"
-    re.compile(r"(?P<pre>\bserial[ _-]?(?:no\b\.?|number|num\b|nr\b|#)\s*[:=]?\s*['\"]?)"
-               + _SERIAL_VALUE, re.IGNORECASE),
+    # "Spectrometer serial number: 12", "serial no. 1234", "serial_no=...", "Serial#1234",
+    # "USB serial string: ..."
+    re.compile(r"(?P<pre>\bserial[ _-]?(?:no\b\.?|number|num\b|nr\b|string|str\b|#)"
+               r"\s*[:=]?\s*['\"]?)" + _SERIAL_VALUE, re.IGNORECASE),
     # "serial: 1234", "serial=1234"  (a bare "serial port" has no ':' or '=', so stays)
     re.compile(r"(?P<pre>\bserial\s*[:=]\s*['\"]?)" + _SERIAL_VALUE, re.IGNORECASE),
+    # a bare "serial CM454M0223" (the CR30's connect line said exactly that)
+    re.compile(r"(?P<pre>(?<![\w<])serial\s+['\"]?)" + _BARE_VALUE, re.IGNORECASE),
     # JSON: "serial": "1234", "serial_no": 1234, "serial_number":"..."
     re.compile(r"(?P<pre>[\"']serial(?:[_ -]?(?:no|number|num))?[\"']\s*:\s*[\"']?)"
                + _SERIAL_VALUE, re.IGNORECASE),
+    # CxF / XML / camelCase: <MeasurementDeviceSerialNumber>1234</...>, SerialNumber="1234"
+    re.compile(r"(?P<pre>(?<=[a-z])Serial(?:Number|No|Num)?\s*(?:>|=\s*[\"']|:\s*[\"']?))"
+               + _SERIAL_VALUE),
     # the calibration files ArgyllCMS keeps per instrument: .i1p_<n>.cal .i1p3_<n>.cal .mk_<s>.cal
     re.compile(r"(?P<pre>\.(?:i1p3?|mk|ex1|i1d3|cmk)_)(?P<val>[A-Za-z0-9-]+)(?=\.cal\b)",
                re.IGNORECASE),
-    # i1Pro 2 "Chip ID:           a1-b2c3d4e5f6a7b8"
-    re.compile(r"(?P<pre>\bchip[ _-]?id\s*[:=]?\s*)(?P<val>[0-9A-Fa-f][0-9A-Fa-f-]{5,})",
+    # i1Pro 2 "Chip ID:           a1-b2c3d4e5f6a7b8", Argyll's debug
+    # "i1pro3_getchipid: returning 01-23456789ABCDEF"
+    re.compile(r"(?P<pre>chip[ _-]?id\b\s*[:=]?\s*(?:returning\s+)?['\"]?)"
+               r"(?P<val>[0-9A-Fa-f][0-9A-Fa-f-]{5,})", re.IGNORECASE),
+    # the CR30's "internal id PT694D01E7" (a device identifier like the serial)
+    re.compile(r"(?P<pre>\binternal[ _-]?id\s*[:=]?\s*['\"]?)" + _SERIAL_VALUE,
                re.IGNORECASE),
 ]
+#: "S/N 1234567" (Argyll's white-reference prompt), "SN: 1234567": upper case
+#: only, so the word "sn" in a sentence or a "<sn:...>" tag is never touched
+_SN = re.compile(r"(?P<pre>(?<![\w/<])S/?N\b\.?\s*[:#=]?\s*['\"]?)" + _SERIAL_VALUE)
+#: a CR30 names itself by its id string ("CM454M0223"): after "unit" or
+#: "calls itself", a run of upper-case letters AND digits, 6 to 16 long
+_UNIT_ID = re.compile(r"(?P<pre>\b(?:[Uu]nit|calls itself)\s+['\"]?)"
+                      r"(?P<val>(?=[A-Z0-9]*\d)(?=[A-Z0-9]*[A-Z])[A-Z0-9]{6,16})(?![A-Za-z0-9])")
 _MAC = re.compile(r"(?<![0-9A-Fa-f:-])(?P<val>(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2})(?![0-9A-Fa-f:-])")
 _UUID = re.compile(r"(?<![0-9A-Fa-f-])(?P<val>[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-"
                    r"[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})(?![0-9A-Fa-f-])")
@@ -262,6 +286,20 @@ def note_printer_names(names) -> None:
         pass
 
 
+def device_tag(value) -> str:
+    """A device identifier (serial, internal id, the id string a CR30 names
+    itself by, a Bluetooth address) as the log shows it: ``<sn:xxxxxxxx>``, the
+    same short hash the filter gives it, so a call site never has to format the
+    raw value into a line. ``?`` for an empty value. Never raises."""
+    try:
+        v = str(value or "").strip()
+        if not v:
+            return "?"
+        return _identity().tag("sn", v)
+    except Exception:      # noqa: BLE001
+        return "<sn>"
+
+
 def scrub(text: str) -> str:
     """The line with everything private replaced (see the module text).
 
@@ -289,9 +327,15 @@ def scrub(text: str) -> str:
         s = ident.word_re.sub("<user>", s)
     if ident.host_re is not None and any(h.lower() in low for h in ident.hosts):
         s = ident.host_re.sub("<computer>", s)
-    if "serial" in low or ".cal" in low or "chip" in low:
+    def _sn(m):
+        return m.group("pre") + ident.tag("sn", m.group("val"))
+    if "serial" in low or ".cal" in low or "chip" in low or "internal" in low:
         for rx in _SERIALS:
-            s = rx.sub(lambda m: m.group("pre") + ident.tag("sn", m.group("val")), s)
+            s = rx.sub(_sn, s)
+    if "SN" in s or "S/N" in s:
+        s = _SN.sub(_sn, s)
+    if "unit" in low or "itself" in low:
+        s = _UNIT_ID.sub(_sn, s)
     if s.count(":") >= 5 or s.count("-") >= 4:
         s = _MAC.sub(lambda m: ident.tag("sn", m.group("val")), s)
         s = _UUID.sub(lambda m: ident.tag("sn", m.group("val")), s)

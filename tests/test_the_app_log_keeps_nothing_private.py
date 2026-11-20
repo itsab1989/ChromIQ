@@ -190,3 +190,65 @@ def test_the_real_identity_of_this_machine_is_scrubbed():
     user = getpass.getuser()
     if len(user) >= 3:
         assert user not in S(f"by {user} today").split()
+
+
+# --- M1 (review of 20 Nov): serials by what they are, and the CR30 call site ---
+
+@pytest.mark.parametrize("line,raw", [
+    # the CR30's connect line as 4.3.50's first branch wrote it (USB and BLE)
+    ("CR30 connected over USB: model CR30, serial 12345678, internal id AB12CD34, "
+     "software V11.3.0.0.20231219, hardware V10.0.0.0", ["12345678", "AB12CD34"]),
+    ("CR30 connected over Bluetooth: model CR30, serial CM454M0223, internal id "
+     "PT694D01E7, software V11.3.0.0.20231219", ["CM454M0223", "PT694D01E7"]),
+    # ArgyllCMS's white-reference prompt (instappsup.c) and other S/N shapes
+    ("Place the instrument on its reflective white reference S/N 1234567,", ["1234567"]),
+    ("SN: 7654321 found", ["7654321"]),
+    ("i1pro3_getchipid: returning 01-23456789ABCDEF", ["23456789ABCDEF"]),
+    ("USB serial string: XR1234567", ["XR1234567"]),
+    ("<cc:MeasurementDeviceSerialNumber>1234567</cc:MeasurementDeviceSerialNumber>",
+     ["1234567"]),
+    ('<Device SerialNumber="A1234B"/>', ["A1234B"]),
+    # specbos prints two digits too (the module text promised it)
+    (" Spectrometer serial number: 12", [" 12"]),
+    # the CR30 names itself by its id string
+    ("CR30 BLE: the connected unit calls itself CM454M0223", ["CM454M0223"]),
+    ("CR30: magnet guard armed with the learned tile signature of unit CM454M0223",
+     ["CM454M0223"]),
+])
+def test_serials_are_caught_by_what_they_are(ident, line, raw):
+    out = S(line)
+    for r in raw:
+        assert r not in out, out
+    assert "<sn:" in out
+    assert S(out) == out  # a tag is never tagged again
+
+
+def test_words_near_serial_shapes_survive(ident):
+    for line in ["serial port 2 skipped", "serial 2 ports", "units mm", "unit A",
+                 "SNR 12.3", "the sn of it", "Serial number", "chip select",
+                 "internal error 5"]:
+        assert S(line) == line, line
+
+
+def test_the_cr30_connect_line_never_formats_the_raw_serial(caplog):
+    from workflow.cr30 import device_info as D
+    info = D.DeviceInfo(transport="usb", model="CR30", serial="12345678",
+                        internal_id="AB12CD34", software=D.TESTED_SOFTWARE)
+    assert "12345678" in info.summary()          # the report keeps it
+    assert "12345678" not in info.summary(for_log=True)
+    assert "AB12CD34" not in info.summary(for_log=True)
+    with caplog.at_level(logging.INFO):
+        D.log_connect(info)
+    said = " ".join(r.getMessage() for r in caplog.records)
+    assert "12345678" not in said and "AB12CD34" not in said and "<sn:" in said
+
+
+def test_settings_that_name_a_device_are_written_without_their_value(caplog):
+    from core.settings import UNLOGGED_VALUE_KEYS, AppSettings
+    s = AppSettings()
+    with caplog.at_level(logging.DEBUG, logger="core.settings"):
+        for key in UNLOGGED_VALUE_KEYS:
+            s.set(key, '{"serial": "CM454M0223", "address": "AA:BB:CC:11:22:33"}')
+    said = " ".join(r.getMessage() for r in caplog.records)
+    assert "CM454M0223" not in said and "AA:BB" not in said
+    assert "cr30_last_device_info" in said

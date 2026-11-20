@@ -181,9 +181,12 @@ def test_every_connect_logs_the_unit_and_keeps_it_for_the_report(caplog):
     with caplog.at_level(logging.INFO):
         DeviceReader()._note_device(dev)
     said = " ".join(r.getMessage() for r in caplog.records)
-    for part in ("model CR30", "serial CM454M0223", "internal id PT694D01E7",
+    for part in ("model CR30", "serial <sn:", "internal id <sn:",
                  "software V11.3.0.0.20231219", "hardware V10.0.0.0"):
         assert part in said, part
+    # 4.3.50: the app log carries the unit's identifiers as their short hash,
+    # never raw; the Bluetooth report below still names them
+    assert "CM454M0223" not in said and "PT694D01E7" not in said
     assert not [r for r in caplog.records if r.levelno >= logging.WARNING], \
         "the tested firmware was marked as untested"
     lines = "\n".join(device_info.report_lines())

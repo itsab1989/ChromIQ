@@ -44,6 +44,13 @@ import logging
 
 log = logging.getLogger(__name__)
 
+
+def _tag(unit_id) -> str:
+    """A unit's id for the app log: the short hash, never the id itself
+    (4.3.50: the id string IS the unit's serial)."""
+    from core.log_privacy import device_tag
+    return device_tag(unit_id)
+
 #: Per-band agreement required against a LEARNED signature.
 #:
 #: Not strict bit-equality, deliberately. The learned value and a later gated
@@ -109,7 +116,7 @@ def learned_signature(unit_id: str | None = None) -> list[float] | None:
             if values is None:
                 log.info("CR30: no tile signature learned for unit %s — the "
                          "magnet guard stays on the built-in constant",
-                         unit_id)
+                         _tag(unit_id))
                 return None
         elif len(store) == 1:
             values = next(iter(store.values()))
@@ -190,7 +197,7 @@ def adopt_legacy_key(legacy: str | None, unit_id: str | None) -> bool:
             store.pop(legacy, None)
             _settings().set(SIGNATURE_KEY, json.dumps(store))
             log.info("CR30: dropped the stale key %s -- unit %s has "
-                     "its own learned signature", legacy, unit_id)
+                     "its own learned signature", _tag(legacy), _tag(unit_id))
             return False
         store[str(unit_id)] = values
         store.pop(legacy, None)
@@ -198,7 +205,7 @@ def adopt_legacy_key(legacy: str | None, unit_id: str | None) -> bool:
         log.info("CR30: the tile signature filed under %s belongs to unit %s, "
                  "which has just said so over that very connection -- re-filed "
                  "under the unit, so USB and Bluetooth now share it",
-                 legacy, unit_id)
+                 _tag(legacy), _tag(unit_id))
         return True
     except Exception:                # noqa: BLE001 — a guard, never a hard need
         log.debug("could not re-file the CR30 tile signature", exc_info=True)
@@ -216,7 +223,7 @@ def remember_signature(values, unit_id: str | None = None) -> bool:
         _settings().set(SIGNATURE_KEY, json.dumps(store))
         log.info("CR30: learned the tile signature of unit %s (%d bands) — "
                  "the magnet guard is now armed for it",
-                 unit_id or "(unidentified)", len(vals))
+                 _tag(unit_id) if unit_id else "(unidentified)", len(vals))
         return True
     except Exception:                # noqa: BLE001 — never fail an open over it
         log.debug("could not store the learned CR30 tile signature",
