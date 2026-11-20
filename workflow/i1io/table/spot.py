@@ -58,12 +58,71 @@ ROW_KINDS = ("spot", "strip")
 #: row is read patch by patch (M-I1IO-DRIVE-STRIP-TOO-LONG). The helper's own cap (2,000) and
 #: the allow-list are unchanged.
 STRIP_N_MAX = 1190
+#: 4.3.53 fix round (inventory C2): "the longest recorded pass" is not a reason (hand passes of
+#: 1650 and 1820 readings are recorded, and the helper's table mode takes HELPER_NMAX): a strip
+#: row may take what the reader takes. STRIP_N_MAX above is kept only as the number the tests
+#: of 4.3.47-4.3.53 were written against.
+STRIP_N_MAX = sc.HELPER_NMAX
 #: the scan speeds a strip row may use, slowest first (all recorded, scan.py's default 54 first:
 #: NEXT_STEPS 4b "the job picks the speed from the chart's patch length (default 54)"). 168 was
 #: recorded on the volunteer's table on 17 Nov 2026 (i1Profiler's two rows); it is used only
 #: when no slower speed keeps the row within STRIP_N_MAX, and only where every patch window
 #: still holds STRIP_MIN_READINGS readings (patches of about 9.7 mm and longer).
 STRIP_SPEEDS = (54, 61, 87, 88, 110, 118, 137, 138, 168)
+#: 4.3.53 FIX ROUND (inventory C3, the biggest cost: ~66 s a page; the owner: "copy what the
+#: vendor's software was recorded doing, at its speed"): a strip row is no longer started at the
+#: slowest speed that fits. It is started at THE SPEED i1Profiler chose for its own FIRST pass
+#: over a row of the same patch pitch. In every recording i1Profiler's first pass over a row ran
+#: at one speed per chart, and the speed grows with the chart's patch pitch along the row (54 and
+#: 88, 87 and 53, 61 and 40 were its slower REPEATS of a failed row, never a first pass):
+#:   pitch 8.44 mm -> 110   (S2 session 2, alignment S2 270.8: marks 2 -> 3 over 27 pitches)
+#:   pitch 8.72 mm -> 118   (S2 sessions 1 and 4, i1Profiler's own "ioTest": 8.72-8.75 mm)
+#:   pitch 9.50 mm -> 137   (R1 200.3, the first of its rows)
+#:   pitch 9.52 mm -> 138   (R1 401.6: 9.53 mm; R2 427.5: 9.54 mm, four rows)
+#:   pitch 10.73 mm -> 168  (the volunteer's table, 17 Nov 2026, its two rows)
+#: (passes.json of 2026-11-16_i1io_scan_mode, 44 passes; the pitch from the recorded aims at
+#: the end patch centres, RECORDED_ALIGNMENTS.) Fitted, the rule is close to
+#: 25.4 / s x (pitch - 4.1 mm): about 7.9 readings of 5.004 ms over each patch less its edges.
+#: The rule ChromIQ applies (no unrecorded speed ever goes on the wire): the vendor's speed of
+#: the largest recorded pitch not above this chart's pitch (so per millimetre of patch it never
+#: goes faster than i1Profiler was recorded going); for a pitch below every recorded one, the
+#: fastest RECORDED speed not above the fitted rule. Then ChromIQ's own cut (STRIP_MIN_READINGS
+#: in every patch's clean window, a measurement rule) may make it take the next slower recorded
+#: speed, and a row longer than the reader takes the next faster one.
+VENDOR_FIRST_PASS = ((8.44, 110), (8.72, 118), (9.50, 137), (9.52, 138), (10.73, 168))
+VENDOR_RULE = (25.4, 4.1)            # speed ~ a x (pitch_mm - b), fitted to VENDOR_FIRST_PASS
+
+
+def vendor_speed(pitch_mm: float) -> int:
+    """The speed i1Profiler was recorded choosing for its first pass over a row of this patch
+    pitch (VENDOR_FIRST_PASS), always a recorded speed."""
+    below = [v for p, v in VENDOR_FIRST_PASS if p <= pitch_mm + 1e-9]
+    if below:
+        return max(below)
+    a, b = VENDOR_RULE
+    target = a * (float(pitch_mm) - b)
+    slower = [v for v in STRIP_SPEEDS if v <= target]
+    return max(slower) if slower else min(STRIP_SPEEDS)
+
+
+def row_pitch_mm(strip: dict) -> "float | None":
+    """The patch pitch along one row of an i1iO side file (the median distance between the
+    centres of neighbouring patches), or None for a row of one patch."""
+    c = [tuple(map(float, q["centre_mm"])) for q in strip.get("patches") or ()]
+    d = sorted(math.dist(a, b) for a, b in zip(c, c[1:]))
+    return d[len(d) // 2] if d else None
+
+
+def speeds_to_try(pitch_mm: "float | None") -> "tuple[int, ...]":
+    """The order in which a strip row tries the recorded speeds: the vendor's speed for this
+    pitch first, then the slower ones (fastest first: ChromIQ's cut needs more readings), then
+    the faster ones (a row longer than the reader takes)."""
+    if pitch_mm is None:
+        return STRIP_SPEEDS
+    v = vendor_speed(pitch_mm)
+    slower = sorted((s for s in STRIP_SPEEDS if s < v), reverse=True)
+    faster = sorted(s for s in STRIP_SPEEDS if s > v)
+    return (v,) + tuple(slower) + tuple(faster)
 # ---- D-4b: the table's stored white tile values (an option, off by default) ---------------
 #: a white tile's reflectance, as a fraction, must lie in this range in every band (the analysis
 #: of 17 Nov 2026 found the run of 36 values by this range); anything else is not used
@@ -113,6 +172,14 @@ def factor_at(factors, wl: float) -> float:
 #: readings a patch's window must hold for the patch to be cut (a FIRST TRY value: an 8.9 mm
 #: patch at 54 mm/s gets about 12 in its clean middle; fewer means the move ran differently)
 STRIP_MIN_READINGS = 5
+#: 4.3.53 fix round (inventory C3): 3, the dual row's own minimum (scan.DUAL_MIN_READINGS, the
+#: hand dual scan's CQ_DUAL_MIN_UV). Evidence (2026-11-17_i1io_owner_mail_night/analysis
+#: REPORT.md 2.4): i1Profiler's own two rows on the volunteer's table at ITS speed 168, cut by
+#: ChromIQ's own cut_by_position with 3-4 readings in each window, gave i1Profiler's values
+#: back to 0.20 / 0.08 dE00 (mean / median; i1Profiler against itself 0.37), with the table's
+#: stored tile reference. 5 was "a FIRST TRY value", not from a recording, and it made every
+#: chart read slower than the vendor reads it (ChromIQ's own 11 mm pitch: 138, not 168).
+STRIP_MIN_READINGS = sc.DUAL_MIN_READINGS
 #: the largest difference of one reading from its window's mean, in any band (reflectance
 #: 0..1), for the window to count as one colour (a FIRST TRY value, not from a recording: a
 #: window across two printed patches differs by far more)
@@ -250,7 +317,8 @@ def plan_strip_row(sheet: dict, page: int, index: int, alignment, front_y=None,
         raise RowRefused("strip_only_some_patches", page=page + 1, row=index + 1)
     from . import geometry as geo
     last = None
-    for speed in STRIP_SPEEDS:
+    # 4.3.53 fix round (C3): the vendor's own first-pass speed for this row's patch pitch first
+    for speed in speeds_to_try(row_pitch_mm(st)):
         try:
             plans = _one_strip(sheet, page, index, alignment, speed, front_y, cap_y=cap_y)
         except (geo.AreaRefused, sc.PlanRefused) as exc:

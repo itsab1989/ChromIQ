@@ -43,7 +43,13 @@ def _modes(name):
 
 @pytest.mark.parametrize("name,asking", [(n, a) for n in sorted(CASES) for a in _modes(n)],
                          ids=lambda v: v if isinstance(v, str) else ("asking" if v else "quiet"))
-def test_the_job_reads_strips_as_tester_060_reads(name, asking, tmp_path):
+def test_the_job_reads_strips_as_tester_060_reads(name, asking, tmp_path, monkeypatch):
+    # 4.3.53 fix round (inventory C3): the job's own speed is now the vendor's first-pass speed
+    # for the row's patch pitch (168 here; test_4353_vendor_speed.py pins it against the
+    # recordings). For this comparison it is held at the tester's 54, so that every other
+    # byte of the sitting is still compared with tester 0.6.0's own wire
+    from workflow.i1io.table import spot as sp
+    monkeypatch.setattr(sp, "speeds_to_try", lambda pitch: sp.STRIP_SPEEDS)
     got, results, sim, helper = W.job_run(CASES[name], tmp_path, asking)
     # 4.3.47 MUST-1: the job's extra position queries after a question, each checked, out
     got = M1.without_must1(got, sim.job)

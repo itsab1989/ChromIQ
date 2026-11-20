@@ -221,20 +221,19 @@ def test_a_row_too_long_for_one_strip_is_read_patch_by_patch_and_said(tmp_path, 
     assert job.rows_again.get(0, 0) == 0           # not a row read again
 
 
-def test_the_speed_goes_up_before_a_row_is_given_up(tmp_path):
+def test_the_speed_goes_up_before_a_row_is_given_up(tmp_path, monkeypatch):
+    """4.3.53 fix round (C3): a row starts at the vendor's first-pass speed for its pitch (here
+    held at 54 by a planted vendor table, so that a faster recorded speed exists); a row that
+    needs more readings than the reader takes goes to the next faster recorded speed."""
+    monkeypatch.setattr(sp, "VENDOR_FIRST_PASS", ((8.0, 54),))
     sheet = H.demo_sheet()
     job, sim, helper, run, p = _job(tmp_path)
     _ready(job, p)
     plan = sp.plan_strip_row(sheet, 0, 0, job.alignment, job._table.front_y)
     assert plan.scan.speed == 54 and plan.scan.N <= sp.STRIP_N_MAX
-    import workflow.i1io.table.spot as spm
-    old = spm.STRIP_N_MAX
-    try:
-        spm.STRIP_N_MAX = plan.scan.N - 10
-        faster = sp.plan_strip_row(sheet, 0, 0, job.alignment, job._table.front_y)
-        assert faster.scan.speed > 54 and faster.scan.N <= spm.STRIP_N_MAX
-    finally:
-        spm.STRIP_N_MAX = old
+    monkeypatch.setattr(sp, "STRIP_N_MAX", plan.scan.N - 10)
+    faster = sp.plan_strip_row(sheet, 0, 0, job.alignment, job._table.front_y)
+    assert faster.scan.speed > 54 and faster.scan.N <= sp.STRIP_N_MAX
 
 
 def test_only_some_patches_of_a_row_are_read_patch_by_patch(tmp_path):
@@ -365,11 +364,13 @@ def test_the_session_caps_hold_strip_rows_of_the_largest_chart():
 
 
 def test_the_strip_constants_are_pinned():
-    assert sp.STRIP_N_MAX == 1190
+    # 4.3.53 fix round (C2): what the reader takes, no longer the longest recorded pass (1190)
+    assert sp.STRIP_N_MAX == sp.sc.HELPER_NMAX == 2000
     assert sp.STRIP_SPEEDS == (54, 61, 87, 88, 110, 118, 137, 138, 168)
     from workflow.i1io.table import geometry as geo
     assert set(sp.STRIP_SPEEDS) <= set(geo.RECORDED_M2_SPEEDS)
-    assert sp.STRIP_MIN_READINGS == 5 and sp.STRIP_UNIFORMITY_MAX == 0.10
+    # 4.3.53 fix round (C3): 3, the dual row's own minimum, on the evidence of 17 Nov 2026
+    assert sp.STRIP_MIN_READINGS == 3 and sp.STRIP_UNIFORMITY_MAX == 0.10
 
 
 # ---- the panel ---------------------------------------------------------------------------------
