@@ -56,12 +56,12 @@ def test_the_log_and_its_rotated_copies_are_cleaned_once(ident, tmp_path):
         assert "strip A attempt 1 kept dE 1.2\n" in text      # ordinary lines unchanged
         assert "v4.3.49" in text                              # the banner stays
     assert b"\xff\xfe broken bytes kept\n" in (tmp_path / "chromiq.log").read_bytes()
-    assert (tmp_path / lp.CLEAN_MARKER).read_text().strip() == str(lp.CLEAN_VERSION)
+    assert (tmp_path / lp.CLEAN_MARKER).read_text(encoding="utf-8").strip() == str(lp.CLEAN_VERSION)
     assert not list(tmp_path.glob("*.cleaning"))
     # once: a second start does not touch the files again
     _write(tmp_path / "chromiq.log.1", OLD)
     assert lp.clean_old_logs(tmp_path) is None
-    assert "/Users/basti" in (tmp_path / "chromiq.log.1").read_text()
+    assert "/Users/basti" in (tmp_path / "chromiq.log.1").read_text(encoding="utf-8")
 
 
 def test_a_failed_rewrite_keeps_the_original_and_says_so(ident, tmp_path, monkeypatch, caplog):
@@ -89,7 +89,7 @@ def test_the_crash_log_is_cleaned_before_faulthandler_opens_it(ident, tmp_path):
     crash.write_text('  File "/Users/basti/develop/ChromIQ/main.py", line 3 in main\n',
                      encoding="utf-8")
     crash_log.clean_previous(tmp_path)
-    assert "/Users/basti" not in crash.read_text() and "~/develop" in crash.read_text()
+    assert "/Users/basti" not in crash.read_text(encoding="utf-8") and "~/develop" in crash.read_text(encoding="utf-8")
     import inspect
     src = inspect.getsource(crash_log.arm)
     assert src.index("clean_previous(") < src.index("open(")
@@ -111,7 +111,8 @@ def test_the_real_start_cleans_an_old_log_and_writes_the_marker_line(tmp_path):
     code = ("from core.logger import configure_logging; configure_logging(); "
             "import logging; logging.getLogger('t').info('after')")
     r = subprocess.run([sys.executable, "-c", code], cwd=str(ROOT), env=env,
-                       capture_output=True, text=True, timeout=120)
+                       capture_output=True, text=True, encoding="utf-8",
+                       errors="replace", timeout=120)
     assert r.returncode == 0, r.stderr
     text = (logs / "chromiq.log").read_text(encoding="utf-8")
     assert home not in text and "1234567" not in text
@@ -149,9 +150,9 @@ def test_one_process_cleans_a_second_one_leaves_it(ident, tmp_path):
     lock = tmp_path / (lp.CLEAN_MARKER + ".lock")
     lock.write_text("", encoding="utf-8")
     assert lp.clean_old_logs(tmp_path) is None                      # another one is at it
-    assert "/Users/basti" in (tmp_path / "chromiq.log").read_text()
+    assert "/Users/basti" in (tmp_path / "chromiq.log").read_text(encoding="utf-8")
     old = time.time() - 120
     os.utime(lock, (old, old))                                       # a crashed cleaner's
     res = lp.clean_old_logs(tmp_path)
     assert res and not res["failed"] and not lock.exists()
-    assert "/Users/basti" not in (tmp_path / "chromiq.log").read_text()
+    assert "/Users/basti" not in (tmp_path / "chromiq.log").read_text(encoding="utf-8")

@@ -251,6 +251,8 @@ def test_settings_that_name_a_device_are_written_without_their_value(caplog):
     with caplog.at_level(logging.DEBUG, logger="core.settings"):
         for key in UNLOGGED_VALUE_KEYS - {"log_privacy_salt"}:
             s.set(key, '{"serial": "CM454M0223", "address": "AA:BB:CC:11:22:33"}')
+    for key in UNLOGGED_VALUE_KEYS - {"log_privacy_salt"}:
+        s._qs.remove(key)          # the worker's settings are shared: leave nothing behind
     said = " ".join(r.getMessage() for r in caplog.records)
     assert "CM454M0223" not in said and "AA:BB" not in said
     assert "cr30_last_device_info" in said
@@ -326,8 +328,10 @@ def test_the_table_reach_salt_never_reaches_the_log(caplog):
     settings file."""
     from core.settings import AppSettings
     rec = '{"salt": "b39d28f5aa11", "tables": {"f0874b8c203e1383": {"v": 2}}}'
+    s = AppSettings()
     with caplog.at_level(logging.DEBUG, logger="core.settings"):
-        AppSettings().set("i1io_table_reach", rec)
+        s.set("i1io_table_reach", rec)
+    s._qs.remove("i1io_table_reach")
     said = " ".join(r.getMessage() for r in caplog.records)
     assert "b39d28f5" not in said and "f0874b8c" not in said
     assert "i1io_table_reach" in said
