@@ -60,7 +60,7 @@ def test_start_with_the_arm_out_brings_it_home_and_goes_on(qtbot, monkeypatch, t
     assert tr("The arm is not at its resting place.") in text
     # 4.3.51: the START rule's page (M-I1IO-DRIVE-ARM-OUT-AT-START), End measurement beside it
     assert "ChromIQ can bring it home from there" in text and "i1Profiler 3.8.6 or older" in text
-    assert p.labels() == ["End measurement", "Bring the arm home"]   # no "Carry on" here
+    assert p.labels() == ["Bring the arm home", "End measurement"]   # no "Carry on" here
     assert sim.sim.received[11:] == [";p025"]            # read once, nothing moved
     p.press("Bring the arm home")
     assert p.page() == "go"

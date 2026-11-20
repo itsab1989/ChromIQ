@@ -3783,8 +3783,10 @@ class TableMeasureWindow(QFrame):
             # what is offered (job.start_homing_form), never the answer to the ready question
             if j.way_back() == "home_after_stop":
                 msg = M.M_I1IO_DRIVE_ARM_OUT_AT_START
-                buttons = [(tr("End measurement"), self._on_end_pressed),
-                           (tr("Bring the arm home"), self._on_home_after_stop)]
+                # the offer first, as the pop-up places its confirming answer (review of
+                # 4.3.51, SHOULD-2: the panel showed them the other way round)
+                buttons = [(tr("Bring the arm home"), self._on_home_after_stop),
+                           (tr("End measurement"), self._on_end_pressed)]
             else:
                 msg = M.M_I1IO_DRIVE_ARM_OUT_NOT_HERE
                 buttons = [(tr("End measurement"), self._on_end_pressed)]

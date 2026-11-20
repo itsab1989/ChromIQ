@@ -156,3 +156,25 @@ def test_the_fallback_timer_stops_when_the_line_is_written(qapp, qtbot, monkeypa
     assert m._end_log_timer.isActive()
     m.flush_measure_end_log()
     assert not m._end_log_timer.isActive()
+
+
+# ---- SHOULD-2: the START page's answers in one order, in the panel and in the pop-up ------------
+def test_the_start_page_shows_bring_the_arm_home_first(qtbot, monkeypatch, tmp_path,
+                                                       settings):  # noqa: F811
+    """The pop-up places the confirming answer first (its role); the panel shows the list order.
+    Both now show "Bring the arm home" first, as the front page of this branch."""
+    from PyQt6.QtWidgets import QDialogButtonBox
+
+    from tests.i1io_table.window_sim import WindowSim
+    from ui import i1io_table_window as W
+    win, sim, run, p, saved, finished = open_window(
+        qtbot, monkeypatch, tmp_path, settings, sim=WindowSim(pos=[1098.0, 810.0]),
+        asking=False)
+    assert p.drive_until("ready_to_open") == "ready_to_open"
+    win._tick_widgets[1].setChecked(True)
+    p.press("The arm is out")
+    assert p.page() == "refused"
+    assert p.labels() == ["Bring the arm home", "End measurement"]
+    R = QDialogButtonBox.ButtonRole
+    assert W.answer_role("Bring the arm home") == R.AcceptRole
+    assert W.answer_role("End measurement") == R.RejectRole

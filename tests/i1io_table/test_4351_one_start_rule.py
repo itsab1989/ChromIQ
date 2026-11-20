@@ -306,7 +306,7 @@ def test_the_window_offers_it_and_goes_on_and_the_app_log_says_so(qtbot, monkeyp
         assert p.drive_until("ready_to_open") == "ready_to_open"
         win._tick_widgets[1].setChecked(True)
         p.press("The arm is out")
-        assert p.page() == "refused" and p.labels() == ["End measurement", "Bring the arm home"]
+        assert p.page() == "refused" and p.labels() == ["Bring the arm home", "End measurement"]
         p.press("Bring the arm home")
         p.press("Go")
         p.idle()
