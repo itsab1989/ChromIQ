@@ -11017,13 +11017,13 @@ alone.
 
 ### M-I1IO-DRIVE-ARM-OUT-NOT-HERE · PROPOSED · the arm found away from its resting place at a START, where no recording shows a homing starting, Measure (the i1iO table window)
 
-*New 2026-11-20 for 4.3.51 (ONE START rule). Shown when the first reading at a START finds the arm anywhere the START rule does not cover: nothing is sent, and the page says why and what works. Button: End measurement. Shown in betas as a proposed text (Knut, 2026-10-14); approved afterwards.* **Confirmed by:** *nobody yet.*
+*New 2026-11-20 for 4.3.51 (ONE START rule). Shown when the first reading at a START finds the arm anywhere the START rule does not cover: nothing is sent, and the page says why and what works. Button: End measurement. Revised the same day (the independent review, SHOULD-3): the page says how narrow the home line is (about 1 mm to either side), so an arm a few centimetres beside it is not taken to be on it, and that the second part runs from that line to the right. It does not tell the person to push the arm onto the line by hand: hitting a line that narrow by hand is not realistic, and no recording shows it. Shown in betas as a proposed text (Knut, 2026-10-14); approved afterwards.* **Confirmed by:** *nobody yet.*
 
 > **The arm is not at its resting place**
 >
 > The arm is not at its resting place. The table reports it at {where}.
 >
-> ChromIQ does not bring it home from there, so it moves nothing. No recording shows the table's homing starting from that place when a measurement starts. At a start, ChromIQ brings the arm home itself only from two parts of the table: the line straight in front of the resting place, up to about 8 cm out, and the part of the table where i1Profiler's recorded homings started, about 12 to 25 cm in front of the resting place.
+> ChromIQ does not bring it home from there, so it moves nothing. No recording shows the table's homing starting from that place when a measurement starts. At a start, ChromIQ brings the arm home itself only from two parts of the table. The first is the line straight in front of the resting place, up to about 8 cm out. This line is very narrow: the arm must be no more than about 1 mm to either side of it. The second is the part of the table where i1Profiler's recorded homings started: about 12 to 25 cm in front of the resting place, from that line to the right as you face the table.
 >
 > What you can do:
 > 1. Press End measurement.

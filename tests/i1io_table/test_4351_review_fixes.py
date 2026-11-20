@@ -178,3 +178,26 @@ def test_the_start_page_shows_bring_the_arm_home_first(qtbot, monkeypatch, tmp_p
     R = QDialogButtonBox.ButtonRole
     assert W.answer_role("Bring the arm home") == R.AcceptRole
     assert W.answer_role("End measurement") == R.RejectRole
+
+
+# ---- SHOULD-3: the refusal page says how narrow the home line is --------------------------------
+def test_an_arm_beside_the_line_is_not_told_it_is_in_front(qtbot, monkeypatch, tmp_path,
+                                                           settings):  # noqa: F811
+    """The review's xoff40: the arm 6 cm out and 4 cm beside the line read "the line straight in
+    front of the resting place, up to about 8 cm out", which a person can take for where the
+    arm is. The page now says the line is about 1 mm wide either side, and which way the second
+    part lies."""
+    from tests.i1io_table.window_sim import WindowSim
+    win, sim, run, p, saved, finished = open_window(
+        qtbot, monkeypatch, tmp_path, settings, sim=WindowSim(pos=[1502.0, 600.0]),
+        asking=False)
+    assert p.drive_until("ready_to_open") == "ready_to_open"
+    win._tick_widgets[1].setChecked(True)
+    p.press("The arm is out")
+    assert p.page() == "refused" and p.labels() == ["End measurement"]
+    text = win._text.text()
+    assert "This line is very narrow: the arm must be no more than about 1 mm to either side " \
+           "of it." in text
+    assert "from that line to the right as you face the table" in text
+    assert "—" not in text
+    assert not [ln for ln in sim.sim.received if ln[1:3] in MOVES]
