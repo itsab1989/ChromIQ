@@ -249,7 +249,7 @@ def test_settings_that_name_a_device_are_written_without_their_value(caplog):
     from core.settings import UNLOGGED_VALUE_KEYS, AppSettings
     s = AppSettings()
     with caplog.at_level(logging.DEBUG, logger="core.settings"):
-        for key in UNLOGGED_VALUE_KEYS:
+        for key in UNLOGGED_VALUE_KEYS - {"log_privacy_salt"}:
             s.set(key, '{"serial": "CM454M0223", "address": "AA:BB:CC:11:22:33"}')
     said = " ".join(r.getMessage() for r in caplog.records)
     assert "CM454M0223" not in said and "AA:BB" not in said
@@ -285,3 +285,36 @@ def test_the_paired_ports_line_counts_and_never_names(caplog, monkeypatch):
     assert "4 port(s) skipped" in said and "2 paired or Bluetooth port(s)" in said
     assert "/dev/cu.Bluetooth-Incoming-Port" in said  # the fixed one is named
     assert "1 from the user's own" in said
+
+
+# --- S5: the short hash is keyed with a random per-install salt ---
+
+def test_the_salt_is_made_once_and_kept(caplog):
+    from core import settings as cs
+    with caplog.at_level(logging.DEBUG):
+        v1 = cs.log_privacy_salt()
+        v2 = cs.log_privacy_salt()
+    assert v1 == v2 and len(v1) >= 16
+    assert v1 not in " ".join(r.getMessage() for r in caplog.records)
+    assert cs.LOG_PRIVACY_SALT_KEY in cs.UNLOGGED_VALUE_KEYS
+
+
+def test_the_serial_hash_is_keyed_with_the_salt_not_the_account(monkeypatch):
+    from core import settings as cs
+    monkeypatch.setattr(cs, "log_privacy_salt", lambda: "a" * 32)
+    lp.reset_for_tests(homes=["/Users/basti"], names=["basti"])
+    a = lp.device_tag("1234567")
+    # the same install: the same code, whoever the account is (no longer the key)
+    lp.reset_for_tests(homes=["/Users/other"], names=["other"])
+    assert lp.device_tag("1234567") == a
+    # knowing the account and host names is no help: the key is not made from them
+    import hashlib
+    import hmac
+    guess = hmac.new("/Users/basti\x00basti\x00chromiq-log".encode(), b"1234567",
+                     hashlib.sha256).hexdigest()[:8]
+    assert guess not in a
+    # another install (another salt): another code
+    monkeypatch.setattr(cs, "log_privacy_salt", lambda: "b" * 32)
+    lp.reset_for_tests(homes=["/Users/basti"], names=["basti"])
+    assert lp.device_tag("1234567") != a
+    lp.reset_for_tests()

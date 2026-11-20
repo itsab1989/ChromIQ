@@ -36,8 +36,8 @@ WHAT IS REPLACED
   id string it names itself by after ``unit`` / ``calls itself``), Bluetooth and
   network hardware addresses, and UUIDs -> ``<sn:xxxxxxxx>``, a short hash that is
   STABLE on one computer (two lines about the same device still match) and keyed
-  with values that never reach the log, so it cannot be turned back into the
-  serial by trying every number;
+  with a random salt made once per install and kept in the settings (never in
+  the log), so it cannot be turned back into the serial by trying every number;
 * a run of more than 64 hex digits (the shape of a table's memory answer; a
   SHA-256 is 64 and stays) -> ``<hex:xxxxxxxx n digits>``;
 * a printer queue name that CONTAINS the account name (``Bastis_Epson``) ->
@@ -145,7 +145,9 @@ class _Identity:
         self.names: "list[str]" = []
         self.phrases: "list[str]" = []
         self.hosts: "list[str]" = []
-        self.key = b"chromiq"
+        #: the HMAC key of the short hashes; made from the per-install salt at
+        #: the first hash (S5, :func:`_install_salt`)
+        self.key: "bytes | None" = None
         self.printers: "dict[str, str]" = {}
         self._find()
         self._compile()
@@ -216,8 +218,6 @@ class _Identity:
         self.names = sorted({n for n in names | given if n}, key=len, reverse=True)
         self.phrases = sorted(phrases - names - given, key=len, reverse=True)
         self.hosts = sorted(hosts, key=len, reverse=True)
-        self.key = ("\x00".join(self.homes + self.names + self.hosts)
-                    + "\x00chromiq-log").encode("utf-8", "replace")
 
     def _compile(self) -> None:
         def alt(items):
@@ -249,6 +249,8 @@ class _Identity:
         self.printer_re = (re.compile("|".join(re.escape(p) for p in bad)) if bad else None)
 
     def tag(self, kind: str, value: str) -> str:
+        if self.key is None:
+            self.key = (_install_salt() + "\x00chromiq-log").encode("utf-8", "replace")
         digest = hmac.new(self.key, value.strip().lower().encode("utf-8", "replace"),
                           hashlib.sha256).hexdigest()[:8]
         return f"<{kind}:{digest}>"
@@ -264,6 +266,43 @@ def _name_parts(full: str) -> "list[str]":
         if len(part) >= 3 and part.replace("-", "").isalpha():
             out.append(part)
     return out
+
+
+_SALT_LOADING = threading.local()
+_PROCESS_SALT: "str | None" = None
+
+
+def _install_salt() -> str:
+    """S5 (4.3.50): the salt of the short hashes, random and made once per
+    install, kept in the settings (``log_privacy_salt``, never logged). The
+    key used to be the home folder, the account name and the host name: all
+    scrubbed from the log, but none secret from someone who knows the tester,
+    and a 7-digit serial is ten million HMACs, seconds of work. A random salt
+    keeps the code stable on one computer and unguessable elsewhere. When the
+    settings cannot be reached a salt for this process is used (stable within
+    the session). Never raises."""
+    global _PROCESS_SALT
+    if getattr(_SALT_LOADING, "on", False):      # a log line while loading it
+        return _process_salt()
+    _SALT_LOADING.on = True
+    try:
+        from core.settings import log_privacy_salt
+        v = log_privacy_salt()
+        if v:
+            return v
+    except Exception:      # noqa: BLE001
+        pass
+    finally:
+        _SALT_LOADING.on = False
+    return _process_salt()
+
+
+def _process_salt() -> str:
+    global _PROCESS_SALT
+    if _PROCESS_SALT is None:
+        import secrets
+        _PROCESS_SALT = secrets.token_hex(16)
+    return _PROCESS_SALT
 
 
 def _windows_display_name() -> str:
@@ -310,8 +349,6 @@ def reset_for_tests(**override) -> _Identity:
             parts = [p for ph in ident.phrases for p in _name_parts(ph)]
             ident.names = list(ident.names) + [p for p in parts if p not in ident.names]
         if override:
-            ident.key = ("\x00".join(ident.homes + ident.names + ident.hosts)
-                         + "\x00chromiq-log").encode("utf-8", "replace")
             ident.homes = sorted({h.rstrip("\\/") for h in ident.homes}, key=len, reverse=True)
             ident.names = sorted(set(ident.names), key=len, reverse=True)
             ident._compile()

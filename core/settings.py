@@ -20,7 +20,35 @@ UNLOGGED_VALUE_KEYS: "frozenset[str]" = frozenset({
     "cr30_last_device_info",
     "cr30_tile_signatures",
     "cr30_ble_address",
+    "log_privacy_salt",
 })
+
+#: S5 (4.3.50): the app log's per-install salt (``core.log_privacy``)
+LOG_PRIVACY_SALT_KEY = "log_privacy_salt"
+
+
+def log_privacy_salt() -> str:
+    """The log filter's random salt, made and stored the first time. Read and
+    written through QSettings directly, NOT through :class:`AppSettings`, whose
+    own log lines would ask for this very salt. Honours the sandbox
+    (``CHROMIQ_SETTINGS_FILE``) as :class:`AppSettings` does. "" on failure."""
+    import os
+    import secrets
+    try:
+        sandbox = os.environ.get(SETTINGS_FILE_ENV, "").strip()
+        if sandbox:
+            from PyQt6.QtCore import QSettings as _QtSettings
+            qs = QSettings(sandbox, _QtSettings.Format.IniFormat)
+        else:
+            qs = QSettings("ChromIQ", "ChromIQ")
+        v = str(qs.value(LOG_PRIVACY_SALT_KEY, "") or "")
+        if len(v) < 16:
+            v = secrets.token_hex(16)
+            qs.setValue(LOG_PRIVACY_SALT_KEY, v)
+            qs.sync()
+        return v
+    except Exception:      # noqa: BLE001
+        return ""
 
 DEFAULTS: dict[str, Any] = {
     # ArgyllCMS
