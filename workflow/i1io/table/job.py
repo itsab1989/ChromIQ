@@ -5485,6 +5485,26 @@ class TableJob:
             except OSError:
                 pass
 
+    def rows_sitting_completed(self) -> bool:
+        """4.3.52 (the owner: the yellow line under "Patch-by-patch mode (-p)" may go "after a
+        measurement has been completed this way"): this sitting read in ROWS (strips) and
+        completed it: Save ended it (``ended == "saved"``), nobody pressed Stop or reported a
+        problem (``stop_pressed``, ``problems``, ``stopped_by_person``), and at least one page
+        has every one of its rows ``read`` (``row_status``) with none of them read patch by patch
+        instead (``strip_fallbacks``). Never raises."""
+        try:
+            if self.row_kind != "strip" or self.ended != "saved" or self.stop_pressed \
+                    or self.problems or self.stopped_by_person:
+                return False
+            for pg, rows in self.row_status.items():
+                n = sp.rows_on_page(self.sheet, pg)
+                if n and len(rows) == n and all(v == "read" for v in rows.values()) \
+                        and not self.strip_fallbacks.get(pg):
+                    return True
+            return False
+        except Exception:      # noqa: BLE001 - when in doubt, not completed
+            return False
+
     def _a_row_failed(self) -> bool:
         """A row failed, was skipped or was read again in this session."""
         return (any(v in ("failed", "skipped") for rows in self.row_status.values()

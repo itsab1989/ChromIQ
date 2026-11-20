@@ -1486,3 +1486,24 @@ nothing of it has run on a real table.
   confirms the arm is at rest before the first movement (the first reading of the arm still
   decides); the 5 mm steps towards the front run without a question and can meet the front end
   once on a sheet laid far forward. The help text says so.
+
+### ⏳ Awaiting confirmation: the line under "Patch-by-patch mode (-p)" goes by itself (2026-11-20, for 4.3.52)
+
+**Confirmed by:** *nobody yet.*
+
+The owner, 2026-11-20, about the yellow line under "Patch-by-patch mode (-p)" for an i1iO table
+chart: asked whether it needs to be there, then *"can it automatically go away after a
+measurement has been completed this way?"*
+
+* **Ticked** (patch by patch, the default): no line. What the box means for a table, and that
+  Save as Defaults keeps the choice for every table chart, are in its tooltip
+  (M-I1IO-DRIVE-STRIP-OPTION).
+* **Not ticked** (reading in rows): one line in the same warning colour: "Reading in rows has not
+  been tried on a real table yet. Please keep the table's power switch in reach." Guided and
+  Manual show the same; it appears and goes as the box is toggled.
+* **It goes by itself** once a measurement in rows has been COMPLETED on the table connected last
+  (`TableJob.rows_sitting_completed`: read in rows, ended by Save, no Stop, no problem reported,
+  and at least one page with every row read, none of them patch by patch instead). The table is
+  remembered by the same salted key as its reach record (no serial): `i1io_table_rows_completed_on`
+  lists those tables, `i1io_table_last_key` names the one connected last. Another table, or no
+  table known yet, shows the line. The app log has a line "table rows note retired" when it goes.

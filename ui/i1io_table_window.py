@@ -60,6 +60,12 @@ CONSENT_KEY = "i1io_table_consent_given"
 ASK_KEY = GUIDED_KEY = "i1io_table_ask_after_each_step"
 #: 4.3.52: "Keep the table's detailed log" (Preferences > Beta), read once at START
 EXTRA_LOG_KEY = "i1io_table_extra_logging"
+#: 4.3.52: the tables (their salted keys, reach.table_key: no serial) on which a measurement in
+#: rows was completed (TableJob.rows_sitting_completed), comma-separated; and the key of the
+#: table connected last. The Measure tab's line under "Patch-by-patch mode (-p)" is not shown
+#: for a table on that list (rows_note_retired)
+ROWS_DONE_KEY = "i1io_table_rows_completed_on"
+LAST_TABLE_KEY = "i1io_table_last_key"
 #: 4.3.52 (design3 F8): THE SWITCH-OFF ALARM. Decided by us, not by the owner. False (the
 #: default, as measurement_window_sounds.md W-3 and core/sound.py's master switch say): the
 #: alarm is the "Instrument error" sound through the user's own sound settings, so it is silent
@@ -334,6 +340,36 @@ def extra_logging(settings) -> bool:
         return bool(settings.get(EXTRA_LOG_KEY, True))
     except Exception:      # noqa: BLE001 - the default
         return True
+
+
+def rows_note_retired(settings, key: "str | None" = None) -> bool:
+    """True when a measurement in rows has been completed on the table *key* (None: the table
+    connected last). False while no table is known (the safe default: the line shows)."""
+    try:
+        k = key if key is not None else str(settings.get(LAST_TABLE_KEY, "") or "")
+        done = [x for x in str(settings.get(ROWS_DONE_KEY, "") or "").split(",") if x]
+        return bool(k) and k in done
+    except Exception:      # noqa: BLE001 - the safe default
+        return False
+
+
+def _remember_table_after(win, job) -> None:
+    """4.3.52: after a sitting: the table connected last, and, when it completed a measurement
+    in rows, that table on the list (the app log says so once). Never raises."""
+    try:
+        key = getattr(getattr(job, "reach", None), "key", None)
+        if not key:
+            return
+        s = win._settings
+        s.set(LAST_TABLE_KEY, key)
+        if job.rows_sitting_completed() and not rows_note_retired(s, key):
+            done = [x for x in str(s.get(ROWS_DONE_KEY, "") or "").split(",") if x]
+            s.set(ROWS_DONE_KEY, ",".join(done + [key]))
+            from core.app_log import line
+            line("table rows note retired", why="a measurement in rows was completed on this "
+                 "table", pages_read=len(job.row_status))
+    except Exception:      # noqa: BLE001
+        pass
 
 
 def consent_version_given(settings) -> int:
@@ -4597,6 +4633,7 @@ class TableMeasureWindow(QFrame):
 
     def _after_close(self, res) -> None:
         self._closed_job = True
+        _remember_table_after(self, self.job)
         self._moving_controls(False)
         self._end_btn.setVisible(False)
         from workflow import measurement_messages as M
