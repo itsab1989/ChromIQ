@@ -877,9 +877,10 @@ def _floor(ms: int) -> int:
 
 
 def _same_wait(a: int, b: int) -> bool:
-    """Two gaps come from the same wait: they meet the same floor, or differ
-    only by scheduling (a loaded machine makes a gap longer, never shorter)."""
-    return _floor(a) == _floor(b) or abs(a - b) < 250
+    """Two gaps come from the same wait: they meet the same floor, or (a gap a few ms
+    either side of a floor, the timer's own rounding) differ by less than 30 ms. 4.3.53 fix
+    round (waits review S4): was 250 ms, which let a 1500 -> 1300 drift pass as "the same"."""
+    return _floor(a) == _floor(b) or abs(a - b) < 30
 
 
 def _scenarios(text: str) -> "list[str]":
@@ -1030,3 +1031,47 @@ def test_the_right_blue_is_said_as_the_blue_and_its_side_goes_to_the_app_log(qap
     msg = [r.getMessage() for r in caplog.records if "second_pass_due" in r.getMessage()]
     assert msg and "sent=blue_right" in msg[0] and "side=right" in msg[0] \
         and "ruler_net=412" in msg[0]
+
+
+# ---------------------------------------------------------------------------
+# 4.3.53, the waits review's S3, MEASURED on the fake-USB level: in a hand dual scan with the
+# lights on, which wait decides when the second pass can start?
+# ---------------------------------------------------------------------------
+def _s3(t: str, scn: str) -> dict:
+    out = {}
+    for ln in _lines(t, scn):
+        f = ln.split()
+        if f[0] == "S3BLUE":
+            out["blue"] = int(f[1])
+        elif f[0] == "S3PRESS":
+            out["press"] = int(f[1])
+        elif f[0] == "S3TRIG":
+            out["trig"], out["lampgap"] = int(f[1]), int(f[3])
+    return out
+
+
+def test_at_the_defaults_argylls_lamp_wait_decides_when_the_second_pass_starts(traces):
+    """At the defaults the person presses at the blue (0.55 s after pass 1); the blue's own
+    0.37 s would let the return pass start at about 0.93 s, but its dark reading waits until
+    ArgyllCMS's lamp has been off 1.5 s: the trigger goes out about 1.5 s after pass 1 either
+    way, so the blue's wait alone changes nothing."""
+    t = traces["i1pro2_dual_lights_test"]
+    d, b0 = _s3(t, "s3_defaults"), _s3(t, "s3_blue_0")
+    for r in (d, b0):
+        assert 500 <= r["blue"] <= 700 and r["press"] - r["blue"] < 50
+        assert 1490 <= r["trig"] <= 1700 and r["lampgap"] >= 1490
+    assert abs(d["trig"] - b0["trig"]) < 100
+
+
+def test_with_a_shorter_lamp_wait_the_blues_own_wait_decides(traces):
+    t = traces["i1pro2_dual_lights_test"]
+    r = _s3(t, "s3_lamp_300")
+    assert 330 <= r["trig"] - r["press"] <= 500          # the blue's 370 ms, not the lamp's
+    r0 = _s3(t, "s3_lamp_300_blue_0")
+    assert r0["trig"] - r0["press"] < 100                 # both short: at once
+
+
+def test_the_same_wait_comparison_catches_a_drift_of_one_wait():
+    """S4: the comparison would no longer call a 1500 -> 1300 ms drift the same wait."""
+    assert not _same_wait(1500, 1300) and not _same_wait(2100, 1900)
+    assert _same_wait(1504, 1650) and _same_wait(1492, 1503) and _same_wait(372, 380)

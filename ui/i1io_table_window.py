@@ -460,10 +460,16 @@ def default_job_factory(sheet: dict, page: int, run, stamp: str, guided: bool,
     from workflow.i1io.table import job as J
     from workflow.i1io.table_settle import app_marker_place
     from core.app_nap import latency_critical
+    # 4.3.53 fix round (waits review M1): ArgyllCMS's lamp wait from Preferences > Beta reaches
+    # the table's patch-by-patch readings, as it reaches a hand measurement
+    from core import instrument_waits as _iw
+    from core.settings import AppSettings
+    lamp_ms = _iw.to_ms(_iw.LAMP_OFF, AppSettings().get(_iw.LAMP_OFF.key,
+                                                        _iw.LAMP_OFF.default_s))
     return J.TableJob(sheet, page, run=run, stamp=stamp, guided=guided,
                       app_marker_place=app_marker_place(), latency_guard=latency_critical,
                       reach_store=table_reach_store(), extra_logging=extra_logging,
-                      consent_version=consent_version)
+                      consent_version=consent_version, lamp_off_ms=lamp_ms)
 
 
 #: replaced by the on-screen driver (and the tests) with the simulated table

@@ -737,7 +737,8 @@ class TableJob:
                  helper_check=None, instrument_check=None, chart_ti2=None,
                  app_marker_place: "tuple[Path, str] | None" = None, press_factory=None,
                  scan_factory=None, latency_guard=None, stored_tile_white: bool = False,
-                 reach_store=None, extra_logging: bool = True, consent_version: int = 0):
+                 reach_store=None, extra_logging: bool = True, consent_version: int = 0,
+                 lamp_off_ms: "int | None" = None):
         #: 4.3.52: "Guided, step by step measurement" (Preferences > Beta, the one key
         #: i1io_table_ask_after_each_step). True: every question is asked, and the report after
         #: each step that moved. False: the questions on BY_SETTING are answered by the job,
@@ -897,6 +898,13 @@ class TableJob:
         #: starts ChromIQ's helper for spot readings (reader.SpotReader through the app's
         #: helper path, as the tester's Readers.spot did); tests pass a simulated one
         self._reader_factory = reader_factory or _default_reader
+        #: 4.3.53 fix round (waits review M1, its "one-line table change"): ArgyllCMS's lamp
+        #: wait (Preferences > Beta, "i1Pro and i1Pro 2: lamp wait"), in ms, as the window reads
+        #: it from the settings: passed to every patch-by-patch reader of the table (and its
+        #: calibration through that reader) as --lamp-off-ms, as a hand measurement gets it.
+        #: None: not passed (the helper's own 1500 ms). The table's own SCAN waits (1.07 s
+        #: before a row's dark, 0.17 s in a dual row) are not this field's.
+        self.lamp_off_ms = None if lamp_off_ms is None else int(lamp_off_ms)
         # ---- round B: the instrument's button as "Aimed" ---------------------------------------
         #: builds the helper's button wait (folder, log) -> reader.PressWaiter-like; False or
         #: None = not offered. By default the real helper's, only with the real readers (the
@@ -3786,6 +3794,9 @@ class TableJob:
             args = self.options_report.options.reader_args()
             if dual_args:
                 args = tuple(args) + tuple(dual_args)
+            if self.lamp_off_ms is not None:
+                # 4.3.53 fix round (waits review M1): the field reaches the table's readings
+                args = tuple(args) + ("--lamp-off-ms", str(self.lamp_off_ms))
             r = self._reader_factory(folder, name, list(patches), calibrate, args, self.diag.log)
         except (OSError, ValueError, rd.ReaderFailed) as exc:
             raise StageFailed("reader_could_not_start", error=type(exc).__name__) from None

@@ -491,10 +491,19 @@ def test_the_help_says_purpose_vendor_before_and_risk():
         assert need in a, need
     lamp = sd.i1pro_lamp_off_help()
     for need in ("to make sure the lamp is dark for the dark measurement",
-                 "about 1.06 s", "1.5 s, ArgyllCMS's own value", "readings can be slightly wrong",
+                 "about 1.06 s", "1.5 s, ArgyllCMS's own value",
+                 # 4.3.53 fix round (waits review S2): "may", the size is not measured
+                 "readings may be slightly wrong",
                  "you cannot see it", "without a warning", "not only with the lights",
-                 "**Default:** 1.5 s"):
+                 "**Default:** 1.5 s",
+                 # M1: the true scope (hand and the table's patch by patch, not its rows)
+                 "patch by patch readings on the i1iO table",
+                 "It does not reach the table's rows", "1.07 s", "0.17 s",
+                 # S1: the vendor's other numbers; S3: the wait before the second pass
+                 "0.11 to 0.18 s", "this wait also comes before the second pass"):
         assert need in lamp, need
+    assert "can be slightly wrong" not in lamp and "in every version" not in lamp
+    assert "ArgyllCMS's lamp wait below holds it" in b       # S3, in the blue's own help
     q = sd.i1pro2_lights_quiet_help()
     assert "“Dual scan, wait after the blue light”" in q and "always waits" not in q
 

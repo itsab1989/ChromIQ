@@ -65,6 +65,15 @@ RECORDED_BLUE_AFTER_LOW_S = 0.53
 RECORDED_BLUE_AFTER_HIGH_S = 0.68
 #: lamp off -> the next dark reading, i1iO table spot readings (R12): 1.059 s
 RECORDED_LAMP_OFF_S = 1.06
+#: 4.3.53 fix round (waits review S1): lamp data -> the dark trigger in i1Profiler's DUAL
+#: readings: 0.13-0.18 s on table dual rows, 0.11-0.18 s on dual spots (RE_REVIEW_BRIEF of
+#: 2026-11-18, cq_i1pro2_dual.h); whether it uses that dark as ArgyllCMS does is not known
+RECORDED_LAMP_DUAL_LOW_S = 0.11
+RECORDED_LAMP_DUAL_HIGH_S = 0.18
+#: the table's own scan waits, which this field does not reach (native/instlib/cq_tscan.h
+#: CQ_TSCAN_LAMPOFF_MS, cq_i1pro2_dual.h CQ_TDUAL_DARK_AFTER_LAMP_MS)
+TABLE_SCAN_LAMP_OFF_S = 1.07
+TABLE_DUAL_DARK_AFTER_LAMP_S = 0.17
 
 
 def seconds(wait: Wait, value) -> float:

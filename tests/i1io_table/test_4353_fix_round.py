@@ -373,3 +373,35 @@ def test_a_sheet_turned_by_10_degrees_is_accepted_patch_by_patch_and_not_for_row
             geo.fit_model(mm, _rot(good, deg))                              # rows: as before
     with pytest.raises(geo.AlignmentRefused):
         geo.fit_model(mm, _rot(good, 90), geo.ROTATION_TOL_SPOT_DEG)        # turned: never
+
+
+# ---- waits review M1: the lamp wait reaches the table's patch-by-patch readings -------------------
+
+@pytest.mark.parametrize("ms", [None, 1500, 1060])
+def test_the_lamp_wait_field_reaches_every_patch_reader_of_the_table(tmp_path, ms):
+    sheet = small_sheet()
+    job, sim, helper, run = RS.make_reading_job(tmp_path, sheet=sheet, aims=H.demo_aims(sheet))
+    job.lamp_off_ms = ms
+    job.guided = False
+    job.consent_version = W.CONSENT_VERSION
+    job.calibration_place_preference = "table tile"
+    assert job.set_options(["-v", "-c", "1", "-p", "chart"]).ok
+    p = H.Person(job, sim, {})
+    for st in ("open", "calibrate", "align"):
+        assert p.drive(getattr(job, st)()).ok, st
+    while job.rows_left():
+        assert p.drive(job.read_row()).ok
+    assert helper.started
+    for args in helper.started:
+        if ms is None:
+            assert "--lamp-off-ms" not in args
+        else:
+            i = args.index("--lamp-off-ms")
+            assert args[i + 1] == str(ms)
+    assert sim.violations == []
+
+
+def test_the_window_hands_the_settings_value_to_the_job():
+    import inspect
+    src = inspect.getsource(W.default_job_factory)
+    assert "_iw.to_ms(_iw.LAMP_OFF" in src and "lamp_off_ms=lamp_ms" in src

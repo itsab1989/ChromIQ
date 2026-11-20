@@ -73,6 +73,7 @@ static unsigned int last_wr_end = 0;	/* msec_time() of the last 0x03 write */
 static const unsigned char quad[4] = { 0, 1, 3, 2 };
 static i1pro *cur = NULL;		/* the instrument of this life (LAMPGAP) */
 static int show_lamp = 0;		/* print LAMPGAP (the lamp lives only) */
+static unsigned int s3_t0 = 0;		/* 4.3.53 S3: pass 1's end (0 = not timing) */
 
 static void hex(const unsigned char *b, int n) {
 	int i;
@@ -86,6 +87,10 @@ static int fake_control(icoms *p, int requesttype, int request, int value,
 	(void)p; (void)value; (void)index; (void)tout;
 	if ((request & 0xff) == 0xD4 && last_wr_end != 0)
 		printf("%s GAPMS %d\n", scn, (int)(msec_time() - last_wr_end));
+	if ((request & 0xff) == 0xD4 && s3_t0 != 0 && cur != NULL)
+		printf("%s S3TRIG %d lampgap %d lastwrite %d\n", scn, (int)(msec_time() - s3_t0),
+		       (int)(msec_time() - ((i1proimp *)cur->m)->llamponoff),
+		       last_wr_end ? (int)(msec_time() - last_wr_end) : -1);
 	if ((request & 0xff) == 0xD4 && show_lamp && cur != NULL)
 		printf("%s LAMPGAP %d\n", scn,
 		       (int)(msec_time() - ((i1proimp *)cur->m)->llamponoff));
@@ -468,6 +473,65 @@ static void lamp_life(const char *name, int lamp) {
 #endif
 }
 
+#if !defined(CQ_V4351) && !defined(CQ_V4352)
+/* 4.3.53, the waits review's S3 (MEASURED here, not reasoned): a HAND dual scan with the
+ * lights on, at the defaults unless given. Pass 1 ends (its lamp off, as
+ * i1pro_readmeasurement records it after a lit reading), the helper asks for the blue
+ * 550 ms later (CQ_LIGHTS_BLUE_AFTER_MS), the person presses AT ONCE, and the return pass
+ * takes its dark first (NOLAMP: ArgyllCMS's lamp wait applies). Printed: when the return
+ * pass's first trigger goes out, from pass 1's end, with the lamp gap and the gap after the
+ * last light write. lamp -1 / blueq -1 = the defaults (1500 / 370 ms). */
+static void s3_life(const char *name, int lamp, int blueq) {
+	i1pro *p;
+	unsigned int t;
+	scn = name;
+	scan_ms = 60;
+	p = make(I1PRO_CAP2_UV_LED | I1PRO_CAP2_ZEB_RUL | I1PRO_CAP2_IND_LED);
+	i1pro2_cq_lights_quiet_ms_for_test = 0;
+	i1pro2_cq_lights_quiet_ms = -1;
+	i1pro2_cq_lights_blue_quiet_set_ms = blueq;
+	i1pro_cq_lamp_off_ms = lamp;
+	i1pro2_cq_lights_held = held;
+	{
+		double kA[36], kD[36];
+		printf("%s OPTIONS %d\n", scn, i1pro2_cq_dual_options(p, 1, kA, kD));
+	}
+	i1pro2_cq_lights_options(p, 1, 0);
+	printf("%s LIGHTS %d\n", scn, i1pro2_cq_lights_begin(p));
+	step("lamp-pass");
+	pass_begin(p);
+	i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_LAMP);
+	press(p);
+	reading(p, 5, i1p_dark_cal, 5);
+	reading(p, 10, i1p_norm, 40);
+	((i1proimp *)p->m)->llamponoff = msec_time();	/* pass 1's lamp off, at its data's end */
+	s3_t0 = msec_time();
+	if (s3_t0 == 0)
+		s3_t0 = 1;
+	pass_end(p);
+	i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_OFF);
+	step("return-wait");
+	i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_UV);
+	pass_begin(p);
+	msec_sleep(550);				/* the helper's CQ_LIGHTS_BLUE_AFTER_MS */
+	t = msec_time();
+	second_pass(p);
+	printf("%s S3BLUE %d\n", scn, (int)(t - s3_t0));
+	press(p);					/* the person, at once */
+	printf("%s S3PRESS %d\n", scn, (int)(msec_time() - s3_t0));
+	step("return-pass");
+	reading(p, 5, i1p_dark_cal, 5);
+	s3_t0 = 0;
+	reading(p, 10, ((i1proimp *)p->m)->uv_en ? i1p2_UV : i1p_norm, 38);
+	pass_end(p);
+	i1pro2_cq_dual_arm(p, CQ_DUAL_PHASE_OFF);
+	close_it(p);
+	i1pro2_cq_lights_blue_quiet_set_ms = -1;
+	i1pro_cq_lamp_off_ms = -1;
+	i1pro2_cq_lights_quiet_ms_for_test = 150;
+}
+#endif
+
 int main(int argc, char *argv[]) {
 	(void)argc; (void)argv;
 	i1pro2_cq_dual_noproc_for_test = 1;
@@ -529,6 +593,12 @@ int main(int argc, char *argv[]) {
 	life("blue_side_rtl_lights_off", 0, 0, 1, 1, -2);	/* the lights off: nothing */
 	life("blue_side_rtl_single", 1, 1, 0, 4, -2);	/* no dual scan: nothing */
 	lamp_dir = -1;
+	/* 4.3.53, S3 */
+	s3_life("s3_defaults", -1, -1);
+	s3_life("s3_blue_0", -1, 0);
+	s3_life("s3_lamp_300", 300, -1);
+	s3_life("s3_lamp_300_blue_0", 300, 0);
+	s3_life("s3_lamp_0_blue_0", 0, 0);
 #endif
 	i1pro2_cq_lights_blue_quiet_set_ms = -1;
 	/* ArgyllCMS's lamp wait */
