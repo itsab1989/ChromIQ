@@ -36,6 +36,18 @@ from pathlib import Path
 
 HEX_RUN = re.compile(r"[0-9A-Fa-f]{24,}")
 
+#: 4.3.52, "Keep the table's detailed log" OFF (design3 F7): the lines left out of a CLEAN
+#: sitting's log (every SEND and RECV line, and the per-move "<cid> took x s" DATA lines, which
+#: the compact MOVE line replaces). They are kept in a ring of the last RING_LINES lines, written
+#: under RING_HEADING at the first stop, doubt, status, refusal, timeout, lost link, problem
+#: report or ending that is not a clean Save (:meth:`Diagnostics.trip`); from then on every line
+#: is written until the session ends. Every other line (INFO, STEP, STOP, RESULT, ANSWER, NOTE,
+#: MOVE, the other DATA lines) is always written.
+OPTIONAL_KINDS = ("SEND", "RECV")
+_TOOK = re.compile(r"^\s*[0-9.]+\s+\S\S( \([^)]*\))? took [0-9.]+ s$")
+RING_LINES = 300
+RING_HEADING = "the 300 lines before this stop, kept because something stopped"
+
 
 def _private_words() -> "list[str]":
     out = []
@@ -65,7 +77,16 @@ def scrub(text: str, extra: "tuple[str, ...]" = ()) -> str:
 class Diagnostics:
     """The session folder's log and results. *folder* None: kept in memory only (tests)."""
 
-    def __init__(self, folder: "Path | None", log_path: "Path | None" = None):
+    def __init__(self, folder: "Path | None", log_path: "Path | None" = None,
+                 detail: bool = True):
+        #: 4.3.52: "Keep the table's detailed log" (True: every line, as before)
+        self.detail = bool(detail)
+        #: the optional lines of a clean sitting so far (only with detail False)
+        self.ring: "list[str]" = []
+        #: why the whole log is written from now on (None: not yet)
+        self.tripped: "str | None" = None
+        #: how many optional lines were left out of the file
+        self.left_out = 0
         self.folder = Path(folder) if folder is not None else None
         # the log's own name is the Run's (Run.i1io_table_log): without it, no log file
         self.log_path = Path(log_path) if log_path is not None else None
@@ -79,8 +100,43 @@ class Diagnostics:
             self.log_path.parent.mkdir(parents=True, exist_ok=True)
             self._fh = open(self.log_path, "a", encoding="utf-8")
 
+    def optional(self, kind: str, text: str) -> bool:
+        """A line "Keep the table's detailed log" may leave out of a clean sitting."""
+        if kind in OPTIONAL_KINDS:
+            return True
+        return kind == "DATA" and bool(_TOOK.match(str(text)))
+
     def log(self, kind: str, text: str) -> None:
         line = f"{kind:6} {scrub(text, self._extra)}"
+        try:
+            if not self.detail and self.tripped is None and self.optional(kind, text):
+                self.ring.append(line)
+                if len(self.ring) > RING_LINES:
+                    del self.ring[:-RING_LINES]
+                self.left_out += 1
+                return
+        except Exception:      # noqa: BLE001 - when in doubt, the line is written
+            pass
+        self._put(line)
+
+    def trip(self, why: str) -> None:
+        """Something stopped, or the ending is not a clean Save: the ring is written under its
+        heading, and every line from now on (only with detail False; once). Never raises."""
+        try:
+            if self.detail or self.tripped is not None:
+                return
+            self.tripped = str(why or "a stop")
+            self._put(f"{'INFO':6} {RING_HEADING} ({scrub(self.tripped, self._extra)}); "
+                      f"{len(self.ring)} lines follow, {self.left_out} were left out before "
+                      "them in all")
+            for ln in list(self.ring):
+                self._put(ln)
+            self.ring.clear()
+            self._put(f"{'INFO':6} the kept lines end here; from now on every line is written")
+        except Exception:      # noqa: BLE001
+            pass
+
+    def _put(self, line: str) -> None:
         self.lines.append(line)
         if self._fh is not None:
             try:
@@ -113,6 +169,10 @@ class Diagnostics:
         self.write_json(f"{block['folder']}/result.json", block)
 
     def finish(self) -> None:
+        if not self.detail and self.tripped is None:
+            self._put(f"{'INFO':6} the detailed table log is switched off: {self.left_out} "
+                      "SEND, RECV and move-time lines of this clean sitting were not written "
+                      "(each movement has its MOVE line)")
         self.write_json("summary.json", self.blocks)
         if self._fh is not None:
             try:

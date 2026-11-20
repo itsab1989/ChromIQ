@@ -1155,6 +1155,8 @@ class Table:
         self.stop_requested = True
 
     def close_for_sending(self, reason: str) -> None:
+        if getattr(self, "_move_note", None) is not None:
+            self._flush_move()
         if self.closed_reason is None:
             self.closed_reason = reason
             self.log("STOP", f"nothing more is sent: {reason}")
@@ -1170,7 +1172,56 @@ class Table:
             self.log("DATA", f"the USB link was lost: {detail}")
         return self.link_lost_text
 
+    # ---- 4.3.52: one compact line per movement (written whatever "Keep the table's detailed
+    # log" says): "MOVE n kind target t_sent took predicted status arrival". Built from what the
+    # table module already knows, logged before the next line is written or right after the
+    # reading that follows the move: never inside a movement's timed window; never raises.
+    def _note_move_sent(self, line, kind, cid) -> None:
+        try:
+            self._flush_move()
+            text = bytes(line).decode("ascii", "replace").rstrip("\r")
+            target = text[3:].strip() if cid in ("m0", "m2") else "-"
+            self._move_note = {"n": self.motions_sent + 1, "kind": str(kind or cid),
+                               "target": target or "-", "t": self.t.now(), "took": None,
+                               "predicted": None, "status": "sent"}
+        except Exception:      # noqa: BLE001 - a record, never the table's concern
+            self._move_note = None
+
+    def _note_move_done(self, took, window) -> None:
+        try:
+            m = getattr(self, "_move_note", None)
+            if m is not None:
+                m.update(took=took, status="0",
+                         predicted=None if window is None else (window[0], window[1]))
+        except Exception:      # noqa: BLE001
+            pass
+
+    def _note_arrival(self, p) -> None:
+        try:
+            m = getattr(self, "_move_note", None)
+            if m is not None and m.get("took") is not None:
+                self._flush_move(arrival=p)
+        except Exception:      # noqa: BLE001
+            pass
+
+    def _flush_move(self, arrival=None, status: "str | None" = None) -> None:
+        try:
+            m, self._move_note = getattr(self, "_move_note", None), None
+            if m is None:
+                return
+            took = "-" if m.get("took") is None else f"{m['took']:.3f}"
+            pr = m.get("predicted")
+            pred = "-" if not pr else f"{pr[0]:.2f}-{pr[1]:.2f}"
+            arr = "-" if arrival is None else f"{int(arrival[0])},{int(arrival[1])}"
+            self.log("MOVE", f"{m['n']} {m['kind']} {m['target']} t={m['t']:.3f} took={took} "
+                             f"predicted={pred} status={status or m.get('status')} "
+                             f"arrival={arr}")
+        except Exception:      # noqa: BLE001
+            pass
+
     def _doubt(self, reason: str, plain: "str | None" = None) -> Doubt:
+        if getattr(self, "_move_note", None) is not None:
+            self._flush_move(status="doubt")
         if reason.startswith(LINK_FAILED):
             # 0.5.1: part C says plainly what a lost link means (parts A and B unchanged)
             lost = self._note_link_lost(reason[len(LINK_FAILED):].lstrip(": "))
@@ -1258,6 +1309,8 @@ class Table:
                 self.step_motions += 1
                 self.motion_unconfirmed = True
                 self.last_move = (label or _key_of(line), None)
+            if is_motion:
+                self._note_move_sent(line, label or _key_of(line), cid)
             self.log("SEND", line.decode("ascii").rstrip("\r"))
             if label == "start_up":
                 self.start_up_sent = True
@@ -1371,6 +1424,7 @@ class Table:
             self.timings.append((f"{key}/{window}", took))
             self.log("DATA", f"{cid} ({key}) took {took:.3f} s")
             lo, hi = TIME_WINDOW[window]
+            self._note_move_done(took, (lo, hi))
             self.last_move = (key, lo <= took <= hi)
             if not lo <= took <= hi:
                 raise self._doubt(f"{cid} took {took:.3f} s, outside {lo}-{hi} s ({window})",
@@ -1455,6 +1509,7 @@ class Table:
             self.arm_free = False
             self.timings.append((f"{cid}/computed", took))
             self.log("DATA", f"{cid} took {took:.3f} s")
+            self._note_move_done(took, window)
             if window is not None:
                 lo, hi = window
                 self.last_move = (self.last_move[0] if self.last_move else cid, lo <= took <= hi)
@@ -1515,6 +1570,7 @@ class Table:
     # ---- the opening and the steps --------------------------------------------------
     def position(self) -> "tuple[int, int]":
         p = self.exchange("position").xy()
+        self._note_arrival(p)
         self.position_now = p
         #: 4.3.47 MUST-1: the line number this reading came with (the job compares it with the
         #: last question and the last release of the arm before a computed move)
