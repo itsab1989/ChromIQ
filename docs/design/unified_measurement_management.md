@@ -11078,7 +11078,7 @@ alone.
 
 ### M-I1IO-DRIVE-I1PROFILER-LIMIT · PROPOSED · the paragraph the table window adds to each of its pages that names i1Profiler 3.8.6 (its title is not shown), Measure (the i1iO table window)
 
-*New 2026-11-20 for 4.3.51 (the owner's decision above): every page of the table window that sends the person to i1Profiler 3.8.6 or older and does not already say so gets this paragraph at its end. Shown in betas as a proposed text; approved afterwards.* **Confirmed by:** *nobody yet.*
+*New 2026-11-20 for 4.3.51 (the owner's decision above): every page of the table window that sends the person to i1Profiler 3.8.6 or older and does not already say so gets this paragraph at its end. Revised the same day (the re-review, S1 and S2): which pages get it is decided by a flag on each message (`needs_old_i1profiler`) and on each window text that sends the person there, never by finding "3.8.6" in the translated text. M-I1IO-DRIVE-NOT-I1IO2 is not flagged: that page is for a table that is not an i1iO 2, where this paragraph may be false. Shown in betas as a proposed text; approved afterwards.* **Confirmed by:** *nobody yet.*
 
 > **The arm is not at its resting place**
 >

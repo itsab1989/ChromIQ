@@ -1355,8 +1355,11 @@ homing 1.312 s, status 0), and no `f0`.
   gently by hand only if it moves easily (whether a switched-off table lets it move is not
   known), START again, and only then i1Profiler 3.8.6 or older, with the plain statement that
   3.8.7 and newer no longer work with the i1iO 2. A move that may still be waiting keeps its
-  switch-off page first. Every page of the table window that names i1Profiler 3.8.6 without
-  that statement gets it added (M-I1IO-DRIVE-I1PROFILER-LIMIT).
+  switch-off page first. Every page of the table window that sends the person to i1Profiler
+  3.8.6 or older without that statement gets it added (M-I1IO-DRIVE-I1PROFILER-LIMIT); the
+  message's own flag decides (`needs_old_i1profiler`, and `_old_i1p` on a window text), not its
+  wording, and the page for a table that is not an i1iO 2 (M-I1IO-DRIVE-NOT-I1IO2) does not get
+  it.
   After the homing the measurement goes on (M-I1IO-DRIVE-HOME-AT-START-DONE, "Go on"), except
   after the alignment's own place check had stopped the sending (`-N`): then nothing more is sent
   in this measurement, as in 4.3.48. The usual homing (`home`) is never offered at a START.

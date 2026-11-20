@@ -68,6 +68,10 @@ class Message:
     #: The body used when :attr:`count_key` is exactly 2 (4.3.11): "Both
     #: readings", never "All 2 readings".
     body_two: "str | None" = None
+    #: 4.3.51 (re-review S1/S2): True when the message sends the person to i1Profiler 3.8.6
+    #: or older for a way on with an i1iO 2 table. The table window then adds
+    #: M-I1IO-DRIVE-I1PROFILER-LIMIT below the page (:func:`needs_i1profiler_limit`).
+    needs_old_i1profiler: bool = False
 
     def render(self, **kw) -> "tuple[str, str]":
         """(title, body) with the placeholders filled and nothing left over."""
@@ -83,6 +87,8 @@ class Message:
             body = self.body_two
         title = tr(head).format(**kw) if "{" in head else tr(head)
         text = tr(body).format(**kw)
+        if self.needs_old_i1profiler:
+            mark_needs_old_i1profiler(text)
         try:
             # A4 (4.3.50): the app log names a shown window by this id
             from core.question_log import note_rendered
@@ -95,9 +101,36 @@ class Message:
 def _m(id_: str, title: str, body: str, *, approved: bool = True,
        body_one: "str | None" = None, count_key: str = "",
        title_one: "str | None" = None,
-       body_two: "str | None" = None) -> Message:
+       body_two: "str | None" = None,
+       needs_old_i1profiler: bool = False) -> Message:
     return Message(id_, title, body, approved, body_one, count_key, title_one,
-                   body_two)
+                   body_two, needs_old_i1profiler)
+
+
+#: the texts shown last that send the person to i1Profiler 3.8.6 or older (rendered from a
+#: message with ``needs_old_i1profiler``, or a window text marked by
+#: :func:`mark_needs_old_i1profiler`), as rendered in the language shown
+_OLD_I1PROFILER_TEXTS: "list[str]" = []
+
+
+def mark_needs_old_i1profiler(text: str) -> str:
+    """Mark *text* (already translated and filled) as one that sends the person to
+    i1Profiler 3.8.6 or older; returns it unchanged."""
+    if text:
+        if text in _OLD_I1PROFILER_TEXTS:
+            _OLD_I1PROFILER_TEXTS.remove(text)
+        _OLD_I1PROFILER_TEXTS.append(text)
+        del _OLD_I1PROFILER_TEXTS[:-64]
+    return text
+
+
+def needs_i1profiler_limit(page_text: str) -> bool:
+    """4.3.51: True when *page_text* holds a part that sends the person to i1Profiler 3.8.6 or
+    older (the part's flag decides, never the wording) and does not carry the limit notice
+    yet."""
+    if not any(t in page_text for t in _OLD_I1PROFILER_TEXTS):
+        return False
+    return tr(M_I1IO_DRIVE_I1PROFILER_LIMIT.body) not in page_text
 
 
 # --- PROPOSED: a CR30 chart while Preferences selects stock chartread ------
@@ -12715,7 +12748,8 @@ M_I1IO_DRIVE_START_UP = _m(
     "Open i1Profiler 3.8.6 or older once, let it find the table, quit it, and "
     "press START MEASUREMENT again.\n\n"
     "To stop the arm at once, switch the table off at its power switch.",
-    approved=False)
+    approved=False,
+    needs_old_i1profiler=True)
 
 M_I1IO_DRIVE_GO = _m(
     "M-I1IO-DRIVE-GO",
@@ -13150,7 +13184,8 @@ M_I1IO_DRIVE_SWITCH_OFF = _m(
     "press START MEASUREMENT again before i1Profiler has found the table. "
     "Your readings so far are kept. The diagnostics file of this measurement "
     "is {log}.",
-    approved=False)
+    approved=False,
+    needs_old_i1profiler=True)
 
 M_I1IO_DRIVE_STOPPED = _m(
     "M-I1IO-DRIVE-STOPPED",
@@ -13161,7 +13196,8 @@ M_I1IO_DRIVE_STOPPED = _m(
     "brings the arm home. Your readings so far are kept, and you can still "
     "save them. Please send us the diagnostics file of this measurement: "
     "{log}.",
-    approved=False)
+    approved=False,
+    needs_old_i1profiler=True)
 
 M_I1IO_DRIVE_LINK_LOST = _m(
     "M-I1IO-DRIVE-LINK-LOST",
@@ -13178,7 +13214,8 @@ M_I1IO_DRIVE_LINK_LOST = _m(
     "4. If i1Profiler does not find the table, restart the computer.\n\n"
     "Please do not press START MEASUREMENT again before i1Profiler has found "
     "the table. Your readings so far are kept. The diagnostics file is {log}.",
-    approved=False)
+    approved=False,
+    needs_old_i1profiler=True)
 
 M_I1IO_DRIVE_LINK_LOST_SWITCH_OFF = _m(
     "M-I1IO-DRIVE-LINK-LOST-SWITCH-OFF",
@@ -13195,7 +13232,8 @@ M_I1IO_DRIVE_LINK_LOST_SWITCH_OFF = _m(
     "4. If i1Profiler does not find the table, restart the computer.\n\n"
     "Please do not press START MEASUREMENT again before i1Profiler has found "
     "the table. Your readings so far are kept. The diagnostics file is {log}.",
-    approved=False)
+    approved=False,
+    needs_old_i1profiler=True)
 
 M_I1IO_DRIVE_COLD = _m(
     "M-I1IO-DRIVE-COLD",
@@ -13203,7 +13241,8 @@ M_I1IO_DRIVE_COLD = _m(
     "The table has just been switched on and has not been started yet. "
     "ChromIQ has let go of it. Please open i1Profiler 3.8.6 or older once, "
     "let it find the table, quit it, and press START MEASUREMENT again.",
-    approved=False)
+    approved=False,
+    needs_old_i1profiler=True)
 
 M_I1IO_DRIVE_COLD_WAY_OUT = _m(
     "M-I1IO-DRIVE-COLD-WAY-OUT",
@@ -13213,7 +13252,8 @@ M_I1IO_DRIVE_COLD_WAY_OUT = _m(
     "power switch, leave it off for ten seconds and switch it on again. Then "
     "open i1Profiler 3.8.6 or older once and let it find the table. Please "
     "send us the diagnostics file of this measurement: {log}.",
-    approved=False)
+    approved=False,
+    needs_old_i1profiler=True)
 
 M_I1IO_DRIVE_FREE_LEFT = _m(
     "M-I1IO-DRIVE-FREE-LEFT",
@@ -13225,7 +13265,8 @@ M_I1IO_DRIVE_FREE_LEFT = _m(
     "finds the table. If it does not, quit i1Profiler, switch the table off "
     "with its power switch, wait ten seconds, switch it on and open "
     "i1Profiler again.",
-    approved=False)
+    approved=False,
+    needs_old_i1profiler=True)
 
 # --- PROPOSED (4.3.47): ChromIQ stopped and sends nothing more, the measurement still open --
 # {free_arm}: M-I1IO-DRIVE-FREE-LEFT as its own paragraph ("\n\n" + its body) when the arm was
@@ -13241,7 +13282,8 @@ M_I1IO_DRIVE_STOPPED_END_FIRST = _m(
     "2. Then open i1Profiler 3.8.6 or older once and let it find the table: "
     "it should bring the arm home.\n\n"
     "Please send us the diagnostics file of this measurement: {log}.",
-    approved=False)
+    approved=False,
+    needs_old_i1profiler=True)
 
 # --- PROPOSED (4.3.48): ChromIQ stopped at a place check, and may bring the arm home itself ----
 M_I1IO_DRIVE_HOME_AFTER_STOP = _m(
@@ -13259,7 +13301,8 @@ M_I1IO_DRIVE_HOME_AFTER_STOP = _m(
     "older once and let it find the table; it should bring the arm home. You can always "
     "stop the table at once with its power switch.\n\n"
     "Please send us the diagnostics file of this measurement: {log}.",
-    approved=False)
+    approved=False,
+    needs_old_i1profiler=True)
 
 M_I1IO_DRIVE_HOME_AFTER_STOP_DONE = _m(
     "M-I1IO-DRIVE-HOME-AFTER-STOP-DONE",
@@ -13283,7 +13326,8 @@ M_I1IO_DRIVE_ARM_OUT_AT_START = _m(
     "arrived. After that, the measurement goes on as usual.\n\n"
     "If you would rather not, press End measurement. Then open i1Profiler 3.8.6 or older once "
     "and let it find the table: it should bring the arm home.",
-    approved=False)
+    approved=False,
+    needs_old_i1profiler=True)
 
 M_I1IO_DRIVE_ARM_OUT_NOT_HERE = _m(
     "M-I1IO-DRIVE-ARM-OUT-NOT-HERE",
@@ -13432,7 +13476,8 @@ M_I1IO_DRIVE_LEFT_OUT = _m(
     "on only when the arm is at its resting place, and it asks you about that first. How the "
     "table starts with the arm out over the table has never been recorded, so ChromIQ does not "
     "try it.",
-    approved=False)
+    approved=False,
+    needs_old_i1profiler=True)
 
 #: 4.3.50 fix round (MUST-1): at a START the table reports (f4 answers 01 at the opening) that it
 #: is still in its aiming mode; ChromIQ sent nothing that moves and read nothing.
@@ -13452,7 +13497,8 @@ M_I1IO_DRIVE_STILL_AIMING = _m(
     "3. When the arm is at its resting place, close i1Profiler. Then press START MEASUREMENT "
     "again.\n\n"
     "Please send us the diagnostics file of this measurement: {log}.",
-    approved=False)
+    approved=False,
+    needs_old_i1profiler=True)
 
 #: 4.3.50 integration (table re-review of 20 Nov 2026, MUST-A): the homing of the ending found the
 #: held arm away from the place where ChromIQ left it (after "Not now" the person reached the
@@ -13532,7 +13578,8 @@ M_I1IO_DRIVE_USB_MISSING = _m(
     "on this computer. Nothing was sent. Please tell us about it on GitHub "
     "and name your system; measuring in i1Profiler 3.8.6 or older and IMPORT "
     "still work.",
-    approved=False)
+    approved=False,
+    needs_old_i1profiler=True)
 
 # Revised 2026-11-18 (the owner: "many modern pcs use arm processors so this should work for
 # them"): the ARM64 build drives the table on a Windows for ARM computer; only the x64 build
@@ -13553,7 +13600,8 @@ M_I1IO_DRIVE_USB_NOT_ON_THIS_SYSTEM = _m(
     "yet tried either version with a table on an ARM computer, so if you do, please tell us on "
     "GitHub how it went.\n\n"
     "Until then, measuring in i1Profiler 3.8.6 or older and IMPORT still work.",
-    approved=False)
+    approved=False,
+    needs_old_i1profiler=True)
 
 M_I1IO_DRIVE_USB_WINDOWS_DRIVER = _m(
     "M-I1IO-DRIVE-USB-WINDOWS-DRIVER",
@@ -13591,7 +13639,8 @@ M_I1IO_DRIVE_TABLE_DRIVER = _m(
     "steps with a table. The window \u201c{window}\u201d describes them in full.\n\n"
     "\u201cNot now\u201d installs nothing. Nothing was sent to the table. You can also "
     "measure in i1Profiler 3.8.6 or older and use IMPORT.",
-    approved=False)
+    approved=False,
+    needs_old_i1profiler=True)
 
 # 4.3.46: the i1Pro 2 in the table's arm is its own USB device and needs the same driver
 M_I1IO_DRIVE_I1PRO2_DRIVER = _m(
@@ -13632,7 +13681,8 @@ M_I1IO_DRIVE_TABLE_DRIVER_FILE = _m(
     "permission. Then press START MEASUREMENT again.\n\n"
     "\u201cNot now\u201d installs nothing. You can also measure in i1Profiler 3.8.6 or older "
     "and use IMPORT.",
-    approved=False)
+    approved=False,
+    needs_old_i1profiler=True)
 
 M_I1IO_DRIVE_USB_LINUX_PERMISSION = _m(
     "M-I1IO-DRIVE-USB-LINUX-PERMISSION",
@@ -13706,7 +13756,8 @@ M_I1IO_DRIVE_AFTER_PROBLEM_OUT = _m(
     "Please press End measurement: you can keep what was read (Save and stop) or discard it. "
     "Then open i1Profiler 3.8.6 or older once and let it find the table: it brings the arm "
     "home. Afterwards you can start again with START MEASUREMENT.",
-    approved=False)
+    approved=False,
+    needs_old_i1profiler=True)
 
 # review 14, M-2: a session keeps the white reference of its first calibration
 M_I1IO_DRIVE_WHITE_LATER_REFUSED = _m(

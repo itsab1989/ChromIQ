@@ -763,6 +763,13 @@ def is_alignment_refusal(rid: str) -> bool:
     return bool(rid) and (rid.startswith("aims_") or rid in ALIGNMENT_REFUSALS)
 
 
+def _old_i1p(text: str) -> str:
+    """4.3.51: a window text that sends the person to i1Profiler 3.8.6 or older: flagged, so
+    the page gets M-I1IO-DRIVE-I1PROFILER-LIMIT (as a message with needs_old_i1profiler)."""
+    from workflow.measurement_messages import mark_needs_old_i1profiler
+    return mark_needs_old_i1profiler(text)
+
+
 def table_state_text(a0) -> str:
     """4.3.49 (the volunteer's run of 19 Nov 2026): the table answered its status question (a0)
     with a value no recording shows. Nothing that moves was sent and the arm was not read."""
@@ -785,7 +792,7 @@ def table_state_text(a0) -> str:
             if moved else "")
     # 4.3.50 (table re-review, MUST-B): this page shows while the job still holds the table's
     # connection, so End measurement comes first (i1Profiler cannot find the table before it)
-    return first + seen + "\n\n" + tr(
+    return first + seen + "\n\n" + _old_i1p(tr(
         "What you can do:\n"
         "1. Press End measurement. Until you do, ChromIQ still holds the table's connection, and "
         "i1Profiler cannot find the table.\n"
@@ -799,7 +806,7 @@ def table_state_text(a0) -> str:
         "that for a table in this state. When the arm is at its resting place, close i1Profiler. "
         "Then press START MEASUREMENT again.\n\n"
         "ChromIQ does not start a table that was just switched on with the arm out over the "
-        "table, because that has never been recorded.")
+        "table, because that has never been recorded."))
 
 
 def reason_text(rid: str, detail: "dict | None" = None) -> str:
@@ -2468,10 +2475,11 @@ class TableMeasureWindow(QFrame):
             # answer the arm moves at once says it itself (in the panel too: one definition of
             # every page)
             text = text + "\n\n" + switch_off_line()
-        if "3.8.6" in text and "3.8.7" not in text:
+        from workflow import measurement_messages as _M
+        if _M.needs_i1profiler_limit(text):
             # 4.3.51, the owner's decision of 2026-11-20: "the i1io 2 is not supported by the
-            # most recent i1profiler anymore so we should not rely on it"
-            from workflow import measurement_messages as _M
+            # most recent i1profiler anymore so we should not rely on it". The parts' own flag
+            # decides (needs_old_i1profiler), never the wording (re-review S1, S2)
             text = text + "\n\n" + _M.M_I1IO_DRIVE_I1PROFILER_LIMIT.render()[1]
         self._title.setText(title)
         self._text.setText(text)
@@ -4027,11 +4035,11 @@ class TableMeasureWindow(QFrame):
                             "seconds and switch it on again."))
         # 4.3.50 (table re-review, SHOULD-2): no recording shows i1Profiler's homing from the
         # front of the table, so the page says "should", and to stay beside the table
-        lines.append(tr("Then stay beside the table, with its power switch in reach, and open "
+        lines.append(_old_i1p(tr("Then stay beside the table, with its power switch in reach, and open "
                         "i1Profiler 3.8.6 or older once and let it find the table. It should "
                         "bring the arm home, but no recording shows it doing that from the "
                         "front of the table. Please do not press START MEASUREMENT again "
-                        "before i1Profiler has found the table."))
+                        "before i1Profiler has found the table.")))
         out = tr("What to do now:") + "\n" + "\n".join(
             f"{k}. {ln}" for k, ln in enumerate(lines, 1))
         out += "\n\n" + tr(
@@ -4270,27 +4278,27 @@ class TableMeasureWindow(QFrame):
         """The arm found away from its resting place at a START: what ChromIQ can do."""
         j = self.job
         if j is not None and j.way_back() == "home_offered":
-            return tr("It last reported {where}. ChromIQ can bring it home now: press Bring the "
+            return _old_i1p(tr("It last reported {where}. ChromIQ can bring it home now: press Bring the "
                       "arm home. ChromIQ first asks you to take your hands away from the table "
                       "and the arm, then sends it home the way i1Profiler ends a job and checks "
                       "that it arrived. After that the measurement goes on as usual. If you would "
                       "rather not, press End measurement and open i1Profiler 3.8.6 or older once: "
-                      "it should bring the arm home.").format(where=self._where())
-        return tr("It last reported {where}. ChromIQ cannot bring it home from there, so it "
+                      "it should bring the arm home.").format(where=self._where()))
+        return _old_i1p(tr("It last reported {where}. ChromIQ cannot bring it home from there, so it "
                   "moves nothing. Please press End measurement, then open i1Profiler 3.8.6 or "
                   "older once and let it find the table: it should bring the arm home. If it does "
                   "not, quit i1Profiler, switch the table off with its power switch, wait ten "
-                  "seconds, switch it on and open i1Profiler again.").format(where=self._where())
+                  "seconds, switch it on and open i1Profiler again.").format(where=self._where()))
 
     def _show_arm_out_cold(self) -> None:
         from workflow import measurement_messages as M
-        title, body = _refused(M, tr(
+        title, body = _refused(M, _old_i1p(tr(
             "The table has just been switched on, and you said that the arm is out over the "
             "table. A table that has just been switched on is started with a command that has "
             "never been recorded with the arm out over the table, so ChromIQ sends nothing. Please "
             "press Close, open i1Profiler 3.8.6 or older once and let it find the table: it "
             "starts the table and should bring the arm home. Then quit it and press START "
-            "MEASUREMENT again."))
+            "MEASUREMENT again.")))
         self._show("refused", title, body, [(tr("Close"), self._close_job)])
 
     # ---- endings --------------------------------------------------------------------------
@@ -4460,10 +4468,10 @@ class TableMeasureWindow(QFrame):
                 way = M.M_I1IO_DRIVE_LEFT_OUT.render()[1]
             else:
                 # 4.3.50 (table re-review, SHOULD-5): the same honesty as LEFT-OUT
-                way = tr("The arm stayed extended over the table. Stay beside the table, with its "
+                way = _old_i1p(tr("The arm stayed extended over the table. Stay beside the table, with its "
                          "power switch in reach, and open i1Profiler 3.8.6 or older once and let "
                          "it find the table. It should bring the arm home, but no recording "
-                         "shows it doing that from where the arm is now.")
+                         "shows it doing that from where the arm is now."))
             body = way + "\n\n" + body
         elif wb not in ("none", "home_offered"):
             msgs = {"switch_off_pending": M.M_I1IO_DRIVE_SWITCH_OFF,
