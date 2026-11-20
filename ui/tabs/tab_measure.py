@@ -6805,10 +6805,27 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                     per_page = []
                     break
                 per_page.append(rects)
+            # 4.3.52 (jctay 150417): a sheet made outside ChromIQ, its strips
+            # standing apart and nothing like printtarg's label row on top,
+            # had every strip laid inside strip A. Only where the page shows
+            # exactly these strips as separate columns AND the result above
+            # disagrees with them are they used ("tip" arrow, above the ink);
+            # every chart the detector above got right is left as it was.
+            # An FD-9 chart (contributor code, Beta) is never changed by this.
+            mode = "base"
+            from workflow.fd9.measurement import is_fd9_chart
+            if per_page and not is_fd9_chart(ti2_for_counts):
+                from ui.strip_columns import separated_strip_rects, uniform_agrees
+                fixed = [separated_strip_rects(pp, n)
+                         for pp, n in zip(self._tiff_pages, counts)]
+                if all(fixed) and not all(uniform_agrees(u, s)
+                                          for u, s in zip(per_page, fixed)):
+                    per_page, mode = fixed, "tip"
             if per_page:
                 self._page_stripe_rects = per_page
                 self._strips_per_page = counts
-                self._preview.set_stripe_rects(per_page[0])
+                self._stripe_arrow_mode = mode
+                self._preview.set_stripe_rects(per_page[0], mode)
                 return
 
         # An i1iO chart (Beta) records its strips exactly in the layout
