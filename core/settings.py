@@ -13,20 +13,10 @@ log = get_logger(__name__)
 from core.beta_registry import LOGGED_KEYS as _LOGGED_OPTION_KEYS  # noqa: E402
 from core.beta_registry import show as _beta_show  # noqa: E402
 
-#: 4.3.50: settings whose VALUE never goes into the app log, because it names
-#: a device (the CR30's serial and internal id, the ids its tile signatures are
-#: filed under, its Bluetooth address), the i1iO table's reach salt and the
-#: log filter's own salt. ``settings.set`` logs the key only.
-UNLOGGED_VALUE_KEYS: "frozenset[str]" = frozenset({
-    "cr30_last_device_info",
-    "cr30_tile_signatures",
-    "cr30_ble_address",
-    "log_privacy_salt",
-    # the i1iO table's reach record: its salt and the tables' salted keys;
-    # workflow/i1io/table/reach.py promises the salt never leaves the
-    # settings file (review of the app-log branch, S10)
-    "i1io_table_reach",
-})
+#: 4.3.50: settings whose VALUE never goes into the app log (a device's serial
+#: or id, a Bluetooth address, a salt): one list, in core.log_privacy, which also
+#: hides such a value in an older line. ``settings.set`` logs the key only.
+from core.log_privacy import UNLOGGED_SETTING_KEYS as UNLOGGED_VALUE_KEYS  # noqa: E402
 
 #: S5 (4.3.50): the app log's per-install salt (``core.log_privacy``)
 LOG_PRIVACY_SALT_KEY = "log_privacy_salt"
@@ -48,9 +38,11 @@ def log_privacy_salt() -> str:
             qs = QSettings("ChromIQ", "ChromIQ")
         v = str(qs.value(LOG_PRIVACY_SALT_KEY, "") or "")
         if len(v) < 16:
-            v = secrets.token_hex(16)
-            qs.setValue(LOG_PRIVACY_SALT_KEY, v)
+            qs.setValue(LOG_PRIVACY_SALT_KEY, secrets.token_hex(16))
             qs.sync()
+            # read back what the file holds: a second process starting at the
+            # same moment may have written its own first; both then use one
+            v = str(qs.value(LOG_PRIVACY_SALT_KEY, "") or "")
         return v
     except Exception:      # noqa: BLE001
         return ""

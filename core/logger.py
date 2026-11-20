@@ -35,8 +35,18 @@ def _write_session_banner(path) -> None:
         pass
 
 
+#: True while configure_logging runs: the old log's cleaning (M3) imports
+#: core.settings for the filter's salt, and that module asks for a logger at
+#: import, which calls this again. The inner call must not clean or add a
+#: handler of its own (final fix round, found on screen).
+_CONFIGURING = False
+
+
 def configure_logging() -> None:
+    global _CONFIGURING
     root = logging.getLogger()
+    if _CONFIGURING:
+        return
     if root.handlers:
         # STILL QUIET THEM. Pillow imports (and logs) long before this is first
         # called in some entry points, so a handler can already be installed —
@@ -44,6 +54,14 @@ def configure_logging() -> None:
         # log readable.
         _quiet_third_party()
         return
+    _CONFIGURING = True
+    try:
+        _configure(root)
+    finally:
+        _CONFIGURING = False
+
+
+def _configure(root) -> None:
     root.setLevel(logging.DEBUG)
 
     # A0 (4.3.50): every line passes the privacy filter, whoever wrote it

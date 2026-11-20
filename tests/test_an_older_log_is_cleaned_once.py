@@ -103,6 +103,8 @@ def test_the_real_start_cleans_an_old_log_and_writes_the_marker_line(tmp_path):
     (logs / "chromiq.log").write_text(
         f"2026-11-01 10:00:01 [DEBUG] core.settings: Settings loaded from {home}/Library/x.plist\n"
         "2026-11-01 10:00:02 [INFO] i1pro: Serial Number:     1234567\n", encoding="utf-8")
+    (logs / "chromiq.log.1").write_text(
+        "2026-10-01 10:00:02 [INFO] i1pro: Serial Number:     1234567\n", encoding="utf-8")
     env = dict(os.environ, CHROMIQ_LOG_DIR=str(logs),
                CHROMIQ_SETTINGS_FILE=str(tmp_path / "settings.ini"),
                QT_QPA_PLATFORM="offscreen")
@@ -115,3 +117,41 @@ def test_the_real_start_cleans_an_old_log_and_writes_the_marker_line(tmp_path):
     assert home not in text and "1234567" not in text
     assert "log privacy: the older sessions in this log were passed through" in text
     assert (logs / lp.CLEAN_MARKER).is_file()
+    # one key for every file (found on screen: the settings import inside the cleaning
+    # configured logging again, and the rotated copy got another code)
+    import re
+    one = re.findall(r"<sn:[0-9a-f]{8}>", text)
+    two = re.findall(r"<sn:[0-9a-f]{8}>", (logs / "chromiq.log.1").read_text(encoding="utf-8"))
+    assert one and one == two, (one, two)
+    assert text.count("log privacy: the older sessions") == 1
+    assert not (logs / (lp.CLEAN_MARKER + ".lock")).exists()
+
+
+def test_an_old_line_that_logged_a_salt_or_a_device_setting_is_hidden(ident):
+    """Found on screen (final fix round): 4.3.49 logged every setting with %r, the table's
+    reach salt among them; the filter hides the value of those keys in an old line too."""
+    old = ("2026-11-01 10:00:06,000 [DEBUG] core.settings: settings.set i1io_table_reach = "
+           "'{\"salt\": \"b39d28f5aa11c0de\", \"tables\": {\"f0874b8c203e1383\": {\"v\": 2}}}'")
+    out = lp.safe_scrub(old)
+    assert "b39d28f5" not in out and "f0874b8c" not in out
+    assert out.endswith("settings.set i1io_table_reach = <value not logged>")
+    assert "b39d" not in lp.safe_scrub('{"salt": "b39d28f5aa11c0de"}')
+    new = "settings.set i1io_table_reach = <380 characters, not logged>"
+    assert lp.safe_scrub(new) == new
+    assert "CM454M0223" not in lp.safe_scrub(
+        "settings.set cr30_last_device_info = '{\"model\": \"CR30\", \"x\": \"CM454M0223\"}'")
+
+
+def test_one_process_cleans_a_second_one_leaves_it(ident, tmp_path):
+    import os
+    import time
+    _write(tmp_path / "chromiq.log", OLD)
+    lock = tmp_path / (lp.CLEAN_MARKER + ".lock")
+    lock.write_text("", encoding="utf-8")
+    assert lp.clean_old_logs(tmp_path) is None                      # another one is at it
+    assert "/Users/basti" in (tmp_path / "chromiq.log").read_text()
+    old = time.time() - 120
+    os.utime(lock, (old, old))                                       # a crashed cleaner's
+    res = lp.clean_old_logs(tmp_path)
+    assert res and not res["failed"] and not lock.exists()
+    assert "/Users/basti" not in (tmp_path / "chromiq.log").read_text()

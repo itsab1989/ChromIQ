@@ -291,6 +291,19 @@ def _name_parts(full: str) -> "list[str]":
     return out
 
 
+#: Settings whose VALUE never goes into the app log (core.settings logs the key
+#: only): the CR30's device info, tile signatures and Bluetooth address, the log
+#: filter's own salt, the i1iO table's reach record (salt and table keys). The
+#: filter also hides the value in an older line that logged it ("settings.set
+#: <key> = '...'", as 4.3.49 wrote), and any JSON "salt" field.
+UNLOGGED_SETTING_KEYS = frozenset({
+    "cr30_last_device_info", "cr30_tile_signatures", "cr30_ble_address",
+    "log_privacy_salt", "i1io_table_reach",
+})
+_SETTING_VALUE = re.compile(r"(?P<pre>settings\.set (?:" + "|".join(sorted(UNLOGGED_SETTING_KEYS))
+                            + r") = )(?P<val>(?!<\d+ characters, not logged>).+)$")
+_JSON_SALT = re.compile(r"(?P<pre>[\"']salt[\"']\s*:\s*[\"'])(?P<val>[^\"']+)", re.IGNORECASE)
+
 #: S4: words a device is named with after its owner's name (macOS, Windows,
 #: Android, Bluetooth headsets): only before one of these is a name that is
 #: also an ordinary word treated as a name without an apostrophe
@@ -486,6 +499,10 @@ def scrub(text: str) -> str:
         s = _SN.sub(_sn, s)
     if "unit" in low or "itself" in low:
         s = _UNIT_ID.sub(_sn, s)
+    if "settings.set" in s:
+        s = _SETTING_VALUE.sub(lambda m: m.group("pre") + "<value not logged>", s)
+    if "salt" in low:
+        s = _JSON_SALT.sub(lambda m: m.group("pre") + "<salt>", s)
     if s.count(":") >= 5 or s.count("-") >= 4:
         s = _MAC.sub(lambda m: ident.tag("sn", m.group("val")), s)
         s = _UUID.sub(lambda m: ident.tag("sn", m.group("val")), s)
@@ -549,7 +566,7 @@ def clean_file(path) -> "tuple[int, str | None]":
     kept as they are. Never raises."""
     from pathlib import Path
     p = Path(path)
-    tmp = p.with_name(p.name + ".cleaning")
+    tmp = p.with_name(f"{p.name}.cleaning-{os.getpid()}")      # one per process
     try:
         raw = p.read_bytes()
         text = raw.decode("utf-8", "surrogateescape")
@@ -597,14 +614,39 @@ def clean_old_logs(directory, name: str = "chromiq.log") -> "dict | None":
             pass
         files = [d / name] + sorted(d.glob(name + ".[0-9]*"),
                                     key=lambda q: q.name)
-        files = [f for f in files if f.is_file() and f.suffix != ".cleaning"]
+        files = [f for f in files if f.is_file() and ".cleaning" not in f.name]
+        # ONE process cleans: a second ChromIQ (or a child that configures
+        # logging) starting at the same moment leaves it to the first, found
+        # on screen in the final fix round. A lock older than a minute is a
+        # crashed cleaner's and is taken over.
+        lock = d / (CLEAN_MARKER + ".lock")
+        try:
+            fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(fd)
+        except FileExistsError:
+            import time as _t
+            try:
+                if _t.time() - lock.stat().st_mtime < 60:
+                    return None
+            except OSError:
+                return None
+        except OSError:
+            pass
         res = {"cleaned": [], "failed": []}
-        for f in files:
-            n, why = clean_file(f)
-            if why:
-                res["failed"].append((f.name, why))
-            else:
-                res["cleaned"].append((f.name, n))
+        try:
+            # the salt first, outside the loop: one key for every file
+            _identity().tag("sn", "warm-up")
+            for f in files:
+                n, why = clean_file(f)
+                if why:
+                    res["failed"].append((f.name, why))
+                else:
+                    res["cleaned"].append((f.name, n))
+        finally:
+            try:
+                lock.unlink()
+            except OSError:
+                pass
         if not res["failed"]:
             try:
                 d.mkdir(parents=True, exist_ok=True)
