@@ -19623,6 +19623,14 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # actually wrote: a measurement put back from old/ (nothing was read)
         # keeps the memory that came back with it.
         self._save_confirmed_memory_at_end()
+        # S2 (4.3.50): the files are final now; the app log's end-of-measurement
+        # summary may read them (on its own thread)
+        try:
+            _flush = getattr(self._manager, "flush_measure_end_log", None)
+            if callable(_flush):
+                _flush()
+        except Exception:      # noqa: BLE001
+            pass
         # The session has ended ON the selection it began with (a "New
         # verification" read has moved the bar to its new date at Start). That
         # is the settled selection now, so a settle queued during the read does

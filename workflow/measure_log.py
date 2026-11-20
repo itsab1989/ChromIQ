@@ -159,6 +159,12 @@ def written(what: str, path, /, **kv) -> None:
     line("file written", **merged({"what": what, "path": str(path)}, kv))
 
 
+#: S2: how often the end-of-measurement summary tries to read a file that is
+#: being moved, and how long it waits in between
+_READ_TRIES = 4
+_READ_RETRY_S = 0.25
+
+
 @never_raises
 def log_measurement_end(main_ti3, *, code, conditions: bool, dual: bool,
                         strips_logged: int = 0, in_thread: bool = True) -> None:
@@ -167,16 +173,39 @@ def log_measurement_end(main_ti3, *, code, conditions: bool, dual: bool,
     have M0 only. The files are read on a background thread (the GUI thread
     did no such reading before). Never raises."""
     def work():
+        # S2 (4.3.50): every file is read FIRST, the lines written after. On
+        # Windows a file being moved or replaced at this moment refuses to
+        # open (a sharing violation): the reads are tried again briefly, and
+        # no line is written twice.
+        import time as _time
+        for attempt in range(_READ_TRIES):
+            try:
+                out = _facts()
+                break
+            except OSError:
+                if attempt == _READ_TRIES - 1:
+                    line("measure end", exit=code, strips_logged=strips_logged,
+                         files="not_readable")
+                    return
+                _time.sleep(_READ_RETRY_S)
+        for fn, args, kw in out or []:
+            fn(*args, **kw)
+
+    def _facts() -> list:
+        """The lines to write, as (function, args, kwargs). Raises OSError
+        when a file could not be read; nothing is written then."""
+        out: list = []
         try:
             main = Path(main_ti3)
             exists = main.is_file()
-            line("measure end", exit=code, strips_logged=strips_logged,
-                 measurement=str(main) if exists else None,
-                 measurement_bytes=main.stat().st_size if exists else None)
+            out.append((line, ("measure end",), dict(
+                exit=code, strips_logged=strips_logged,
+                measurement=str(main) if exists else None,
+                measurement_bytes=main.stat().st_size if exists else None)))
             if exists:
-                written("measurement", main)
+                out.append((written, ("measurement", main), {}))
             if not (conditions or dual) or not exists:
-                return
+                return out
             from workflow import i1pro3_conditions as C
             files, partial = {}, []
             for cond in ("M0", "M1", "M2"):
@@ -188,28 +217,34 @@ def log_measurement_end(main_ti3, *, code, conditions: bool, dual: bool,
                         partial.append(cond)
                 files[cond] = f
                 if f is not None and f != main:
-                    written(f"condition {cond}" + (" (partial record)" if cond in partial
-                                                   else ""), f)
+                    out.append((written, (f"condition {cond}" + (
+                        " (partial record)" if cond in partial else ""), f), {}))
             all_strips = C.strips_of(C._locs_of(main))
             m0_only = C.strips_of(C.m0_only_locs(main))
             three = files.get("M1") is not None and files.get("M2") is not None
-            line("conditions end", main_condition=C.file_condition(main) or None,
-                 files=",".join(c for c, f in files.items() if f is not None) or None,
-                 partial=",".join(partial) or None,
-                 strips=len(all_strips),
-                 strips_all_three=(len(all_strips) - len(m0_only)) if three else 0,
-                 m0_only=" ".join(m0_only) if m0_only else None,
-                 dual_scan=dual)
+            out.append((line, ("conditions end",), dict(
+                main_condition=C.file_condition(main) or None,
+                files=",".join(c for c, f in files.items() if f is not None) or None,
+                partial=",".join(partial) or None,
+                strips=len(all_strips),
+                strips_all_three=(len(all_strips) - len(m0_only)) if three else 0,
+                m0_only=" ".join(m0_only) if m0_only else None,
+                dual_scan=dual)))
             if dual:
                 try:
                     from core.file_manager import Run
                     rec = Run.for_dir(main.parent).dual_pass_record(main)
                     if rec is not None and Path(rec).is_file():
-                        written("dual pass record", rec)
+                        out.append((written, ("dual pass record", rec), {}))
+                except OSError:
+                    raise
                 except Exception:      # noqa: BLE001
                     pass
+        except OSError:
+            raise
         except Exception:      # noqa: BLE001
             pass
+        return out
     try:
         if in_thread:
             import threading

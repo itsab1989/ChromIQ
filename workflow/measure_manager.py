@@ -1087,7 +1087,11 @@ class MeasureManager(QObject):
         def _on_finish(code: int) -> None:
             self._lights_session_ended(code)
             self._ruler_session_ended(on_line)
-            self._log_measure_end(params, code)
+            # S2 (4.3.50): the end-of-measurement summary reads the files, so
+            # it waits until the tab's end of session has moved and stamped
+            # them (flush_measure_end_log); a fallback timer writes it if no
+            # tab does
+            self._queue_measure_end_log(params, code)
             relaunch = getattr(self, "_relaunch", None)
             if relaunch is not None:
                 # the instrument reported another model than START assumed
@@ -1397,6 +1401,34 @@ class MeasureManager(QObject):
             self._strip_log.decided(*args, **kwargs)
         except Exception:      # noqa: BLE001
             pass
+
+    #: S2: how long the end-of-measurement summary waits for the tab's end of
+    #: session before it is written anyway (a path that has none)
+    END_LOG_FALLBACK_MS = 20000
+
+    def _queue_measure_end_log(self, params, code) -> None:
+        """S2 (4.3.50): hold the summary until the files are final. An older
+        one still held is written first. Never raises."""
+        try:
+            self.flush_measure_end_log()
+            self._end_log_pending = (params, code)
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(self.END_LOG_FALLBACK_MS, self.flush_measure_end_log)
+        except Exception:      # noqa: BLE001
+            log.debug("measure end line not queued", exc_info=True)
+
+    def flush_measure_end_log(self) -> None:
+        """Write the held end-of-measurement summary (on its thread), once.
+        The Measure tab calls this when its end of session has finished with
+        the files (moved to old/, condition recorded, provenance stamped).
+        Never raises."""
+        try:
+            pending = getattr(self, "_end_log_pending", None)
+            self._end_log_pending = None
+            if pending is not None:
+                self._log_measure_end(*pending)
+        except Exception:      # noqa: BLE001
+            log.debug("measure end line not written", exc_info=True)
 
     def _log_measure_end(self, params, code) -> None:
         """A7 + A8 (4.3.50): the measurement's files and, with M0/M1/M2 kept,
