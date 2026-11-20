@@ -13059,8 +13059,9 @@ M_I1IO_DRIVE_CONSENT_GUIDANCE = _m(
     "Guided, step by step measurement",
     "Opening the i1Pro 2. To read the patches, ChromIQ opens the i1Pro 2 in the table's "
     "arm with the ArgyllCMS library, as when you measure by hand.{mac}\n\n"
-    "Guided, step by step measurement. This is switched on at first, in Preferences > "
-    "Beta. ChromIQ then asks you before each step of a table measurement. If you switch it "
+    "Guided, step by step measurement. This is switched on now, also if you had switched off "
+    "the earlier question. You can switch it off in Preferences > Beta or below. While it is "
+    "on, ChromIQ asks you before each step of a table measurement. If you switch it "
     "off, ChromIQ does not ask before the arm moves, and it opens the i1Pro 2 without "
     "asking. {countdown}Please stay beside the table while it measures, and watch it.\n\n"
     "{alarm}",

@@ -2959,9 +2959,19 @@ class TableMeasureWindow(QFrame):
         btns = self._show("consent", title, body,
                           [(tr("Not now"), self._on_consent_declined),
                            (tr("I understand, drive my table"), self._on_consent_given)],
-                          ticks=[tr("I have read this.")])
+                          ticks=[tr("I have read this."),
+                                 tr("Guided, step by step measurement (ChromIQ asks before each "
+                                    "step)")])
         self._consent_go = btns[1]
         self._consent_go.setEnabled(False)
+        # 4.3.52 fix round (safety review MUST-2): THE ONE-TIME MIGRATION. The old OFF ("Don't
+        # ask after each step", 4.3.50 / 4.3.51) dropped only the report after each step; the
+        # new OFF is far more automatic, and a choice given for the old meaning is not consent
+        # to the new one. So the page that explains the new meaning shows the guidance switched
+        # ON, whatever the stored value is, and that is what "I understand" stores
+        # (_on_consent_given); the text says so. Unticked here, it is the person's own choice,
+        # made on the page that explains it. After that the person's choice is theirs.
+        self._tick_widgets[1].setChecked(True)
         if self._popups:
             self._style_popup_buttons()
         self._tick_widgets[0].toggled.connect(self._on_consent_tick)
@@ -2978,7 +2988,23 @@ class TableMeasureWindow(QFrame):
     def _on_consent_given(self) -> None:
         if not self._tick_widgets or not self._tick_widgets[0].isChecked():
             return
+        before = guided(self._settings)
+        try:
+            given_before = int(self._settings.get(CONSENT_KEY, 0) or 0)
+        except (TypeError, ValueError):
+            given_before = 0
+        on = (self._tick_widgets[1].isChecked() if len(self._tick_widgets) > 1 else True)
+        # MUST-2: the guidance as the consent page shows it (on, unless the person unticked it
+        # on this page); stored before the consent, so a job is never built on the old value
+        self._settings.set(ASK_KEY, bool(on))
         self._settings.set(CONSENT_KEY, CONSENT_VERSION)
+        try:
+            from core.app_log import line
+            line("table guidance", now="on" if on else "off",
+                 was="on" if before else "off", why="consent_page", consent_from=given_before,
+                 consent_to=CONSENT_VERSION)
+        except Exception:      # noqa: BLE001 - a record only
+            pass
         self._build_job()
 
     def _build_job(self) -> None:

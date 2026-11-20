@@ -1472,6 +1472,15 @@ nothing of it has run on a real table.
   M-I1IO-DRIVE-CONSENT-GUIDANCE (the reader's facts, the guidance and its countdown, "Please stay
   beside the table", the alarm sentence), so every user of the table Beta sees the page once more
   before the next table START (`ui/i1io_table_window.py::CONSENT_VERSION`).
+* **The old "Don't ask after each step" is reset once** (fix round, safety review MUST-2). In
+  4.3.50 / 4.3.51 the same key's OFF dropped only the report after each step; a choice given for
+  that meaning is not consent to the new, far more automatic OFF. So the consent page of version 4
+  shows the guidance switched ON with its own tick ("Guided, step by step measurement (ChromIQ
+  asks before each step)"), whatever was stored, and says: "This is switched on now, also if you
+  had switched off the earlier question. You can switch it off in Preferences > Beta or below."
+  "I understand, drive my table" stores what the tick shows (on, unless the person unticks it on
+  that page). After that the person's choice is theirs. The app log has a "table guidance:
+  now=on/off was=on/off why=consent_page" line.
 * **Sounds: the switch-off alarm.** DECIDED BY US, NOT BY THE OWNER. On a page that tells the
   person to switch the table off now (a movement or the start-up never reported finished, a strip
   move that may still wait, the link lost with something waiting), in both modes: "Instrument
