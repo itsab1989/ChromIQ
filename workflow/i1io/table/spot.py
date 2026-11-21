@@ -91,8 +91,9 @@ STRIP_SPEEDS = (54, 61, 87, 88, 110, 118, 137, 138, 168)
 #: the largest recorded pitch not above this chart's pitch (so per millimetre of patch it never
 #: goes faster than i1Profiler was recorded going); for a pitch below every recorded one, the
 #: fastest RECORDED speed not above the fitted rule. Then ChromIQ's own cut (STRIP_MIN_READINGS
-#: in every patch's clean window, a measurement rule) may make it take the next slower recorded
-#: speed, and a row longer than the reader takes the next faster one.
+#: in every patch's clean window inside scan.strip_edge_mm, a measurement rule) makes it take the
+#: next slower recorded speed until the border leaves them: since fix round 2 ChromIQ's own
+#: 10 mm patches are read at 88 mm/s, 168 needs patches of about 14 mm.
 VENDOR_FIRST_PASS = ((8.44, 110), (8.72, 118), (9.50, 137), (9.52, 138), (10.73, 168))
 VENDOR_RULE = (25.4, 4.1)            # speed ~ a x (pitch_mm - b), fitted to VENDOR_FIRST_PASS
 
@@ -181,8 +182,11 @@ STRIP_MIN_READINGS = 5
 #: REPORT.md 2.4): i1Profiler's own two rows on the volunteer's table at ITS speed 168, cut by
 #: ChromIQ's own cut_by_position with 3-4 readings in each window, gave i1Profiler's values
 #: back to 0.20 / 0.08 dE00 (mean / median; i1Profiler against itself 0.37), with the table's
-#: stored tile reference. 5 was "a FIRST TRY value", not from a recording, and it made every
-#: chart read slower than the vendor reads it (ChromIQ's own 11 mm pitch: 138, not 168).
+#: stored tile reference. 5 was "a FIRST TRY value", not from a recording.
+#: 4.3.53 fix round 2 (the re-review's MUST-A1): that agreement held for a NARROW window; at
+#: speed the window must also keep clear of the patch edges by the motion start's spread, so
+#: the 3 readings are counted INSIDE scan.strip_edge_mm (speed x 18 ms, at least 0.5 mm). Few
+#: clean readings are fine; readings near a patch edge at speed are not.
 STRIP_MIN_READINGS = sc.DUAL_MIN_READINGS
 #: the largest difference of one reading from its window's mean, in any band (reflectance
 #: 0..1), for the window to count as one colour (a FIRST TRY value, not from a recording: a
@@ -267,7 +271,9 @@ def plan_row(sheet: dict, page: int, index: int, alignment, front_y=None, kind: 
 def strip_windows_ok(plan) -> "int | None":
     """The fewest readings any patch of a scan plan gets in its clean middle, or None when a
     window lies outside the reading stream (scan.windows on the plan's own profile)."""
-    w = sc.windows(plan, sc.MOTION_START_AFTER_LAMP_S, plan.N)
+    # 4.3.53 fix round 2: the same clean border the cut uses (scan.strip_edge_mm)
+    w = sc.windows(plan, sc.MOTION_START_AFTER_LAMP_S, plan.N,
+                   edge_mm=sc.strip_edge_mm(plan.speed))
     if any(i1 - i0 < 1 for i0, i1 in w):
         return None
     return min(i1 - i0 for i0, i1 in w) if w else None

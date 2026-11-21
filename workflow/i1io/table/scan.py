@@ -59,6 +59,28 @@ DONE_EXTRA_ACCEPT_S = (0.25, 1.20)
 #: start is lamp + 0.372 s on both rows (0.09 dE00 mean; 0.43 s gives 25-36). Note: i1Profiler's
 #: calibration on the table's tile makes no wavelength-LED reading (none in three recordings).
 MOTION_START_AFTER_LAMP_S = 0.372
+#: 4.3.53 fix round 2 (the re-review's MUST-A1): HOW FAR OFF that motion start can be, for the
+#: clean border of a strip row's cut. The 20 passes above lie within -9 / +4 ms of it (R1, R2,
+#: S2 at 40-138 mm/s). On the table the testers use it is off by more: its dual rows of 18 Nov
+#: 2026 put the lamp pass's true start 1.25 to 3.25 readings (6 to 16 ms) LATER (dual_rows.py,
+#: "WHY AGAINST THE CHART"), and of i1Profiler's two 168 mm/s rows of 17 Nov one starts about
+#: 13 ms EARLIER (the centre of the range of starts a narrow cut accepts; the other about 3 ms;
+#: work folder 2026-11-20_release_4353/fix2/motion_start_fit_out.txt). ChromIQ's own timing path
+#: is the same as i1Profiler's (the table starts the move on the instrument's lamp; ChromIQ sends
+#: the recorded lines), so the table's spread is ChromIQ's. The largest measured, 16 ms, plus the
+#: fits' own step (a quarter to half a reading), gives 18 ms.
+MOTION_START_SPREAD_S = 0.018
+#: the clean border at each patch edge below which no reading is used (4.3.47-4.3.53: 0.5 mm at
+#: every speed, set for 54 mm/s)
+STRIP_EDGE_MIN_MM = 0.5
+
+
+def strip_edge_mm(speed) -> float:
+    """THE clean border of a single strip row at *speed* (mm/s): the distance the arm travels in
+    the motion start's measured spread, never less than 0.5 mm. One rule for planning a row
+    (spot.strip_windows_ok: which recorded speed a patch length may be read at, how many
+    readings it gets) and for cutting its readings (cut_by_position)."""
+    return max(STRIP_EDGE_MIN_MM, float(speed) * MOTION_START_SPREAD_S)
 #: readings the cut may move the motion start by, by default: none. A refinement that picks
 #: the most uniform windows was MEASURED to wander on real rows (R1 R2: lamp + 0.305..0.500
 #: for +-25 readings, 0.352..0.392 for +-4) and to make the values worse.
@@ -653,19 +675,22 @@ def _mean(rows):
     return [sum(r[j] for r in rows) / n for j in range(len(rows[0]))]
 
 
-def cut_by_position(plan: RowPlan, spec_rows, refine_readings: int = CUT_REFINE_READINGS):
+def cut_by_position(plan: RowPlan, spec_rows, refine_readings: int = CUT_REFINE_READINGS,
+                    edge_mm: "float | None" = None):
     """Patches from the reading stream by POSITION: the move's own profile (V, A), the
     recorded first-reading delay and the measured motion start MOTION_START_AFTER_LAMP_S.
     refine_readings > 0 also tries shifts of up to that many readings and keeps the one
     that makes every patch window most uniform (off by default: measured to mislead).
     Returns (patch spectra, info); info["uniformity"] is, per patch, the largest
     difference of one reading in its window from the window's mean (any band), so a
-    window that is not on one colour can be seen."""
+    window that is not on one colour can be seen. *edge_mm*: the clean border (default: the
+    one rule, :func:`strip_edge_mm` of the plan's speed; 4.3.53 fix round 2)."""
     n = len(spec_rows)
+    edge = strip_edge_mm(plan.speed) if edge_mm is None else float(edge_mm)
     best = None
     for k in range(-refine_readings, refine_readings + 1):
         ms = MOTION_START_AFTER_LAMP_S + k * READING_S
-        w = windows(plan, ms, n)
+        w = windows(plan, ms, n, edge_mm=edge)
         if any(i1 - i0 < 1 for i0, i1 in w):
             continue
         cost, cnt = 0.0, 0
@@ -685,6 +710,7 @@ def cut_by_position(plan: RowPlan, spec_rows, refine_readings: int = CUT_REFINE_
            for (i0, i1), v in zip(w, vals)]
     info = {"motion_start_after_lamp_s": round(ms, 4), "windows": w,
             "readings_per_patch": [i1 - i0 for i0, i1 in w], "residual": cost,
+            "edge_mm": round(edge, 3),
             "uniformity": [round(u, 5) for u in uni]}
     return vals, info
 

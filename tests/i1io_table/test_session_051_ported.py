@@ -272,7 +272,10 @@ def test_the_cut_follows_the_table_not_its_own_guess(monkeypatch, start):
     plan = sc.recorded_row_plan()
     truth, rows = _stream(plan, csim.TABLE_MOTION_START_AFTER_LAMP_S)
     monkeypatch.setattr(sc, "MOTION_START_AFTER_LAMP_S", start)
-    vals, info = sc.cut_by_position(plan, rows)
+    # the motion-start constant is the subject here, with tester 0.6.0's 0.5 mm border (4.3.53
+    # fix round 2: the release's border grows with the speed, tests/i1io_table/
+    # test_4353_fix2_cut_at_speed.py; at 118 mm/s it leaves no reading in these 8 mm patches)
+    vals, info = sc.cut_by_position(plan, rows, edge_mm=0.5)
     err = max(max(abs(a - b) for a, b in zip(v, truth[q.loc]))
               for q, v in zip(plan.patches, vals))
     assert info["motion_start_after_lamp_s"] == round(start, 4)

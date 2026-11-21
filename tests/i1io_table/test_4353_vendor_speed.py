@@ -1,12 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 the ChromIQ authors. Part of ChromIQ (https://github.com/itsab1989/ChromIQ).
-"""4.3.53 fix round, inventory C3 (the biggest NO REASON item, about 66 s a page): a strip row
-starts at the speed i1Profiler chose for its own FIRST pass over a row of the same patch pitch,
-no longer at the slowest recorded speed (54, which was one of i1Profiler's slower REPEATS of a
-failed row). Proved here on the wire: for each recorded chart, the row ChromIQ plans over the
-same three aims is the recorded row form (c4, p0, m0 @300, d1 016D, p0, m2, a3, c3), and its m2
-carries i1Profiler's own speed argument from that recording (passes.json of
-2026-11-16_i1io_scan_mode: the first pass of every row)."""
+"""4.3.53 fix round, inventory C3: a strip row starts at the speed i1Profiler chose for its own
+FIRST pass over a row of the same patch pitch (110 / 118 / 137 / 138 / 168 from the recordings),
+no longer at the slowest. Fix round 2 (the re-review's MUST-A1): from there it goes down to the
+fastest RECORDED speed whose clean border (scan.strip_edge_mm: speed x 18 ms, at least 0.5 mm)
+still leaves 3 readings in every patch. Only recorded speeds go on the wire; the row form is the
+recorded one (c4, p0, m0 @300, d1 016D, p0, m2, a3, c3)."""
 from __future__ import annotations
 
 import pytest
@@ -41,30 +40,47 @@ def test_the_recorded_m2_line_of_r14_decodes_to_the_speed_this_table_names():
     assert (cid, x, y, v) == ("m2", 1175, 1661, 118)
 
 
+def _fastest_allowed(plan_speed_of, vendor):
+    """The fastest recorded strip speed, not above the vendor's, whose clean border
+    (scan.strip_edge_mm) still leaves STRIP_MIN_READINGS in every patch."""
+    for v in sorted((x for x in sp.STRIP_SPEEDS if x <= vendor), reverse=True):
+        f = plan_speed_of(v)
+        if f is not None and f >= sp.STRIP_MIN_READINGS:
+            return v
+    return None
+
+
 @pytest.mark.parametrize("name", sorted(RECORDED_FIRST_PASS))
-def test_each_recorded_chart_is_read_at_i1profilers_own_first_pass_speed(name):
+def test_each_recorded_chart_starts_at_i1profilers_speed_and_is_read_as_fast_as_its_border_allows(name):
+    """4.3.53 fix round 2 (the re-review's MUST-A1): the vendor's first-pass speed for the pitch
+    is where the planner starts (unchanged), and the row is read at the fastest RECORDED speed
+    whose clean border (speed x 18 ms, at least 0.5 mm) still leaves 3 readings in every patch.
+    On the vendor's own charts (patches as long as their pitch, 8.4-9.5 mm) that is 61 or 88."""
     plan, sheet = _plan(name)
     want = RECORDED_FIRST_PASS[name]
     assert sp.vendor_speed(sp.row_pitch_mm(sheet["pages"][0]["strips"][0])) == want
-    assert plan.kind == "strip" and plan.scan.speed == want
+    assert sp.speeds_to_try(sp.row_pitch_mm(sheet["pages"][0]["strips"][0]))[0] == want
+    p0 = plan.scan
+    allowed = _fastest_allowed(
+        lambda v: sp.strip_windows_ok(sc.plan_row("x", p0.start, p0.end, v, p0.patches)), want)
+    assert plan.kind == "strip" and plan.scan.speed == allowed, (plan.scan.speed, allowed)
     cid, _x, _y, v = geo.decode_xyv(plan.scan.m2)
-    assert (cid, v) == ("m2", want)                       # the speed argument on the wire
+    assert (cid, v) == ("m2", allowed) and allowed in geo.RECORDED_M2_SPEEDS
     cid0, *_r, v0 = geo.decode_xyv(plan.scan.m0)
     assert (cid0, v0) == ("m0", 300)                      # the recorded travel to the start
-    assert want in geo.RECORDED_M2_SPEEDS
 
 
-def test_the_volunteers_chart_pitch_is_read_at_168_as_i1profiler_read_it():
-    """The volunteer's table, 17 Nov 2026: 24 patches at 10.73 mm, both rows at 168; ChromIQ's
-    own i1iO charts (11 mm) get the same speed."""
+def test_chromiqs_own_10_mm_patches_are_read_at_88_and_168_needs_long_patches():
+    """The volunteer's 17 Nov rows were read by i1Profiler at 168 (10.73 mm pitch); ChromIQ's own
+    chart (10 mm patch, 1 mm spacer) starts there and is read at 88 mm/s, the fastest recorded
+    speed whose 1.6 mm border still leaves 3 clean readings (4.3.52: 54)."""
     assert sp.vendor_speed(10.73) == 168
     sheet = H.demo_sheet()
-    pitch = sp.row_pitch_mm(sheet["pages"][0]["strips"][0])
-    assert pitch >= 10.73
+    assert sp.row_pitch_mm(sheet["pages"][0]["strips"][0]) >= 10.73
     al = geo.fit_model([tuple(sc.sheet_table_mm(sheet, a["page_mm"]))
                         for a in sheet["pages"][0]["aim_points"]], H.demo_aims(sheet))
     plan = sp.plan_strip_row(sheet, 0, 0, al, None, cap_y=geo.table_cap(3400))
-    assert plan.scan.speed == 168 and geo.decode_xyv(plan.scan.m2)[3] == 168
+    assert plan.scan.speed == 88 and geo.decode_xyv(plan.scan.m2)[3] == 88
 
 
 def test_the_vendor_rule_fits_every_recorded_first_pass_and_sends_only_recorded_speeds():
@@ -84,9 +100,9 @@ def test_the_repeat_speeds_are_tried_only_after_the_vendors_own():
     assert set(order) == set(sp.STRIP_SPEEDS)
 
 
-def test_the_cut_still_finds_every_patch_at_the_vendors_speed():
-    """ChromIQ's own cut keeps at least STRIP_MIN_READINGS (3: the evidence of 17 Nov 2026,
-    i1Profiler's rows at 168 cut by ChromIQ to 0.20 dE00 of its own values) in every window."""
+def test_the_cut_still_finds_every_patch_at_the_planned_speed():
+    """ChromIQ's own cut keeps at least STRIP_MIN_READINGS (3) inside the speed's clean border
+    (4.3.53 fix round 2) in every window."""
     for name in RECORDED_FIRST_PASS:
         plan, _s = _plan(name)
         assert sp.strip_windows_ok(plan.scan) >= sp.STRIP_MIN_READINGS == 3

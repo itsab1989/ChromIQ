@@ -162,10 +162,11 @@ def test_the_recorded_timings_of_those_rows_fit_the_apps_constants():
 
 
 def test_a_strip_row_may_be_read_at_168_when_no_slower_speed_fits(tmp_path, monkeypatch):
-    """Slowest first: 168 is used only where every slower recorded speed breaks the readings
-    rule. With the readings limit lowered for the test, only 168 keeps the row inside."""
+    """168 is used where the row's own clean border allows it. With the readings limit lowered
+    for the test, only 168 keeps the row inside. 4.3.53 fix round 2: at 168 mm/s the border is
+    3.0 mm, so the patches must be long (16 mm here; 12 mm until then)."""
     from tests.i1io_table.test_job_safety import shaped_sheet
-    sheet = shaped_sheet([20, 20], along=12.0, w=210.0, h=297.0)    # long rows, 12 mm patches
+    sheet = shaped_sheet([14, 14], along=16.0, w=210.0, h=297.0)    # long rows, 16 mm patches
     job0, _s, _h, _r, p0 = _job(tmp_path / "probe", sheet=sheet)
     _ready(job0, p0)
     plan = sp.plan_strip_row(job0.sheet, job0.page, 0, job0.alignment, job0._table.front_y)
