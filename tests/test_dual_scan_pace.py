@@ -100,6 +100,8 @@ def test_a_pass_slow_enough_as_a_whole_is_told_to_move_evenly():
     assert "Half of the patches got 7 readings or more" in body and "evenly" in body
     # the reviewer's m2: it cannot tell a quick hand from a narrower patch, and says so
     assert "a quicker moment there, or a narrower patch" in body and "sped up" not in body
+    # the line under the chart carries the same headline, not "was too fast"
+    assert P.too_fast_line(ev)[0] == title
     assert "seconds" not in body
 
 

@@ -169,11 +169,17 @@ def too_fast_text(ev: dict) -> "tuple[str, str] | None":
 def too_fast_line(ev: dict) -> "tuple[str, str] | None":
     """The short reading-speed line after a too-fast refusal (review m2)."""
     from workflow import measurement_messages as M
-    if too_fast_case(ev) is None:
+    case = too_fast_case(ev)
+    if case is None:
         return None
-    return M.M_DUAL_PASS_TOO_FAST_LINE.render(
+    title, body = M.M_DUAL_PASS_TOO_FAST_LINE.render(
         fewest=fewest(ev), need=int(_num(ev.get("need"))),
         uv_s=decimal_text(_num(ev.get("uv_s")), 1))
+    if case == "uneven":
+        # the window's own headline: not "too fast" when the pass as a whole was not
+        title = M.M_DUAL_PASS_TOO_FAST_UNEVEN.render(
+            fewest=fewest(ev), need=int(_num(ev.get("need"))), median=0)[0]
+    return title, body
 
 
 def refusal_text(ev: dict) -> "tuple[str, str] | None":
