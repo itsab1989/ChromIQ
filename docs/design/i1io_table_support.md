@@ -1363,7 +1363,9 @@ aiming mode: a different state of the table, not a place.
 * **The states that keep their own handling.**
   * The arm FREE, or the table still in its aiming mode (f4 01 at the opening): nothing that moves
     is sent (M-I1IO-DRIVE-STILL-AIMING). The one recorded homing that went wrong was a free arm in
-    that mode, and no recording shows the vendor's software finding a table in it.
+    that mode, and no recording shows the vendor's software finding a table in it. *(Superseded
+    2026-11-21 by "the table without i1Profiler" below: the vendor's software was recorded finding
+    such a table, and ChromIQ now does what it does.)*
   * An unknown answer to the first state question (anything but 111800 or 130000): nothing that
     moves is sent; the meaning of the answer is not known.
   * A table that does not answer, or answers a line in a form never recorded: nothing more is
@@ -1374,7 +1376,9 @@ aiming mode: a different state of the table, not a place.
 * **The one place.** The back strip beside the holder of the white tile (Y below 473, off the home
   line X 1090..1115): nothing is sent (M-I1IO-DRIVE-ARM-OUT-BACK). Physical: the head stands beside
   the tile's holder there, and i1Profiler itself drove the arm out of it before homing
-  ((1058, 317), 12 Nov 2026). Nothing else is refused because of WHERE the arm is.
+  ((1058, 317), 12 Nov 2026). Nothing else is refused because of WHERE the arm is. *(Superseded
+  2026-11-21 by "the table without i1Profiler" below: from the back strip ChromIQ sends that
+  recorded way out; from the far side the recorded detour.)*
 * **The same eye on the rest of the table code.** The usual homing (the end of a job, after a Stop
   or a problem, at the end of a measurement) is sent DIRECTLY from wherever a held arm stands but
   the back strip, as i1Profiler's end of a job; the move back along the way the arm came
@@ -1775,3 +1779,93 @@ Tests: `tests/i1io_table/test_4354_row_placement_check.py`, `test_4354_row_place
   row read again at 1.00 counts at 1.00, so a sitting whose fast rows were all refused and read
   again at 1.00 has no mark, and one with any accepted row read at another factor has it. Tests:
   `tests/i1io_table/test_4354_speed_and_placement_together.py`.
+
+### ⏳ Awaiting confirmation: the table without i1Profiler (2026-11-21, after 4.3.55)
+
+**Confirmed by:** *nobody yet.*
+
+The project owner, Basti, 2026-11-21, after the table owner reported that the arm stayed on the
+last patch and asked whether he must open i1Profiler to finish: *"remember that driving the table
+should work without involving i1profiler"*. Built and tested against the simulated table only
+(`tests/i1io_table/test_4355_table_without_i1profiler.py`); never run on a real table. Sources
+(numbers and command forms only): the table owner's ChromIQ 4.3.50 logs of 20 Nov 2026, his five
+i1Profiler recordings of 19 and 21 Nov 2026 (R19, N1 to N4), the owner's start-up capture of
+19 Nov 2026 (recording A), and the 12 Nov 2026 recording R1.
+
+* **The trap it closes.** Every ending without the homing (Stop with "Leave it there", "Not now"
+  and Close, the window closed, the app quit or killed, an error, a lost link) leaves the table in
+  its aiming mode (f1 sent, no f0). Its first state answer a0 then carries bit 0x40 (511800 just
+  switched on, 530000 or 540000 started), also after a power cycle (seen twice). Until 4.3.55
+  every later START refused such a table and the pages sent the person to i1Profiler.
+* **START by the table's state** (`session_table.A0_KNOWN`, `TableJob._open`, `repair_at_start`):
+
+  | a0 / f4 at the opening | meaning | seen | what i1Profiler does | what ChromIQ does |
+  |---|---|---|---|---|
+  | 111800 | just switched on | S1, N4, many | i0, then s0 f4 x4 (00) s0 p0 i1 s0 | its start-up (M-I1IO-DRIVE-START-UP), unchanged |
+  | 130000, f4 00 x4 | started, mode off | many | s0 p0 i1 s0 | the START rule (4.3.52), unchanged |
+  | 511800 | just switched on, mode left on | recording A; owner 4.3.50 log | i0, s0 f4 x4 (01) s0 p0 i1 s0 | the same start-up (f4 01 expected), then f0 f4 f4 p0 (the mode ended at rest, R19's tail); the start-up page says so (M-I1IO-DRIVE-START-UP-AIMING) |
+  | 530000, f4 01 x4 | started, mode left on | N1; volunteer 19 Nov | s0 p0 i1 s0; f0 at its close | after the hands-off question (M-I1IO-DRIVE-REPAIR-AT-START; with the guidance off the countdown): s0 p0 [way home] i1 s0 f0 f4 f4 p0, the arm read at rest; the measurement goes on |
+  | 540000, f4 01 x4 | as 530000 (its low digit 4 not understood) | owner 4.3.50 log, ChromIQ only | not recorded | as 530000, logged as itself |
+  | a0 with bit 0x40 but f4 00 (or the reverse) | the two answers disagree | never | not recorded | nothing that moves is sent (M-I1IO-DRIVE-STILL-AIMING: End measurement, the power switch, START again) |
+  | any other a0 | not known | 120000 in the simulator only | not recorded | nothing that moves is sent; the page names the power switch and START, never i1Profiler |
+  | no answer / a malformed answer | the link or the table | - | - | nothing more is sent (as before) |
+
+  "Not now" at the question sends nothing; the page offers the same homing again and End
+  measurement. Every other step is refused (`aiming_mode_left_on`) until the mode is ended. A
+  repair that fails is the START rule's failure page (M-I1IO-DRIVE-HOME-TRY-FAILED with
+  M-I1IO-DRIVE-ARM-WAY-OUT). Lines sent: only forms in the allow-list before (s0, p0, i1, f0, f4)
+  plus the detour moves below; i0 now also on 511800 (recording A).
+* **Every Save ends with the homing** (proven on a real table: the table owner's 4.3.54 sitting
+  of 21 Nov 2026, a complete page into a run that already held a measurement; the arm stayed at
+  (-1317, 3185), the mode on, and the next START refused a0 540000). The window's replace path
+  called save() directly, and that result did not carry what follows the end of a page. Now ONE
+  decision (`TableJob._after_end`) rides on every ending result (end(), its save / discard, and
+  save() / discard() called directly), and the replace refusal no longer turns the sitting
+  guided (book-keeping, not a fault): a complete page with the guidance off gets its countdown
+  and the homing as after any Save. `tests/i1io_table/test_4355_every_save_ends_with_the_homing.py`.
+* **Every ending leaves a table the next START can take.** What the endings send is unchanged:
+  the end of a job (Save, Discard, nothing read, "Bring the arm home") sends i1Profiler's end of a
+  job s0 p0 [way home] i1 s0 f0 f4 f4 p0 (arm home, mode ended: R19); "Leave it there", "Not now"
+  and Close, the window's close, the app's quit and every fault send nothing, as before. f0 with
+  the arm OUT is never sent: no recording shows it (i1Profiler sends its quit's s0 f0 f3 only with
+  the arm at rest), and the recordings show that a table in its aiming mode is startable (N1,
+  recording A); the next START ends the mode with the homing. The pages say so instead of naming
+  i1Profiler (M-I1IO-DRIVE-LEFT-OUT, -FREE-LEFT, -HOME-NOT-NOW, -HOME-AT-END, -STOPPED,
+  -STOPPED-END-FIRST, -SWITCH-OFF, -LINK-LOST, -LINK-LOST-SWITCH-OFF, -COLD, -COLD-WAY-OUT,
+  -ARM-WAY-OUT, -ARM-WAY-OUT-ENDED, -AFTER-PROBLEM-OUT, -STILL-AIMING, -START-UP, -START-UP-ARM,
+  the window's unknown-state, arm-out and front-stop texts). The window's close never ends a
+  sitting silently: with the table open it asks the ending (as before), and the last page says
+  what the next START does.
+* **The vendor's way home** (`geometry.homing_detour`, `TableJob._way_home`). i1Profiler drives
+  the arm onto the home line (X 1102) before its homing from two places: from the back strip
+  (R1, (1058, 317): m0 (1058, 1202) at 200, m0 (1102, 1202) at 200, i1) and from the far side
+  (N3, (2134, 1801): m0 (1102, 1498) at 200, i1); from (1281, 1423) (N2), the right-hand end, the
+  front and the middle it homes straight. The physical reason, as we read it: the table carries
+  out its homing along its own path, and behind the measuring area off the home line stands the
+  holder of the white tile (the back strip's reason already); from the back strip and from the
+  far side that path may pass beside it, so the vendor first brings the arm onto the home line
+  inside the measuring area. The region, a SAFE SUPERSET because two recordings cannot draw the
+  far side's edge: the back strip (Y below 473, off X 1090..1115) takes R1's two moves; every
+  other place with X beyond 1281 takes N3's move; everywhere else the homing is straight. The
+  detour is harmless where it is not needed: a motor move at a recorded speed from where the arm
+  stands to a point on the home line the vendor drives to in every session. The back strip is no
+  longer refused (its exception is replaced by R1's way out); only a back-strip place beyond the
+  left end of the target area (X above 2507) has no way home and keeps the page
+  M-I1IO-DRIVE-ARM-OUT-BACK (the power switch and START: the start-up brings the arm home, N4).
+  The same way home is taken by every homing ChromIQ sends: the end of a job, the START rule's
+  homing, the repair. Each detour move is the recorded m0 at speed 200 (`geometry.detour_line`,
+  byte for byte R1 84.153 / 85.529 and N3 1.358), allowed by the allow-list only to its recorded
+  targets (`lines.classify`) and only while the job sends the way home (`Table.detour_phase`,
+  `lines.make_gate`), out of the back strip only straight ahead; each arrival is read. A free arm
+  (or one whose state is not known) is read twice first (still).
+* **Logs.** Every START: the a0 answer, what it means and what was offered (session log
+  "the start: ...", app log "table start case" with `a0`). Every ending: "the ending: ..." in the
+  session log and the app log's "table session end" line: `exit_path` (the window's: window
+  closed, app quit, Close after Not now, Leave it there, ...), `sent_at_close` (always nothing),
+  `homed_at_end`, `mode_left_on`, `arm_left`, `next_start` (what the next START will do). Every
+  way home: one DATA line with its moves.
+* **What only the real table can show.** That 540000 behaves as 530000; that the repair's homing
+  of a FREE arm in its aiming mode finishes (R19 shows it twice; R1's status 3 came 2 ms after a
+  button press); the detour's time from places other than N3's and R1's; that i0 on 511800
+  brings an arm home from far out (N4 shows it on 111800).
+
