@@ -116,7 +116,7 @@ def test_the_a0_530000_page_says_end_measurement_before_i1profiler(
                                                     sim=sim, asking=False)
     page = p.drive_until(("stopped", "refused", "done"))
     assert page == "stopped"
-    assert win._title.text() == M.M_I1IO_DRIVE_STILL_AIMING.render(log="x")[0]
+    assert win._title.text() == M.M_I1IO_DRIVE_STILL_AIMING.render(log="x", sent="x")[0]
     text = win._text.text()
     end = text.find("1. Press End measurement")
     start = text.find("START MEASUREMENT")

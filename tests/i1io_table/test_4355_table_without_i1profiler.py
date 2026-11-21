@@ -593,7 +593,7 @@ def test_mixed_answers_after_the_start_up_offer_the_repair():
     assert r.ok and sim.received[n:] == REPAIR and job.at_rest()
 
 
-@pytest.mark.parametrize("a0", ["121800", "711800", "001800"])
+@pytest.mark.parametrize("a0", ["211800", "911800", "F11800"])
 def test_an_unknown_a0_of_the_switched_on_family_is_offered_the_start_up(a0):
     job, sim, _t = H.make_job(cold=True, real_table=False)
     sim.a0_override = a0
@@ -615,7 +615,7 @@ def test_an_unknown_a0_of_the_switched_on_family_is_offered_the_start_up(a0):
     assert r.ok and sim.received[n] == ";i02c"
 
 
-@pytest.mark.parametrize("a0", ["123456", "130001", "541900"])
+@pytest.mark.parametrize("a0", ["123456", "130001", "541900", "131800", "541800", "121800"])
 def test_any_other_unknown_a0_stays_a_refusal(a0):
     job, sim, _t = H.make_job(real_table=False)
     sim.a0_override = a0
@@ -660,14 +660,42 @@ def test_the_window_says_the_unknown_answer_on_the_start_up_page(qtbot, monkeypa
     class Unknown(WindowSim):
         def factory(self, *a, **k):
             job = super().factory(*a, **k)
-            self.sim.a0_override = "121800"
+            self.sim.a0_override = "911800"
             return job
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
                                                     sim=Unknown(cold=True), asking=False)
     assert p.drive_until(("start_up",)) == "start_up"
     text = win._text.text()
-    assert M.M_I1IO_DRIVE_START_UP_UNKNOWN.render(a0="121800")[1] in text
+    assert M.M_I1IO_DRIVE_START_UP_UNKNOWN.render(a0="911800")[1] in text
     assert "Not now" in p.labels() and not _moves(sim.sim.received)
     p.press("Not now")
     p.idle()
     assert not _moves(sim.sim.received)
+
+
+def test_the_disagreement_page_says_what_moved(qtbot, monkeypatch, tmp_path, settings):  # noqa: F811
+    """Last fixes (review): at the opening nothing moved; after the start-up the arm has moved,
+    and the page says so (the {sent} sentence)."""
+    from tests.i1io_table.test_window import open_window
+    from tests.i1io_table.window_sim import WindowSim
+    win, sim, run, p, saved, finished = open_window(
+        qtbot, monkeypatch, tmp_path, settings, sim=WindowSim(table_faults=[("free", "f4")]),
+        asking=False)
+    assert p.drive_until(("stopped",)) == "stopped"
+    assert "It has sent nothing that could move the arm." in win._text.text()
+
+    class AfterStartUp(WindowSim):
+        def factory(self, *a, **k):
+            job = super().factory(*a, **k)
+            self.sim.mode = "01"
+            self.sim.inject_at(9, "free")          # a1 a1 k2 u8 u8 a0 i0 s0 f4 [f4 differs]
+            return job
+    win2, sim2, run2, p2, saved2, finished2 = open_window(
+        qtbot, monkeypatch, tmp_path / "cold", settings, sim=AfterStartUp(cold=True),
+        asking=False)
+    assert p2.drive_until(("stopped",)) == "stopped", win2.pages_shown[-3:]
+    text = win2._text.text()
+    assert ";i02c" in sim2.sim.received
+    assert "The start-up has run, so the arm may have moved." in text
+    assert "It has sent nothing that could move the arm." not in text
+    assert p2.labels() == ["End measurement", "Try to bring the arm home"]

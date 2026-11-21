@@ -11571,9 +11571,11 @@ With {n} = 1: "The arm moves in 1 second. Please keep your hands away from the t
 
 *Revised 2026-11-21, last round (the coordinator, under the owner's rule): the repair is offered as the person's own choice after the truthful page.*
 
+*Last fixes (review): {sent} is "It has sent nothing that could move the arm. Nothing was read." at the opening, and "The start-up has run, so the arm may have moved. Since then ChromIQ has sent nothing that could move it. Nothing was read." after the start-up.*
+
 > **The table's answers about its aiming mode do not agree**
 >
-> The table answered the question about its aiming mode (the mode in which you aim at the marks by hand) four times, and not the same way each time. ChromIQ does not know this state. It has sent nothing that could move the arm. Nothing was read.
+> The table answered the question about its aiming mode (the mode in which you aim at the marks by hand) four times, and not the same way each time. ChromIQ does not know this state. {sent}
 >
 > You can let ChromIQ try to bring the arm home: press “Try to bring the arm home”. ChromIQ then sends the same commands it sends at the end of every measurement. It asks you to take your hands away first.
 >

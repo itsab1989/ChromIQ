@@ -14015,7 +14015,7 @@ M_I1IO_DRIVE_STILL_AIMING = _m(
     "The table's answers about its aiming mode do not agree",
     "The table answered the question about its aiming mode (the mode in which you aim at the "
     "marks by hand) four times, and not the same way each time. ChromIQ does not know this "
-    "state. It has sent nothing that could move the arm. Nothing was read.\n"
+    "state. {sent}\n"
     "\n"
     "You can let ChromIQ try to bring the arm home: press “Try to bring the arm home”. ChromIQ "
     "then sends the same commands it sends at the end of every measurement. It asks you to "

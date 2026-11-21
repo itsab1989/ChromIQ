@@ -46,7 +46,7 @@ def test_s1_s2_every_language_has_the_texts(code):
     try:
         for msg in (M.M_I1IO_DRIVE_STILL_AIMING, M.M_I1IO_DRIVE_ARM_WAY_OUT_ENDED,
                     M.M_I1IO_DRIVE_HOME_AT_START):
-            title, body = msg.render(log="x")
+            title, body = msg.render(log="x", sent="x")
             if code != "en":
                 assert body != msg.body.replace("{log}", "x"), (code, msg.id)
             assert "—" not in body

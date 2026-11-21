@@ -317,7 +317,9 @@ A0_KNOWN = {A0_COLD: ("cold", False), A0_WARM: ("warm", False),
 #: is treated as just switched on: the recorded start-up is OFFERED (the person's choice, always
 #: asked). Every other unknown a0 stays a refusal: no recorded command goes into an unrecorded
 #: warm state.
-_A0_COLD_FAMILY = re.compile(r"[0-9A-F]{2}1800")
+#: Last fixes (review): its first byte must end in 1 (11 and 51: just switched on), never 13 / 54
+#: (a started table): 131800 or 541800 are refused
+_A0_COLD_FAMILY = re.compile(r"[0-9A-F]11800")
 
 
 def a0_just_switched_on_family(a0: str) -> bool:

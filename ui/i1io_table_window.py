@@ -4339,7 +4339,7 @@ class TableMeasureWindow(QFrame):
             jt = getattr(j, "_table", None)
             if getattr(jt, "f4_mixed", False):
                 # last round: back to the truthful page and its two answers
-                title, body = M.M_I1IO_DRIVE_STILL_AIMING.render(log=self._log_name)
+                title, body = M.M_I1IO_DRIVE_STILL_AIMING.render(log=self._log_name, sent=self._what_was_sent())
                 self._show("refused", title, body,
                            [(tr("End measurement"), self._on_end_pressed),
                             (tr("Try to bring the arm home"), self._on_repair)])
@@ -4514,7 +4514,7 @@ class TableMeasureWindow(QFrame):
             # last round (the coordinator, under the owner's rule): the four mode answers
             # differed (at the opening or after the start-up): the truthful page, End first,
             # and the repair offered as the person's own choice (it asks hands away first)
-            title, body = M.M_I1IO_DRIVE_STILL_AIMING.render(log=self._log_name)
+            title, body = M.M_I1IO_DRIVE_STILL_AIMING.render(log=self._log_name, sent=self._what_was_sent())
             self._show("stopped", title, body,
                        [(tr("End measurement"), self._on_end_pressed),
                         (tr("Try to bring the arm home"), self._on_repair)])
@@ -4528,7 +4528,7 @@ class TableMeasureWindow(QFrame):
             # 4.3.50 fix round (MUST-1): the table is still in its aiming mode at a START (most
             # likely an earlier measurement ended with the arm out): its own page, with its
             # real cause and what to do, and no readings that do not exist
-            title, body = M.M_I1IO_DRIVE_STILL_AIMING.render(log=self._log_name)
+            title, body = M.M_I1IO_DRIVE_STILL_AIMING.render(log=self._log_name, sent=self._what_was_sent())
         elif msg is None and wb == "none" and res.reason in ("stopped_by_person",
                                                              "cancelled_by_person"):
             title, body = _refused(M, reason_text(res.reason))
@@ -4827,6 +4827,15 @@ class TableMeasureWindow(QFrame):
                                 "answer."))
 
     # ---- 4.3.48: the homing after a stop, and the arm found out at a START ------------------
+    def _what_was_sent(self) -> str:
+        """Last fixes (review): the true sentence for M-I1IO-DRIVE-STILL-AIMING's {sent}: nothing
+        moved when the answers differed at the opening; after the start-up the arm has moved."""
+        jt = getattr(self.job, "_table", None) if self.job is not None else None
+        if jt is not None and getattr(jt, "start_up_sent", False):
+            return tr("The start-up has run, so the arm may have moved. Since then ChromIQ has "
+                      "sent nothing that could move it. Nothing was read.")
+        return tr("It has sent nothing that could move the arm. Nothing was read.")
+
     def _on_repair(self) -> None:
         if self.job is None or self._busy:
             return

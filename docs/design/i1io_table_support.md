@@ -1897,7 +1897,7 @@ i1Profiler recordings of 19 and 21 Nov 2026 (R19, N1 to N4), the owner's start-u
   | a homing that fails (status, not at rest) | End, START (the next sitting tries again), else the power switch, START | R1 272.124 status 3 once; N4 | yes unless it fails every time (then: send the log) |
   | a move that may still wait, a lost link, no answer | the power switch first, START: the start-up | S1, rec A, N4 | yes |
   | four f4 answers that differ | the truthful page, then (the person's choice) "Try to bring the arm home": the repair after its own hands-off question; or End, the power switch, START | never recorded; every line of the repair is recorded with the mode on and off (N1, N2, R19) | **last round: offered**; what the table does is not known (the page says so) |
-  | an a0 never seen that ends in 1800 | the start-up page with the unknown answer said first, always asked | the just-switched-on family (111800 S1, 511800 recording A) | **last round: offered** |
+  | an a0 never seen that ends in 11800 (first byte ending in 1) | the start-up page with the unknown answer said first, always asked | the just-switched-on family (111800 S1, 511800 recording A) | **last round: offered** |
   | any other a0 never seen | End, the power switch, START; if the same again, send the log | never recorded | **open**: no recorded command goes into an unrecorded warm state |
 
 * **M-1, M-2, m-2.** The "no way home" page is chosen only where `homing_detour(p) is None`; since
@@ -1918,7 +1918,8 @@ i1Profiler recordings of 19 and 21 Nov 2026 (R19, N1 to N4), the owner's start-u
 **Confirmed by:** *nobody yet.* Decided by the coordinator under the owner's rule of 21 Nov 2026.
 
 * **Four mode answers that differ among themselves** (never recorded). The page says ChromIQ does
-  not know this state and that nothing moved; its first answer is End measurement (nothing
+  not know this state and what moved (nothing at the opening; after the start-up, that the
+  start-up has run and nothing since); its first answer is End measurement (nothing
   more), its second "Try to bring the arm home". That asks its own hands-off question
   (M-I1IO-DRIVE-REPAIR-MIXED: what is known, what is not, what will move; asked with the guidance
   off too; Not now goes back to the first page and sends nothing), then sends the repair
@@ -1926,7 +1927,7 @@ i1Profiler recordings of 19 and 21 Nov 2026 (R19, N1 to N4), the owner's start-u
   sitting then ends (the page names End measurement and START): the next START reads the table
   afresh. A try that fails is the failure page (the power switch, START, the log). The same after
   the start-up (the four answers after i0). The raw answers are in the log.
-* **An a0 never seen that ends in "1800"** (the just-switched-on family): treated as just switched
+* **An a0 never seen that ends in "11800"** (its first byte ends in 1, as in 111800 and 511800, the just-switched-on family; 131800 or 541800 look like a started table and are refused): treated as just switched
   on; the start-up page says the answer first and that what the table does is not known, and is
   always asked (also with the guidance off); Not now sends nothing. **Any other a0 never seen**
   stays a refusal: no recorded command is sent into an unrecorded warm state.
