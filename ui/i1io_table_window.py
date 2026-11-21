@@ -4996,6 +4996,9 @@ class TableMeasureWindow(QFrame):
         if getattr(self, "_closed_by_window", False):
             return "window_closed"
         page = getattr(self, "_page_id", "") or ""
+        j = self.job
+        if page in ("", "working") and j is not None and j.ended is not None:
+            return "ended_" + str(j.ended)          # the ending ran (and its homing, if any)
         return {"home_not_now": "home_not_now_then_close", "home_offered": "leave_it_there",
                 "home_at_end": "home_at_end_not_now_then_close",
                 "done": "done_page"}.get(page, "close_on_" + page if page else "close")
