@@ -11212,12 +11212,16 @@ def i1io_cal_place_help() -> str:
 
 def i1io_row_speed_help() -> str:
     """The (i) of Preferences > Beta > the i1iO's "Row speed" (4.3.54, the owner: "that way the
-    user could figure out best speed himself")."""
+    user could figure out best speed himself"; strengthened after the review, S4). Every number
+    is the work folder's speed/worst_case.json; true with and without a placement check."""
     return "\n\n".join((
         tr("**What it does.** When the i1iO table reads a row as a strip, this factor "
            "multiplies the speed of the arm. 1.00 is ChromIQ's own choice. 1.50 makes the arm "
-           "one and a half times as fast, 0.75 makes it slower. The speed is kept between the slowest and the fastest "
-           "speed X-Rite's i1Profiler was recorded using for rows: 40 and 168 mm/s."),
+           "up to one and a half times as fast, 0.75 makes it slower. The speed always stays "
+           "between 40 and 168 mm/s, the slowest and the fastest speed X-Rite's i1Profiler was "
+           "recorded using for rows. Rows of patches 14 mm and longer are already read at "
+           "168 mm/s, so they gain nothing. Dual rows (the i1Pro 2 dual scan on the table) are "
+           "not affected: they always run at their own recorded 132 mm/s."),
         tr("**What i1Profiler does.** For rows of patches about 10 mm long, i1Profiler was "
            "recorded reading at 137 to 168 mm/s. ChromIQ's own choice for its 10 mm patches is "
            "88 mm/s; a factor of 1.95 gives 168 mm/s."),
@@ -11226,12 +11230,15 @@ def i1io_row_speed_help() -> str:
            "edge of a patch and uses only the readings in its middle. The faster the arm "
            "moves, the wider that border must be, and a short patch then has too few readings "
            "left."),
-        tr("**The risk above 1.00.** A reading at the edge of a patch may include light from "
-           "the next patch, and ChromIQ may not notice. A patch can then come out wrong "
-           "WITHOUT A WARNING. Before you trust a fast measurement, measure the same sheet once "
-           "at 1.00 and once at your factor, and compare the two, for example in the "
-           "measurement report. ChromIQ writes the factor, the speed and the border of every "
-           "row into the app log."),
+        tr("**The risk above 1.00.** A reading at the edge of a patch can include light from "
+           "the next patch, and ChromIQ may not notice. In our tests a 10 mm patch read at "
+           "factor 2.00 came out up to about 9 dE00 wrong, and shorter patches are at greater "
+           "risk. A profile built from such a measurement is wrong too, and nothing will warn "
+           "you. Before you trust a fast measurement, measure the same sheet once at 1.00 and "
+           "once at your factor, and compare the two, for example in the measurement report."),
+        tr("**It stays set.** The factor is used for every later table measurement until you "
+           "set it back to 1.00. ChromIQ writes it into the measurement file and the app log, "
+           "and says it at the end of every table measurement read with it."),
         tr("**Default:** 1.00. Rows read patch by patch are not affected, and neither are the "
            "table's careful moves."),
     ))

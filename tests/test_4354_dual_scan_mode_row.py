@@ -180,5 +180,8 @@ def test_the_row_speed_help_says_the_risk_and_the_numbers():
     from ui.dialogs.settings_dialog import i1io_row_speed_help
     h = i1io_row_speed_help()
     for s in ("1.00", "40 and 168 mm/s", "137 to 168 mm/s", "88 mm/s", "1.95",
-              "WITHOUT A WARNING", "measurement report", "app log", "clean border"):
+              "about 9 dE00", "shorter patches are at greater risk", "profile built from",
+              "nothing will warn", "until you set it back to 1.00", "132 mm/s",
+              "14 mm and longer", "up to one and a half times", "measurement report",
+              "app log", "clean border"):
         assert s in h, s
