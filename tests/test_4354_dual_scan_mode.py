@@ -175,9 +175,12 @@ def test_m1_m2_a_dual_measurement_whose_header_lost_the_record_is_still_dual(tmp
     assert plan.dual and plan.ended_before
 
 
-def test_always_keeps_refusing_a_single_scan_measurement_as_in_4353(tmp_path):
+def test_always_continues_a_single_scan_measurement_as_one_too(tmp_path):
+    """Review S1 ("a run continues the way it was started"): under "always" a one-pass run is
+    continued with one pass per strip (4.3.53 refused it at START)."""
     main = _main(tmp_path, dual=False)
-    assert D.plan_for(_on(D.MODE_ALWAYS), CAPS, None, "5", main).refusal == "mixed_scan_kind"
+    plan = D.plan_for(_on(D.MODE_ALWAYS), CAPS, None, "5", main)
+    assert plan.dual is False and plan.refusal == "" and plan.why_not == "single_record"
 
 
 def test_guided_continues_by_the_record_too(tmp_path):

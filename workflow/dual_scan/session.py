@@ -213,13 +213,13 @@ def plan_for(settings: Any, caps: Iterable[str], reported_model: "str | None",
     if code in NOT_DUAL_FILTERS:
         return Plan(False, refusal="filter_not_dual")
     chosen = FILTER_CHOICE.get(code, "M0")
+    # 4.3.54: the run's own record decides a continued measurement, in BOTH modes (review S1,
+    # "a run continues the way it was started": under "always" a one-pass run used to be
+    # refused at Continue); only a new one goes by the mode and the condition chosen now
+    kind = started_as(main_ti3)
+    if kind == "single":
+        return Plan(False, chosen, why_not="single_record", single_i1pro2=True)
     if mode(settings) == MODE_M1_M2:
-        # 4.3.54: the run's own record decides a continued measurement; only
-        # a new one goes by the condition chosen now
-        kind = started_as(main_ti3)
-        if kind == "single":
-            return Plan(False, chosen, why_not="single_record",
-                        single_i1pro2=True)
         if not kind and not condition_offered:
             return Plan(False, "M0", why_not="guided", single_i1pro2=True)
         if not kind and chosen == "M0":

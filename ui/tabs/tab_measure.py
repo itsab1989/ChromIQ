@@ -13097,6 +13097,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         """The note before START (title, body), or ("", "") when there is none or the
         person switched its kind off (`_dual_note_now`)."""
         kind, title, body = self._dual_note_now()
+        _dk = getattr(self, "_dual_dismissible_kind", None)
+        kind = _dk(kind) if callable(_dk) else kind
         if kind and kind in self._dual_notes_hidden():
             return "", ""
         return title, body
@@ -13107,6 +13109,33 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
     _DUAL_LAST_REASONS = ("no_uv_tables", "bad_uv_tables", "uv_tile_dark",
                           "not_available", "no_dual_calibration")
     _DUAL_LAST_KEY = "dual_scan_last_cannot"
+
+    #: 4.3.54 (review M3): the reasons that leave a person who ASKED for the dual scan (mode
+    #: "always", or M1 / M2 chosen) with M0 only and that nothing else says before the readings
+    #: (no --dual-* is passed, so no M-DUAL-ENDED comes): never dismissible, shown at every start
+    _DUAL_NOTES_ALWAYS_SHOWN = ("cannot:single_record", "cannot:other_instrument",
+                                "cannot:helper", "cannot:engine", "cannot:old_helper_file")
+
+    def _dual_asked_for(self) -> bool:
+        """The person asked for the dual scan: mode "always", or M1 / M2 chosen in MANUAL."""
+        from workflow.dual_scan import session as D
+        try:
+            if D.mode(self._settings) == D.MODE_ALWAYS:
+                return True
+            if self._current_mode() == "guided":
+                return False
+            code = self._measure_filter_code()
+            code = str(code).strip().lower() if code is not None else None
+            return D.FILTER_CHOICE.get(code, "M0") in ("M1", "M2")
+        except Exception:      # noqa: BLE001
+            return False
+
+    def _dual_dismissible_kind(self, kind: str) -> str:
+        """*kind*, or "" when its note must show at every start (no link, not hidden by an
+        earlier "Don't show this again")."""
+        if kind in self._DUAL_NOTES_ALWAYS_SHOWN and self._dual_asked_for():
+            return ""
+        return kind
 
     def _dual_notes_hidden(self) -> "set[str]":
         """The kinds of note switched off with "Don't show this again"."""
@@ -13512,6 +13541,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return
         try:
             kind, title, body = self._dual_note_now()
+            # 4.3.54 (review M3): a note that says "you asked for the dual scan and will get M0
+            # only" has no "Don't show this again" and shows at every start
+            kind = self._dual_dismissible_kind(kind)
             if kind and kind in self._dual_notes_hidden():
                 kind, title, body = "", "", ""   # switched off: the app log still says it
             if title or getattr(self, "_dual_status_text", ""):

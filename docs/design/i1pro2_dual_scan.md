@@ -861,9 +861,17 @@ instrument or table. Tests: `tests/test_4354_dual_scan_mode.py`, `tests/test_435
   a dual measurement continues as a dual scan whatever is chosen now; a single-scan measurement
   continues as a single scan (M0 only, the row not sent as -F), never refused and never mixed.
   This holds for Continue Measurement, Check & Refine's re-reads, the next page of a multi-page
-  chart read as a Continue, and the table's rows and re-reads. Under "always" a single-scan
-  measurement is still refused as before (`mixed_scan_kind`). A re-read inside a sitting is the
-  sitting's own (decided once at START).
+  chart read as a Continue, and the table's rows and re-reads. After the review of 2026-11-21
+  (S1, "a run continues the way it was started") the same holds under "always": a one-pass run
+  is continued with one pass per strip (4.3.53 refused it at START, `mixed_scan_kind`). A
+  re-read inside a sitting is the sitting's own (decided once at START).
+* **After the review of 2026-11-21 (M3): a note that takes away a dual scan the person asked
+  for is never hidden.** With mode "always", or M1 / M2 chosen, the notes for a one-pass
+  measurement being continued, an instrument known as another model, a reading program or an
+  engine that cannot do the dual scan, and an older reading program with the run's one-pass file
+  in the way, have no "Don't show this again" and show at every start, also when an earlier
+  build had hidden that kind (nothing else says it before the readings: no --dual-* is passed,
+  so no M-DUAL-ENDED comes). Every other note stays dismissible as built.
 * **Default and migration** (the coordinator's decision): a new store reads "only for M1 or M2";
   a store whose dual scan switch was already on when 4.3.54 first runs is given "always" once
   (settings schema 35, `_migrate_dual_scan_mode_keep_4353`), so nothing changes silently for the

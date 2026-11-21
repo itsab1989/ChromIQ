@@ -107,18 +107,21 @@ def test_guided_under_always_runs_the_dual_scan(qapp, tmp_path):
 
 
 def test_a_continued_one_pass_measurement_gets_its_own_sentence(qapp, tmp_path):
-    """could_he_tell.txt R2: under "always" a one-pass measurement continued with the dual
-    scan on is refused, and the sentence says what is true ("You are continuing a measurement
-    that was read with one pass per strip"), never "started as a dual scan"."""
+    """could_he_tell.txt R2 and the review's S1: under "always" too a one-pass measurement
+    continued with the dual scan on goes on with one pass per strip, and the note says so
+    (never "started as a dual scan"); the engine's "mixed" on such a Continue gets the true
+    sentence as well."""
     from tests.test_4354_dual_scan_mode import _main
     from workflow.dual_scan.reasons import REASONS
     tab = _tab(tmp_path, mode=D.MODE_ALWAYS)
     main = _main(tmp_path, dual=False)
     tab._measurement_to_continue = lambda: main
     _choose(tab, "5")
-    kind, _t, body = tab._dual_note_now()
-    assert kind == "cannot:mixed_scan_kind"
-    assert REASONS["mixed_single_continued"] in body and "started as a dual scan" not in body
+    kind, title, body = tab._dual_note_now()
+    assert kind == "cannot:single_record"
+    assert (title, body) == M.M_DUAL_SINGLE_CONTINUES.render()
+    assert tab._dual_refusal_reason("mixed_scan_kind") == "mixed_single_continued"
+    assert "started as a dual scan" not in REASONS["mixed_single_continued"]
     tab.close()
 
 
@@ -325,4 +328,51 @@ def test_the_stopped_line_is_not_a_dismissible_note(qapp, tmp_path):
     assert lbl.isHidden() or "dual-hide" not in lbl.text()
     assert getattr(tab, "_dual_status_kind", "") == ""
     assert tab._dual_ended_text
+    tab.close()
+
+
+# ---- the review's M3: "you asked for the dual scan and will get M0 only" is never hidden -----
+
+@pytest.mark.parametrize("case", ["other_instrument", "helper", "engine", "single_record"])
+def test_a_note_that_takes_the_asked_for_dual_scan_away_shows_at_every_start(qapp, tmp_path,
+                                                                             case):
+    from tests.test_4354_dual_scan_mode import _main
+    tab = _tab(tmp_path)
+    _choose(tab, "5")                                   # M1 asked for
+    if case == "other_instrument":
+        tab._dual_model_for_plan = lambda: D.NOT_I1PRO2
+    elif case == "helper":
+        tab._dual_caps = lambda: frozenset()
+    elif case == "engine":
+        tab._settings.set("chartread_engine", "argyll")
+    else:
+        main = _main(tmp_path, dual=False)
+        tab._measurement_to_continue = lambda: main
+    kind = tab._dual_note_now()[0]
+    assert kind == "cannot:" + case
+    tab._dual_hide_note(kind)                            # hidden before (or by an older build)
+    tab._refresh_dual_note()
+    lbl = tab._status_bar_lbl
+    assert not lbl.isHidden(), "shown at every start"
+    assert "dual-hide" not in lbl.text(), "no Don't show this again"
+    assert tab._dual_before_start_text()[0]
+    tab.close()
+
+
+def test_under_always_with_m0_the_same_holds(qapp, tmp_path):
+    tab = _tab(tmp_path, mode=D.MODE_ALWAYS)
+    _choose(tab, None)
+    tab._dual_model_for_plan = lambda: D.NOT_I1PRO2
+    tab._refresh_dual_note()
+    assert "dual-hide" not in tab._status_bar_lbl.text() and not tab._status_bar_lbl.isHidden()
+    tab.close()
+
+
+def test_the_same_reason_without_the_ask_stays_dismissible(qapp, tmp_path):
+    """M0 chosen under "only for M1 or M2": nothing asked was taken away: the link stays."""
+    tab = _tab(tmp_path)
+    _choose(tab, None)
+    tab._dual_model_for_plan = lambda: D.NOT_I1PRO2
+    tab._refresh_dual_note()
+    assert 'href="dual-hide:cannot:other_instrument"' in tab._status_bar_lbl.text()
     tab.close()
