@@ -1696,3 +1696,45 @@ synthetic passes; never run on a real table. Tests: `tests/i1io_table/test_4354_
   with a measurement at 1.00 before a fast one is trusted.
 * **Logs.** Every strip row: the factor, the speed and the border, in the detailed table log
   and the app log ("table row speed").
+
+### ⏳ Awaiting confirmation: the row placement check, a veto on every row read in one move (2026-11-21, for 4.3.54)
+
+**Confirmed by:** *nobody yet.* The coordinator's decision of 2026-11-21 (the safe first step of
+the row placement study, work folder 2026-11-21_row_placement_study, `design.txt` section 6 step
+1). The study found, on the volunteer's recorded rows and on synthetic rows built from them, that
+the released cut (by time alone, clean border max(0.5 mm, speed x 18 ms)) accepted wrong patches
+at its own speeds (1.11 and 2.05 dE00 on recorded rows at 82 and 51 mm/s; 1 to 3 of 20
+synthetic ChromIQ rows at 61 and 88 mm/s): the larger errors are the aim points and the print,
+1 to 2.5 mm at any speed. Never run on a real table. Code: `workflow/i1io/table/placement.py`.
+Tests: `tests/i1io_table/test_4354_row_placement_check.py`, `test_4354_row_placement_job.py`.
+
+* **What it is.** Every row read in one move (a strip row; the lamp pass of a dual row) is
+  ALSO placed by the readings themselves (the study's method (d)): the timing gives the rough
+  place; each reading is "stable" when it and its two neighbours lie within 0.6 dE00 of their
+  median (1.2 below L* 30); the row's start and scale are fitted within the timing's own bound
+  (+-(12 ms + 3 mm / speed), +-2 %) so that every patch centre lies deepest inside a stable
+  stretch; each patch's run of stable readings is found around its fitted place.
+* **A veto only.** The row's values stay the released cut's, unchanged to the last bit. The row
+  is accepted only when the readings confirm it: every patch centre on stable readings, one
+  place clearly best, that place inside the timing's bound (the consistency check), each
+  patch's run within 2 mm of its place and with at least 3 clean readings, and **every patch's
+  released window inside that patch's stable run**, its value within 0.5 dE00 of the run's own.
+  Anything else, any doubt, any failure of the check itself: not confirmed.
+* **A row it does not confirm** is a row that could not be read, with the reason
+  `strip_placement_not_confirmed`: the released path unchanged (asked again / patch by patch /
+  skip / stop, the countdown rules of 4.3.53), the sentence "the readings did not confirm where
+  the patches are in this row, so ChromIQ did not use them". It can cause extra re-reads, never
+  a different accepted value.
+* **Logs.** The detailed table log and the app log ("table row placement") carry, per row, the
+  verdict with its numbers (which patch, by how many mm, the fitted start in ms and mm, the
+  scale, the time the check took); the session header and the app log's "table session" line
+  say "row placement check: on".
+* **The switch.** No option for the person. One constant in the table code
+  (`placement.ROW_PLACEMENT_CHECK`, default on) turns it off, for a developer.
+* **At every Row speed factor.** A fast row the readings do not confirm is not accepted, which
+  closes the factor's measured risk (synthetic, factor 2.00, 10 mm patch: 8.62 dE00 accepted
+  without the check; with it none above 0.5 dE00).
+* **Unchanged.** Nothing sent to the table, no speed, no border, the released checks.
+* **What it cannot see.** A sheet a whole pitch off (aims made on the neighbouring patch): every
+  window then lies on the neighbour's clean middle; reading patch by patch would read the same
+  wrong patches.
