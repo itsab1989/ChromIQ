@@ -500,5 +500,8 @@ def summary(res: "dict | None") -> str:
             what += f" ({k} {'patch' if k == 1 else 'patches'} not confirmed)"
     elif res.get("off_mm") is not None:
         what += f", by {res['off_mm']:.2f} mm"
+    if res.get("off_patches"):
+        k = res["off_patches"]
+        what += f" ({k} {'patch' if k == 1 else 'patches'} not on stable readings)"
     return (f"row placement check: NOT confirmed ({res.get('reason')}), the readings do not "
             f"confirm where the patches are in this row: {what}{tail}{took}")

@@ -84,7 +84,8 @@ class Row:
     ``clean`` (per patch, the readings whose whole footprint lies on that patch)."""
 
     def __init__(self, p, *, dt_s=0.0, dx_mm=0.0, scale=0.0, speed_err=0.0, print_sd=0.15,
-                 seed=1, spacer_mm=1.0, noise=1.0, lag=True, colours=None, spacer=None):
+                 seed=1, spacer_mm=1.0, noise=1.0, lag=True, colours=None, spacer=None,
+                 patch_shift=None):
         rng = np.random.default_rng(seed)
         n = len(p.patches)
         half = p.patches[0].half_mm
@@ -94,7 +95,10 @@ class Row:
         cen = np.array([q.along_mm for q in p.patches])
         # the sheet along the row (paper coordinates = what the aims call the row's place)
         edges = []
-        for c in cen:
+        for i, c in enumerate(cen):
+            # *patch_shift* {index: mm}: that one patch printed so far along the row (4.3.54 fix
+            # round: a row refused by the run tolerance alone)
+            c = c + float((patch_shift or {}).get(i, 0.0))
             edges.append((c - half + rng.normal(0, print_sd), c + half + rng.normal(0, print_sd)))
         segs = [(-1e3, edges[0][0], PAPER)]
         lab = spec_to_lab(cols)
