@@ -778,6 +778,9 @@ class TableJob:
         #: per band to the white tile values stored in the table's memory, as i1Profiler does.
         #: Off: the i1Pro 2's own white reference, as in a measurement by hand.
         self.stored_tile_white = bool(stored_tile_white)
+        #: 4.3.54 ("Row speed", Preferences > Beta): the person's factor on a strip row's speed,
+        #: set by the window before the job opens (1.0 = ChromIQ's own choice, line for line)
+        self.row_speed_factor = 1.0
         #: THE i1Pro 2 DUAL SCAN ON THE TABLE (2026-11-18, a first try): what START decided
         #: (dual_rows.DualSetup), set by the window before the job opens; None = the released
         #: job, line for line (no dual argument, no dual line, no dual file)
@@ -4420,7 +4423,8 @@ class TableJob:
                                     self._table.front_y, cap_y=self._cap(), kind=kind, only_locs=self.only_locs,
                                     dual=True) if self.dual is not None else
                         sp.plan_row(self.sheet, self.page, k, self.alignment,
-                                    self._table.front_y, cap_y=self._cap(), kind=kind, only_locs=self.only_locs))
+                                    self._table.front_y, cap_y=self._cap(), kind=kind, only_locs=self.only_locs,
+                                    speed_factor=self.row_speed_factor))
             except sp.RowRefused as exc:
                 if kind != "strip" or exc.reason not in sp.STRIP_FALLBACK_REASONS:
                     raise
@@ -4794,11 +4798,25 @@ class TableJob:
                "white_scale": list(self.white_scale) if self.white_scale else None}
         self._decide_white_by_a_row()
         if attempt > 1:
+            _edge, _note = scan_plan.edge_mm, getattr(scan_plan, "speed_note", None)
             scan_plan = sc.plan_row(name, scan_plan.start, scan_plan.end, scan_plan.speed,
                                     [sc.Patch(q.sample_id, q.loc, q.xy, q.along_mm, q.half_mm)
                                      for q in scan_plan.patches])
+            scan_plan.edge_mm = _edge          # 4.3.54: the same border at a read again
+            if _note is not None:
+                scan_plan.speed_note = _note
         else:
             scan_plan.name = name
+        # 4.3.54 ("Row speed"): the factor, the planned speed and the border of every strip row,
+        # in the detailed table log and in the app log
+        _sl = sp.speed_log_line(scan_plan)
+        rec["speed_line"] = _sl
+        self.diag.log("DATA", f"row {plan.index + 1}: {_sl}")
+        # (the app log line is the window's, from the strip_move event: this package uses the
+        # standard library only)
+        self._speed_fields = {"speed_line": _sl,
+                              "factor": round(float(self.row_speed_factor), 2),
+                              "edge_mm": round(sc.plan_edge_mm(scan_plan), 2)}
         scan = None
         self._progress(event="row_start", row=plan.index + 1, kind="strip",
                        locs=[p.loc for p in plan.patches])
@@ -4856,7 +4874,8 @@ class TableJob:
                 # strip reader open, the row fails cleanly before anything moves
                 raise _RowFailed("strip_move_refused_here", "")
             self._step("row", 12, 2)
-            self._progress(event="strip_move", row=plan.index + 1, speed=scan_plan.speed)
+            self._progress(event="strip_move", row=plan.index + 1, speed=scan_plan.speed,
+                           **getattr(self, "_speed_fields", {}))
             guard = self._latency_guard() if self._latency_guard is not None else None
             if guard is not None:
                 guard.__enter__()

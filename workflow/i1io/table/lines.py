@@ -121,8 +121,9 @@ def classify(line: bytes, dual_phase: "str | None" = None) -> "tuple[str, bool, 
     if cid == "m2" and dual_phase is not None and v not in geo.DUAL_M2_SPEEDS:
         raise tbl.ForbiddenLine(f"m2 at speed {v} in a dual row (recorded: "
                                 f"{geo.DUAL_M2_SPEEDS[0]} only)")
-    if cid == "m2" and dual_phase is None and v not in geo.RECORDED_M2_SPEEDS:
-        raise tbl.ForbiddenLine(f"m2 at speed {v}: not a recorded scan speed")
+    if cid == "m2" and dual_phase is None and not geo.row_speed_ok(v):
+        raise tbl.ForbiddenLine(f"m2 at speed {v}: not a recorded scan speed, nor inside the "
+                                f"recorded frame {geo.ROW_SPEED_FRAME}")
     if not geo.CAP_AREA.contains((x, y)):
         raise tbl.ForbiddenLine(f"{cid} to ({x}, {y}): outside the measuring area (beyond the "
                                 "front zone's cap or the sides)")

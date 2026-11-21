@@ -231,7 +231,8 @@ class RowPlan:
 
 
 def plan_row(sheet: dict, page: int, index: int, alignment, front_y=None, kind: str = "spot",
-             only_locs=None, dual: bool = False, cap_y=None) -> RowPlan:
+             only_locs=None, dual: bool = False, cap_y=None,
+             speed_factor: float = 1.0) -> RowPlan:
     """The row's plan. Spot (step 7): part C's ``sheet_spot_rows`` for this row: every patch's
     centre through the alignment (``Alignment.target``: on the aimed sheet, inside the area,
     not beyond the confirmed front), every row from column 0 (the end of marks 1 and 2, the
@@ -247,7 +248,8 @@ def plan_row(sheet: dict, page: int, index: int, alignment, front_y=None, kind: 
     if kind == "strip":
         if dual:
             return plan_dual_row(sheet, page, index, alignment, front_y, only_locs, cap_y=cap_y)
-        return plan_strip_row(sheet, page, index, alignment, front_y, only_locs, cap_y=cap_y)
+        return plan_strip_row(sheet, page, index, alignment, front_y, only_locs, cap_y=cap_y,
+                              speed_factor=speed_factor)
     try:
         st = sheet["pages"][page]["strips"][index]
     except (KeyError, IndexError, TypeError):
@@ -273,7 +275,7 @@ def strip_windows_ok(plan) -> "int | None":
     window lies outside the reading stream (scan.windows on the plan's own profile)."""
     # 4.3.53 fix round 2: the same clean border the cut uses (scan.strip_edge_mm)
     w = sc.windows(plan, sc.MOTION_START_AFTER_LAMP_S, plan.N,
-                   edge_mm=sc.strip_edge_mm(plan.speed))
+                   edge_mm=sc.plan_edge_mm(plan))
     if any(i1 - i0 < 1 for i0, i1 in w):
         return None
     return min(i1 - i0 for i0, i1 in w) if w else None
@@ -307,7 +309,7 @@ def strip_refusal_id(exc: Exception) -> "tuple[str, dict]":
 
 
 def plan_strip_row(sheet: dict, page: int, index: int, alignment, front_y=None,
-                   only_locs=None, cap_y=None) -> RowPlan:
+                   only_locs=None, cap_y=None, speed_factor: float = 1.0) -> RowPlan:
     """One row as a STRIP (tester 0.6.0 part C's E2/E3, ``scan.sheet_rows`` for this row): the
     run from just beyond one end of the row to just beyond the other, serpentine as the spot
     rows, at the slowest speed of :data:`STRIP_SPEEDS` that keeps the row within
@@ -344,12 +346,141 @@ def plan_strip_row(sheet: dict, page: int, index: int, alignment, front_y=None,
                 rid, det = strip_refusal_id(exc)
                 raise RowRefused(rid, page=page + 1, row=index + 1, log_reason=str(exc),
                                  **det) from None
+            if not is_factor_one(speed_factor):
+                plans = apply_speed_factor(plans, speed_factor, sheet, page, index, alignment,
+                                           front_y, cap_y)
             pts = tuple(PatchTarget(q.sample_id, q.loc, (int(round(q.xy[0])),
                                                          int(round(q.xy[1]))))
                         for q in plans.patches)
             return RowPlan(page, index, "strip", pts, scan=plans)
     raise RowRefused("strip_row_too_long", page=page + 1, row=index + 1,
                      readings=last.N if last is not None else None, readings_max=STRIP_N_MAX)
+
+
+# ---- 4.3.54: "Row speed", the person's factor on a strip row's speed (Preferences > Beta) ---
+
+#: the factor's own frame and grid (the field: 0.50 to 2.00 in steps of 0.05, default 1.00). The
+#: same numbers as core/i1io_row_speed.py, which Preferences and the window read without
+#: loading this package (this package uses the standard library and itself only); pinned equal
+#: by tests/i1io_table/test_4354_row_speed.py
+ROW_SPEED_FACTOR_DEFAULT = 1.0
+ROW_SPEED_FACTOR_RANGE = (0.5, 2.0)
+ROW_SPEED_FACTOR_STEP = 0.05
+
+
+def is_factor_one(f) -> bool:
+    try:
+        return abs(float(f) - 1.0) < 1e-9
+    except (TypeError, ValueError):
+        return True
+
+
+def clean_factor(raw) -> float:
+    """The stored factor on its grid, inside its range; anything unusable is 1.00."""
+    try:
+        f = float(raw)
+    except (TypeError, ValueError):
+        return ROW_SPEED_FACTOR_DEFAULT
+    if not math.isfinite(f):
+        return ROW_SPEED_FACTOR_DEFAULT
+    lo, hi = ROW_SPEED_FACTOR_RANGE
+    f = min(hi, max(lo, f))
+    return round(round(f / ROW_SPEED_FACTOR_STEP) * ROW_SPEED_FACTOR_STEP, 2)
+
+
+def factored_speed(base: int, factor: float) -> int:
+    """ChromIQ's own speed for the row times the factor, as a whole number kept inside the frame
+    i1Profiler was recorded using for rows (geometry.ROW_SPEED_FRAME), never the dual row's 132
+    (131 or 133, whichever is nearer the wish)."""
+    from . import geometry as geo
+    lo, hi = geo.ROW_SPEED_FRAME
+    want = float(base) * float(factor)
+    v = int(round(want))
+    v = min(hi, max(lo, v))
+    if v in geo.DUAL_M2_SPEEDS:
+        v = v - 1 if want < v else v + 1
+    return v
+
+
+def apply_speed_factor(plans, factor, sheet, page, index, alignment, front_y, cap_y):
+    """*plans* (ChromIQ's own choice) at ``factored_speed``. Faster: the rule's border where the
+    patches still get STRIP_MIN_READINGS clean readings, else the border shrunk just enough
+    (``plans.edge_mm``, said in the logs); a speed at which even no border leaves them is
+    lowered one step at a time until one does. Slower: the rule's border (never below 0.5 mm);
+    a row that would need more readings than the reader takes is raised until it fits. Never
+    outside the frame. ``plans.speed_note`` holds what the logs say."""
+    p = _apply_speed_factor(plans, factor, sheet, page, index, alignment, front_y, cap_y)
+    if p is not plans:
+        try:
+            sc.check_plan(p, None, front_y, cap_y)
+        except sc.PlanRefused as exc:
+            # never expected (the speed is inside the frame, the targets are the same): the
+            # row is read at ChromIQ's own speed, and the logs say why
+            plans.speed_note = {"factor": float(factor), "base_speed": plans.speed,
+                                "wanted": p.speed, "speed": plans.speed, "refused": str(exc),
+                                "rule_edge_mm": None, "edge_mm": None, "lowered": False,
+                                "raised": False}
+            return plans
+    return p
+
+
+def _apply_speed_factor(plans, factor, sheet, page, index, alignment, front_y, cap_y):
+    base = plans.speed
+    v = factored_speed(base, factor)
+    note = {"factor": float(factor), "base_speed": base, "wanted": v,
+            "rule_edge_mm": None, "edge_mm": None, "lowered": False, "raised": False}
+    if v == base:
+        plans.speed_note = dict(note, speed=base, rule_edge_mm=round(sc.strip_edge_mm(base), 2),
+                                edge_mm=round(sc.strip_edge_mm(base), 2))
+        return plans
+    step = -1 if v > base else 1
+    from . import geometry as geo
+    while True:
+        p = _one_strip(sheet, page, index, alignment, v, front_y, cap_y=cap_y)
+        rule = sc.strip_edge_mm(v)
+        fewest = strip_windows_ok(p)
+        if p.N <= STRIP_N_MAX and fewest is not None and fewest >= STRIP_MIN_READINGS:
+            p.speed_note = dict(note, speed=v, rule_edge_mm=round(rule, 2),
+                                edge_mm=round(rule, 2))
+            return p
+        if v > base and p.N <= STRIP_N_MAX:
+            e = sc.shrunk_edge_mm(p, STRIP_MIN_READINGS)
+            if e is not None:
+                p.edge_mm = e
+                p.speed_note = dict(note, speed=v, rule_edge_mm=round(rule, 2), edge_mm=e)
+                return p
+            note["lowered"] = True
+        elif v < base:
+            note["raised"] = True
+        v += step
+        if v in geo.DUAL_M2_SPEEDS:
+            v += step
+        if v == base:
+            plans.speed_note = dict(note, speed=base, rule_edge_mm=round(sc.strip_edge_mm(base), 2),
+                                    edge_mm=round(sc.strip_edge_mm(base), 2))
+            return plans
+
+
+def speed_log_line(plans) -> str:
+    """The app log's and the detailed table log's words for a strip row's speed and border."""
+    n = getattr(plans, "speed_note", None)
+    edge = sc.plan_edge_mm(plans)
+    if not n:
+        return (f"speed {plans.speed} mm/s (factor 1.00, ChromIQ's own), border "
+                f"{edge:.2f} mm")
+    txt = (f"speed {n['speed']} mm/s (factor {n['factor']:.2f} on ChromIQ's own "
+           f"{n['base_speed']} mm/s; wanted {n['wanted']}), border {edge:.2f} mm")
+    if n.get("edge_mm") is not None and n.get("rule_edge_mm") is not None \
+            and n["edge_mm"] < n["rule_edge_mm"] - 1e-9:
+        txt += (f"; read faster than the safe border allows (factor {n['factor']:.2f}): "
+                f"border {n['edge_mm']:.2f} mm in place of {n['rule_edge_mm']:.2f} mm")
+    if n.get("lowered"):
+        txt += "; slower than wanted: at the wanted speed no border leaves these patches enough readings"
+    if n.get("raised"):
+        txt += "; faster than wanted: at the wanted speed the row needs more readings than the reader takes"
+    if n.get("refused"):
+        txt += f"; read at ChromIQ's own speed: {n['refused']}"
+    return txt
 
 
 # ---- THE DUAL ROW (the i1Pro 2 dual scan on the table, 2026-11-18; A FIRST TRY) ---------------

@@ -119,12 +119,22 @@ def test_a_computed_line_is_built_and_passed_only_inside_the_cap(x, y, ok):
             cl.classify(forged)
 
 
-@pytest.mark.parametrize("speed", [1, 39, 55, 100, 120, 139, 300, 1000])
+@pytest.mark.parametrize("speed", [1, 39, 132, 169, 300, 1000])
 def test_a_scan_move_at_an_unrecorded_speed_is_refused(speed):
+    """Outside the frame of the recorded row speeds (40..168), or the dual row's 132 in a single
+    row: refused. 4.3.54 ("Row speed", the owner): a whole speed INSIDE the frame is allowed in
+    the same recorded form (test_a_speed_inside_the_recorded_frame_is_allowed)."""
     with pytest.raises(geo.AreaRefused):
         geo.m2_line(0, 2000, speed)
     with pytest.raises(tbl.ForbiddenLine):
         cl.classify(geo._line("m2", 0, 2000, speed))
+
+
+@pytest.mark.parametrize("speed", [40, 55, 100, 120, 139, 168])
+def test_a_speed_inside_the_recorded_frame_is_allowed(speed):
+    assert geo.ROW_SPEED_FRAME == (40, 168)
+    line = geo.m2_line(0, 2000, speed)
+    assert cl.classify(line)[0] == "m2"
 
 
 @pytest.mark.parametrize("speed", [100, 150, 299, 301, 500])

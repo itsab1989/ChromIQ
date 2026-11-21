@@ -62,6 +62,8 @@ CONSENT_KEY = "i1io_table_consent_given"
 ASK_KEY = GUIDED_KEY = "i1io_table_ask_after_each_step"
 #: 4.3.52: "Keep the table's detailed log" (Preferences > Beta), read once at START
 EXTRA_LOG_KEY = "i1io_table_extra_logging"
+#: 4.3.54: "Row speed" (Preferences > Beta), a factor on a strip row's speed, read once at START
+ROW_SPEED_KEY = "i1io_table_row_speed_factor"
 #: 4.3.52: the tables (their salted keys, reach.table_key: no serial) on which a measurement in
 #: rows was completed (TableJob.rows_sitting_completed), comma-separated; and the key of the
 #: table connected last. The Measure tab's line under "Patch-by-patch mode (-p)" is not shown
@@ -344,6 +346,15 @@ def ask_after_each_step(settings) -> bool:
 
 
 guided = ask_after_each_step
+
+
+def row_speed_factor(settings) -> float:
+    """4.3.54: "Row speed" (1.00 = ChromIQ's own choice; 0.50 to 2.00)."""
+    from core.i1io_row_speed import clean
+    try:
+        return clean(settings.get(ROW_SPEED_KEY, 1.0))
+    except Exception:      # noqa: BLE001 - the default
+        return 1.0
 
 
 def extra_logging(settings) -> bool:
@@ -2981,6 +2992,16 @@ class TableMeasureWindow(QFrame):
             self._live = {}
 
     def _live_event(self, ev: dict) -> None:
+        if ev.get("event") == "strip_move" and ev.get("speed_line"):
+            # 4.3.54 ("Row speed"): the factor, the speed and the border of every strip row
+            try:
+                from core.app_log import line
+                line("table row speed", row=ev.get("row"), speed=ev.get("speed"),
+                     factor=f"{float(ev.get('factor', 1.0)):.2f}",
+                     edge_mm=f"{float(ev.get('edge_mm', 0.0)):.2f}",
+                     what=ev.get("speed_line"))
+            except Exception:      # noqa: BLE001 - a log line never stops a row
+                pass
         live = getattr(self, "_live", None)
         if not live:
             return
@@ -3243,6 +3264,8 @@ class TableMeasureWindow(QFrame):
                                consent_version=consent_version_given(self._settings))
         # D-4b (Preferences > Beta, off by default): the table's stored white tile values
         self.job.stored_tile_white = stored_tile_white(self._settings)
+        # 4.3.54: "Row speed" (Preferences > Beta): the factor on a strip row's speed
+        self.job.row_speed_factor = row_speed_factor(self._settings)
         # 4.3.52: where the i1Pro 2 is calibrated (Preferences > Beta): the job takes it as its
         # place, so the window never answers a question of the job itself
         self.job.calibration_place_preference = calibration_place(self._settings)

@@ -47,6 +47,7 @@ BETA_SUB_OPTIONS: "tuple[str, ...]" = (
     "i1io_table_calibration_place",
     "i1io_table_stored_tile_white",
     "i1io_table_patch_by_patch",
+    "i1io_table_row_speed_factor",
     "fd9_display_rotation",
 )
 

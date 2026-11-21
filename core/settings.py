@@ -480,6 +480,11 @@ DEFAULTS: dict[str, Any] = {
     #: Separate from the hand instruments' -p defaults and the CR30's lock; a target's own
     #: stored -p still comes first (per_target_settings.md).
     "i1io_table_patch_by_patch": True,
+    #: 4.3.54 ("Row speed", Preferences > Beta, under the i1iO option; the owner, 2026-11-21): a
+    #: factor on the speed of a row read as a strip, 0.50 to 2.00 in steps of 0.05. 1.00 = the
+    #: speed ChromIQ chooses itself (4.3.53, line for line). The result is kept inside the
+    #: speeds i1Profiler was recorded using for rows (40 to 168 mm/s).
+    "i1io_table_row_speed_factor": 1.0,
     #: the offer after a clean strip measurement was answered "Not now": not offered again
     "i1io_table_strip_offer_declined": False,
     #: Beta (Settings -> Beta): X-Rite i1iSis family charts, laid out by

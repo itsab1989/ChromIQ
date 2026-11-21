@@ -81,6 +81,25 @@ def strip_edge_mm(speed) -> float:
     (spot.strip_windows_ok: which recorded speed a patch length may be read at, how many
     readings it gets) and for cutting its readings (cut_by_position)."""
     return max(STRIP_EDGE_MIN_MM, float(speed) * MOTION_START_SPREAD_S)
+
+
+def plan_edge_mm(plan) -> float:
+    """The border a strip row's plan is cut with: its own (4.3.54, a row read faster than the
+    rule allows) or the rule's."""
+    e = getattr(plan, "edge_mm", None)
+    return strip_edge_mm(plan.speed) if e is None else float(e)
+
+
+def shrunk_edge_mm(plan, need: int, step_mm: float = 0.01) -> "float | None":
+    """4.3.54 ("Row speed" above 1.00): the WIDEST border, at most the rule's, that still leaves
+    every patch *need* clean readings at this plan's speed; None when even no border does."""
+    e = strip_edge_mm(plan.speed)
+    while e >= -1e-9:
+        w = windows(plan, MOTION_START_AFTER_LAMP_S, plan.N, edge_mm=max(0.0, e))
+        if w and all(i1 - i0 >= need for i0, i1 in w):
+            return round(max(0.0, e), 2)
+        e -= step_mm
+    return None
 #: readings the cut may move the motion start by, by default: none. A refinement that picks
 #: the most uniform windows was MEASURED to wander on real rows (R1 R2: lamp + 0.305..0.500
 #: for +-25 readings, 0.352..0.392 for +-4) and to make the values worse.
@@ -143,6 +162,9 @@ class RowPlan:
     N: int = 0
     #: a pass of a DUAL row (the dual scan on the table): its only recorded speed is 132
     dual: bool = False
+    #: 4.3.54 ("Row speed"): the clean border this row is cut with when the person's factor made
+    #: it faster than strip_edge_mm allows for its patches (None: the rule's border)
+    edge_mm: "float | None" = None
 
     @property
     def m0(self) -> bytes:
@@ -190,7 +212,7 @@ class PlanRefused(Exception):
 
 def check_plan(p: RowPlan, at=None, front_y=None, cap_y=None) -> None:
     """*cap_y* (4.3.49): the front of the area the person aimed at (geometry.table_cap)."""
-    if p.speed not in (geo.DUAL_M2_SPEEDS if p.dual else geo.RECORDED_M2_SPEEDS):
+    if not geo.row_speed_ok(p.speed, p.dual):
         raise PlanRefused(f"speed {p.speed} is not a recorded scan speed"
                           + (" for a dual row" if p.dual else ""))
     if p.dual and p.N > DUAL_N_MAX:
@@ -686,7 +708,7 @@ def cut_by_position(plan: RowPlan, spec_rows, refine_readings: int = CUT_REFINE_
     window that is not on one colour can be seen. *edge_mm*: the clean border (default: the
     one rule, :func:`strip_edge_mm` of the plan's speed; 4.3.53 fix round 2)."""
     n = len(spec_rows)
-    edge = strip_edge_mm(plan.speed) if edge_mm is None else float(edge_mm)
+    edge = plan_edge_mm(plan) if edge_mm is None else float(edge_mm)
     best = None
     for k in range(-refine_readings, refine_readings + 1):
         ms = MOTION_START_AFTER_LAMP_S + k * READING_S

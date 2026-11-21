@@ -4209,9 +4209,32 @@ class SettingsDialog(QDialog):
         # "-p" default, the same value Save as Defaults keeps with a table chart loaded
         self._i1io_pbp_check = QCheckBox(
             tr("Table charts start with “Patch-by-patch mode (-p)” ticked"), self)
+        # ...and in the same row (4.3.54, the owner: "an option in the beta section that allows
+        # to increase or decrease the speed within a certain frame by a factor"): "Row speed",
+        # a factor on the speed of a row read as a strip. One compact field, no new line.
+        from core.i1io_row_speed import RANGE as _RSR, STEP as _RSS
+        from PyQt6.QtCore import QLocale as _QLoc
+        from core.i18n import uses_decimal_comma as _udc
+        self._i1io_speed_label = _QL(tr("Row speed:"), self)
+        self._i1io_speed_spin = NoScrollDoubleSpinBox(self)
+        self._i1io_speed_spin.setObjectName("compact_input")
+        self._i1io_speed_spin.setAccessibleName("i1io_table_row_speed_factor")
+        self._i1io_speed_spin.setLocale(_QLoc(_QLoc.Language.German) if _udc() else _QLoc.c())
+        self._i1io_speed_spin.setRange(*_RSR)
+        self._i1io_speed_spin.setDecimals(2)
+        self._i1io_speed_spin.setSingleStep(_RSS)
+        self._i1io_speed_spin.setPrefix("× ")
+        self._i1io_speed_spin.setMinimumWidth(84)
+        self._i1io_speed_label.setBuddy(self._i1io_speed_spin)
+        self._i1io_speed_tip = TooltipButton(tr("Row speed"), i1io_row_speed_help(), self,
+                                             min_width=640)
         _i1iopbp = QHBoxLayout()
         _i1iopbp.setContentsMargins(28, 0, 0, 0)
         _i1iopbp.addWidget(self._i1io_pbp_check)
+        _i1iopbp.addSpacing(16)
+        _i1iopbp.addWidget(self._i1io_speed_label)
+        _i1iopbp.addWidget(self._i1io_speed_spin)
+        _i1iopbp.addWidget(self._i1io_speed_tip)
         _i1iopbp.addStretch()
         self._i1io_pbp_tip = TooltipButton(
             tr("Table charts start with “Patch-by-patch mode (-p)” ticked"),
@@ -7119,6 +7142,9 @@ class SettingsDialog(QDialog):
                 bool(s.get("i1io_table_stored_tile_white", True)))
         if getattr(self, "_i1io_pbp_check", None) is not None:
             self._i1io_pbp_check.setChecked(bool(s.get("i1io_table_patch_by_patch", True)))
+        if getattr(self, "_i1io_speed_spin", None) is not None:
+            from core.i1io_row_speed import clean as _cf
+            self._i1io_speed_spin.setValue(_cf(s.get("i1io_table_row_speed_factor", 1.0)))
         self._isis_charts_check.setChecked(
             bool(s.get("isis_charts_beta", False)))
         self._isis_charts_toggled()
@@ -7499,7 +7525,10 @@ class SettingsDialog(QDialog):
                             self._i1io_log_tip, self._i1io_cal_label, self._i1io_cal_combo,
                             self._i1io_cal_tip, self._i1io_stored_white_check,
                             self._i1io_stored_white_tip, self._i1io_pbp_check,
-                            self._i1io_pbp_tip) if w is not None]
+                            self._i1io_pbp_tip,
+                            getattr(self, "_i1io_speed_label", None),
+                            getattr(self, "_i1io_speed_spin", None),
+                            getattr(self, "_i1io_speed_tip", None)) if w is not None]
 
     def _i1io_rows_follow(self, *_a) -> None:
         """The i1iO Beta's sub-options are greyed, their values shown, while its box is
@@ -8904,6 +8933,11 @@ class SettingsDialog(QDialog):
                 self._i1io_pbp_check.isChecked() != bool(
                     s.get("i1io_table_patch_by_patch", True)):
             s.set("i1io_table_patch_by_patch", self._i1io_pbp_check.isChecked())
+        if getattr(self, "_i1io_speed_spin", None) is not None:
+            from core.i1io_row_speed import clean as _cf
+            _f = _cf(self._i1io_speed_spin.value())
+            if abs(_f - _cf(s.get("i1io_table_row_speed_factor", 1.0))) > 1e-9:
+                s.set("i1io_table_row_speed_factor", _f)
         s.set("isis_charts_beta", self._isis_charts_check.isChecked())
         # Written only when it differs from the store, so Preferences closed
         # with OK leaves no new key behind for anyone who never ticks it.
@@ -11174,6 +11208,33 @@ def i1io_cal_place_help() -> str:
         "need to change this. Either way, ChromIQ makes the white only with the arm at its "
         "resting place over the table's tile, and after a white on the instrument's own tile "
         "it reads the table's tile once to check that the white is right.")
+
+
+def i1io_row_speed_help() -> str:
+    """The (i) of Preferences > Beta > the i1iO's "Row speed" (4.3.54, the owner: "that way the
+    user could figure out best speed himself")."""
+    return "\n\n".join((
+        tr("**What it does.** When the i1iO table reads a row as a strip, this factor "
+           "multiplies the speed of the arm. 1.00 is ChromIQ's own choice. 1.50 reads half as "
+           "fast again, 0.75 slower. The speed is kept between the slowest and the fastest "
+           "speed X-Rite's i1Profiler was recorded using for rows: 40 and 168 mm/s."),
+        tr("**What i1Profiler does.** For rows of patches about 10 mm long, i1Profiler was "
+           "recorded reading at 137 to 168 mm/s. ChromIQ's own choice for its 10 mm patches is "
+           "88 mm/s; a factor of 1.95 gives 168 mm/s."),
+        tr("**Why ChromIQ's choice is slower.** ChromIQ cannot yet place the readings along "
+           "the row as exactly as that speed needs. So it leaves a wider clean border at each "
+           "edge of a patch and uses only the readings in its middle. The faster the arm "
+           "moves, the wider that border must be, and a short patch then has too few readings "
+           "left."),
+        tr("**The risk above 1.00.** A reading at the edge of a patch may include light from "
+           "the next patch, and ChromIQ may not notice. A patch can then come out wrong "
+           "WITHOUT A WARNING. Before you trust a fast measurement, measure the same sheet once "
+           "at 1.00 and once at your factor, and compare the two, for example in the "
+           "measurement report. ChromIQ writes the factor, the speed and the border of every "
+           "row into the app log."),
+        tr("**Default:** 1.00. Rows read patch by patch are not affected, and neither are the "
+           "table's careful moves."),
+    ))
 
 
 def i1io_table_pbp_help() -> str:
