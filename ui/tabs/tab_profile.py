@@ -599,6 +599,19 @@ class TabProfile(QWidget):
         self._restore_defaults()
         self._link_guided_and_manual_header_fields()
         self._settle_linked_header_fields()
+        # Issue 217: every later change of a colour setting is logged with
+        # its source (`ui.setting_change_log`).
+        from ui.setting_change_log import watch
+        for _attr, _name in (
+                ("_obs_combo", "Guided, observer"),
+                ("_illum_combo", "Guided, illuminant"),
+                ("_fwa_check", "Guided, FWA compensation"),
+                ("_fwa_illum_combo", "Guided, FWA illuminant"),
+                ("_m_obs_combo", "Manual, observer"),
+                ("_m_illum_combo", "Manual, illuminant"),
+                ("_m_fwa_check", "Manual, FWA compensation"),
+                ("_m_fwa_illum_combo", "Manual, FWA illuminant")):
+            watch(getattr(self, _attr, None), tab="Build Profile", name=_name)
 
     # ------------------------------------------------------------------
     # Guided and Manual share the profile header fields (Knut, #182
@@ -3489,22 +3502,31 @@ class TabProfile(QWidget):
         # header fields once at the end, not mirror by mirror.
         self._header_mirror_paused = True
         try:
+            # Issue 217: every colour setting this changes is logged with
+            # the target as its source (`ui.setting_change_log`).
+            from ui.setting_change_log import setting_source
+            _where = Path(str(getattr(store, "dir", "") or "?")).name
             if not stored:
                 # §4 S4–S7 — and the fault the Measure tab had: returning here
                 # leaves the PREVIOUS target's values on screen, which is how a
                 # setting leaks from one run to another.
-                self._restore_defaults()
+                with setting_source(
+                        f"the target ({_where}) has no stored settings"):
+                    self._restore_defaults()
                 if hasattr(self, "_load_build_from"):
                     self._load_build_from(None)
                 return False
-            self._m_apply_preset_data(stored)
+            with setting_source(f"the target's stored settings ({_where})"):
+                self._m_apply_preset_data(stored)
             set_black = getattr(self, "_m_set_black", None)
             if "black_depth" not in stored and set_black is not None:
                 # Stored before "Darkest black" was a Build Profile option:
                 # it reads what the global preference said at the move
                 # (settings schema 33), until it is changed here.
                 set_black(_black_for_older_targets(self._settings))
-            self._apply_guided_profile_fields(stored)
+            with setting_source(
+                    f"the target's stored settings ({_where}), Guided"):
+                self._apply_guided_profile_fields(stored)
             if hasattr(self, "_load_build_from"):
                 self._load_build_from(stored)
             return True
@@ -3661,6 +3683,16 @@ class TabProfile(QWidget):
         combo.setCurrentIndex(max(0, combo.findData(black_depth_value(value))))
 
     def _on_m_preset_selected(self, index: int) -> None:
+        # Issue 217: the colour settings a preset sets are logged with the
+        # preset as their source (`ui.setting_change_log`).
+        from ui.setting_change_log import setting_source
+        src = ("the Manual preset list: none (the saved defaults, else the "
+               "factory settings)" if index <= 0 else
+               f"the Manual preset {self._m_preset_combo.currentData()!r}")
+        with setting_source(src):
+            self._on_m_preset_selected_now(index)
+
+    def _on_m_preset_selected_now(self, index: int) -> None:
         self._m_preset_del_btn.setEnabled(index > 0)
         s = self._settings
         if index == 0:
@@ -7391,6 +7423,13 @@ class TabProfile(QWidget):
                      if hasattr(self, "_built_from_record") else {})
             if built:
                 info.update(built)
+            # Issue 217: the observer, illuminant and FWA compensation the
+            # build passed on, so Check & Refine checks this profile with
+            # the same (`workflow.check_colorimetry`).
+            active = getattr(self, "_active_params", None)
+            if active is not None:
+                from workflow.check_colorimetry import record_for_build
+                info.update(record_for_build(active))
             run.record_profile_build(info)
         except Exception:      # noqa: BLE001 - a record never fails a build
             log.warning("could not record the profile build", exc_info=True)
@@ -7685,22 +7724,19 @@ class TabProfile(QWidget):
     def _note_a_colprof_build(self, icc: Path) -> None:
         """Keep the run's build record true after a colprof build.
 
-        Written only where it is needed, so a build with the new profile
-        engine switched off touches the run exactly as it always did: when
-        this colprof build stood in for the engine, or when the run still
-        carries the record of an engine build that this profile replaces."""
+        WRITTEN AFTER EVERY colprof BUILD since issue 217 (2026-11-21).
+        Until then it was written only when this build stood in for the
+        engine, when the M0/M1/M2 Beta named a condition, or when an engine
+        record had to be replaced, so that a build with the engine switched
+        off left ``meta.json`` as it always had. Check & Refine now needs to
+        know which observer, illuminant and FWA compensation every profile
+        was built with (`workflow.check_colorimetry`), and this record is
+        where it reads them. Nothing on screen changes by it."""
         reason = getattr(self, "_fallback_reason", "")
         self._fallback_reason = ""
         try:
             run = Run.for_dir(Path(icc).parent)
             if not run.meta_path.is_file():
-                return
-            # ...or when the M0/M1/M2 Beta is on: Check & Refine must know
-            # which condition's readings the profile was built from.
-            built = (self._built_from_record()
-                     if hasattr(self, "_built_from_record") else {})
-            if not reason and not built and not getattr(
-                    run.load_meta(), "profile_build", None):
                 return
         except Exception:      # noqa: BLE001
             return
@@ -8356,6 +8392,13 @@ class TabProfile(QWidget):
         self._log.ensureCursorVisible()
 
     def _restore_defaults(self) -> None:
+        # Issue 217: the colour settings this sets are logged with it as the
+        # source (`ui.setting_change_log`).
+        from ui.setting_change_log import setting_source
+        with setting_source("the saved defaults, else the factory settings"):
+            self._restore_defaults_now()
+
+    def _restore_defaults_now(self) -> None:
         s = self._settings
 
         def _set_combo(combo: QComboBox, key: str, default: str) -> None:

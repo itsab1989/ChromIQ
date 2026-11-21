@@ -1745,6 +1745,10 @@ class Ti3InfoDialog(QDialog):
         params = ProfcheckParams(
             ti3_path=self._analysis.data.path, icc_path=self._compare_path,
             de_formula="-k", intent="r" if self._basis == "media" else "a")
+        # Issue 217: scored with the observer, illuminant and FWA
+        # compensation the profile was built with, when its run records them.
+        from workflow.check_colorimetry import follow_profile
+        params, _note = follow_profile(params, "Inspect a measurement")
         self._pc_runner = ProfcheckRunner(self._runner)
 
         def _finish(code: int) -> None:

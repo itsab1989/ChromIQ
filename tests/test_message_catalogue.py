@@ -689,6 +689,12 @@ AWAITING_APPROVAL: "set[str]" = {
                                  # wording is ours and waits here.
                                  "M-CM-K-CHART-THROUGH", "M-CM-RAW-UNCALIBRATED",
                                  "M-CAL-APPLIED-TWICE", "M-CAL-CALIBRATED-TWICE",
+                                 # Issue 217, 2026-11-21: Basti approved the
+                                 # behaviour (the check follows the profile's
+                                 # colour settings, and warns); the wording is
+                                 # ours and waits here.
+                                 "M-CR-COLOUR-SETTINGS-DIFFER",
+                                 "M-CR-COLOUR-SETTINGS-INSISTED",
                                  # Beta 7, 2026-10-03 (the CMYK/CR30 forum
                                  # report): Basti ruled that a measurement
                                  # whose calibration table the earlier engine

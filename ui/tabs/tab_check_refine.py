@@ -388,9 +388,30 @@ class TabCheckRefine(QWidget):
         self._fwa_plain_tips: dict[int, str] = {}
         self._fwa_dropped_by_collect = None
 
+        #: Issue 217: set by `_settle_colorimetry` for the check running now,
+        #: ``{"built": Colorimetry, "check": Colorimetry}`` when it runs with
+        #: other colour settings than the profile was built with ("Check
+        #: with my settings"), else None; and the lines its saved report
+        #: records about the colour settings.
+        self._colour_insisted: "dict | None" = None
+        self._colour_record: str = ""
+
         self._build_ui()
         self._restore_defaults()
         self._run_btn.setEnabled(False)
+        # Issue 217: every later change of a colour setting is logged with
+        # its source (`ui.setting_change_log`).
+        from ui.setting_change_log import watch
+        for _attr, _name in (
+                ("_obs_combo", "Guided, observer"),
+                ("_illum_combo", "Guided, illuminant"),
+                ("_fwa_cb", "Guided, FWA compensation"),
+                ("_fwa_combo", "Guided, FWA illuminant"),
+                ("_m_obs_combo", "Manual, observer"),
+                ("_m_illum_combo", "Manual, illuminant"),
+                ("_m_fwa_cb", "Manual, FWA compensation"),
+                ("_m_fwa_combo", "Manual, FWA illuminant")):
+            watch(getattr(self, _attr, None), tab="Check & Refine", name=_name)
 
     # ------------------------------------------------------------------
     # Mode switching
@@ -1438,6 +1459,17 @@ class TabCheckRefine(QWidget):
         self._m_x3dom_cb.setChecked(bool(data.get("x3dom", False)))
 
     def _on_m_preset_selected(self, index: int) -> None:
+        # Issue 217: the colour settings a preset sets are logged with the
+        # preset as their source (`ui.setting_change_log`).
+        from ui.setting_change_log import setting_source
+        src = ("the Check & Refine Manual preset list: none (the saved "
+               "defaults)" if index <= 0 else
+               f"the Check & Refine Manual preset "
+               f"{self._m_preset_combo.currentData()!r}")
+        with setting_source(src):
+            self._on_m_preset_selected_now(index)
+
+    def _on_m_preset_selected_now(self, index: int) -> None:
         self._m_preset_del_btn.setEnabled(index > 0)
         s = self._settings
         if index == 0:
@@ -1881,11 +1913,19 @@ class TabCheckRefine(QWidget):
             return
 
         params = self._collect_params()
+        # Issue 217: the profile's own observer / illuminant / FWA, or a
+        # warning when the check is set to others. None = cancelled.
+        settled = self._settle_colorimetry(params)
+        if settled is None:
+            return
+        params, colour_notes = settled
         # The window names every number after the formula the check used.
         self._last_de_formula = params.de_formula
         self._log.clear()
         if self._fwa_dropped_by_collect is not None:
             self._log.appendPlainText(self._fwa_dropped_by_collect.log_line)
+        for _note in colour_notes:
+            self._log.appendPlainText(_note)
         if params.readings_from is not None:
             from workflow.i1pro3_conditions import file_condition
             from workflow.measurement_condition import condition_name
@@ -1907,6 +1947,149 @@ class TabCheckRefine(QWidget):
             on_line=self._on_log_line,
             on_finish=self._on_done,
         )
+
+    # ------------------------------------------------------------------
+    # Issue 217: the colour settings the profile was built with
+    # ------------------------------------------------------------------
+
+    def _settle_colorimetry(self, params):
+        """``(params, notes)`` for the check about to run, or None when the
+        person cancelled.
+
+        A profile whose build recorded its observer, illuminant and FWA
+        compensation (`workflow.check_colorimetry.built_colorimetry`) is
+        checked with the same, for a measurement with spectral readings
+        (without them the three change no number). When this tab is set to
+        others, M-CR-COLOUR-SETTINGS-DIFFER asks first: the profile's
+        settings (the default; the controls then show them), the tab's own
+        (the result then says so, M-CR-COLOUR-SETTINGS-INSISTED), or
+        Cancel. A profile that records nothing is checked exactly as
+        before, and the log says the settings are not known. *notes* are
+        lines for the tab's log; every check also writes one line to the
+        app log (`check_colorimetry.check_log_line`)."""
+        from workflow import check_colorimetry as cc
+        from workflow import measurement_messages as M
+        self._colour_insisted = None
+        self._colour_record = ""
+        try:
+            built = cc.built_colorimetry(params.icc_path)
+            check = cc.from_check_params(params)
+            spectral = cc.has_spectral(params.readings_from or params.ti3_path)
+        except Exception:      # noqa: BLE001 - never stop a check over this
+            log.debug("colour settings not compared", exc_info=True)
+            return params, []
+        notes: "list[str]" = []
+        mismatch = bool(spectral and built.known
+                        and cc.differences(built.colorimetry, check))
+        choice = ""
+        if mismatch:
+            choice = self._ask_colorimetry(built.colorimetry, check)
+            if choice == "cancel":
+                log.info("%s", cc.check_log_line(
+                    built, check, spectral=spectral, mismatch=True,
+                    choice="Cancel (the check did not run)"))
+                return None
+            if choice == "profile":
+                self._show_colorimetry_on_controls(built.colorimetry)
+                params = cc.apply_to_check(params, built.colorimetry)
+                # the FWA gate still has the last word
+                from workflow.fwa_gate import drop_fwa
+                refusal = self._fwa_refused()
+                if refusal is not None:
+                    drop_fwa(params)
+                notes.append(tr(
+                    "This check uses the colour settings the profile was "
+                    "built with: {settings}.").format(
+                        settings=cc.describe(built.colorimetry)))
+            else:
+                self._colour_insisted = {"built": built.colorimetry,
+                                         "check": check}
+                _t, body = M.M_CR_COLOUR_SETTINGS_INSISTED.render(
+                    built=cc.describe(built.colorimetry),
+                    check=cc.describe(check))
+                notes.append(body)
+        elif spectral and built.known and not built.colorimetry.is_default:
+            notes.append(tr(
+                "This profile was built with {settings}, and the check uses "
+                "the same settings.").format(
+                    settings=cc.describe(built.colorimetry)))
+        elif spectral and not built.known:
+            notes.append(tr(
+                "ChromIQ does not know which colour settings (observer, "
+                "illuminant, FWA compensation) this profile was built with: "
+                "it was built by an earlier version of ChromIQ, or somewhere "
+                "else. The check uses the settings on this tab: {settings}. "
+                "If the profile was built with other settings, the numbers "
+                "make it look worse than it really is. Building the profile "
+                "again records its settings, and the check then uses them."
+            ).format(settings=cc.describe(check)))
+        used = cc.from_check_params(params)
+        chosen = {"profile": "Use the profile's settings",
+                  "mine": "Check with my settings"}.get(choice, "")
+        line = cc.check_log_line(built, used, spectral=spectral,
+                                 mismatch=mismatch, choice=chosen)
+        log.info("%s", line)
+        self._colour_record = line
+        return params, notes
+
+    def _colorimetry_box(self, built, check):
+        """``(window, {"profile": button, "mine": button, "cancel":
+        button})`` for M-CR-COLOUR-SETTINGS-DIFFER, not shown yet."""
+        from PyQt6.QtWidgets import QMessageBox
+        from workflow import check_colorimetry as cc
+        from workflow import measurement_messages as M
+        title, body = M.M_CR_COLOUR_SETTINGS_DIFFER.render(
+            built=cc.describe(built), check=cc.describe(check))
+        dlg = QMessageBox(self)
+        dlg.setObjectName("cr_colour_settings_differ")
+        set_warning_icon(dlg)
+        dlg.setWindowTitle(title)
+        dlg.setText(title)
+        dlg.setInformativeText(body)
+        use = dlg.addButton(tr("Use the profile's settings"),
+                            QMessageBox.ButtonRole.AcceptRole)
+        mine = dlg.addButton(tr("Check with my settings"),
+                             QMessageBox.ButtonRole.DestructiveRole)
+        cancel = dlg.addButton(QMessageBox.StandardButton.Cancel)
+        dlg.setDefaultButton(use)
+        dlg.setEscapeButton(cancel)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(dlg, widen_when_it_fits=False)
+        return dlg, {"profile": use, "mine": mine, "cancel": cancel}
+
+    def _ask_colorimetry(self, built, check) -> str:
+        """``"profile"``, ``"mine"`` or ``"cancel"``."""
+        dlg, buttons = self._colorimetry_box(built, check)
+        tint_dialog_primary(dlg, _TAB_COLOR)
+        dlg.exec()
+        clicked = dlg.clickedButton()
+        for key, btn in buttons.items():
+            if clicked is btn:
+                return key
+        return "cancel"
+
+    def _show_colorimetry_on_controls(self, c) -> None:
+        """Put *c* on the observer, illuminant and FWA controls of the mode
+        the check runs in, so the tab shows what the check uses. Not saved
+        as defaults; logged with the window as its source."""
+        from ui.setting_change_log import setting_source
+        n = c.normalised()
+        if self._current_mode() == "guided":
+            obs, ill, fwa, fwa_ill = (self._obs_combo, self._illum_combo,
+                                      self._fwa_cb, self._fwa_combo)
+        else:
+            obs, ill, fwa, fwa_ill = (self._m_obs_combo, self._m_illum_combo,
+                                      self._m_fwa_cb, self._m_fwa_combo)
+        with setting_source("the warning window: the user chose \"Use the "
+                            "profile's settings\" (the profile's build "
+                            "settings)"):
+            for combo, value in ((obs, n.observer), (ill, n.illuminant),
+                                 (fwa_ill, n.fwa_illum)):
+                i = combo.findData(value)
+                if i >= 0:
+                    combo.setCurrentIndex(i)
+            fwa.setChecked(n.fwa)
+            self._apply_fwa_gate()
 
     def _warn_calibrated_twice(self) -> bool:
         """C1 (#182 5959070209), the Check & Refine half: a run's
@@ -2036,9 +2219,19 @@ class TabCheckRefine(QWidget):
                     from workflow.run_compliance import reports_dir_for
                     folder = ensure_subdir(reports_dir_for(self._ti3_path))
                 summary_text = self._report_summary_text(
-                    result, plan, _verification_of(self._ti3_path))
+                    result, plan, _verification_of(self._ti3_path),
+                    colour_note=self._colour_insisted_text())
 
-                report_path = write_quality_report(folder, stem, summary_text, result.raw_log)
+                # Issue 217: the report records the colour settings the
+                # check used and the profile was built with, and the
+                # command, above profcheck's own output.
+                raw = result.raw_log
+                record = "\n".join(x for x in (
+                    getattr(self._checker, "last_command", ""),
+                    self._colour_record) if x)
+                if record:
+                    raw = record + "\n\n" + raw
+                report_path = write_quality_report(folder, stem, summary_text, raw)
                 self._log.appendPlainText(
                     f"\n[OK] Quality report saved: {folder.name}/{report_path.name}")
 
@@ -2111,9 +2304,21 @@ class TabCheckRefine(QWidget):
                 plan.n_total, plan.shared_locations, plan.no_location)
         return plan
 
+    def _colour_insisted_text(self) -> str:
+        """M-CR-COLOUR-SETTINGS-INSISTED as one paragraph (title, then
+        body) after "Check with my settings", else ""."""
+        ci = getattr(self, "_colour_insisted", None)
+        if not ci:
+            return ""
+        from workflow import check_colorimetry as cc
+        from workflow import measurement_messages as M
+        t, b = M.M_CR_COLOUR_SETTINGS_INSISTED.render(
+            built=cc.describe(ci["built"]), check=cc.describe(ci["check"]))
+        return t + "\n" + b
+
     @staticmethod
     def _report_summary_text(result, plan: RefinePlan,
-                             verification=None) -> str:
+                             verification=None, colour_note: str = "") -> str:
         """The readable top of the saved Quality_Check .txt report.
 
         SAYS WHAT THE WINDOW SAYS (Knut, #182 5963903650, item 7): the same
@@ -2132,6 +2337,9 @@ class TabCheckRefine(QWidget):
                 **_run_and_date(verification))
             parts.append(vt + "\n" + vb.split("\n\n")[0])
         parts.append("\n".join(x for x in (t.numbers, t.over) if x))
+        if colour_note:
+            # Issue 217: what the window says under the numbers.
+            parts.append(colour_note)
         parts.append(quality_explanation_body(result.avg_de, result.peak_de,
                                               plan.de_name))
         if t.start_over:
@@ -2153,6 +2361,17 @@ class TabCheckRefine(QWidget):
     # ------------------------------------------------------------------
     # Result dialog
     # ------------------------------------------------------------------
+
+    def _add_colour_insisted_note(self, dlg, lay) -> None:
+        text = self._colour_insisted_text()
+        if not text:
+            return
+        head, _sep, rest = text.partition("\n")
+        lbl = QLabel(f"<b>{_html.escape(head)}</b><br>{_html.escape(rest)}",
+                     dlg)
+        lbl.setObjectName("cr_colour_settings_note")
+        lbl.setWordWrap(True)
+        lay.addWidget(lbl)
 
     def _show_result_dialog(self, result, plan: RefinePlan,
                             strips_file: "Path | None") -> None:
@@ -2212,6 +2431,9 @@ class TabCheckRefine(QWidget):
             nums_lbl = QLabel(nums, dlg)
             nums_lbl.setWordWrap(True)
             layout.addWidget(nums_lbl)
+        # Issue 217: a check run with other colour settings than the profile
+        # was built with says so before anything it suggests.
+        self._add_colour_insisted_note(dlg, body_lay)
 
         if verification is not None:
             from workflow import measurement_messages as mm
@@ -2724,6 +2946,13 @@ class TabCheckRefine(QWidget):
         self._log.appendPlainText("Check & Refine settings saved as defaults.")
 
     def _restore_defaults(self) -> None:
+        # Issue 217: logged with the saved defaults as their source.
+        from ui.setting_change_log import setting_source
+        with setting_source("the saved Check & Refine defaults, else the "
+                            "factory settings"):
+            self._restore_defaults_now()
+
+    def _restore_defaults_now(self) -> None:
         s = self._settings
 
         # Guided defaults

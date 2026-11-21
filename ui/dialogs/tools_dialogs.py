@@ -2801,6 +2801,12 @@ class VerifyProfileDialog(_ToolDialogBase):
             sort       = self._sort_cb.isChecked(),
             verbosity  = "2",
         )
+        # Issue 217: a profile is checked with the observer, illuminant and
+        # FWA compensation it was built with, when its run records them.
+        from workflow.check_colorimetry import follow_profile
+        params, _colour_note = follow_profile(params, "Verify profile")
+        if _colour_note:
+            self._log.appendPlainText(_colour_note)
 
         def _on_line(line: str) -> None:
             self._log.appendPlainText(line.rstrip())

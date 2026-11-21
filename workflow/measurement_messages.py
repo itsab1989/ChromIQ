@@ -4196,6 +4196,46 @@ M_CAL_CALIBRATED_TWICE = _m(
     approved=False)
 
 
+# --- PROPOSED: the check is set to other colour settings than the profile -
+#: Issue 217 (2026-11-21, approved as a behaviour by Basti: "yes build it as
+#: you recommend"). Check & Refine, Guided and Manual, before profcheck runs,
+#: when the profile records the observer / illuminant / FWA compensation it
+#: was built with and the check's own controls say something else, for a
+#: measurement with spectral readings. {built} and {check} are one line each
+#: (`workflow.check_colorimetry.describe`). Buttons: "Use the profile's
+#: settings" (the default), "Check with my settings", Cancel.
+M_CR_COLOUR_SETTINGS_DIFFER = _m(
+    "M-CR-COLOUR-SETTINGS-DIFFER",
+    "The check is set to other colour settings than the profile was built with",
+    "This profile was built with:\n{built}\n\n"
+    "The check is set to:\n{check}\n\n"
+    "To check a profile, the colours of your measurement are worked out "
+    "again from its spectral readings with these settings, and compared with "
+    "what the profile predicts. With other settings than the profile was "
+    "built with, the check compares two different calculations of the same "
+    "colours. The numbers then look worse than the profile really is, and "
+    "strips that are perfectly fine may be suggested for re-reading.\n\n"
+    "\"Use the profile's settings\" checks the profile the way it was built "
+    "and sets this tab to those settings. \"Check with my settings\" runs "
+    "the check as it is set now, and the result then says that the settings "
+    "differ.",
+    approved=False)
+
+#: Issue 217: the line the result window and the saved Quality_Check report
+#: carry after "Check with my settings" (M-CR-COLOUR-SETTINGS-DIFFER), above
+#: the strips to re-read, so a refine plan from such a check never passes for
+#: an ordinary one.
+M_CR_COLOUR_SETTINGS_INSISTED = _m(
+    "M-CR-COLOUR-SETTINGS-INSISTED",
+    "Checked with other colour settings than the profile was built with",
+    "This check used {check}. The profile was built with {built}. The numbers "
+    "include the difference between the two calculations, so the profile "
+    "looks worse than it really is, and the strips listed may not need "
+    "re-reading. To see how well the profile really fits, check it again "
+    "with the profile's settings.",
+    approved=False)
+
+
 # --- PROPOSED: a measurement's damaged calibration table, put back ---------
 #: Beta 7, the CMYK/CR30 forum report (2026-10-03). ChromIQ's measuring engine
 #: wrote the printer calibration into every -K/-I measurement as nan, so
@@ -14351,6 +14391,7 @@ CATALOGUE = {m.id: m for m in (
     M_CM_NO_CCTIFF, M_CM_CONVERT_FAILED, M_CM_PROFCHECK_CONVERTED,
     M_CM_K_CHART_THROUGH, M_CM_RAW_UNCALIBRATED,
     M_CAL_APPLIED_TWICE, M_CAL_CALIBRATED_TWICE,
+    M_CR_COLOUR_SETTINGS_DIFFER, M_CR_COLOUR_SETTINGS_INSISTED,
     M_CAL_TABLE_REPAIRED, M_CAL_TABLE_DAMAGED,
     M_PATCHSET_CAL_INKS, M_VIEW_RGB_ONLY,
     M_PATCH_COLOUR_RANGE,

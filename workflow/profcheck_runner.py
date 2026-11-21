@@ -164,6 +164,9 @@ class ProfcheckRunner:
         self._matched_errors: list[tuple[str, str]] = []
         self._matched_warnings: list[tuple[str, str]] = []
         self._nchan_worker: _NChannelWorker | None = None
+        #: The command the last `run` started, for the saved report
+        #: (issue 217: a report records the settings its check used).
+        self.last_command: str = ""
 
     def run(
         self,
@@ -174,6 +177,7 @@ class ProfcheckRunner:
         self._last_log = ""
         self._matched_errors = []
         self._matched_warnings = []
+        self.last_command = ""
         from workflow.cal_repair import repair_embedded_cal
         repair_embedded_cal(params.ti3_path)
 
@@ -217,6 +221,9 @@ class ProfcheckRunner:
 
         args = self._build_args(params)
         cwd  = params.ti3_path.parent
+        # file NAMES only: a report is a file people send to others
+        self.last_command = "Command: profcheck " + " ".join(
+            args[:-2] + [Path(a).name for a in args[-2:]])
         log.info("profcheck: %s  [cwd=%s]", " ".join(args), cwd)
         self._runner.run(
             "profcheck",
