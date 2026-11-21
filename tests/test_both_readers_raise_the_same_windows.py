@@ -55,15 +55,19 @@ HELPER_C = (Path(__file__).resolve().parent.parent
 # above these lines (a move, nothing else changed)
 # +7 on 2026-11-20 (4.3.53 release, helper 20e): the blue light's side in the lights' log line
 # (cq_lights_sent2, cq_lights_name2) above these lines (a move, nothing else changed)
+# +9 on 2026-11-21 (4.3.55, helper 21f): +4 for the i1Pro 2's own lamp wait (cq_lamp_off_i1pro2_set_ms
+# and its usage lines) above these lines (lines 3560-4100 of v4.3.54 are byte-identical at +4: a
+# move), and +5 that had already built up by 4.3.54, when each string sat on its window's last line;
+# the pins are now the strings' own lines again
 HELPER_LINES = {
     "capability":  ("Need reflection spot, strip, xy or chart reading capability,",
-                    "Need reflection spot, strip, xy or chart reading capability", 3615),
+                    "Need reflection spot, strip, xy or chart reading capability", 3624),
     "ccmx_set":    ("Setting Colorimeter Correction Matrix failed with error :'x' (0x1)",
-                    "Setting Colorimeter Correction Matrix failed with error", 3674),
+                    "Setting Colorimeter Correction Matrix failed with error", 3683),
     "ccmx_read":   ("Reading CCMX/CCSS File 'x.ccmx' failed with error 2:'nope'",
-                    "Reading CCMX/CCSS File", 3696),
+                    "Reading CCMX/CCSS File", 3705),
     "mode_set":    ("Setting instrument mode failed with error :'unsupported' (0x2)",
-                    "Setting instrument mode failed with error", 4042),
+                    "Setting instrument mode failed with error", 4051),
     "init_fail":   ("Initialising instrument failed with message 'Communications failure'",
                     None, None),
     "coms_fail":   ("Establishing communications with instrument failed with message 'timeout'",
