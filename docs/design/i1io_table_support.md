@@ -1806,7 +1806,9 @@ i1Profiler recordings of 19 and 21 Nov 2026 (R19, N1 to N4), the owner's start-u
   | 511800 | just switched on, mode left on | recording A; owner 4.3.50 log | i0, s0 f4 x4 (01) s0 p0 i1 s0 | the same start-up (f4 01 expected), then f0 f4 f4 p0 (the mode ended at rest, R19's tail); the start-up page says so (M-I1IO-DRIVE-START-UP-AIMING) |
   | 530000, f4 01 x4 | started, mode left on | N1; volunteer 19 Nov | s0 p0 i1 s0; f0 at its close | after the hands-off question (M-I1IO-DRIVE-REPAIR-AT-START; with the guidance off the countdown): s0 p0 [way home] i1 s0 f0 f4 f4 p0, the arm read at rest; the measurement goes on |
   | 540000, f4 01 x4 | as 530000 (its low digit 4 not understood) | owner 4.3.50 log, ChromIQ only | not recorded | as 530000, logged as itself |
-  | a0 with bit 0x40 but f4 00 (or the reverse) | the two answers disagree | never | not recorded | nothing that moves is sent (M-I1IO-DRIVE-STILL-AIMING: End measurement, the power switch, START again) |
+  | a0 with bit 0x40 but f4 00 (530000 / 540000 / 511800 then 00) | the two answers disagree | never | not recorded; the vendor never branches on f4 (N1 mode on, N2 mode off: the same lines) | **fix round:** f4 decides; the same repair (warm) or the start-up with the end tail (cold); f0 with the mode off is recorded (N2 quit 25.676) |
+  | 130000 with f4 01 (or 111800 then f4 01 after i0) | the two answers disagree | never | not recorded | **fix round:** f4 decides: the mode is on, the same repair / tail |
+  | the four f4 answers differ among themselves | not one answer | never | not recorded | nothing that moves is sent (M-I1IO-DRIVE-STILL-AIMING, rewritten: ChromIQ does not know this state; End measurement, the power switch, START; if the same again, send the log) |
   | any other a0 | not known | 120000 in the simulator only | not recorded | nothing that moves is sent; the page names the power switch and START, never i1Profiler |
   | no answer / a malformed answer | the link or the table | - | - | nothing more is sent (as before) |
 
@@ -1868,4 +1870,45 @@ i1Profiler recordings of 19 and 21 Nov 2026 (R19, N1 to N4), the owner's start-u
   of a FREE arm in its aiming mode finishes (R19 shows it twice; R1's status 3 came 2 ms after a
   button press); the detour's time from places other than N3's and R1's; that i0 on 511800
   brings an arm home from far out (N4 shows it on 111800).
+
+#### Fix round after the independent safety review (2026-11-21)
+
+**Confirmed by:** *nobody yet.*
+
+* **B-1: the mode answers decide, a disagreement never refuses.** The four f4 answers after the
+  opening (and after the start-up's i0) say whether the aiming mode is on, whatever a0 said; the
+  table is repaired when either says so (`session_table.Table._f4_take`, `COLD_STEP_JOB`, which reads
+  the four answers instead of expecting them). The vendor sends the same lines whether the mode is
+  on (N1) or off (N2), f0 included (R19's job end; N2's quit, answer 00), so the repair is the same
+  in every case. Every combination is tested on the simulator with its assumptions switched
+  (`SimTable.a0_override`, `SimTable.power_cycle`): what a0 answers, what f4 answers on a 540000
+  table, whether the bit survives a power cycle. Only four answers that differ among themselves
+  still refuse, with a text that says ChromIQ does not know that state.
+* **The walk through every state** ("can a user without i1Profiler always get from here to a normal
+  START, by steps the text names, and do those steps really work per the recordings?"):
+
+  | state | the steps the text names | evidence | answer |
+  |---|---|---|---|
+  | 111800 / 511800, f4 00 or 01 after i0 | START, Start the table | S1, N4, recording A; f0 in both modes (R19, N2) | yes |
+  | 130000, f4 00, arm at rest | START | every session | yes |
+  | 130000, f4 00, arm out, held | START, Bring the arm home | owner capture, N2, N3, R19 | yes |
+  | 530000 / 540000 / 130000 with either f4 | START, Bring the arm home (repair) | N1, N2, R19; 540000 only by its physical analogue (R19) | yes, by the recordings' lines; 540000's f4 never read |
+  | the arm in the back strip (any X) | START, Bring the arm home | R1 (leg 1 clamped to X 2507 beyond the left end) | yes |
+  | a homing that fails (status, not at rest) | End, START (the next sitting tries again), else the power switch, START | R1 272.124 status 3 once; N4 | yes unless it fails every time (then: send the log) |
+  | a move that may still wait, a lost link, no answer | the power switch first, START: the start-up | S1, rec A, N4 | yes |
+  | four f4 answers that differ | End, the power switch, START | never recorded | **open**: if it repeats, ChromIQ cannot drive the table; the text says so and asks for the log |
+  | an a0 never seen | End, the power switch, START | never recorded | **open**: the same |
+
+* **M-1, M-2, m-2.** The "no way home" page is chosen only where `homing_detour(p) is None`; since
+  the fix round no reading a table can give has none (a back-strip place beyond X 2507 goes straight
+  ahead at X 2507 first). The page stays for safety and names the power switch FIRST (a START
+  would refuse again while the table answers); what is known: the start-up brought an arm home that
+  had been moved off its rest by hand (N4), not from such a place.
+* **m-1.** With `job.START_UP_ASKS_ABOUT_THE_ARM` on, "No, the arm is out" now runs the recorded
+  start-up (N4) instead of refusing; no page asks the person to answer against the truth.
+* **m-3.** The repair page says what Not now does. **m-5.** The wire gate holds the table in every
+  session: a detour move only while the way home is sent, at the USB write too.
+* **Not proven until the real table answers** (tester_steps.txt, in the reviewer's order): what f4
+  answers on a 540000 table; whether the a0 bit survives every power cycle; the homing of a free
+  arm in the aiming mode at START; the detour's time from the alignment start.
 
