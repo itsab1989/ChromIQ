@@ -1896,8 +1896,9 @@ i1Profiler recordings of 19 and 21 Nov 2026 (R19, N1 to N4), the owner's start-u
   | the arm in the back strip (any X) | START, Bring the arm home | R1 (leg 1 clamped to X 2507 beyond the left end) | yes |
   | a homing that fails (status, not at rest) | End, START (the next sitting tries again), else the power switch, START | R1 272.124 status 3 once; N4 | yes unless it fails every time (then: send the log) |
   | a move that may still wait, a lost link, no answer | the power switch first, START: the start-up | S1, rec A, N4 | yes |
-  | four f4 answers that differ | End, the power switch, START | never recorded | **open**: if it repeats, ChromIQ cannot drive the table; the text says so and asks for the log |
-  | an a0 never seen | End, the power switch, START | never recorded | **open**: the same |
+  | four f4 answers that differ | the truthful page, then (the person's choice) "Try to bring the arm home": the repair after its own hands-off question; or End, the power switch, START | never recorded; every line of the repair is recorded with the mode on and off (N1, N2, R19) | **last round: offered**; what the table does is not known (the page says so) |
+  | an a0 never seen that ends in 1800 | the start-up page with the unknown answer said first, always asked | the just-switched-on family (111800 S1, 511800 recording A) | **last round: offered** |
+  | any other a0 never seen | End, the power switch, START; if the same again, send the log | never recorded | **open**: no recorded command goes into an unrecorded warm state |
 
 * **M-1, M-2, m-2.** The "no way home" page is chosen only where `homing_detour(p) is None`; since
   the fix round no reading a table can give has none (a back-strip place beyond X 2507 goes straight
@@ -1911,4 +1912,25 @@ i1Profiler recordings of 19 and 21 Nov 2026 (R19, N1 to N4), the owner's start-u
 * **Not proven until the real table answers** (tester_steps.txt, in the reviewer's order): what f4
   answers on a 540000 table; whether the a0 bit survives every power cycle; the homing of a free
   arm in the aiming mode at START; the detour's time from the alignment start.
+
+#### The last round: the open lockouts become offers (2026-11-21)
+
+**Confirmed by:** *nobody yet.* Decided by the coordinator under the owner's rule of 21 Nov 2026.
+
+* **Four mode answers that differ among themselves** (never recorded). The page says ChromIQ does
+  not know this state and that nothing moved; its first answer is End measurement (nothing
+  more), its second "Try to bring the arm home". That asks its own hands-off question
+  (M-I1IO-DRIVE-REPAIR-MIXED: what is known, what is not, what will move; asked with the guidance
+  off too; Not now goes back to the first page and sends nothing), then sends the repair
+  `s0 p0 [way home] i1 s0 f0 f4 f4 p0`, whose every line is recorded with the mode on and off. The
+  sitting then ends (the page names End measurement and START): the next START reads the table
+  afresh. A try that fails is the failure page (the power switch, START, the log). The same after
+  the start-up (the four answers after i0). The raw answers are in the log.
+* **An a0 never seen that ends in "1800"** (the just-switched-on family): treated as just switched
+  on; the start-up page says the answer first and that what the table does is not known, and is
+  always asked (also with the guidance off); Not now sends nothing. **Any other a0 never seen**
+  stays a refusal: no recorded command is sent into an unrecorded warm state.
+* **What remains open:** a repair homing that fails on every START (the page names the power
+  switch, START and the log).
+* The wire gate is unchanged: nothing outside the recorded forms is allowed.
 
