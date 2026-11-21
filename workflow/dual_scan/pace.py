@@ -225,6 +225,9 @@ def log_result(ev: dict) -> None:
                 "max_window_flatness": _num(ev.get("max_window_flatness")),
                 # second fix round: the UV pass lined up (offset subtracted, how clearly)
                 "align": str(ev.get("align") or "") or None,
+                # the window the readings were counted in: "span_less_edge" (lined up) or
+                # "central_60" (4.3.54's, the fallback); edge_steps -1 then
+                "window": str(ev.get("window") or "") or None,
                 "offset_steps": _num(ev.get("offset_steps")),
                 "offset_rise": _num(ev.get("offset_rise"))})
             if str(ev.get("why") or "") == "uv_pass_too_fast":

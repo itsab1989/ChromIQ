@@ -212,6 +212,14 @@ static const char *cq_dd_fits(int scan, int clocks) {
 	return NULL;
 }
 
+/* The window a strip is cut with (third round of 2026-11-21, S1): the
+ * narrow one (the span less CQ_DUAL_EDGE_STEPS) ONLY on positions that were
+ * lined up; every other way here (nothing clear to line up by, no lamp
+ * readings to line up with) gets 4.3.54's central 60 % (edge < 0). */
+static double cq_dd_edge(const char *align_state) {
+	return align_state != NULL && strcmp(align_state, "lined_up") == 0 ? CQ_DUAL_EDGE_STEPS : -1.0;
+}
+
 /* THE PACE OF A HAND DUAL STRIP (after 4.3.54): what the person needs to
  * learn his pace and what the app log keeps for a tester's report. Every
  * number is measured: readings x their integration time (the instrument
@@ -286,8 +294,8 @@ static void cq_dd_result(const char *what, const char *strip, const char *why, i
 		         "\"uv_s\":%.2f,\"uv_travel\":%.0f,\"uv_dir\":%d,"
 		         "\"lamp_off_ms\":%ld,\"uv_dark_ms\":%ld,\"uv_trigger_ms\":%ld,\"uv_done_ms\":%ld,"
 		         "\"flatness\":%.6g,\"window_flatness\":%.6g,\"max_window_flatness\":%.6g,"
-		         "\"offset_steps\":%.2f,\"offset_rise\":%.3g,\"align\":\"%s\"",
-		         CQ_DUAL_MIN_UV, (double)CQ_DUAL_EDGE_STEPS, rs * 1000.0,
+		         "\"offset_steps\":%.2f,\"offset_rise\":%.3g,\"align\":\"%s\",\"window\":\"%s\"",
+		         CQ_DUAL_MIN_UV, cq_dd_edge(pc->align_state), rs * 1000.0,
 		         pc->n1, pc->n1 * rs, pc->lamp_travel, pc->lamp_dir,
 		         pc->n2 * rs, pc->uv_travel, pc->uv_dir,
 		         cq_dd_after(pc->t.lamp_off, b), cq_dd_after(pc->t.uv_dark, b),
@@ -295,7 +303,8 @@ static void cq_dd_result(const char *what, const char *strip, const char *why, i
 		         pc->flat_c == pc->flat_c ? pc->flat_c : -1.0,
 		         pc->flat_w == pc->flat_w ? pc->flat_w : -1.0, (double)CQ_DUAL_MAX_EDGE_FLATNESS,
 		         pc->align_off, pc->align_rise == pc->align_rise && pc->align_rise < 1e6
-		         ? pc->align_rise : -1.0, pc->align_state != NULL ? pc->align_state : "");
+		         ? pc->align_rise : -1.0, pc->align_state != NULL ? pc->align_state : "",
+		         cq_dd_edge(pc->align_state) >= 0.0 ? "span_less_edge" : "central_60");
 	}
 	cq_emit_raw("{\"event\":\"dual_pass_result\",\"what\":\"%s\",\"strip\":\"%s\",\"ok\":%s,"
 	            "\"why\":\"%s\",\"uv_readings\":%d,\"fewest_per_patch\":%d,\"uv_triggers\":%d,"
@@ -585,13 +594,13 @@ static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, 
 				if (why == NULL)
 				why = cq_dual_cut(CQ_DUAL_NB, npatch, (const int (*)[2])cells, n1, lp,
 				                  u.n, up, u.U, CQ_DUAL_TRIM, CQ_DUAL_MIN_UV,
-				                  strcmp(align_state, "not_lined_up") == 0 ? -1.0
-				                  : CQ_DUAL_EDGE_STEPS, cutv, counts);
+				                  cq_dd_edge(align_state), cutv, counts);
 				/* fix round of 2026-11-21: both alignment measures for the log */
 				flat_c = cq_dual_flatness(CQ_DUAL_NB, npatch, (const int (*)[2])cells, lp,
 				                          u.n, up, u.U, CQ_DUAL_TRIM);
-				flat_w = cq_dual_window_flatness(CQ_DUAL_NB, npatch, (const int (*)[2])cells,
-				                                 lp, u.n, up, u.U, CQ_DUAL_EDGE_STEPS);
+				flat_w = cq_dd_edge(align_state) >= 0.0
+				         ? cq_dual_window_flatness(CQ_DUAL_NB, npatch, (const int (*)[2])cells,
+				                                   lp, u.n, up, u.U, CQ_DUAL_EDGE_STEPS) : -1.0;
 				free(cells);
 				if (strcmp(align_state, "refused") == 0) {
 					free(counts);		/* no cut was made: no counts to report */

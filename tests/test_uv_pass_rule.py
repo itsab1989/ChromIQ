@@ -158,7 +158,7 @@ def _python(cells, lp, up, uv):
     flat = cut._flatness(spans, upa, np.asarray(uv, float), cut.TRIM)
     wflat = cut._flatness(spans, upa, np.asarray(uv, float), cut.TRIM, edge=cut.EDGE_STEPS)
     try:
-        r = cut.cut_uv_pass(cells, lp, up, uv)
+        r = cut.cut_uv_pass(cells, lp, up, uv, edge=cut.EDGE_STEPS)   # the bare cut (C's twin)
         why = "ok"
         assert r.counts == counts
         np.testing.assert_allclose(r.uv[:, 0], firsts, rtol=0, atol=1e-13)
@@ -208,7 +208,7 @@ def test_a_uv_pass_at_the_lamp_pass_pace_is_accepted_where_4354_refused():
     cells. 4.3.54's central 60 % held 2 readings in the worst patch; the whole span less half a
     step holds 3 or more."""
     cells, lp, up, uv = _strip(3, lamp_speed=1.5, uv_speed=1.7, patch_steps=19.0)
-    r = cut.cut_uv_pass(cells, lp, up, uv)
+    r = cut.cut_uv_pass(cells, lp, up, uv, lamp_sig=_strip.lamp_sig)
     assert min(r.counts) >= cut.MIN_UV_READINGS
     old = []
     for s, n in cells:                  # what 4.3.54 counted on the same strip
@@ -225,7 +225,7 @@ def test_readings_within_a_quarter_step_of_the_span_end_are_left_out():
     lp = np.arange(15, dtype=float) * 2.0          # spans 0-8, 10-18, 20-28
     uv_at = np.array([0.24, 0.25, 4.0, 7.75, 7.76, 10.25, 14.0, 17.75, 20.25, 24.0, 27.75, 27.8])
     ur = np.ones((uv_at.size, 36))
-    r = cut.cut_uv_pass(cells, lp, uv_at, ur)
+    r = cut.cut_uv_pass(cells, lp, uv_at, ur, edge=cut.EDGE_STEPS)
     assert r.counts == [3, 3, 3]                   # 0.24 and 7.76 / 27.8 are out
     with pytest.raises(DualScanRefused) as e:
         cut.cut_uv_pass(cells, lp, uv_at, ur, edge=1.0)
@@ -293,7 +293,7 @@ def test_without_the_alignment_a_shift_damages_patch_ends():
         c0, lp0, up0, uv0, ls0 = _aligned_strip(1, -0.85)
         ref = cut.cut_uv_pass(c0, lp0, up0, uv0, lamp_sig=ls0)
         try:
-            r = cut.cut_uv_pass(c, lp, up, uv)
+            r = cut.cut_uv_pass(c, lp, up, uv, edge=cut.EDGE_STEPS)   # narrow, NOT lined up
         except DualScanRefused:
             continue
         worst = max(worst, float(np.max(np.abs(r.uv[:, 0] - ref.uv[:, 0]) / ref.uv[:, 0])))
@@ -368,10 +368,95 @@ def test_a_strip_with_nothing_to_line_up_by_keeps_4354s_window():
     assert r.counts == old
 
 
+def _central_counts(c, lp, up):
+    out = []
+    for s_, n in c:
+        lo, hi = sorted((lp[s_], lp[s_ + n - 1]))
+        out.append(int(((up >= lo + 0.2 * (hi - lo)) & (up <= hi - 0.2 * (hi - lo))).sum()))
+    return out
+
+
+def test_without_the_lamp_readings_the_cut_keeps_4354s_window():
+    """Third round, S1: no lamp readings to line up with (the helper's "not_measured": a lamp
+    pass over 4000 readings, a failed allocation) never reaches the narrow window on positions
+    nobody lined up: 4.3.54's central 60 % instead, as for "nothing clear to line up by"."""
+    c, lp, up, uv, _ls = _aligned_strip(2, 0.0)
+    r = cut.cut_uv_pass(c, lp, up, uv)
+    assert r.lined_up == "not_measured" and r.counts == _central_counts(c, lp, up)
+    assert r.window_flatness != r.window_flatness          # the narrow window's gate not asked
+
+
+def _jump_strip(seed, jump, at=0.5):
+    """the UV pass's offset jumps by *jump* steps part way through the pass (a lost or added
+    ruler count, a hand reversal)"""
+    c, lp, up, uv, ls = _aligned_strip(seed, 0.0)
+    up = up.copy()
+    k = int(up.size * at)
+    up[k:] += jump
+    return c, lp, up, uv, ls
+
+
+@pytest.mark.parametrize("jump", [0.5, 1.0, -1.0])
+def test_an_offset_changing_by_up_to_one_step_mid_pass_stays_right(jump):
+    """the verification: a step of up to 1 step (a hand reversal flips the count's label by about
+    1) is lined up to the larger part and every patch stays within 1.5 % (its replay: at most
+    0.14 dE00 M2)"""
+    c0, lp0, up0, uv0, ls0 = _aligned_strip(1, -0.85)
+    ref = cut.cut_uv_pass(c0, lp0, up0, uv0, lamp_sig=ls0)
+    c, lp, up, uv, ls = _jump_strip(1, jump)
+    r = cut.cut_uv_pass(c, lp, up, uv, lamp_sig=ls)
+    assert r.lined_up == "lined_up"
+    assert float(np.max(np.abs(r.uv[:, 0] - ref.uv[:, 0]) / ref.uv[:, 0])) <= 0.015
+
+
+def test_a_jump_of_several_steps_mid_pass_falls_back_or_is_refused():
+    """The stated limit (design section 17): a jump of 3 steps or more in mid pass leaves no
+    single offset that fits; the strip is not lined up and gets 4.3.54's window (its exposure:
+    the replay showed up to 3.9 dE00 there), or it is refused; it is never cut narrow."""
+    for jump in (4.0, -4.0, 5.0):
+        c, lp, up, uv, ls = _jump_strip(3, jump)
+        try:
+            r = cut.cut_uv_pass(c, lp, up, uv, lamp_sig=ls)
+        except DualScanRefused as e:
+            assert e.reason in ("uv_pass_shifted", "uv_pass_misaligned", "uv_pass_too_fast",
+                                "uv_pass_stalled", "uv_pass_short"), e.reason
+            continue
+        assert r.lined_up in ("not_lined_up", "lined_up")
+        if r.lined_up == "not_lined_up":
+            assert r.counts == _central_counts(c, lp, up - 0.0)
+
+
+def _low_contrast(c, lp, up, uv, ls, k, seed=0):
+    """the 380-400 nm band only (what the alignment reads) squeezed to k x its contrast, the
+    reading noise kept: an OBA paper where every patch is dark there"""
+    rng = np.random.default_rng(seed)
+    uv = uv.copy()
+    m = uv[:, :3].mean()
+    uv[:, :3] = m + k * (uv[:, :3] - m) + rng.normal(0, 0.002, (uv.shape[0], 3))
+    lm = ls.mean()
+    return lm + k * (ls - lm) + rng.normal(0, 0.002, ls.size), uv
+
+
+def test_a_strip_with_low_380_400_contrast_is_lined_up_while_its_edges_are_clear():
+    """The tester's 480-patch chart on an OBA paper has about 0.4 x the 380-400 nm patch-to-patch
+    contrast of the recorded strips (work folder proof4): at that contrast the strip still lines
+    up (and every patch stays right); only far below it does it fall back to 4.3.54's window."""
+    c, lp, up, uv, ls = _aligned_strip(5, 0.0)
+    ls4, uv4 = _low_contrast(c, lp, up, uv, ls, 0.4)
+    r = cut.cut_uv_pass(c, lp, up, uv4, lamp_sig=ls4)
+    assert r.lined_up == "lined_up" and r.offset == pytest.approx(0.85, abs=0.15)
+    ls0, uv0 = _low_contrast(c, lp, up, uv, ls, 0.01)
+    r0 = cut.cut_uv_pass(c, lp, up, uv0, lamp_sig=ls0)
+    assert r0.lined_up == "not_lined_up" and r0.counts == _central_counts(c, lp, up)
+
+
 def test_the_helper_calls_the_cut_with_the_edge():
     src = (ROOT / "native" / "chartread_helper" / "chromiq_dualdev.c").read_text(encoding="utf-8")
-    assert ('strcmp(align_state, "not_lined_up") == 0 ? -1.0\n\t\t\t\t                  '
-            ': CQ_DUAL_EDGE_STEPS, cutv, counts)') in src
+    assert "cq_dd_edge(align_state), cutv, counts);" in src
+    j = src.index("static double cq_dd_edge(")
+    edge_fn = src[j:src.index("\n}\n", j)]
+    # the narrow window ONLY on lined-up positions (third round, S1)
+    assert 'strcmp(align_state, "lined_up") == 0 ? CQ_DUAL_EDGE_STEPS : -1.0' in edge_fn
     h = (ROOT / "native" / "chartread_helper" / "chromiq_dualscan.h").read_text(encoding="utf-8")
     assert "#define CQ_DUAL_EDGE_STEPS 0.25" in h and "#define CQ_DUAL_MIN_UV 3" in h
     i = src.index("static void cq_dd_strip(")

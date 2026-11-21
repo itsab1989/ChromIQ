@@ -17,8 +17,11 @@ UV positions are corrected by the offset measured per strip
 (:func:`estimate_offset`, the helper's ``cq_dual_align``) before the cut; the
 window is then the span less :data:`EDGE_STEPS` (0.25). Replayed per patch with
 the UV positions shifted -6 to +6 steps at 1 to 1.5 times the speed: every
-patch of every accepted strip within 0.09 dE00 (M2) of the same patch at the
-recorded alignment. The text below is the first version's (half a step,
+patch of every lined-up, accepted strip within 0.09 dE00 (M2) of the same
+patch at the recorded alignment. A strip that cannot be lined up (nothing
+clear to line up by, or no lamp signal given) is cut with 4.3.54's central
+60 % instead, with 4.3.54's limits (design section 17); the narrow window is
+never used on positions nobody lined up. The text below is the first version's (half a step,
 without the correction).
 
 THE WINDOW (after 4.3.54, 2026-11-21). Until 4.3.54 the window was the
@@ -126,9 +129,14 @@ def reading_positions(step_samples: np.ndarray, positions: np.ndarray,
     return np.interp(centres, t, p)
 
 
+#: cut_uv_pass's *edge* when the caller gives none: the narrow window only on
+#: lined-up positions, else 4.3.54's central 60 % (third round, S1)
+_EDGE_BY_ALIGNMENT = object()
+
+
 def cut_uv_pass(cells, lamp_pos, uv_pos, uv_readings, *, trim: float = TRIM,
                 min_readings: int = MIN_UV_READINGS,
-                edge: "float | None" = EDGE_STEPS, lamp_sig=None) -> CutResult:
+                edge=_EDGE_BY_ALIGNMENT, lamp_sig=None) -> CutResult:
     """The UV reading of each lamp cell. *cells*: [(first lamp reading,
     number of readings)] in patch order; *lamp_pos* / *uv_pos*: ruler
     position of each lamp / UV reading; *uv_readings*: [n_uv, bands]."""
@@ -148,6 +156,14 @@ def cut_uv_pass(cells, lamp_pos, uv_pos, uv_readings, *, trim: float = TRIM,
     if np.any(np.diff(up) == 0) and np.count_nonzero(np.diff(up)) < up.size // 2:
         raise DualScanRefused("uv_pass_stalled", "the ruler stood still")
     offset, rise, lined = 0.0, float("nan"), "not_asked"
+    by_alignment = edge is _EDGE_BY_ALIGNMENT
+    if by_alignment:
+        # the helper's rule (chromiq_dualdev.c cq_dd_edge): without the lamp pass's
+        # readings nothing is lined up, so 4.3.54's window (an explicit *edge* is the
+        # bare cut, the C cq_dual_cut's twin)
+        edge = EDGE_STEPS if lamp_sig is not None else None
+        if lamp_sig is None:
+            lined = "not_measured"
     if lamp_sig is not None:
         # the helper's order (chromiq_dualdev.c): line the UV pass up first
         ends = []

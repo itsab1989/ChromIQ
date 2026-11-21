@@ -71,11 +71,14 @@ const char *cq_dual_cut(int nb, int ncell, const int (*cells)[2],
  * readings beyond the span stay inside ArgyllCMS's own trimmed-off sixth of
  * the patch. PER PATCH, replayed with the UV positions shifted -6 to +6
  * steps by 0.25, at 1, 1.1, 1.25 and 1.5 times the speed: on every strip
- * accepted, every patch within 0.09 dE00 (M2) and 0.02 (M1) of the same
+ * lined up and accepted, every patch within 0.09 dE00 (M2) and 0.02 (M1) of the same
  * patch read at the recorded alignment with 4.3.54's window; no good pass
  * refused (2 to 5 times the noise); the first refusal for speed at about 1.7
  * times the recorded pace (median; 4.3.54 1.05, the lamp pass about 1.67).
- * Work folder 2026-11-21_uv_pass_build, proof3/. */
+ * The narrow window is used ONLY on lined-up positions (chromiq_dualdev.c
+ * cq_dd_edge); a strip that is not lined up gets 4.3.54's central 60 % and
+ * 4.3.54's limits (design section 17). Work folder
+ * 2026-11-21_uv_pass_build, proof3/. */
 #define CQ_DUAL_EDGE_STEPS 0.25
 #define CQ_DUAL_TRIM 0.2			/* the alignment gate's window only */
 #define CQ_DUAL_MIN_UV 3			/* a noise floor: 3 readings of 4.9 ms */
@@ -153,7 +156,8 @@ const char *cq_dual_pairing(const cq_dual_cal *c, int n, const double *L, const 
  * UV signal's mean), over the strip's patches. The UV positions are then
  * corrected by it before the cut. Refused ("uv_pass_shifted") when the
  * offset is larger than CQ_DUAL_MAX_OFFSET (the instrument moved between
- * the passes beyond anything recorded) or the fit is not clearly best
+ * the passes beyond anything recorded). Not lined up (cut uncorrected with
+ * 4.3.54's window, see CQ_DUAL_NOT_LINED_UP) when the fit is not clearly best
  * there (the residual 1 step either side less than CQ_DUAL_MIN_RISE times
  * the best: no clear patch edges to line up by: CQ_DUAL_NOT_LINED_UP, not a
  * refusal, see below). cut.py::estimate_offset is

@@ -158,10 +158,12 @@ mismatch (white at 154 clocks, strip at 139), which `calibration_mismatch` refus
   instrument lifted between the passes, the ruler's count lost). Measured: 0.00001-0.00004 in
   place, 0.09-0.35 half a pitch off. Not judged when the strip's patches hardly differ (note
   `alignment_not_checked`). This measure is taken over the central 60 % of each cell. After
-  4.3.54 the UV pass is first lined up with the lamp pass by their 380-400 nm readings (an offset
-  above 3 steps, or one that does not fit clearly best, is refused as `uv_pass_shifted`), and the
-  same measure over the averaging window must also stay at or below 0.001 (section 17). The
-  per-patch claim is section 17's.
+  4.3.54 the UV pass is first lined up with the lamp pass by their 380-400 nm readings: an offset
+  above 3 steps is refused as `uv_pass_shifted`; then the same measure over the averaging window
+  must also stay at or below 0.001 (section 17). A strip that cannot be lined up (no single
+  offset fits clearly, or no lamp readings to line up with) is NOT refused: it is cut uncorrected
+  with 4.3.54's central 60 %, with 4.3.54's limits (section 17). The per-patch claim is section
+  17's and holds for lined-up strips.
 * A lamp pass read again keeps the strip's UV pass only when the UV pass is proved to belong to
   it; otherwise the UV pass is due again (`lamp_pass_changed`).
 * A dual scan by hand needs the ruler: without usable ruler positions the UV pass cannot be
@@ -953,10 +955,31 @@ says about the UV pass's window.
   +6.5 steps in 0.05) that best lines the two up, one gain, least squares
   (`cq_dual_align` / `cut.estimate_offset`). The UV positions are corrected by it, then cut.
   Refused as `uv_pass_shifted` (M-DUAL-PASS-SHIFTED: both passes again, section 0 (a)) when the
-  offset is above 3 steps (beyond anything recorded: the instrument moved between the passes) or
-  the fit is not clearly best (the residual one step either side below 1.15 times the best; good
-  passes give 1.36 at least). The averaging window's measure (0.001) stays as a second check; it
-  is an average over the strip and does not by itself hold a single patch.
+  offset is above 3 steps (beyond anything recorded: the instrument moved between the passes).
+  The averaging window's measure (0.001) stays as a second check; it is an average over the strip
+  and does not by itself hold a single patch.
+* **When a strip cannot be lined up: 4.3.54's window, not a refusal (third round of 2026-11-21,
+  decided by the coordinator: "we do not block what can be measured today").** Two cases: (1) no
+  single offset fits clearly (the residual one step either side below 1.15 times the best: patches
+  alike at 380-400 nm, or an offset that changes by several steps along the pass); (2) the helper
+  has no lamp readings to line up with (a lamp pass over 4000 readings, a failed allocation). The
+  strip is then cut UNCORRECTED with 4.3.54's central 60 % window and 4.3.54's gate, exactly
+  4.3.54's behaviour and exposure, not a new one: measured on the replay, fine up to about 2 steps
+  of real offset (at most 0.095 dE00 per patch at the recorded offsets), beyond that up to 1.2
+  dE00 for a uniform offset and up to 3.9 dE00 when the offset jumps by 3 steps or more in mid
+  pass (the pairing check does not catch that). On such a strip the speed gain is lost too: the
+  readings are counted in the central 60 %, and the pace line and the "too fast" advice are
+  computed from those counts (the window actually used), so they ask for the slower pace again.
+  The narrow window is used ONLY on lined-up positions (`cq_dd_edge`). The app log says per strip
+  which way was taken: `align=lined_up offset_steps=... offset_rise=... window=span_less_edge`, or
+  `align=not_lined_up` / `not_measured` with `window=central_60` and `edge_steps=-1`.
+* **The tester's own chart (480 patches on Action, an OBA paper).** At 380-400 nm its
+  patch-to-patch contrast is about 0.39 times that of instrument 1's 13 recorded strips (also
+  Action and Moab, both strongly brightened). Simulated with the recordings' geometry and noise
+  and their measured mismatch between the passes (checked against the replay), all 20 of his
+  strips line up (720 of 720 passes, 1x and 1.25x, shifts -1 to +1). The margin to the "not clear"
+  line is smaller than on the recordings; a strip falls back only far below his contrast (about
+  0.15 times the recordings'). Work folder `proof4/`.
 * **Why a quarter step (the physical reason).** After the correction what is left is the
   estimate's own scatter: replayed at up to 1.5 times the speed and with up to 5 times the noise,
   median 0.05, at most 0.20 steps; rounded up to the next quarter step. Readings beyond the span
@@ -967,15 +990,18 @@ says about the UV pass's window.
   dE00 in M2 and 0.02 in M1 of the same patch read at the recorded alignment with 4.3.54's window
   (the largest, +0.087, is one patch whose difference is reading noise, the same at every shift).
   Shifts that leave an offset above 3 steps are refused. No good pass refused (recorded alignment,
-  2 to 5 times the noise, 234 passes). C and Python give the same offset on all 13 strips.
+  2 to 5 times the noise, 234 passes). C and Python give the same offset on all 13 strips. This
+  claim is for strips that were lined up, with an offset that holds along the pass; an offset that
+  changes by up to 1 step in mid pass stays within about 0.14 dE00 per patch; strips that cannot
+  be lined up have 4.3.54's limits (above).
 * **What it changes, replayed (at the recorded alignment).** M1 / M2 against i1Profiler unchanged
   within noise. The simulated speed of the first refusal rises from about 1.05 to about 1.7 times
   the recorded i1Profiler pace (median of 13 strips, least 1.25; the lamp pass's own limit is about
   1.67): of the 13 recorded strips, 4.3.54's rule refused 4 at the recorded pace, the new rule none.
   The earlier private proofs had cut with the cells before ArgyllCMS's trim and over-counted; with
   the cells the helper uses, the recorded vendor pace already sat on 4.3.54's limit.
-* **What is not shown:** strips whose patches hardly differ in the LED band (nothing to line up
-  by: refused as not clearly fitting, not yet seen on a real chart), and a second instrument.
+* **What is not shown:** a real chart that falls back (none of the recorded strips, none of the
+  tester's simulated ones), and a second instrument.
 * **The pace after each strip** (no new window). The helper's `dual_pass_result` of a hand strip
   carries, after the cut, `pace: true` with each pass's seconds (its readings x their integration
   time), readings, ruler travel in counts and direction, the readings per patch of both passes
