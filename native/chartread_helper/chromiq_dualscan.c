@@ -94,7 +94,7 @@ static int cq_cnt_tmp[CQ_DUAL_MAXCELL];
 const char *cq_dual_cut(int nb, int ncell, const int (*cells)[2],
                         int nlamp, const double *lamp_pos,
                         int nuv, const double *uv_pos, const double *uv,
-                        double trim, int min_readings,
+                        double trim, int min_readings, double edge,
                         double *out, int *counts) {
 	int k, i, j;
 	double lmin, lmax, umin, umax;
@@ -122,18 +122,18 @@ const char *cq_dual_cut(int nb, int ncell, const int (*cells)[2],
 		return "uv_pass_count";
 	for (k = 0; k < ncell; k++) {
 		int s = cells[k][0], n = cells[k][1], cnt = 0;
-		double a, b, lo, hi, w;
+		double a, b, lo, hi;
 		if (n < 1 || s < 0 || s + n > nlamp)
 			return "uv_pass_count";
 		a = lamp_pos[s];
 		b = lamp_pos[s + n - 1];
 		lo = a < b ? a : b;
 		hi = a < b ? b : a;
-		w = hi - lo;
 		for (j = 0; j < nb; j++)
 			out[k * nb + j] = 0.0;
+		/* the whole span less *edge* ruler steps at each end (header) */
 		for (i = 0; i < nuv; i++) {
-			if (uv_pos[i] >= lo + trim * w && uv_pos[i] <= hi - trim * w) {
+			if (uv_pos[i] >= lo + edge && uv_pos[i] <= hi - edge) {
 				for (j = 0; j < nb; j++)
 					out[k * nb + j] += uv[i * nb + j];
 				cnt++;

@@ -435,7 +435,8 @@ static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, 
 					cells[k][1] = r.cut_no[k];
 				}
 				why = cq_dual_cut(CQ_DUAL_NB, npatch, (const int (*)[2])cells, n1, lp,
-				                  u.n, up, u.U, CQ_DUAL_TRIM, CQ_DUAL_MIN_UV, cutv, counts);
+				                  u.n, up, u.U, CQ_DUAL_TRIM, CQ_DUAL_MIN_UV,
+				                  CQ_DUAL_EDGE_STEPS, cutv, counts);
 				free(cells);
 			}
 		}

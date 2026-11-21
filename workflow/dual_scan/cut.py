@@ -4,17 +4,33 @@ In a hand-held dual scan the strip is swiped twice: forward under the lamp,
 back under the UV LED (i1Profiler: lamp pass with "ruler start", UV pass
 with "ruler end", so ONE continuous ruler stream covers both). ArgyllCMS's
 patch recogniser finds the patches in the lamp pass (cells: first reading
-and number of readings). Each reading of either pass has a ruler position
+and number of readings, already trimmed by ArgyllCMS to the clean middle
+66 % of each patch). Each reading of either pass has a ruler position
 (the position at the reading's centre, interpolated between ruler steps,
-as ArgyllCMS's i1Pro 3 code does). A lamp cell spans a position range; the
-UV readings whose position lies in its central part (``1 - 2 * TRIM`` of
-it) are averaged into that patch's UV reading.
+as ArgyllCMS's i1Pro 3 code does). A lamp cell spans a position range (its
+first to its last reading); the UV readings whose position lies in that
+span less :data:`EDGE_STEPS` ruler steps at each end are averaged into that
+patch's UV reading.
+
+THE WINDOW (after 4.3.54, 2026-11-21). Until 4.3.54 the window was the
+central 60 % of the span (``TRIM`` 0.2 at each end), on top of ArgyllCMS's
+own trim, so the UV pass needed about 1.5 times slower movement than the
+lamp pass (27 of 87 UV passes refused on a tester's instrument). The half
+step's PHYSICAL reason: the ruler's count labels the same stripe edge one
+count apart in the two directions, so the UV pass's positions sit about one
+step off the lamp pass's (instrument 1's 13 recorded hand dual strips: 0.55
+to 1.45 steps, median 0.85); the span lies half a lamp reading inside the
+lamp readings' own extent, so only the last half step at the leading end
+shows the neighbouring patch (0.7 % of the difference at the recorded speed,
+1.7 % at 1.5 times; 0.1 % further in). Replayed: M1 / M2 against i1Profiler
+unchanged within 0.001 dE00 mean; the speed at which the first strip is
+refused rises from about 1.05 to about 1.5 times the recorded one (the lamp
+pass's own limit is about 1.67). The C twin is ``chromiq_dualscan.c``
+(``CQ_DUAL_EDGE_STEPS``). Work folder 2026-11-21_uv_pass_build, proof.txt.
 
 SOURCE: the first analysis of 2026-11-17 (private), ``process.py::_uv_cut``:
-central 60 % of each cell; alignment checked 0.00001-0.00004 (variance
-inside the carried-over cells against between them) in place against
-0.09-0.35 half a pitch off; at least 4-5 UV readings per patch at normal
-speed, 9-10 slow.
+alignment checked 0.00001-0.00004 (variance inside the carried-over cells
+against between them) in place against 0.09-0.35 half a pitch off.
 
 ALIGNMENT (review of 2026-11-18, S3). The same analysis's alignment measure
 (:func:`_flatness`) is now a gate: above :data:`MAX_FLATNESS` the UV pass
@@ -37,9 +53,14 @@ import numpy as np
 
 from workflow.dual_scan.reasons import DualScanRefused
 
-#: fraction of a cell left out at each end (edges blur through the aperture)
+#: ruler steps left out at each end of a cell's span (the direction offset
+#: of the ruler's count; module docstring)
+EDGE_STEPS = 0.5
+#: fraction of a cell's span left out at each end by the ALIGNMENT gate
+#: (:func:`_flatness`) only; not the UV readings' window since 4.3.54
 TRIM = 0.2
-#: fewest UV readings a patch may be averaged from (recordings: 4 or more)
+#: fewest UV readings a patch may be averaged from (a noise floor: three
+#: readings of 4.9 ms, the lamp pass's own integration)
 MIN_UV_READINGS = 3
 #: largest within-cell / between-cell variance of an aligned pass
 MAX_FLATNESS = 0.01
@@ -72,7 +93,8 @@ def reading_positions(step_samples: np.ndarray, positions: np.ndarray,
 
 
 def cut_uv_pass(cells, lamp_pos, uv_pos, uv_readings, *, trim: float = TRIM,
-                min_readings: int = MIN_UV_READINGS) -> CutResult:
+                min_readings: int = MIN_UV_READINGS,
+                edge: float = EDGE_STEPS) -> CutResult:
     """The UV reading of each lamp cell. *cells*: [(first lamp reading,
     number of readings)] in patch order; *lamp_pos* / *uv_pos*: ruler
     position of each lamp / UV reading; *uv_readings*: [n_uv, bands]."""
@@ -98,8 +120,7 @@ def cut_uv_pass(cells, lamp_pos, uv_pos, uv_readings, *, trim: float = TRIM,
             raise DualScanRefused("uv_pass_count", "cell outside the lamp pass")
         a, b = lp[start], lp[start + length - 1]
         lo, hi = min(a, b), max(a, b)
-        w = hi - lo
-        m = (up >= lo + trim * w) & (up <= hi - trim * w)
+        m = (up >= lo + edge) & (up <= hi - edge)
         counts.append(int(m.sum()))
         spans.append((lo, hi))
         out.append(ur[m].mean(axis=0) if m.any() else np.full(ur.shape[1], np.nan))

@@ -43,15 +43,40 @@ const char *cq_dual_patch(const cq_dual_cal *c, double s, const double *L,
  * uv[nuv][nb]; out[ncell][nb], counts[ncell]. NULL on success, else a
  * reason id ("no_ruler", "uv_pass_count", "uv_pass_short",
  * "uv_pass_stalled", "uv_pass_too_fast": cut.py::travel_verdict;
- * "uv_pass_misaligned": the alignment gate, cut.py::_flatness). */
+ * "uv_pass_misaligned": the alignment gate, cut.py::_flatness).
+ * A patch's UV readings are those whose ruler position lies in its lamp
+ * cell's span (the first to the last lamp reading's position) less *edge*
+ * ruler steps at each end (CQ_DUAL_EDGE_STEPS, cut.py EDGE_STEPS); *trim*
+ * is the alignment gate's own window (a fraction of the span at each end,
+ * CQ_DUAL_TRIM), unchanged since 4.3.45. */
 const char *cq_dual_cut(int nb, int ncell, const int (*cells)[2],
                         int nlamp, const double *lamp_pos,
                         int nuv, const double *uv_pos, const double *uv,
-                        double trim, int min_readings,
+                        double trim, int min_readings, double edge,
                         double *out, int *counts);
 
-#define CQ_DUAL_TRIM 0.2
-#define CQ_DUAL_MIN_UV 3
+/* THE UV READINGS OF A PATCH (after 4.3.54, 2026-11-21). The cells are ArgyllCMS's
+ * own, already trimmed to the clean middle 66 % of each patch it found in the
+ * lamp pass (its i1Pro driver, "Trim to 66 %"), and it accepts a lamp patch from
+ * 4 readings there. Until 4.3.54 the UV pass then used only the central 60 %
+ * of that span (trim 0.2 at each end), so it needed about 1.5 times slower
+ * movement than the lamp pass (27 of 87 UV passes refused on a tester's
+ * instrument, 21 Nov 2026). Now the whole span less half a ruler step at
+ * each end. The PHYSICAL reason for the half step: the ruler's count labels
+ * the same stripe edge one count apart in the two directions (it changes to
+ * k + 1 on the way up and to k on the way down at the same edge), so the
+ * UV pass's positions sit about one step off the lamp pass's (measured on
+ * instrument 1's 13 recorded hand dual strips: 0.55 to 1.45 steps, median
+ * 0.85); the span itself lies half a lamp reading inside the lamp readings'
+ * own extent, so only the last half step at the leading end shows the
+ * neighbour (UV readings there lean 0.7 % towards the neighbouring patch,
+ * 1.7 % when the pass is 1.5 times faster; further in 0.1 %; including
+ * them raised M2's mean by 0.002 to 0.003 dE00 and its worst patch to
+ * 0.73 dE00 at twice the speed). Half a step keeps M2 at 4.3.54's level at
+ * every speed replayed. Work folder 2026-11-21_uv_pass_build, proof.txt. */
+#define CQ_DUAL_EDGE_STEPS 0.5
+#define CQ_DUAL_TRIM 0.2			/* the alignment gate's window only */
+#define CQ_DUAL_MIN_UV 3			/* a noise floor: 3 readings of 4.9 ms */
 /* review 2026-11-18 (S2 / S3), the same numbers as model.py / cut.py */
 #define CQ_DUAL_MIN_TILE_TE 100.0	/* the UV LED lit: Te 380-410 nm, emission units */
 #define CQ_DUAL_TILE_LO 380.0
