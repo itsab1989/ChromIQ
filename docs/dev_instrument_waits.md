@@ -29,6 +29,11 @@ not (the field sits in Preferences > Beta beside the other waits). Not the i1Pro
 instrument: the wait lives in the i1Pro / i1Pro 2 driver only, which picks the value by the
 model it opened (`CQ_LAMP_OFF_TIME`, `p->dtype`).
 
+**The i1iO table** (second fix round): its window passes both fields to every patch by patch
+reader (`--lamp-off-ms` and, to a helper with the build token `lamp-off-i1pro2`,
+`--lamp-off-ms-i1pro2`), so the table's i1Pro 2 follows the i1Pro 2 field. Its strip rows keep
+the table's own scan waits; the row speed and the table's speed answer do not depend on this wait.
+
 **Old and new together:** a helper without the caps word gets `--lamp-off-ms` alone and applies
 it to the i1Pro 2 too (as 4.3.54). A new helper given only `--lamp-off-ms` (an app of 4.3.53 /
 4.3.54) does the same; given neither, the i1Pro 2 waits 1100 ms and the i1Pro 1500 ms.
@@ -77,8 +82,8 @@ and names it in its `waits` event.
 
 ## Not covered yet
 
-The i1iO table reader (`workflow/i1io/table/reader.py`) starts its own helper
-and passes no waits, so table readings use the compiled values. The table's
+The i1iO table's strip rows use the table's own compiled scan waits (below); its patch by patch
+readers get the two lamp waits (above). The table's
 own scan waits (`cq_tscan.h` `CQ_TSCAN_LAMPOFF_MS` 1070,
 `CQ_TSCAN_LIGHTSOFF_MS` 680, `cq_i1pro2_dual.h` `CQ_TDUAL_DARK_AFTER_LAMP_MS`
 170) are still compiled.

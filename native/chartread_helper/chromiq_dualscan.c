@@ -131,9 +131,13 @@ const char *cq_dual_cut(int nb, int ncell, const int (*cells)[2],
 		hi = a < b ? b : a;
 		for (j = 0; j < nb; j++)
 			out[k * nb + j] = 0.0;
-		/* the whole span less *edge* ruler steps at each end (header) */
+		/* the whole span less *edge* ruler steps at each end (header); *edge* < 0: the
+		 * central part (*trim* at each end), 4.3.54's window, for a pass that could not
+		 * be lined up */
 		for (i = 0; i < nuv; i++) {
-			if (uv_pos[i] >= lo + edge && uv_pos[i] <= hi - edge) {
+			double wlo = edge >= 0.0 ? lo + edge : lo + trim * (hi - lo);
+			double whi = edge >= 0.0 ? hi - edge : hi - trim * (hi - lo);
+			if (uv_pos[i] >= wlo && uv_pos[i] <= whi) {
 				for (j = 0; j < nb; j++)
 					out[k * nb + j] += uv[i * nb + j];
 				cnt++;
@@ -168,7 +172,7 @@ const char *cq_dual_cut(int nb, int ncell, const int (*cells)[2],
 	}
 	/* the same measure over the readings that are AVERAGED (the span less
 	 * *edge*): the two passes lined up there too (header, CQ_DUAL_MAX_EDGE_FLATNESS) */
-	{
+	if (edge >= 0.0) {
 		double f = cq_dual_window_flatness(nb, ncell, cells, lamp_pos, nuv, uv_pos, uv, edge);
 		if (f == f && f > CQ_DUAL_MAX_EDGE_FLATNESS)
 			return "uv_pass_shifted";
@@ -237,6 +241,114 @@ static double cq_dual_flat_win(int nb, int ncell, const int (*cells)[2],
 	if (!(fabs(mu) > 0.0 && sqrt(var) / fabs(mu) >= CQ_DUAL_MIN_ALIGN_SPREAD))
 		return (double)NAN;
 	return (within / (double)nm) / (var > 1e-30 ? var : 1e-30);
+}
+
+/* ---- lining the UV pass up with the lamp pass (second fix round) -------
+ * chromiq_dualscan.h; the Python twin is cut.py::estimate_offset, step for
+ * step: the lamp readings sorted by position, the prediction linearly
+ * interpolated and held flat beyond the ends (numpy's interp), the shifts
+ * -SPAN + k * STEP, the first smallest residual. */
+typedef struct { double x, y; } cq_dual_xy;
+
+static int cq_dual_xy_cmp(const void *a, const void *b) {
+	double x = ((const cq_dual_xy *)a)->x, y = ((const cq_dual_xy *)b)->x;
+	return x < y ? -1 : x > y ? 1 : 0;
+}
+
+static double cq_dual_interp(const cq_dual_xy *p, int n, double x) {
+	int a = 0, b = n - 1;
+	if (x <= p[0].x)
+		return p[0].y;
+	if (x >= p[n - 1].x)
+		return p[n - 1].y;
+	while (b - a > 1) {			/* p[a].x < x <= p[b].x */
+		int c = (a + b) / 2;
+		if (p[c].x < x) a = c;
+		else b = c;
+	}
+	if (p[b].x == p[a].x)
+		return p[b].y;
+	return p[a].y + (p[b].y - p[a].y) * (x - p[a].x) / (p[b].x - p[a].x);
+}
+
+const char *cq_dual_align(int nlamp, const double *lamp_pos, const double *lamp_sig,
+                          int nuv, const double *uv_pos, const double *uv_sig,
+                          double lo, double hi, double *offset, double *rise) {
+	cq_dual_xy *xy;
+	int i, k, nk = (int)floor(2.0 * CQ_DUAL_ALIGN_SPAN / CQ_DUAL_ALIGN_STEP + 0.5) + 1;
+	double *res, best = 0.0, bestd = 0.0, near = -1.0;
+	int bestk = -1;
+	if (offset != NULL) *offset = 0.0;
+	if (rise != NULL) *rise = (double)NAN;
+	if (nlamp < 2 || nuv < CQ_DUAL_ALIGN_MIN_READINGS || lamp_pos == NULL || lamp_sig == NULL
+	 || uv_pos == NULL || uv_sig == NULL)
+		return CQ_DUAL_NOT_LINED_UP;
+	if ((xy = (cq_dual_xy *)malloc(sizeof(cq_dual_xy) * (size_t)nlamp)) == NULL)
+		return "memory";
+	if ((res = (double *)malloc(sizeof(double) * (size_t)nk)) == NULL) {
+		free(xy);
+		return "memory";
+	}
+	for (i = 0; i < nlamp; i++) {
+		xy[i].x = lamp_pos[i];
+		xy[i].y = lamp_sig[i];
+	}
+	qsort(xy, (size_t)nlamp, sizeof(cq_dual_xy), cq_dual_xy_cmp);
+	for (k = 0; k < nk; k++) {
+		double d = -CQ_DUAL_ALIGN_SPAN + k * CQ_DUAL_ALIGN_STEP;
+		double pp = 0.0, pu = 0.0, us = 0.0, g, ss = 0.0;
+		int n = 0;
+		res[k] = -1.0;
+		for (i = 0; i < nuv; i++) {
+			double x = uv_pos[i] - d;
+			if (x >= lo && x <= hi) {
+				double pr = cq_dual_interp(xy, nlamp, x);
+				pp += pr * pr;
+				pu += pr * uv_sig[i];
+				us += uv_sig[i];
+				n++;
+			}
+		}
+		if (n < CQ_DUAL_ALIGN_MIN_READINGS || !(pp > 0.0) || !(us != 0.0))
+			continue;
+		g = pu / pp;
+		for (i = 0; i < nuv; i++) {
+			double x = uv_pos[i] - d;
+			if (x >= lo && x <= hi) {
+				double e = uv_sig[i] - g * cq_dual_interp(xy, nlamp, x);
+				ss += e * e;
+			}
+		}
+		res[k] = sqrt(ss / (double)n) / (us / (double)n);
+		if (bestk < 0 || res[k] < best) {
+			best = res[k];
+			bestk = k;
+		}
+	}
+	if (bestk < 0) {
+		free(xy);
+		free(res);
+		return CQ_DUAL_NOT_LINED_UP;
+	}
+	bestd = -CQ_DUAL_ALIGN_SPAN + bestk * CQ_DUAL_ALIGN_STEP;
+	for (k = 0; k < nk; k++) {
+		double d = -CQ_DUAL_ALIGN_SPAN + k * CQ_DUAL_ALIGN_STEP;
+		if (res[k] >= 0.0 && fabs(d - bestd) >= 1.0 - 1e-9 && (near < 0.0 || res[k] < near))
+			near = res[k];
+	}
+	free(xy);
+	free(res);
+	{
+		/* a perfect fit (no noise) with a worse one a step away is clearly best */
+		double r = near < 0.0 ? 1.0 : best > 0.0 ? near / best : near > 0.0 ? (double)INFINITY : 1.0;
+		if (offset != NULL) *offset = bestd;
+		if (rise != NULL) *rise = r;
+		if (!(r >= CQ_DUAL_MIN_RISE))
+			return CQ_DUAL_NOT_LINED_UP;	/* no clear patch edges: the caller keeps 4.3.54's window */
+		if (fabs(bestd) > CQ_DUAL_MAX_OFFSET + 1e-9)
+			return "uv_pass_shifted";
+	}
+	return NULL;
 }
 
 /* ---- the ruler positions of a hand dual strip (step 2) -------------------

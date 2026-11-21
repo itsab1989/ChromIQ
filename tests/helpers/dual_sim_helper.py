@@ -214,6 +214,9 @@ def main(argv: "list[str]") -> int:
                 "flatness": 0.00002,
                 "window_flatness": 0.0021 if why == "uv_pass_shifted" else 0.00003,
                 "max_window_flatness": 0.001,
+                # second fix round: the UV pass lined up with the lamp pass
+                "offset_steps": 0.85, "offset_rise": 1.7,
+                "align": "refused" if why == "uv_pass_shifted" else "lined_up",
                 "lamp_cells": [c + 3 for c in counts], "uv_counts": counts}
 
     def calibration() -> dict:

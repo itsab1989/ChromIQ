@@ -57,6 +57,11 @@ typedef struct {
 	int lamp_readings;		/* the lamp pass's readings (its ruler share) */
 	int unread;				/* readings the last UV pass gave (also when refused) */
 	cq_dual_times t;		/* when the steps of the last hand strip happened */
+	/* second fix round of 2026-11-21: the lamp pass's own readings at
+	 * 380-400 nm, one value per band per reading (reflectance, the lamp
+	 * white's units), to line the UV pass up with it (cq_dual_align) */
+	double *LS;
+	int lsn;
 } cq_dual_state;
 
 static cq_dual_state *cq_dual_s(void *pp) {
@@ -131,6 +136,9 @@ void i1pro2_cq_dual_arm(void *pp, int phase) {
 		st->ln = 0;
 		st->lamp_readings = 0;
 		memset(&st->t, 0, sizeof(st->t));	/* a new strip: its own times */
+		free(st->LS);
+		st->LS = NULL;
+		st->lsn = 0;
 	}
 	if (phase == CQ_DUAL_PHASE_UV || phase == CQ_DUAL_PHASE_LAMP) {
 		free(st->U);
@@ -258,6 +266,23 @@ void i1pro2_cq_dual_lamp_readings(void *pp, int nreadings) {
 	}
 }
 
+/* The lamp pass's own readings at 380-400 nm (cq_dual.h): hands over the
+ * copy (the caller frees it); 0 when there is none. */
+int i1pro2_cq_dual_take_lamp_readings(void *pp, double **ls, int *n) {
+	cq_dual_state *st = cq_dual_s(pp);
+	if (ls == NULL || n == NULL)
+		return 0;
+	*ls = NULL;
+	*n = 0;
+	if (st == NULL || st->LS == NULL || st->lsn <= 0)
+		return 0;
+	*ls = st->LS;
+	*n = st->lsn;
+	st->LS = NULL;
+	st->lsn = 0;
+	return 1;
+}
+
 /* When the steps of the last hand strip happened (cq_dual.h). */
 void i1pro2_cq_dual_times(void *pp, cq_dual_times *out) {
 	cq_dual_state *st = cq_dual_s(pp);
@@ -283,7 +308,33 @@ int i1pro2_cq_dual_readings(void *pp, double **multimes, int nmeas, double **abs
 	cq_dual_state *st = cq_dual_s(pp);
 	double **wav;
 	int i, j, n;
-	if (st == NULL || st->phase != CQ_DUAL_PHASE_UV)
+	if (st == NULL)
+		return 0;
+	if (st->phase == CQ_DUAL_PHASE_LAMP) {
+		/* second fix round of 2026-11-21: a copy of the lamp pass's readings at
+		 * 380-400 nm (CQ_DUAL_LS_BANDS per reading), for the alignment of the
+		 * UV pass; the lamp pass itself goes on exactly as before (0) */
+		m = (i1proimp *)p->m;
+		s = &m->ms[m->mmode];
+		free(st->LS);
+		st->LS = NULL;
+		st->lsn = 0;
+		n = nmeas <= CQ_DUAL_MAX_UV_READINGS ? nmeas : 0;
+		if (n > 0 && i1pro2_cq_dual_noproc_for_test
+		 && (st->LS = (double *)calloc((size_t)(CQ_DUAL_LS_BANDS * n), sizeof(double))) != NULL)
+			st->lsn = n;
+		else if (n > 0 && (st->LS = (double *)malloc(sizeof(double) * CQ_DUAL_LS_BANDS * n)) != NULL) {
+			wav = dmatrix(0, n - 1, 0, m->nwav[0] - 1);
+			i1pro_absraw_to_abswav(p, 0, s->reflective, n, wav, multimes);
+			for (i = 0; i < n; i++)
+				for (j = 0; j < CQ_DUAL_LS_BANDS; j++)
+					st->LS[i * CQ_DUAL_LS_BANDS + j] = j < m->nwav[0] ? wav[i][j] * s->cal_factor[0][j] : 0.0;
+			free_dmatrix(wav, 0, n - 1, 0, m->nwav[0] - 1);
+			st->lsn = n;
+		}
+		return 0;
+	}
+	if (st->phase != CQ_DUAL_PHASE_UV)
 		return 0;
 	m = (i1proimp *)p->m;
 	s = &m->ms[m->mmode];

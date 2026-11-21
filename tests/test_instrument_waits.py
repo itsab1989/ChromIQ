@@ -293,7 +293,7 @@ def test_the_bundled_helper_takes_the_waits():
     if not exe.is_file():
         pytest.skip("no bundled helper in this checkout")
     data = exe.read_bytes()
-    assert b"chromiq-chartread 2026-11-21d " in data and b"+instrument-waits" in data
+    assert b"chromiq-chartread 2026-11-21e " in data and b"+instrument-waits" in data
     for s in (b"--lamp-off-ms", b"--lights-blue-quiet-ms", b"--lights-blue-after-ms",
               b"instrument_waits"):
         assert s in data, s
@@ -508,13 +508,15 @@ def test_the_help_says_purpose_vendor_before_and_risk():
                  "1.5 s, ArgyllCMS's own value", "No recording of X-Rite's software",
                  "original i1Pro", "EFI ES-1000", "The i1Pro 2 has its own field below",
                  "readings may be slightly wrong", "you cannot see it", "without a warning",
-                 "**Default:** 1.5 s", "patch by patch readings on the i1iO table"):
+                 "**Default:** 1.5 s",
+                 "i1iO table when an original i1Pro sits in its arm"):
         assert need in lamp, need
     lamp2 = sd.i1pro2_lamp_off_help()
     for need in ("i1Pro 2", "EFI ES-2000", "i1Basic Pro 2", "about 1.06 s",
                  "0.11 to 0.18 s", "up to ChromIQ 4.3.54 the i1Pro 2 waited 1.5 s",
                  "The default is now 1.1 s", "1.03 s to 2.24 s", "showed no effect",
-                 "below about 0.9 s does not make the second pass start sooner",
+                 "never started sooner than about 1 s after the lamp went off",
+                 "a wait below about 1 s does not make a dual scan faster",
                  "whether or not any Beta option is on",
                  "It does not reach the table's rows", "1.07 s", "0.17 s",
                  "readings may be slightly wrong", "**Default:** 1.1 s", "0 to 5 s"):

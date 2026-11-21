@@ -42,6 +42,7 @@ def _ev(ok=True, fewest=5, uv_s=4.1, lamp_s=3.7, why="", strip="B", n=12, median
             "uv_s": uv_s, "uv_travel": 512, "uv_dir": 1, "lamp_off_ms": 2,
             "uv_dark_ms": 1150, "uv_trigger_ms": 1190, "uv_done_ms": 5290,
             "flatness": 0.00002, "window_flatness": 0.00003, "max_window_flatness": 0.001,
+            "offset_steps": 0.85, "offset_rise": 1.7, "align": "lined_up",
             "lamp_cells": [c + 3 for c in counts], "uv_counts": counts}
 
 
@@ -95,8 +96,10 @@ def test_a_pass_slow_enough_as_a_whole_is_told_to_move_evenly():
     ev = _ev(ok=False, fewest=2, uv_s=5.0, why="uv_pass_too_fast", median=7)
     assert P.too_fast_case(ev) == "uneven"
     title, body = P.too_fast_text(ev)
-    assert title == "The second pass (UV light) went too fast over one patch"
+    assert title == "One patch got too few readings in the second pass (UV light)"
     assert "Half of the patches got 7 readings or more" in body and "evenly" in body
+    # the reviewer's m2: it cannot tell a quick hand from a narrower patch, and says so
+    assert "a quicker moment there, or a narrower patch" in body and "sped up" not in body
     assert "seconds" not in body
 
 
@@ -166,7 +169,8 @@ def test_the_app_log_has_the_pace_and_the_lists_in_full(caplog):
                 "uv_readings=840", "uv_count_min=2", "need=3", "edge_steps=0.5",
                 "lamp_off_ms=2", "uv_dark_ms=1150", "uv_trigger_ms=1190", "slower_factor=1.75",
                 "target_s=7", "advice=time", "cap_s=19.584", "flatness=0", "window_flatness=0",
-                "max_window_flatness=0.001",
+                "max_window_flatness=0.001", "align=lined_up", "offset_steps=0.85",
+                "offset_rise=1.7",
                 "lamp_cell_min=", "lamp_cell_median=", "uv_count_median="):
         assert key in main[0], (key, main[0])
     assert lists[0].count(",") >= 2 * 22          # 23 patches, both lists, in full

@@ -747,7 +747,8 @@ class TableJob:
                  app_marker_place: "tuple[Path, str] | None" = None, press_factory=None,
                  scan_factory=None, latency_guard=None, stored_tile_white: bool = False,
                  reach_store=None, extra_logging: bool = True, consent_version: int = 0,
-                 lamp_off_ms: "int | None" = None):
+                 lamp_off_ms: "int | None" = None,
+                 lamp_off_i1pro2_ms: "int | None" = None):
         #: 4.3.52: "Guided, step by step measurement" (Preferences > Beta, the one key
         #: i1io_table_ask_after_each_step). True: every question is asked, and the report after
         #: each step that moved. False: the questions on BY_SETTING are answered by the job,
@@ -920,6 +921,12 @@ class TableJob:
         #: None: not passed (the helper's own 1500 ms). The table's own SCAN waits (1.07 s
         #: before a row's dark, 0.17 s in a dual row) are not this field's.
         self.lamp_off_ms = None if lamp_off_ms is None else int(lamp_off_ms)
+        #: after 4.3.54 (second fix round, V2): the i1Pro 2's own lamp wait ("X-Rite i1Pro 2:
+        #: lamp wait", default 1.10 s: i1Profiler's 1.06 s on this very table), passed as
+        #: --lamp-off-ms-i1pro2 to a helper that takes it (build token "lamp-off-i1pro2");
+        #: the driver gives an i1Pro 2 that value and an original i1Pro the one above. An older
+        #: helper gets --lamp-off-ms alone, which it gives both, as before.
+        self.lamp_off_i1pro2_ms = None if lamp_off_i1pro2_ms is None else int(lamp_off_i1pro2_ms)
         # ---- round B: the instrument's button as "Aimed" ---------------------------------------
         #: builds the helper's button wait (folder, log) -> reader.PressWaiter-like; False or
         #: None = not offered. By default the real helper's, only with the real readers (the
@@ -3820,6 +3827,9 @@ class TableJob:
             if self.lamp_off_ms is not None:
                 # 4.3.53 fix round (waits review M1): the field reaches the table's readings
                 args = tuple(args) + ("--lamp-off-ms", str(self.lamp_off_ms))
+            if self.lamp_off_i1pro2_ms is not None and rd.lamp_off_i1pro2_supported():
+                # after 4.3.54 (V2): the i1Pro 2's own field, for the i1Pro 2 in the arm
+                args = tuple(args) + ("--lamp-off-ms-i1pro2", str(self.lamp_off_i1pro2_ms))
             r = self._reader_factory(folder, name, list(patches), calibrate, args, self.diag.log)
         except (OSError, ValueError, rd.ReaderFailed) as exc:
             raise StageFailed("reader_could_not_start", error=type(exc).__name__) from None

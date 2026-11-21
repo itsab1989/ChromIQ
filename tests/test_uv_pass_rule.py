@@ -1,5 +1,7 @@
 """The UV pass of a hand dual scan counts its readings over the WHOLE clean middle of each patch
-(after 4.3.54, 2026-11-21; docs/design/i1pro2_dual_scan.md section 2a and section 17).
+(after 4.3.54, 2026-11-21; docs/design/i1pro2_dual_scan.md section 2a and section 17), AFTER it has
+been lined up with the lamp pass (second fix round, the verification's V1: cut.estimate_offset /
+chromiq_dualscan.c cq_dual_align, then the span less a quarter step).
 
 Until 4.3.54 the UV readings of a patch were those in the central 60 % of ArgyllCMS's lamp cell
 (itself ArgyllCMS's clean middle 66 % of the patch), so the UV pass needed about 1.5 times slower
@@ -74,8 +76,13 @@ def _strip(seed: int, *, lamp_speed: float, uv_speed: float, offset: float = 0.8
         # reading (blurred patch edges, as on paper; the review's m6)
         off = np.linspace(-aperture, aperture, 41)
         sig = level_at(up_true[:, None] + off[None, :]).mean(axis=1)
+        lamp_level = level_at(lp_true[:, None] + off[None, :]).mean(axis=1)
     else:
         sig = level_at(up_true)
+        lamp_level = level_at(lp_true)
+    # the lamp pass's own 380-400 nm readings, weighted by T / W as the helper does: what the
+    # UV pass reads there (its first three bands: sig x 1.00 .. 1.02), with its own noise
+    _strip.lamp_sig = lamp_level * 1.01 + noise * 0.5 * rng.standard_normal(lp_true.size)
     wl = np.arange(36)
     uv = (sig[:, None] * (1.0 + 0.01 * wl[None, :])
           + noise * rng.standard_normal((up_true.size, 36)))
@@ -97,9 +104,9 @@ def _cases():
         for d in (0.0, 2.0, 3.0):
             out.append((f"blur{seed}_{d:+.1f}", *_strip(seed, lamp_speed=1.5, uv_speed=1.5,
                                                          aperture=3.0, offset=0.85 + d)))
-    # the exact boundaries: positions at lo + 0.5 and hi - 0.5 count, 0.49 / 7.51 do not
+    # the exact boundaries: positions at lo + 0.25 and hi - 0.25 count, 0.24 / 7.76 do not
     lpb = np.arange(15, dtype=float) * 2.0
-    upb = np.array([0.49, 0.5, 4.0, 7.5, 7.51, 10.5, 14.0, 17.5, 20.5, 24.0, 27.5, 27.6])
+    upb = np.array([0.24, 0.25, 4.0, 7.75, 7.76, 10.25, 14.0, 17.75, 20.25, 24.0, 27.75, 27.8])
     out.append(("boundary", [(0, 5), (5, 5), (10, 5)], lpb, upb,
                 np.tile((1.0 + 0.1 * np.arange(12))[:, None], (1, 36))))
     return out
@@ -164,10 +171,14 @@ def test_the_constants_are_the_same_in_c_and_python(c_out):
     _res, out = c_out
     line = next(ln for ln in out.splitlines() if ln.startswith("edge_steps "))
     t = line.split()
-    assert float(t[1]) == cut.EDGE_STEPS == 0.5
+    assert float(t[1]) == cut.EDGE_STEPS == 0.25
     assert float(t[3]) == cut.TRIM == 0.2
     assert int(t[5]) == cut.MIN_UV_READINGS == 3
     assert float(t[7]) == cut.MAX_EDGE_FLATNESS == 0.001
+    a = next(ln for ln in out.splitlines() if ln.startswith("align_consts ")).split()
+    assert (float(a[1]), float(a[2]), int(a[3]), float(a[4]), float(a[5])) == (
+        cut.ALIGN_SPAN, cut.ALIGN_STEP, cut.ALIGN_MIN_READINGS, cut.MAX_OFFSET, cut.MIN_RISE) == (
+        6.5, 0.05, 20, 3.0, 1.15)
 
 
 def test_c_and_python_cut_every_case_the_same(c_out):
@@ -189,7 +200,7 @@ def test_c_and_python_cut_every_case_the_same(c_out):
         verdicts.add(why)
     # the cases reach every verdict the speed can give, and the gate
     assert {"ok", "uv_pass_too_fast", "uv_pass_misaligned", "uv_pass_shifted"} <= verdicts, verdicts
-    assert res["boundary"][2] == [3, 3, 3]          # inclusive at lo + 0.5 / hi - 0.5, in C too
+    assert res["boundary"][2] == [3, 3, 3]          # inclusive at lo + 0.25 / hi - 0.25, in C too
 
 
 def test_a_uv_pass_at_the_lamp_pass_pace_is_accepted_where_4354_refused():
@@ -209,13 +220,13 @@ def test_a_uv_pass_at_the_lamp_pass_pace_is_accepted_where_4354_refused():
     assert cut.travel_verdict(old) == "uv_pass_too_fast"
 
 
-def test_readings_within_half_a_step_of_the_span_end_are_left_out():
+def test_readings_within_a_quarter_step_of_the_span_end_are_left_out():
     cells = [(0, 5), (5, 5), (10, 5)]
     lp = np.arange(15, dtype=float) * 2.0          # spans 0-8, 10-18, 20-28
-    uv_at = np.array([0.49, 0.5, 4.0, 7.5, 7.51, 10.5, 14.0, 17.5, 20.5, 24.0, 27.5, 27.6])
+    uv_at = np.array([0.24, 0.25, 4.0, 7.75, 7.76, 10.25, 14.0, 17.75, 20.25, 24.0, 27.75, 27.8])
     ur = np.ones((uv_at.size, 36))
     r = cut.cut_uv_pass(cells, lp, uv_at, ur)
-    assert r.counts == [3, 3, 3]                   # 0.49 and 7.51 / 27.6 are out
+    assert r.counts == [3, 3, 3]                   # 0.24 and 7.76 / 27.8 are out
     with pytest.raises(DualScanRefused) as e:
         cut.cut_uv_pass(cells, lp, uv_at, ur, edge=1.0)
     assert e.value.reason == "uv_pass_too_fast"
@@ -234,43 +245,139 @@ def test_the_alignment_gate_keeps_its_own_window():
     assert e.value.reason == "uv_pass_misaligned"
 
 
-def _rel_err(seed, d):
-    """the strip shifted by d steps beyond its natural offset, blurred patch edges: (verdict,
-    worst relative error of a patch's UV value against the same strip unblurred, unshifted)"""
-    c, lp, up, uv = _strip(seed, lamp_speed=1.5, uv_speed=1.5, aperture=3.0, offset=0.85 + d)
-    c0, lp0, up0, uv0 = _strip(seed, lamp_speed=1.5, uv_speed=1.5, offset=0.85)
-    ref = cut.cut_uv_pass(c0, lp0, up0, uv0)
+def _aligned_strip(seed, d, speed=1.5, noise=0.002):
+    """the strip with blurred patch edges, its UV pass shifted d steps beyond the natural
+    0.85, and the lamp pass's own 380-400 nm signal (what the helper lines it up by)"""
+    c, lp, up, uv = _strip(seed, lamp_speed=1.5, uv_speed=speed, aperture=3.0, offset=0.85 + d,
+                           noise=noise)
+    return c, lp, up, uv, _strip.lamp_sig
+
+
+def _patch_errors(seed, d, speed=1.5):
+    """(verdict, worst relative error of a patch's UV value) against the SAME strip at true
+    alignment (offset 0), patch by patch"""
+    c0, lp0, up0, uv0, ls0 = _aligned_strip(seed, -0.85, speed)
+    ref = cut.cut_uv_pass(c0, lp0, up0, uv0, lamp_sig=ls0)
+    c, lp, up, uv, ls = _aligned_strip(seed, d, speed)
     try:
-        r = cut.cut_uv_pass(c, lp, up, uv)
+        r = cut.cut_uv_pass(c, lp, up, uv, lamp_sig=ls)
     except DualScanRefused as e:
         return e.reason, None
     return "ok", float(np.max(np.abs(r.uv[:, 0] - ref.uv[:, 0]) / ref.uv[:, 0]))
 
 
-@pytest.mark.parametrize("seed", [1, 2, 3, 4, 5])
-def test_a_shifted_uv_pass_is_refused_or_still_right(seed, monkeypatch):
-    """The review's B1 as a test: from 1 step of extra misalignment on, a strip is refused or its
-    patch values stay right (within 2.5 % of the UV signal; unshifted the noise gives 0.6 %);
-    at 2.5 steps and more it is refused. Without the averaging window's gate the same strips are
-    accepted with errors up to 14 %, so it is that gate which holds."""
-    for d in (1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0):
-        why, err = _rel_err(seed, d)
+@pytest.mark.parametrize("seed,speed", [(1, 1.5), (2, 1.5), (3, 1.8), (4, 1.2), (5, 1.5)])
+def test_every_patch_stays_right_whatever_the_shift(seed, speed):
+    """The verification's V1 as a test: the UV pass shifted -6 to +6 steps (both directions, by
+    0.25) beyond its natural 0.85 is either refused or EVERY patch stays within 0.6 % of the same
+    patch at true alignment (the noise of a few readings: 0.2 % per reading). Fails on the build
+    before the second fix round: it had no alignment, a shifted pass leaked neighbour light at
+    the patch ends (up to 14 % here)."""
+    accepted = 0
+    for d in np.round(np.arange(-6.0, 6.001, 0.25), 2):
+        why, err = _patch_errors(seed, d, speed)
         if why == "ok":
-            assert err <= 0.025, (seed, d, err)
+            accepted += 1
+            assert err <= 0.006, (seed, d, err)
         else:
             assert why == "uv_pass_shifted", (seed, d, why)
-        if d >= 2.5:
-            assert why == "uv_pass_shifted", (seed, d, why, err)
-    monkeypatch.setattr(cut, "MAX_EDGE_FLATNESS", 1e9)
-    worst = max(e for e in (_rel_err(seed, d)[1] for d in (3.0, 3.5, 4.0)) if e is not None)
-    assert worst > 0.04, worst
+    # lined up, shifts within the largest offset taken (3 steps) are not refused
+    assert accepted >= 20, accepted
+
+
+def test_without_the_alignment_a_shift_damages_patch_ends():
+    """the same strips cut without lining them up: the damage the alignment removes"""
+    worst = 0.0
+    for d in (1.0, 1.5, 2.0, -2.5, -3.0):
+        c, lp, up, uv, _ls = _aligned_strip(1, d)
+        c0, lp0, up0, uv0, ls0 = _aligned_strip(1, -0.85)
+        ref = cut.cut_uv_pass(c0, lp0, up0, uv0, lamp_sig=ls0)
+        try:
+            r = cut.cut_uv_pass(c, lp, up, uv)
+        except DualScanRefused:
+            continue
+        worst = max(worst, float(np.max(np.abs(r.uv[:, 0] - ref.uv[:, 0]) / ref.uv[:, 0])))
+    assert worst > 0.01, worst
+
+
+def _align_cases():
+    out = []
+    for seed in (1, 2, 3):
+        for d in (-3.5, -1.0, 0.0, 1.3, 2.9, 4.0):
+            c, lp, up, uv, ls = _aligned_strip(seed, d)
+            ends = [x for s_, n in c for x in (lp[s_], lp[s_ + n - 1])]
+            out.append((f"a{seed}_{d:+.1f}", lp, ls, up, uv[:, :3].mean(axis=1), min(ends), max(ends)))
+    # a strip with no patch edges to line up by: not lined up (4.3.54's window), not refused
+    c, lp, up, uv, ls = _aligned_strip(4, 0.0)
+    ends = [x for s_, n in c for x in (lp[s_], lp[s_ + n - 1])]
+    out.append(("flat", lp, np.full(lp.size, 0.5), up, np.full(up.size, 0.5) + 0.001 * np.sin(up),
+                min(ends), max(ends)))
+    return out
+
+
+@pytest.fixture(scope="module")
+def c_align(tmp_path_factory):
+    from tests.test_i1pro3_lights_modes import _build_and_run
+    p = tmp_path_factory.mktemp("aligncases") / "cases.txt"
+    with p.open("w") as f:
+        for name, lp, ls, up, us, lo, hi in _align_cases():
+            f.write(f"align {name} {lp.size} {up.size} {lo:.17g} {hi:.17g}\n")
+            for tag, v in (("P", lp), ("S", ls), ("Q", up), ("V", us)):
+                f.write(tag + " " + " ".join(f"{x:.17g}" for x in v) + "\n")
+    mp = pytest.MonkeyPatch()
+    mp.setenv("CQ_DUAL_ALIGN_CASES", str(p))
+    try:
+        out = _build_and_run(tmp_path_factory, "i1pro2_dual_maths_test")
+    finally:
+        mp.undo()
+    return {ln.split()[1]: (ln.split()[2], float(ln.split()[3]), float(ln.split()[4]))
+            for ln in out.splitlines() if ln.startswith("aligncase ")}
+
+
+def test_c_and_python_line_up_the_same(c_align):
+    cases = _align_cases()
+    assert len(c_align) == len(cases)
+    seen = set()
+    for name, lp, ls, up, us, lo, hi in cases:
+        why, off, rise = cut.estimate_offset(lp, ls, up, us, lo, hi)
+        cw, coff, crise = c_align[name]
+        assert cw == (why or "ok"), (name, cw, why, off, rise)
+        assert coff == pytest.approx(off, abs=1e-12), name
+        if rise == rise and rise != float("inf"):
+            assert crise == pytest.approx(rise, rel=1e-9), name
+        seen.add(why or "ok")
+        if name.startswith("a"):
+            true = 0.85 + float(name.split("_")[1])       # the offset the strip was made with
+            assert off == pytest.approx(true, abs=0.15), name
+            assert (why is None) == (abs(true) <= cut.MAX_OFFSET), name
+    assert seen == {"ok", "uv_pass_shifted", "not_lined_up"}
+    assert c_align["flat"][0] == "not_lined_up"             # nothing to line up by
+
+
+def test_a_strip_with_nothing_to_line_up_by_keeps_4354s_window():
+    """Patches alike at 380-400 nm (no clear edges to line up by): not refused (that would loop
+    for ever), cut uncorrected with 4.3.54's central 60 %, which the replay showed to hold up to
+    about 2 steps of offset."""
+    c, lp, up, uv, ls = _aligned_strip(4, 0.0)
+    r = cut.cut_uv_pass(c, lp, up, uv, lamp_sig=np.full(lp.size, 0.5))
+    assert r.lined_up == "not_lined_up" and r.offset == 0.0
+    old = []
+    for s_, n in c:
+        lo, hi = sorted((lp[s_], lp[s_ + n - 1]))
+        old.append(int(((up >= lo + 0.2 * (hi - lo)) & (up <= hi - 0.2 * (hi - lo))).sum()))
+    assert r.counts == old
 
 
 def test_the_helper_calls_the_cut_with_the_edge():
     src = (ROOT / "native" / "chartread_helper" / "chromiq_dualdev.c").read_text(encoding="utf-8")
-    assert "CQ_DUAL_TRIM, CQ_DUAL_MIN_UV,\n\t\t\t\t                  CQ_DUAL_EDGE_STEPS, cutv, counts)" in src
+    assert ('strcmp(align_state, "not_lined_up") == 0 ? -1.0\n\t\t\t\t                  '
+            ': CQ_DUAL_EDGE_STEPS, cutv, counts)') in src
     h = (ROOT / "native" / "chartread_helper" / "chromiq_dualscan.h").read_text(encoding="utf-8")
-    assert "#define CQ_DUAL_EDGE_STEPS 0.5" in h and "#define CQ_DUAL_MIN_UV 3" in h
+    assert "#define CQ_DUAL_EDGE_STEPS 0.25" in h and "#define CQ_DUAL_MIN_UV 3" in h
+    i = src.index("static void cq_dd_strip(")
+    body = src[i:src.index("\n}\n", i)]
+    a = body.index("why = cq_dd_align(")
+    assert a < body.index("why = cq_dual_cut(")                # lined up first, then cut
 
 
 if __name__ == "__main__":      # pragma: no cover

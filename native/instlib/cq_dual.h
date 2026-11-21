@@ -93,6 +93,13 @@ typedef struct {
 	double clock_s;
 } cq_dual_times;
 void i1pro2_cq_dual_times(void *pp, cq_dual_times *out);
+/* The lamp pass's own readings at 380-400 nm, CQ_DUAL_LS_BANDS values per
+ * reading (reflectance in the lamp white's units), kept by the read hook
+ * (second fix round of 2026-11-21) to line the UV pass up with the lamp pass
+ * (chromiq_dualscan.c cq_dual_align). Read only; nothing is sent. 1 = taken
+ * (malloc'd, the caller frees it). */
+#define CQ_DUAL_LS_BANDS 3
+int i1pro2_cq_dual_take_lamp_readings(void *pp, double **ls, int *n);
 
 /* Phases of one hand strip (i1pro2_cq_dual_arm). */
 #define CQ_DUAL_PHASE_OFF   0

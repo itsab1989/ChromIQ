@@ -10241,8 +10241,9 @@ def i1pro_lamp_off_help() -> str:
            "EFI ES-1000), ArgyllCMS waits until the lamp has been off this long. "
            "Its code says why: to make sure the lamp is dark for the dark "
            "measurement. This applies to measurements by hand (strips, spot "
-           "readings and calibration) and to the patch by patch readings on the "
-           "i1iO table. The i1Pro 2 has its own field below. **This changes how "
+           "readings and calibration), and to the patch by patch readings on the "
+           "i1iO table when an original i1Pro sits in its arm. The i1Pro 2 has its "
+           "own field below. **This changes how "
            "ChromIQ's copy of ArgyllCMS's instrument code works** when you move "
            "it off the default. The commands sent to the instrument stay the "
            "same."),
@@ -10307,10 +10308,10 @@ def i1pro2_lamp_off_help() -> str:
                vendor=decimal_text(_iw.RECORDED_LAMP_OFF_S)),
         tr("**In a dual scan by hand,** the second pass starts with a dark "
            "reading, so it waits until the lamp has been off this long since the "
-           "first pass. With the lights option and its result signals on, a "
-           "wait below about {blue} s does not make the second pass start "
-           "sooner: the blue light and its own wait come first.").format(
-               blue=decimal_text(_iw.BLUE_AFTER.default_s + _iw.BLUE_QUIET.default_s, 1)),
+           "first pass. On a tester's real i1Pro 2 the second pass never started "
+           "sooner than about 1 s after the lamp went off (turning round, the "
+           "button, and with the lights option the blue light and its own wait), "
+           "so a wait below about 1 s does not make a dual scan faster."),
         tr("**If the wait is too short, readings may be slightly wrong, and "
            "you cannot see it.** The dark reading is taken away from every "
            "patch reading. If the lamp still glows a little, the dark reading "

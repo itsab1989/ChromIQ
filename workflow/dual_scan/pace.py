@@ -216,7 +216,11 @@ def log_result(ev: dict) -> None:
                 # the two alignment measures (-1: not judged) and the window's limit
                 "flatness": _num(ev.get("flatness")),
                 "window_flatness": _num(ev.get("window_flatness")),
-                "max_window_flatness": _num(ev.get("max_window_flatness"))})
+                "max_window_flatness": _num(ev.get("max_window_flatness")),
+                # second fix round: the UV pass lined up (offset subtracted, how clearly)
+                "align": str(ev.get("align") or "") or None,
+                "offset_steps": _num(ev.get("offset_steps")),
+                "offset_rise": _num(ev.get("offset_rise"))})
             if str(ev.get("why") or "") == "uv_pass_too_fast":
                 f, need, uv_s = fewest(ev), _num(ev.get("need")), _num(ev.get("uv_s"))
                 if f and need and uv_s:

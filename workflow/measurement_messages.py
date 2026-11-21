@@ -12255,21 +12255,21 @@ M_DUAL_PASS_TOO_FAST = _m(
 
 M_DUAL_PASS_TOO_FAST_UNEVEN = _m(
     "M-DUAL-PASS-TOO-FAST-UNEVEN",
-    "The second pass (UV light) went too fast over one patch",
+    "One patch got too few readings in the second pass (UV light)",
     "In the second pass (UV light) one patch got only {fewest} readings, and "
     "ChromIQ needs at least {need} on every patch. Half of the patches got {median} "
-    "readings or more, so the pass as a whole was not too fast: the instrument sped "
-    "up over a short stretch. Next time keep your pace, but move evenly from the "
-    "first patch to the last. "
+    "readings or more, so the pass as a whole was not too fast: this one patch got "
+    "fewer readings than the others (a quicker moment there, or a narrower patch). "
+    "Next time keep your pace and move evenly over the whole strip. "
     "Read this strip once more, both passes: the first pass with the lamp "
     "as usual, then the second pass with the UV light right after it, "
     "without lifting the instrument. For now ChromIQ always reads the two "
     "passes of a strip together, so the first pass is read again too.",
     body_one="In the second pass (UV light) one patch got only 1 reading, and "
     "ChromIQ needs at least {need} on every patch. Half of the patches got {median} "
-    "readings or more, so the pass as a whole was not too fast: the instrument sped "
-    "up over a short stretch. Next time keep your pace, but move evenly from the "
-    "first patch to the last. "
+    "readings or more, so the pass as a whole was not too fast: this one patch got "
+    "fewer readings than the others (a quicker moment there, or a narrower patch). "
+    "Next time keep your pace and move evenly over the whole strip. "
     "Read this strip once more, both passes: the first pass with the lamp "
     "as usual, then the second pass with the UV light right after it, "
     "without lifting the instrument. For now ChromIQ always reads the two "

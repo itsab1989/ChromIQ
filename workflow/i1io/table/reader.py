@@ -37,7 +37,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 HELPER_NAME = "chromiq-chartread"
-HELPER_BUILD = "2026-11-21d"      # ChromIQ's helper: the table scan (2026-11-17a) + the button wait (17b)
+HELPER_BUILD = "2026-11-21e"      # ChromIQ's helper: the table scan (2026-11-17a) + the button wait (17b)
 #                                    + the i1Pro 2 dual-scan conditions (18a, nothing for the table)
 #                                    + the dual scan's resume rule (18b, nothing for the table)
 #                                    + the dual scan's device side (18c, nothing for the table yet)
@@ -655,6 +655,17 @@ def helper_build(path: "Path | None" = None, timeout: float = 5.0) -> str:
         return str(engine_build(Path(path) if path is not None else helper_path()) or "")
     except Exception:          # noqa: BLE001 - not offered, nothing breaks
         return ""
+
+
+#: the helper build token of --lamp-off-ms-i1pro2 (helper 2026-11-21d)
+LAMP_OFF_I1PRO2_TOKEN = "lamp-off-i1pro2"
+
+
+def lamp_off_i1pro2_supported(build: "str | None" = None) -> bool:
+    """True when the helper takes the i1Pro 2's own lamp wait (an older one would stop at the
+    unknown argument)."""
+    b = helper_build() if build is None else build
+    return ("+" + LAMP_OFF_I1PRO2_TOKEN + "+") in ("+" + b + "+")
 
 
 def press_wait_supported(build: "str | None" = None) -> bool:

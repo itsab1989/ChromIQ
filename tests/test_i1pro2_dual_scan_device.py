@@ -231,7 +231,7 @@ def test_the_helper_reports_the_device_word_and_the_new_build():
     # 2026-11-20a (4.3.52): + the lights' quiet time and the dual scan's blue; 20b: + the
     # blue's own quiet time (fix round); 20c: that floor only before the strip's return pass;
     # 20d (4.3.53): the waits as values the app passes
-    assert "chromiq-chartread 2026-11-21d " in h and "+i1pro2-dual-device+i1pro2-dual-safety+" in h
+    assert "chromiq-chartread 2026-11-21e " in h and "+i1pro2-dual-device+i1pro2-dual-safety+" in h
 
 
 def test_a_failed_pass_is_read_again_and_a_session_failure_keeps_m0():
@@ -297,7 +297,10 @@ def test_every_reason_the_device_side_gives_has_a_sentence():
                 "spot", "uv", "scan", "true", "false", "STRIP", "dual_dual_needs_ruler",
                 # 4.3.49: the names of the commands held while the UV pass is due
                 # (event dual_pass_held), not reasons
-                "goto", "file_as", "turn", "next_unread", "back", "forward"}
+                "goto", "file_as", "turn", "next_unread", "back", "forward",
+                # second fix round (2026-11-21): the alignment's state in the pace event
+                # (align: ...), for the app log, not reasons
+                "lined_up", "not_lined_up", "not_measured", "not_reached", "refused"}
     text = (HELPER / "chromiq_dualdev.c").read_text(encoding="utf-8")
     text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
     ids = set(re.findall(r'"([a-z][a-z0-9_]+)"', text)) - internal

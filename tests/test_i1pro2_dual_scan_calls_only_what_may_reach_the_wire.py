@@ -95,6 +95,10 @@ HELPER_MAY_CALL = _LIBC | {
     # cut's own arithmetic (chromiq_dualscan.c, no instrument), called again for the log.
     "i1pro2_cq_dual_times", "fabs", "snprintf",
     "cq_dual_flatness", "cq_dual_window_flatness",
+    # second fix round (2026-11-21, V1): i1pro2_cq_dual_take_lamp_readings hands over the copy of
+    # the lamp pass's 380-400 nm readings the read hook kept (cq_i1pro2_dual.h: a pointer
+    # handed over, nothing sent); cq_dual_align is the cut's arithmetic (chromiq_dualscan.c)
+    "i1pro2_cq_dual_take_lamp_readings", "cq_dual_align",
 }
 
 

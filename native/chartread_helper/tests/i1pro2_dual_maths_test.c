@@ -158,6 +158,38 @@ static void cut_cases(const char *path) {
 	fclose(f);
 }
 
+/* The alignment (second fix round of 2026-11-21) on cases from a file named by
+ * CQ_DUAL_ALIGN_CASES (tests/test_uv_pass_rule.py writes it): per case "align
+ * <name> <nlamp> <nuv> <lo> <hi>", then "P" nlamp lamp positions, "S" nlamp
+ * lamp signals, "Q" nuv UV positions, "V" nuv UV signals. Prints "aligncase
+ * <name> <ok|reason> <offset> <rise>". */
+static void align_cases(const char *path) {
+	FILE *f = fopen(path, "r");
+	char kw[16], name[128];
+	int nl, nu;
+	double lo, hi;
+	if (f == NULL) {
+		printf("align_cases unreadable\n");
+		return;
+	}
+	while (fscanf(f, "%15s %127s %d %d %lf %lf", kw, name, &nl, &nu, &lo, &hi) == 6
+	       && strcmp(kw, "align") == 0 && nl > 0 && nu > 0) {
+		double *lp = malloc(sizeof(double) * (size_t)nl), *ls = malloc(sizeof(double) * (size_t)nl);
+		double *up = malloc(sizeof(double) * (size_t)nu), *us = malloc(sizeof(double) * (size_t)nu);
+		double off = 0.0, rise = 0.0;
+		const char *why;
+		if (!(lp && ls && up && us && read_n(f, "P", lp, nl) && read_n(f, "S", ls, nl)
+		      && read_n(f, "Q", up, nu) && read_n(f, "V", us, nu))) {
+			printf("aligncase %s unreadable\n", name);
+			break;
+		}
+		why = cq_dual_align(nl, lp, ls, nu, up, us, lo, hi, &off, &rise);
+		printf("aligncase %s %s %.17g %.17g\n", name, why == NULL ? "ok" : why, off, rise);
+		free(lp); free(ls); free(up); free(us);
+	}
+	fclose(f);
+}
+
 int main(void) {
 	cq_dual_cal c;
 	double L[CQ_DUAL_NB], U[CQ_DUAL_NB], m1[CQ_DUAL_NB], m2[CQ_DUAL_NB];
@@ -257,6 +289,11 @@ int main(void) {
 		pairing_cases(getenv("CQ_DUAL_PAIRING_CASES"));
 	if (getenv("CQ_DUAL_CUT_CASES") != NULL)
 		cut_cases(getenv("CQ_DUAL_CUT_CASES"));
+	if (getenv("CQ_DUAL_ALIGN_CASES") != NULL)
+		align_cases(getenv("CQ_DUAL_ALIGN_CASES"));
+	printf("align_consts %.17g %.17g %d %.17g %.17g\n", (double)CQ_DUAL_ALIGN_SPAN,
+	       (double)CQ_DUAL_ALIGN_STEP, CQ_DUAL_ALIGN_MIN_READINGS, (double)CQ_DUAL_MAX_OFFSET,
+	       (double)CQ_DUAL_MIN_RISE);
 	printf("edge_steps %.17g trim %.17g min_uv %d max_edge_flatness %.17g\n", (double)CQ_DUAL_EDGE_STEPS,
 	       (double)CQ_DUAL_TRIM, CQ_DUAL_MIN_UV, (double)CQ_DUAL_MAX_EDGE_FLATNESS);
 	printf("ALL DONE\n");

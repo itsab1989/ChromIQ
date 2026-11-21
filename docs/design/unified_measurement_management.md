@@ -10226,15 +10226,15 @@ alone.
 
 ### M-DUAL-PASS-TOO-FAST-UNEVEN · PROPOSED · the X-Rite i1Pro 2 dual scan (Preferences > Beta), Measure, 2026-11-21
 
-*New 2026-11-21 (fix round, review M3): as M-DUAL-PASS-TOO-FAST when half of the patches got twice the readings needed or more ({median}): the pass was slow enough as a whole, one stretch was fast, so no longer time is asked for.*
+*New 2026-11-21 (fix round, review M3), reworded in the second fix round (the verification's m2: it cannot tell a quick hand from one narrower ArgyllCMS cell, so it blames neither): as M-DUAL-PASS-TOO-FAST when half of the patches got twice the readings needed or more ({median}): the pass was slow enough as a whole, so no longer time is asked for.*
 
-> **The second pass (UV light) went too fast over one patch**
+> **One patch got too few readings in the second pass (UV light)**
 >
-> In the second pass (UV light) one patch got only {fewest} readings, and ChromIQ needs at least {need} on every patch. Half of the patches got {median} readings or more, so the pass as a whole was not too fast: the instrument sped up over a short stretch. Next time keep your pace, but move evenly from the first patch to the last. Read this strip once more, both passes: the first pass with the lamp as usual, then the second pass with the UV light right after it, without lifting the instrument. For now ChromIQ always reads the two passes of a strip together, so the first pass is read again too.
+> In the second pass (UV light) one patch got only {fewest} readings, and ChromIQ needs at least {need} on every patch. Half of the patches got {median} readings or more, so the pass as a whole was not too fast: this one patch got fewer readings than the others (a quicker moment there, or a narrower patch). Next time keep your pace and move evenly over the whole strip. Read this strip once more, both passes: the first pass with the lamp as usual, then the second pass with the UV light right after it, without lifting the instrument. For now ChromIQ always reads the two passes of a strip together, so the first pass is read again too.
 
 *Singular ({fewest} = 1):*
 
-> In the second pass (UV light) one patch got only 1 reading, and ChromIQ needs at least {need} on every patch. Half of the patches got {median} readings or more, so the pass as a whole was not too fast: the instrument sped up over a short stretch. Next time keep your pace, but move evenly from the first patch to the last. Read this strip once more, both passes: the first pass with the lamp as usual, then the second pass with the UV light right after it, without lifting the instrument. For now ChromIQ always reads the two passes of a strip together, so the first pass is read again too.
+> In the second pass (UV light) one patch got only 1 reading, and ChromIQ needs at least {need} on every patch. Half of the patches got {median} readings or more, so the pass as a whole was not too fast: this one patch got fewer readings than the others (a quicker moment there, or a narrower patch). Next time keep your pace and move evenly over the whole strip. Read this strip once more, both passes: the first pass with the lamp as usual, then the second pass with the UV light right after it, without lifting the instrument. For now ChromIQ always reads the two passes of a strip together, so the first pass is read again too.
 
 ### M-DUAL-PASS-TOO-FAST-EVEN · PROPOSED · the X-Rite i1Pro 2 dual scan (Preferences > Beta), Measure, 2026-11-21
 
