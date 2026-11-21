@@ -48,7 +48,9 @@ def test_both_modules_read_their_own_resume_box():
     assert '_will_resume("manual")' in manual, \
         "the manual command no longer reads _m_resume_cb"
     wr = inspect.getsource(TabMeasure._will_resume)
-    assert 'self._resume_cb if mode == "guided" else self._m_resume_cb' in wr
+    assert "self._resume_ticked(mode)" in wr
+    assert 'self._resume_cb if mode == "guided" else self._m_resume_cb' in \
+        inspect.getsource(TabMeasure._resume_ticked)
     # Each still reads its OWN box, and neither reads the other's.
     assert "_m_resume_cb" not in guided, "guided is reading manual's box"
     assert "self._resume_cb." not in manual, "manual is reading guided's box"

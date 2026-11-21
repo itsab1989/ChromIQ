@@ -109,6 +109,7 @@ class Tab(QWidget):
     # 4.3.54 (review S5): the one decision, borrowed; the file here stands for a resumable
     # measurement (its own state is the subject of tests/test_4354_one_resume_decision.py)
     _will_resume = TabMeasure._will_resume
+    _resume_ticked = TabMeasure._resume_ticked
 
     def _resume_has_anything_to_resume(self, ticked):
         return bool(ticked)

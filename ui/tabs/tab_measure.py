@@ -8243,8 +8243,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._reset_progress(from_files=True)
         self.measurement_active.emit(False)
         if getattr(self, "_row_speed_notice", None):              # 4.3.54 (review M2)
-            from PyQt6.QtCore import QTimer
-            QTimer.singleShot(0, self._show_row_speed_notice)
+            from PyQt6.QtCore import QTimer as _RsTimer
+            _RsTimer.singleShot(0, self._show_row_speed_notice)
         if why == "consent_declined":
             self._log.appendPlainText(tr(
                 "Measurement not started: you chose Not now for the i1iO table."))
@@ -9613,7 +9613,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         else:
             # Asked before the parameters are collected, by the same rule
             # they are (`_collect_guided` / `_collect_manual`).
-            resumes = self._will_resume()       # 4.3.54 (review S5): the one decision
+            # 4.3.54 (review S5): what the person asked for (the box offered and ticked).
+            # A ticked box over a measurement filed for another layout is refused here with
+            # M-RESUME-LAYOUT-DIFFERS, which says why, before the replace window is reached
+            resumes = self._resume_ticked()
         ti3 = Path(ti1).with_suffix(".ti3")
         staged = self._verification_to_stage()
         if staged is not None:
@@ -23959,14 +23962,18 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # with -r not sent) skipped the window and the move, and the read replaced the file.
         return self._will_resume()
 
+    def _resume_ticked(self, mode: "str | None" = None) -> bool:
+        """The module's "Refine / resume existing measurement (-r)" box offered and ticked."""
+        mode = mode or self._current_mode()
+        cb = self._resume_cb if mode == "guided" else self._m_resume_cb
+        return cb is not None and not cb.isHidden() and cb.isChecked()
+
     def _will_resume(self, mode: "str | None" = None) -> bool:
         """THE decision whether this read continues the run's measurement (-r): the module's
         "Refine / resume existing measurement (-r)" box offered and ticked, and a measurement
         behind it that can be resumed (`_resume_has_anything_to_resume`; a dated verification
         about to be staged beside the chart counts). Refinement always rides on it."""
-        mode = mode or self._current_mode()
-        cb = self._resume_cb if mode == "guided" else self._m_resume_cb
-        if cb is None or cb.isHidden() or not cb.isChecked():
+        if not self._resume_ticked(mode):
             return False
         if self._resume_has_anything_to_resume(True):
             return True

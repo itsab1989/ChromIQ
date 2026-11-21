@@ -371,6 +371,9 @@ def test_without_parameters_the_resume_tick_decides(tab):
     t, run, ti2, shown = tab
     page = [f"{s}{p}" for s in "AB" for p in range(1, 4)]
     _measurement(run, ti2, loc_of=lambda sid, _l: page[(sid - 1) % 6])
+    # 4.3.54 (review S5): the box counts only where it is offered; the app offers it once the
+    # run has a measurement (`_update_resume_availability`, run on every file change)
+    t._update_resume_availability()
     for cb in (t._resume_cb, t._m_resume_cb):
         cb.setChecked(False)
     assert t._blocked_by_a_misfitting_measurement() is False

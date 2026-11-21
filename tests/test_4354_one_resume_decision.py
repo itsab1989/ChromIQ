@@ -82,3 +82,14 @@ def test_the_window_the_move_and_minus_r_follow_one_decision(tab, module, shown,
     assert ti3.is_file() == builds
     if not builds:
         assert list(run.dir.glob("old/**/*.ti3"))
+
+
+def test_the_misfit_refusal_asks_what_was_ticked_not_what_can_be_resumed():
+    """#211's M-RESUME-LAYOUT-DIFFERS refuses a ticked box over a measurement filed for another
+    layout (that file has nothing ChromIQ can resume, so `_will_resume` is False for it): the
+    refusal must still be reached, so it asks the tick, not `_will_resume`."""
+    import inspect
+    from ui.tabs.tab_measure import TabMeasure
+    src = inspect.getsource(TabMeasure._blocked_by_a_misfitting_measurement)
+    assert "resumes = self._resume_ticked()" in src
+    assert "self._resume_ticked(mode)" in inspect.getsource(TabMeasure._will_resume)

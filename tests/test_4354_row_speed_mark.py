@@ -146,4 +146,5 @@ def test_the_window_end_shows_the_line_under_the_chart():
     import inspect
     from ui.tabs.tab_measure import TabMeasure
     src = inspect.getsource(TabMeasure._on_table_window_finished)
-    assert "QTimer.singleShot(0, self._show_row_speed_notice)" in src
+    assert "_RsTimer.singleShot(0, self._show_row_speed_notice)" in src
+    assert "from PyQt6.QtCore import QTimer\n" not in src.split("_row_speed_notice")[1][:200]
