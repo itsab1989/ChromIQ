@@ -1326,7 +1326,8 @@ class MeasureManager(QObject):
                         helper_build=helper_build(params.engine_helper),
                         condition=condition_for_filter(filter_code_from_args(
                             params.extra_args)),
-                        lights=bool(params.engine_i1pro2_lights))
+                        lights=bool(params.engine_i1pro2_lights),
+                        dual=bool(params.engine_dual_args))
                 else:
                     log.info("ruler check: this helper does not know --ruler; "
                              "not passed")
@@ -4776,6 +4777,9 @@ class MeasureManager(QObject):
         elif kind == "dual_pass_result":
             self._dual_pass_due = ""
             log.info("engine: dual scan pass result %s", ev)
+            # after 4.3.54: the pace of both passes, one line (lists at DEBUG)
+            from workflow.dual_scan.pace import log_result as _dual_pace_log
+            _dual_pace_log(ev)
             self.dual_pass_result.emit(dict(ev))
             try:
                 self._strip_log.dual[str(ev.get("strip") or "?").strip()] = {

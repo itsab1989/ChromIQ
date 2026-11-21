@@ -177,12 +177,38 @@ def main(argv: "list[str]") -> int:
             pass
 
     def result(what, strip, ok, why="", pairing="checked",
-               calibrate=False) -> dict:
-        return {"event": "dual_pass_result", "what": what, "strip": strip,
-                "ok": ok, "why": why, "uv_readings": 96 if ok else 0,
-                "fewest_per_patch": 4 if ok else -1,
-                "uv_triggers": 1, "volts": [1310, 1302],
-                "pairing": pairing if ok else "", "calibrate": calibrate}
+               calibrate=False, pace=None) -> dict:
+        ev = {"event": "dual_pass_result", "what": what, "strip": strip,
+              "ok": ok, "why": why, "uv_readings": 96 if ok else 0,
+              "fewest_per_patch": 4 if ok else -1,
+              "uv_triggers": 1, "volts": [1310, 1302],
+              "pairing": pairing if ok else "", "calibrate": calibrate}
+        if pace is not None:
+            ev.update(pace)
+            ev["uv_readings"] = pace["uv_readings"]
+            ev["fewest_per_patch"] = min(pace["uv_counts"])
+        return ev
+
+    def pace_of(cmd, why="") -> dict:
+        """After 4.3.54 (helper 2026-11-21b): the pace fields cq_dd_result
+        adds after the cut. On the second swipe: "uv_fewest" (the emptiest
+        patch's UV readings; default 5, 2 for uv_pass_too_fast), "uv_s",
+        "lamp_s" (the passes' seconds), "patches" (default 12)."""
+        n = int(cmd.get("patches") or 12)
+        few = int(cmd.get("uv_fewest") or (2 if why == "uv_pass_too_fast" else 5))
+        uv_s = float(cmd.get("uv_s") or 4.1)
+        lamp_s = float(cmd.get("lamp_s") or 3.7)
+        rms = 4.896
+        counts = [few + 2 + (k % 3) for k in range(n)]
+        counts[n // 2] = few
+        return {"pace": True, "need": 3, "edge_steps": 0.5, "reading_ms": rms,
+                "lamp_readings": int(round(lamp_s * 1000 / rms)), "lamp_s": lamp_s,
+                "lamp_travel": 515, "lamp_dir": -1,
+                "uv_readings": int(round(uv_s * 1000 / rms)), "uv_s": uv_s,
+                "uv_travel": 512, "uv_dir": 1,
+                "lamp_off_ms": 2, "uv_dark_ms": 1150, "uv_trigger_ms": 1190,
+                "uv_done_ms": int(1190 + uv_s * 1000),
+                "lamp_cells": [c + 3 for c in counts], "uv_counts": counts}
 
     def calibration() -> dict:
         dark = os.environ.get("CHROMIQ_DUAL_SIM_CAL") == "dark"
@@ -275,7 +301,8 @@ def main(argv: "list[str]") -> int:
             if cmd is not None:
                 cmd = {k: v for k, v in cmd.items()
                        if k not in ("uv_fault", "lamp_fault", "pairing",
-                                    "needs_ruler")}
+                                    "needs_ruler", "uv_fewest", "uv_s", "lamp_s",
+                                    "patches")}
                 to_child(cmd)
             else:
                 try:
@@ -382,11 +409,17 @@ def main(argv: "list[str]") -> int:
             to_child({"cmd": "swipe", "fault": "misread",
                       "reason": st["lamp_reason"]})
         elif cmd.get("uv_fault"):
-            st["pending"] = result("strip", strip, False, str(cmd["uv_fault"]))
+            why = str(cmd["uv_fault"])
+            # the cut ran for these (the pace is known), not for the others
+            pc = pace_of(cmd, why) if why in (
+                "uv_pass_too_fast", "uv_pass_misaligned", "uv_pass_wrong_strip",
+                "uv_pass_stalled", "uv_pass_short") else None
+            st["pending"] = result("strip", strip, False, why, pace=pc)
             to_child({"cmd": "swipe", "fault": "misread", "reason": "Misread"})
         else:
             st["pending"] = result("strip", strip, True,
-                                   pairing=str(cmd.get("pairing") or "checked"))
+                                   pairing=str(cmd.get("pairing") or "checked"),
+                                   pace=pace_of(cmd))
             to_child(plain)
         st["lamp_fault"] = ""
     try:

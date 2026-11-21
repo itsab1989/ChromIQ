@@ -1,0 +1,157 @@
+"""The pace of a hand dual strip (after 4.3.54, 2026-11-21).
+
+The helper's ``dual_pass_result`` for a hand strip carries, from helper
+2026-11-21b (``"pace": true``), what a person needs to learn the pace and
+what a tester's app log must hold to tell why a pass was refused:
+
+* ``lamp_s`` / ``uv_s``: each pass's time, its readings x their integration
+  time (the instrument reads back to back while the button is held), and
+  ``reading_ms``; ``lamp_readings`` and ``uv_readings``;
+* ``lamp_travel`` / ``uv_travel`` (ruler COUNTS, first to last reading) and
+  ``lamp_dir`` / ``uv_dir`` (+1 up the ruler, -1 down). The ruler's mm scale
+  is not measured for the i1Pro 2, so no speed in mm/s is ever stated;
+* ``lamp_cells``: ArgyllCMS's readings per patch in the lamp pass (its
+  trimmed cells), ``uv_counts``: the UV readings per patch (the cut);
+  ``fewest_per_patch``, ``need`` (3), ``edge_steps`` (0.5);
+* ``lamp_off_ms``, ``uv_dark_ms``, ``uv_trigger_ms``, ``uv_done_ms``: when the
+  lamp went out, the dark reading before the UV pass, the UV pass's trigger
+  and its end, in ms after the lamp pass's readings were in (-1 unknown).
+
+An older helper sends none of this; then nothing here says anything and the
+texts are those of 4.3.54. Texts: §M-PROPOSED M-DUAL-PASS-PACE, -PACE-CLOSE,
+-TOO-FAST; docs/design/i1pro2_dual_scan.md section 17.
+"""
+from __future__ import annotations
+
+import logging
+import math
+import statistics
+
+from core.i18n import decimal_text
+
+log = logging.getLogger(__name__)
+
+GOOD = "#5cb85c"     # the reading-speed panel's own colours (tab_measure)
+CLOSE = "#e0a63a"
+TOO_FAST = "#ff6b6b"
+
+
+def _num(v) -> "float | None":
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return f if math.isfinite(f) else None
+
+
+def has_pace(ev: dict) -> bool:
+    """The event carries the pace (a helper from 2026-11-21b, a hand strip
+    that got as far as the cut)."""
+    ev = ev or {}
+    return bool(ev.get("pace")) and _num(ev.get("uv_s")) is not None and \
+        _num(ev.get("lamp_s")) is not None and _num(ev.get("need")) is not None
+
+
+def _counts(ev: dict, key: str) -> "list[int]":
+    out = []
+    for v in (ev or {}).get(key) or []:
+        try:
+            out.append(int(v))
+        except (TypeError, ValueError):
+            pass
+    return out
+
+
+def fewest(ev: dict) -> "int | None":
+    c = _counts(ev, "uv_counts")
+    if c:
+        return min(c)
+    try:
+        f = int((ev or {}).get("fewest_per_patch"))
+    except (TypeError, ValueError):
+        return None
+    return f if f >= 0 else None
+
+
+def target_seconds(uv_s: float, fewest_: int, need: int) -> float:
+    """How long the refused pass should have taken: as many readings on its
+    emptiest patch as needed, i.e. the pass slower by need / fewest, rounded
+    UP to half a second."""
+    if fewest_ <= 0:
+        return uv_s
+    t = uv_s * need / fewest_
+    return math.ceil(t * 2.0 - 1e-9) / 2.0
+
+
+def accepted_text(ev: dict, strip_name: str) -> "tuple[str, str, str] | None":
+    """(title, body, colour) for an accepted strip with the pace, else None."""
+    from workflow import measurement_messages as M
+    if not has_pace(ev):
+        return None
+    f, need = fewest(ev), int(_num(ev.get("need")))
+    if f is None or f < need:
+        return None
+    msg, colour = ((M.M_DUAL_PASS_PACE_CLOSE, CLOSE) if f <= need
+                   else (M.M_DUAL_PASS_PACE, GOOD))
+    title, body = msg.render(strip=strip_name, fewest=f, need=need,
+                             lamp_s=decimal_text(_num(ev["lamp_s"]), 1),
+                             uv_s=decimal_text(_num(ev["uv_s"]), 1))
+    return title, body, colour
+
+
+def too_fast_text(ev: dict) -> "tuple[str, str] | None":
+    """(title, body) for a second pass refused as too fast, with its numbers;
+    None when the event does not say them (4.3.54's sentence is used)."""
+    from workflow import measurement_messages as M
+    if str((ev or {}).get("why") or "") != "uv_pass_too_fast" or not has_pace(ev):
+        return None
+    f, need = fewest(ev), int(_num(ev.get("need")))
+    uv_s = _num(ev.get("uv_s"))
+    if f is None or f <= 0 or f >= need or not uv_s or uv_s <= 0:
+        return None
+    return M.M_DUAL_PASS_TOO_FAST.render(
+        fewest=f, need=need, uv_s=decimal_text(uv_s, 1),
+        target_s=decimal_text(target_seconds(uv_s, f, need), 1))
+
+
+def log_result(ev: dict) -> None:
+    """The app log: one line per dual pass verdict with the pace (INFO), the
+    per-patch lists in full (DEBUG). No serial, no path: numbers and ids."""
+    try:
+        from core.app_log import line
+        ev = ev or {}
+        kv = {"strip": str(ev.get("strip") or "") or "-",
+              "what": str(ev.get("what") or "strip"),
+              "ok": bool(ev.get("ok")), "why": str(ev.get("why") or "") or "-",
+              "uv_readings": ev.get("uv_readings"),
+              "fewest": ev.get("fewest_per_patch"),
+              "pairing": str(ev.get("pairing") or "") or "-"}
+        if has_pace(ev):
+            lc, uc = _counts(ev, "lamp_cells"), _counts(ev, "uv_counts")
+            kv.update({
+                "need": ev.get("need"), "edge_steps": _num(ev.get("edge_steps")),
+                "reading_ms": _num(ev.get("reading_ms")),
+                "lamp_dir": ev.get("lamp_dir"), "lamp_travel": ev.get("lamp_travel"),
+                "lamp_readings": ev.get("lamp_readings"), "lamp_s": _num(ev.get("lamp_s")),
+                "uv_dir": ev.get("uv_dir"), "uv_travel": ev.get("uv_travel"),
+                "uv_s": _num(ev.get("uv_s")),
+                "lamp_cell_min": min(lc) if lc else None,
+                "lamp_cell_median": statistics.median(lc) if lc else None,
+                "uv_count_min": min(uc) if uc else None,
+                "uv_count_median": statistics.median(uc) if uc else None,
+                "lamp_off_ms": ev.get("lamp_off_ms"), "uv_dark_ms": ev.get("uv_dark_ms"),
+                "uv_trigger_ms": ev.get("uv_trigger_ms"),
+                "uv_done_ms": ev.get("uv_done_ms")})
+            if str(ev.get("why") or "") == "uv_pass_too_fast":
+                f, need, uv_s = fewest(ev), _num(ev.get("need")), _num(ev.get("uv_s"))
+                if f and need and uv_s:
+                    kv["slower_factor"] = round(need / f, 2)
+                    kv["target_s"] = target_seconds(uv_s, f, int(need))
+            line("dual pass", **kv)
+            line("dual pass patches", _level=logging.DEBUG, strip=kv["strip"],
+                 lamp_cells=",".join(str(v) for v in lc) or "-",
+                 uv_counts=",".join(str(v) for v in uc) or "-")
+        else:
+            line("dual pass", **kv)
+    except Exception:      # noqa: BLE001 - a log line never stops a read
+        log.debug("dual pass log line", exc_info=True)

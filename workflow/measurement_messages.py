@@ -12198,6 +12198,55 @@ M_DUAL_PASS_NOTE = _m(
     "{note}",
     approved=False)
 
+#: After each hand dual strip whose two passes were accepted (after 4.3.54,
+#: the pace): in the Measure log and as the reading-speed line under the
+#: chart. {lamp_s} / {uv_s} the passes' seconds (readings x their
+#: integration time), {fewest} the UV readings of the patch that got the
+#: fewest, {need} the least ChromIQ takes (3). The _CLOSE variant when
+#: {fewest} is exactly {need}.
+M_DUAL_PASS_PACE = _m(
+    "M-DUAL-PASS-PACE",
+    "Strip {strip}: both passes read",
+    "Pass 1 (lamp): {lamp_s} seconds. Pass 2 (UV light): {uv_s} seconds, with at "
+    "least {fewest} readings on every patch (ChromIQ needs {need}). This pace "
+    "leaves room.",
+    approved=False)
+
+M_DUAL_PASS_PACE_CLOSE = _m(
+    "M-DUAL-PASS-PACE-CLOSE",
+    "Strip {strip}: both passes read, close to the limit",
+    "Pass 1 (lamp): {lamp_s} seconds. Pass 2 (UV light): {uv_s} seconds, and one "
+    "patch got only {fewest} readings in it, just the {need} ChromIQ needs. Going "
+    "a little slower over the next strips keeps them from having to be read "
+    "again.",
+    approved=False)
+
+#: A second pass refused as too fast, when the engine says by how much
+#: (after 4.3.54): the {reason} of M-DUAL-PASS-FAILED, the log and the
+#: reading-speed line. {target_s} the pass's seconds x {need} / {fewest},
+#: rounded up to half a second.
+M_DUAL_PASS_TOO_FAST = _m(
+    "M-DUAL-PASS-TOO-FAST",
+    "The second pass (UV light) was too fast",
+    "In the second pass (UV light) one patch got only {fewest} readings, and "
+    "ChromIQ needs at least {need} on every patch. This pass took {uv_s} seconds: "
+    "next time take about {target_s} seconds or a little more for it, at an even "
+    "speed. "
+    "Read this strip once more, both passes: the first pass with the lamp "
+    "as usual, then the second pass with the UV light right after it, "
+    "without lifting the instrument. For now ChromIQ always reads the two "
+    "passes of a strip together, so the first pass is read again too.",
+    body_one="In the second pass (UV light) one patch got only 1 reading, and "
+    "ChromIQ needs at least {need} on every patch. This pass took {uv_s} seconds: "
+    "next time take about {target_s} seconds or a little more for it, at an even "
+    "speed. "
+    "Read this strip once more, both passes: the first pass with the lamp "
+    "as usual, then the second pass with the UV light right after it, "
+    "without lifting the instrument. For now ChromIQ always reads the two "
+    "passes of a strip together, so the first pass is read again too.",
+    count_key="fewest",
+    approved=False)
+
 #: Before START: a dual measurement continued as a single scan, or the
 #: other way round (`storage.start_guard`).
 M_DUAL_START_REFUSED = _m(
@@ -14253,6 +14302,7 @@ CATALOGUE = {m.id: m for m in (
     M_DUAL_PASS_ONE, M_DUAL_PASS_TWO, M_DUAL_PASS_TWO_UNREAD,
     M_DUAL_PASS_FAILED, M_DUAL_SPOT_FAILED, M_DUAL_ENDED, M_DUAL_ON,
     M_DUAL_PASS_NOTE, M_DUAL_START_REFUSED, M_DUAL_FILTER_OFF_PARENT,
+    M_DUAL_PASS_PACE, M_DUAL_PASS_PACE_CLOSE, M_DUAL_PASS_TOO_FAST,
     M_DUAL_CONTINUE_M0, M_DUAL_NOCAL_REFUSED, M_DUAL_PASS_ONE_NO_CAL,
     M_DUAL_CAL_AGAIN, M_DUAL_PASS_HELD, M_DUAL_HIGHRES_REFUSED,
     M_DUAL_PASS_ONE_NO_CAL_KEPT,

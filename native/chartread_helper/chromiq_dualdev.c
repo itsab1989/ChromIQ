@@ -212,23 +212,93 @@ static const char *cq_dd_fits(int scan, int clocks) {
 	return NULL;
 }
 
+/* THE PACE OF A HAND DUAL STRIP (after 4.3.54): what the person needs to
+ * learn his pace and what the app log keeps for a tester's report. Every
+ * number is measured: readings x their integration time (the instrument
+ * reads back to back while the button is held), the ruler's travel in
+ * COUNTS (its mm scale is not measured for the i1Pro 2, so no mm/s), the
+ * readings per patch of both passes, and when the steps happened. */
+typedef struct {
+	int have;
+	int n1, n2, clocks;			/* readings of the lamp / UV pass, clocks per reading */
+	double lamp_travel, uv_travel;	/* ruler counts, first to last reading */
+	int lamp_dir, uv_dir;			/* +1 up the ruler, -1 down, 0 not moving */
+	const int *cells;			/* ArgyllCMS's trimmed lamp cells: readings per patch */
+	const int *counts;			/* UV readings per patch (the cut) */
+	int npatch;
+	cq_dual_times t;
+} cq_dd_pace;
+
+static int cq_dd_dir(const double *p, int n) {
+	if (p == NULL || n < 2 || p[n - 1] == p[0])
+		return 0;
+	return p[n - 1] > p[0] ? 1 : -1;
+}
+
+/* "[a,b,c]" of n ints into a malloc'd string (NULL when there is none) */
+static char *cq_dd_list(const int *v, int n) {
+	char *b;
+	size_t at = 0, cap;
+	int i;
+	if (v == NULL || n <= 0)
+		return NULL;
+	cap = (size_t)n * 12 + 4;
+	if ((b = (char *)malloc(cap)) == NULL)
+		return NULL;
+	b[at++] = '[';
+	for (i = 0; i < n; i++)
+		at += (size_t)snprintf(b + at, cap - at, i ? ",%d" : "%d", v[i]);
+	b[at++] = ']';
+	b[at] = '\0';
+	return b;
+}
+
+/* ms of a stamp after the lamp pass's readings were in; -1 when unknown */
+static long cq_dd_after(unsigned int stamp, unsigned int base) {
+	if (stamp == 0 || base == 0)
+		return -1;
+	return (long)(int)(stamp - base);
+}
+
 /* pairing: "checked", "pairing_not_checked" (too dark to judge: the note) or "" */
 static void cq_dd_result(const char *what, const char *strip, const char *why, int nuv,
                          const int *counts, int npatch, const cq_dual_uv *u, const char *pairing,
-                         int calibrate) {
-	char sb[64];
+                         int calibrate, const cq_dd_pace *pc) {
+	char sb[64], pace[512];
+	char *lc = NULL, *uc = NULL;
 	int i, mn = -1;
 	cq_json_escape(sb, sizeof(sb), strip != NULL ? strip : "");
 	for (i = 0; counts != NULL && i < npatch; i++)
 		if (mn < 0 || counts[i] < mn)
 			mn = counts[i];
+	pace[0] = '\0';
+	if (pc != NULL && pc->have) {
+		double rs = pc->t.clock_s > 0.0 && pc->clocks > 0 ? pc->clocks * pc->t.clock_s : 0.0;
+		unsigned int b = pc->t.lamp_done;
+		lc = cq_dd_list(pc->cells, pc->npatch);
+		uc = cq_dd_list(pc->counts, pc->npatch);
+		snprintf(pace, sizeof(pace),
+		         ",\"pace\":true,\"need\":%d,\"edge_steps\":%.2f,\"reading_ms\":%.3f,"
+		         "\"lamp_readings\":%d,\"lamp_s\":%.2f,\"lamp_travel\":%.0f,\"lamp_dir\":%d,"
+		         "\"uv_s\":%.2f,\"uv_travel\":%.0f,\"uv_dir\":%d,"
+		         "\"lamp_off_ms\":%ld,\"uv_dark_ms\":%ld,\"uv_trigger_ms\":%ld,\"uv_done_ms\":%ld",
+		         CQ_DUAL_MIN_UV, (double)CQ_DUAL_EDGE_STEPS, rs * 1000.0,
+		         pc->n1, pc->n1 * rs, pc->lamp_travel, pc->lamp_dir,
+		         pc->n2 * rs, pc->uv_travel, pc->uv_dir,
+		         cq_dd_after(pc->t.lamp_off, b), cq_dd_after(pc->t.uv_dark, b),
+		         cq_dd_after(pc->t.uv_trigger, b), cq_dd_after(pc->t.uv_done, b));
+	}
 	cq_emit_raw("{\"event\":\"dual_pass_result\",\"what\":\"%s\",\"strip\":\"%s\",\"ok\":%s,"
 	            "\"why\":\"%s\",\"uv_readings\":%d,\"fewest_per_patch\":%d,\"uv_triggers\":%d,"
-	            "\"volts\":[%d,%d],\"pairing\":\"%s\",\"calibrate\":%s}",
+	            "\"volts\":[%d,%d],\"pairing\":\"%s\",\"calibrate\":%s%s%s%s%s%s}",
 	            what, sb, why == NULL ? "true" : "false", why != NULL ? why : "", nuv, mn,
 	            u != NULL ? u->uv_triggers : 0,
 	            u != NULL ? u->volts_before : -1, u != NULL ? u->volts_after : -1,
-	            pairing != NULL ? pairing : "", calibrate ? "true" : "false");
+	            pairing != NULL ? pairing : "", calibrate ? "true" : "false", pace,
+	            lc != NULL ? ",\"lamp_cells\":" : "", lc != NULL ? lc : "",
+	            uc != NULL ? ",\"uv_counts\":" : "", uc != NULL ? uc : "");
+	free(lc);
+	free(uc);
 }
 
 /* 4.3.49: the first reading after a calibration that cannot give M1 / M2 is
@@ -275,7 +345,7 @@ static void cq_dd_spot(inst_code *rv) {
 	i1pro2_cq_dual_arm(cq_dd.it, CQ_DUAL_PHASE_OFF);
 	{
 		int again = cq_dd_cal_reason(why) && cq_dd_ask_calibration();
-		cq_dd_result("spot", "", why, u.n, NULL, 0, &u, "", again);
+		cq_dd_result("spot", "", why, u.n, NULL, 0, &u, "", again, NULL);
 		free(l.L);
 		free(u.U);
 		cq_dd.why = why;
@@ -343,7 +413,7 @@ static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, 
 		if (*rv != inst_ok)
 			return;			/* ArgyllCMS's own misread: read again, as always */
 		again = cq_dd_ask_calibration();
-		cq_dd_result("strip", strip, cw, 0, NULL, 0, NULL, "", again);
+		cq_dd_result("strip", strip, cw, 0, NULL, 0, NULL, "", again, NULL);
 		cq_dd.why = cw;
 		cq_dd.n = 0;
 		if (again)
@@ -361,7 +431,7 @@ static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, 
 	if (!i1pro2_cq_dual_uv_pass_ready(it)) {
 		i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_OFF);
 		free(l.L);
-		cq_dd_result("strip", strip, "dual_needs_ruler", 0, NULL, 0, NULL, "", 0);
+		cq_dd_result("strip", strip, "dual_needs_ruler", 0, NULL, 0, NULL, "", 0, NULL);
 		cq_dd.why = "dual_needs_ruler";
 		cq_dd.on = 0;
 		cq_cond_lose("dual_dual_needs_ruler");
@@ -453,8 +523,28 @@ static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, 
 		if (why == NULL)
 			why = cq_dd_compute(l.L, cutv, npatch, l.clamp);
 	}
-	cq_dd_result("strip", strip, why, u.n, why == NULL || counts != NULL ? counts : NULL,
-	             counts != NULL ? npatch : 0, &u, pairing, calibrate);
+	{	/* after 4.3.54: the pace (readings, times, travel, per patch) */
+		cq_dd_pace pc;
+		memset(&pc, 0, sizeof(pc));
+		pc.n1 = i1pro2_cq_dual_lamp_count(it);
+		pc.n2 = u.n;
+		pc.clocks = u.clocks > 0 ? u.clocks : r.clocks;
+		i1pro2_cq_dual_times(it, &pc.t);
+		if (lp != NULL && up != NULL && pc.n1 > 1 && pc.n2 > 1) {
+			pc.have = 1;
+			pc.lamp_travel = fabs(lp[pc.n1 - 1] - lp[0]);
+			pc.uv_travel = fabs(up[pc.n2 - 1] - up[0]);
+			pc.lamp_dir = cq_dd_dir(lp, pc.n1);
+			pc.uv_dir = cq_dd_dir(up, pc.n2);
+			if (counts != NULL && got_r && r.ncut == npatch) {
+				pc.cells = r.cut_no;
+				pc.counts = counts;
+				pc.npatch = npatch;
+			}
+		}
+		cq_dd_result("strip", strip, why, u.n, why == NULL || counts != NULL ? counts : NULL,
+		             counts != NULL ? npatch : 0, &u, pairing, calibrate, &pc);
+	}
 	free(l.L);
 	free(u.U);
 	free(lp);

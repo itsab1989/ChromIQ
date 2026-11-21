@@ -132,7 +132,8 @@ mismatch (white at 154 clocks, strip at 139), which `calibration_mismatch` refus
   where it applies).
 * UV pass: valid by (a) the ruler: it covered every patch of the lamp pass (`uv_pass_short`), with
   no gap or stall (`uv_pass_stalled`), with at least 3 readings per patch (`uv_pass_too_fast`;
-  the recordings had 4-5, slow 9-10); either direction, the ruler says which; and (b) it belongs to
+  counted, after 4.3.54, over the lamp cell's whole span less half a ruler step at each end,
+  until 4.3.54 over its central 60 %: section 17); either direction, the ruler says which; and (b) it belongs to
   the strip (`uv_pass_wrong_strip`): at 380-400 nm nothing glows, so the UV reading must follow
   (T/W) x the lamp pass across the strip's patches (correlation >= 0.95 and median ratio error
   <= 0.10). DARK PATCHES (review, M2): the ratio's noise grows as the lamp level falls (median
@@ -911,3 +912,63 @@ instrument or table. Tests: `tests/test_4354_dual_scan_mode.py`, `tests/test_435
   measured with M0 chosen has no M1 or M2 later without measuring it again).
 * **Not changed:** what is sent to the instrument or the table in a dual scan or a single scan;
   Build Profile's offer (an M0-only run behaves as any i1Pro 2 run without the dual scan).
+
+### 17. ⏳ Awaiting confirmation: the UV pass counted over the whole clean middle, and the pace after each strip (2026-11-21, after 4.3.54)
+
+**Confirmed by:** *nobody yet.*
+
+Built on the owner's words of 2026-11-21, *"yes do it as suggested 1 and 2"* (the study of the
+refused UV passes, work folder 2026-11-21_uv_pass_refusals: a tester's i1Pro 2 refused 27 of 87
+UV passes as too fast). He approved the change, not the result below. Tested on the replay of
+instrument 1's recorded hand dual sessions (private, numbers only: work folder
+2026-11-21_uv_pass_build, `proof.txt`), against the simulated helper, and driven on screen against
+it; never on a real instrument. Tests: `tests/test_uv_pass_rule.py`, `tests/test_dual_scan_pace.py`.
+Helper 2026-11-21b. Changes what section 2a says about the UV pass's window.
+
+* **The UV readings of a patch.** The cells are ArgyllCMS's own, already trimmed to the clean
+  middle 66 % of each patch it found in the lamp pass (it accepts a lamp patch from 4 readings
+  there). Until 4.3.54 the UV readings of a patch were those whose ruler position lay in the
+  central 60 % of the cell's span (first to last lamp reading), so the UV pass needed about 1.5
+  times slower movement than the lamp pass. Now: the whole span less half a ruler step at each end
+  (`CQ_DUAL_EDGE_STEPS` / `cut.EDGE_STEPS` 0.5), at least 3 readings per patch as before. The
+  alignment gate keeps its own window (the central 60 %, `TRIM` 0.2) and its threshold 0.01,
+  unchanged.
+* **Why half a step (the physical reason).** The ruler's count labels the same stripe edge one
+  count apart in the two directions, so the UV pass's positions sit about one step off the lamp
+  pass's (measured on 13 recorded strips: 0.55 to 1.45 steps, median 0.85). The span lies half a
+  lamp reading inside the lamp readings' own extent, so only the last half step at the leading end
+  shows the neighbouring patch: UV readings there lean 0.7 % of the difference towards it at the
+  recorded speed and 1.7 % at 1.5 times; further in 0.1 % or less. The whole span (no margin)
+  raised M2's mean by 0.002 to 0.003 dE00 at speed and a worst patch to 0.73 at twice the speed;
+  half a step keeps M2 at 4.3.54's level at every speed replayed.
+* **What it changes, replayed.** M1 / M2 against i1Profiler unchanged within 0.001 dE00 mean. The
+  simulated speed of the first refusal rises from about 1.05 to about 1.5 times the recorded
+  i1Profiler pace (the lamp pass's own limit is about 1.67): of the 13 recorded strips, 4.3.54's
+  rule refused 4 at the recorded pace, the new rule none. The earlier private proofs had cut with
+  the cells before ArgyllCMS's trim and over-counted; with the cells the helper uses, the recorded
+  vendor pace already sat on 4.3.54's limit.
+* **The pace after each strip** (no new window). The helper's `dual_pass_result` of a hand strip
+  carries, after the cut, `pace: true` with each pass's seconds (its readings x their integration
+  time), readings, ruler travel in counts and direction, the readings per patch of both passes
+  (`lamp_cells`, `uv_counts`), `need` (3), `edge_steps`, and when the lamp went out, the dark
+  reading before the UV pass, the UV trigger and its end (`lamp_off_ms`, `uv_dark_ms`,
+  `uv_trigger_ms`, `uv_done_ms`, after the lamp pass's readings). No speed in mm/s: the ruler's mm
+  scale is not measured for the i1Pro 2.
+  * Accepted strip: the Measure log and the reading-speed line under the chart say both passes'
+    seconds and the emptiest patch's readings against the 3 needed (M-DUAL-PASS-PACE, green;
+    M-DUAL-PASS-PACE-CLOSE, amber, when it got exactly 3); the time under the strip is as before.
+  * A second pass refused as too fast: "Strip Read Failed" (M-DUAL-PASS-FAILED) gives, as its
+    reason, how many readings the emptiest patch got, how many are needed, how long the pass took
+    and about how long it should take (its seconds x 3 / readings, rounded up to half a second;
+    M-DUAL-PASS-TOO-FAST); the reading-speed line says the same in red.
+  * The app log: `dual pass:` per verdict with these numbers (minimum and median per patch, the
+    slower factor and target on a refusal), `dual pass patches:` with both lists in full at DEBUG.
+    No serial, no path.
+  * "Ruler (beta)": with the ruler check on, the opening line of a dual measurement says that the
+    ruler lines the two passes up and that each strip's pace line is shown instead of the distance
+    and speed (it promised per-strip ruler lines that a dual strip never gets).
+  * An older helper sends none of this; then the texts are 4.3.54's.
+* **Not changed:** what is sent to the instrument (the driver only notes times); the lamp pass's
+  rules; the pairing check; spot readings; the i1iO table's dual rows (their own cut,
+  `dual_rows.py`); a single scan.
+

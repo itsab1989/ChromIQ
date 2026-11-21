@@ -8768,6 +8768,15 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             kind = failure_kind(reason)
 
             pace = tracker.strip_timed(elapsed, patches) if patches else None
+            # after 4.3.54: a second pass refused as too fast, with its numbers
+            from workflow.dual_scan import pace as _P
+            fev = getattr(self, "_dual_failed_ev", None)
+            dual_tf = _P.too_fast_text(fev) if fev else None
+            if dual_tf is not None:
+                letter = getattr(self, "_current_strip_letter", "") or "?"
+                self._pace_times[letter] = (elapsed, False)
+                self._refresh_pace_panel(f"{dual_tf[0]} · {dual_tf[1]}", _P.TOO_FAST)
+                return
             if kind == "too_fast":
                 headline = tr("Too fast — that is probably why the strip failed")
                 colour = "#ff6b6b"
@@ -13799,6 +13808,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         name = self._strip_name(str(ev.get("strip") or "")) or str(
             ev.get("strip") or "")
         self._dual_failed = None      # a new pair of passes is under way
+        self._dual_failed_ev = None
         self._dual_held_said = False  # M-DUAL-PASS-HELD once per wait
         # (4.3.49: after a calibration that cannot give M1 / M2 the engine
         # reads the strip once and asks for none, so this is never that case)
@@ -13839,8 +13849,19 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         why = str(ev.get("why") or "")
         if getattr(self, "_dual_status_text", ""):
             self._dual_status("")
+        # after 4.3.54: the pace of the two passes (helper 2026-11-21b); an
+        # older helper says nothing new and the tab is 4.3.54's
+        from workflow.dual_scan import pace as _P
+        self._dual_pace_line = None
+        self._dual_failed_ev = None
         if ev.get("ok"):
             self._dual_failed = None
+            if what == "strip" and strip:
+                _txt = _P.accepted_text(ev, self._strip_name(strip) or strip)
+                if _txt is not None:
+                    _t, _b, _c = _txt
+                    self._log.appendPlainText(f"[{_t}]\n{_b}")
+                    self._dual_pace_line = (strip, f"{_t} · {_b}", _c)
             notes = []
             if str(ev.get("pairing") or "") == "pairing_not_checked":
                 notes.append("pairing_not_checked")
@@ -13872,6 +13893,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                                           self._dual_cal_id, ()))
         elif pass_level:
             self._dual_failed = (what, strip, why)
+            if _P.too_fast_text(ev) is not None:
+                self._dual_failed_ev = dict(ev)   # the window says by how much
             if what == "strip" and strip:
                 self._dual_buffer.append(("strip", strip, False, rid,
                                           self._dual_cal_id, ()))
@@ -13902,9 +13925,14 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             title, body = M.M_DUAL_SPOT_FAILED.render(
                 reason=D.reason_sentence(why))
         else:
+            # after 4.3.54: "too fast" says by how much when the engine tells
+            from workflow.dual_scan import pace as _P
+            fev = getattr(self, "_dual_failed_ev", None)
+            tf = _P.too_fast_text(fev) if fev and str(
+                fev.get("strip") or "") == str(strip) else None
             title, body = M.M_DUAL_PASS_FAILED.render(
                 strip=self._strip_name(strip) or strip,
-                reason=D.reason_sentence(why))
+                reason=tf[1] if tf is not None else D.reason_sentence(why))
         self._log.appendPlainText(f"[{title}]\n{body}")
         # paragraphs stay paragraphs (M-DUAL-CAL-AGAIN has three; found on
         # screen 2026-11-19, en-uncal: rich text ran them into one block)
@@ -21769,6 +21797,14 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         from core.measure_pace import (measured_phrase, strip_limit_fact,
                                        strip_limit_phrase)
         measured = measured_phrase(pace)
+        dual = getattr(self, "_dual_pace_line", None)
+        if dual is not None and str(dual[0]) == str(strip) and not pace.too_fast:
+            # after 4.3.54: a hand dual strip is judged by its second pass's
+            # readings per patch, which the engine counted (the time above is
+            # that pass's)
+            self._dual_pace_line = None
+            self._refresh_pace_panel(dual[1], dual[2])
+            return
         if pace.too_fast:
             colour, verdict = "#ff6b6b", tr("Too fast — read more slowly")
             limit = tr("Aim for {limit}.").format(
