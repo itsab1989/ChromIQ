@@ -12331,9 +12331,9 @@ M_DUAL_LAST_CANNOT = _m(
 M_I1IO_ROW_SPEED_END = _m(
     'M-I1IO-ROW-SPEED-END',
     'Read at a row speed other than 1.00',
-    'This measurement was read at a row speed other than 1.00 ({mark}). Patches can be wrong '
-    'without any warning. Compare it with a measurement at 1.00 before you build a profile '
-    'from it.',
+    'This measurement holds rows read at a row speed other than 1.00 ({mark}). ChromIQ checked '
+    'each row against its own readings. Compare the measurement once with one at 1.00 before '
+    'you build a profile from it.',
     approved=False)
 
 M_DUAL_GUIDED_SINGLE = _m(

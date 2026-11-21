@@ -10174,11 +10174,11 @@ alone.
 
 ### M-I1IO-ROW-SPEED-END · PROPOSED · the X-Rite i1iO table (Preferences > Beta, "Row speed"), Measure, 2026-11-21
 
-*New 2026-11-21 (4.3.54, the review's M2): at the end of a table measurement any row of which was read at a row speed factor other than 1.00: in the Measure log and under the chart. {mark} the measurement file's own CHROMIQ_ROW_SPEED value (for example "factor 1.95: 22 of 22 rows faster than the safe border"). Nothing at 1.00. Shown in the beta while awaiting approval.*
+*New 2026-11-21 (4.3.54, the review's M2): at the end of a table measurement any row of which was read at a row speed factor other than 1.00: in the Measure log and under the chart. {mark} the measurement file's own CHROMIQ_ROW_SPEED value (for example "factor 1.95: 22 of 22 rows faster than the safe border"). Nothing at 1.00. Reworded 2026-11-21 (4.3.54 release) to match the Row speed help now that every row is checked against its own readings; the mark in the file is unchanged. Shown in the beta while awaiting approval.*
 
 > **Read at a row speed other than 1.00**
 >
-> This measurement was read at a row speed other than 1.00 ({mark}). Patches can be wrong without any warning. Compare it with a measurement at 1.00 before you build a profile from it.
+> This measurement holds rows read at a row speed other than 1.00 ({mark}). ChromIQ checked each row against its own readings. Compare the measurement once with one at 1.00 before you build a profile from it.
 
 ### M-DUAL-GUIDED-SINGLE · PROPOSED · the X-Rite i1Pro 2 dual scan (Preferences > Beta), Measure, 2026-11-21
 

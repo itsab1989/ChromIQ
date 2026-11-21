@@ -11229,8 +11229,9 @@ def i1io_row_speed_help() -> str:
            "accepted patch was more than about 0.5 dE00 worse than a correctly placed reading, "
            "but at 168 mm/s up to about one good row in five was refused too. The check cannot "
            "see a sheet that lies a whole patch off, and the UV pass of a dual row is placed by "
-           "timing alone. Our tests were simulated or used one table's recordings, so compare a "
-           "fast measurement once with one at 1.00 before you trust it."),
+           "timing alone. Our tests were simulated or used one table's recordings. If a wrong "
+           "value is accepted after all, a profile built from the measurement is wrong at that "
+           "colour too, so compare a fast measurement once with one at 1.00 before you trust it."),
         tr("**It stays set** for every later table measurement until you set it back to 1.00, "
            "the default. ChromIQ writes it into the measurement file and the app log, and says "
            "it at the end of the measurement. Rows read patch by patch are not affected."),

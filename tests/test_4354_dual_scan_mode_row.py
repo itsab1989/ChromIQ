@@ -187,9 +187,10 @@ def test_the_row_speed_help_says_the_risk_and_the_numbers():
               "one good row in five was refused", "a whole patch off",
               "UV pass of a dual row is placed by timing alone", "one table's recordings",
               "compare a fast measurement once with one at 1.00",
+              "a profile built from the measurement is wrong at that colour too",
               "until you set it back to 1.00", "measurement file and the app log",
               "Rows read patch by patch are not affected"):
         assert s in h, s
     for s in ("nothing will warn", "may not notice"):     # no longer true with the check
         assert s not in h, s
-    assert len(h) < 1500
+    assert len(h) < 1550          # 1,897 before the release integration

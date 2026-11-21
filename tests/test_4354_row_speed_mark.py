@@ -102,7 +102,9 @@ def test_the_report_names_it(tmp_path):
     src = inspect.getsource(mr)
     assert 'report["row_speed"] = _rs' in src
     from ui.dialogs import measurement_report_dialog as d
-    assert "Read by the i1iO table at a row speed other than 1.00" in inspect.getsource(d)
+    # 4.3.54 release: worded as the Row speed help (every row checked; compare once with 1.00)
+    assert "Holds rows read by the i1iO table at a row speed other than 1.00" in \
+        inspect.getsource(d)
 
 
 def test_one_line_at_the_end_of_a_table_measurement(qapp, tmp_path):
@@ -119,7 +121,9 @@ def test_one_line_at_the_end_of_a_table_measurement(qapp, tmp_path):
     # under the chart once the table's window has closed (its end clears the notices)
     TabMeasure._show_row_speed_notice(fake)
     assert notice == [body] and fake._row_speed_notice is None
-    assert "1.00" in body and "without any warning" in body and "factor 1.95" in body
+    assert "1.00" in body and "factor 1.95" in body
+    assert "ChromIQ checked each row against its own readings" in body
+    assert "without any warning" not in body
     got.clear()
     TabMeasure._say_row_speed_at_end(fake, _file(tmp_path, "n.ti3"))
     assert got == []
