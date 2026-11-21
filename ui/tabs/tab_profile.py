@@ -2538,6 +2538,11 @@ class TabProfile(QWidget):
         mode = self._ac_mode_combo.currentData() or "apply"
         if mode == "apply" and not self._confirm_not_calibrated_twice(in_icc):
             return
+        # Issue 217 (verification V1): what the output file looked like
+        # before this run, so only a file this run WROTE is recorded.
+        import time as _time
+        from workflow.check_colorimetry import stamp as _stamp
+        _out_before, _started_ns = _stamp(out_icc), _time.time_ns()
         self._ac_log.clear()
         self._ac_run_btn.setEnabled(False)
         self._ac_progress.set_label(tr("Applying calibration…"), "applycal")
@@ -2567,11 +2572,15 @@ class TabProfile(QWidget):
                 # Issue 217: applycal does not change the colour settings the
                 # profile was fitted with, so the calibrated copy keeps its
                 # source's record (when the source has one).
+                # Never in "Check calibration", which writes no file while
+                # still naming the run's calibrated.icc (verification V1).
                 try:
                     from workflow.check_colorimetry import (
-                        built_colorimetry, record_derived)
+                        built_colorimetry, record_derived, written_since)
                     src = built_colorimetry(in_icc)
-                    if src.known:
+                    if (mode in ("apply", "remove") and src.known
+                            and written_since(result, _out_before,
+                                              _started_ns)):
                         record_derived(result, src.colorimetry,
                                        source=Path(in_icc).name)
                 except Exception:      # noqa: BLE001
@@ -7200,6 +7209,16 @@ class TabProfile(QWidget):
         # fresh file so Check & Refine keeps working on the physical chart.
         params = self._apply_preconditioning_merge(params)
         self._active_params = params
+        # Issue 217 (verification V1): the record names only a file this
+        # build writes (`_record_profile_build`).
+        import time as _time
+        from workflow.check_colorimetry import stamp as _stamp
+        try:
+            _icc_planned = self._builder.expected_icc_path(params)
+        except Exception:      # noqa: BLE001
+            _icc_planned = None
+        self._build_icc_before = _stamp(_icc_planned)
+        self._build_started_ns = _time.time_ns()
         # R26-F1: the profile about to be overwritten goes to `old/` first. Last
         # thing before the builders, so every refusal above has had its say and
         # the merge above has settled which file that actually is.
@@ -7439,6 +7458,16 @@ class TabProfile(QWidget):
             # build passed on, so Check & Refine checks this profile with
             # the same (`workflow.check_colorimetry`).
             active = getattr(self, "_active_params", None)
+            # Only a file this build wrote (verification V1): the build
+            # notes its start in `_on_build`; a direct call (tests) has none.
+            started = getattr(self, "_build_started_ns", None)
+            if started is not None and active is not None:
+                from workflow.check_colorimetry import written_since
+                if not written_since(icc, getattr(self, "_build_icc_before",
+                                                  None), started):
+                    log.warning("the build reported %s but did not write "
+                                "it: no colour settings recorded", icc)
+                    active = None
             if active is not None:
                 from workflow.check_colorimetry import (fingerprint,
                                                         record_for_build)

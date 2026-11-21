@@ -1979,8 +1979,19 @@ class TabCheckRefine(QWidget):
             log.debug("colour settings not compared", exc_info=True)
             return params, []
         notes: "list[str]" = []
-        mismatch = bool(spectral and built.known
-                        and cc.differences(built.colorimetry, check))
+        # Verification V5: asked only when "Use the profile's settings" would
+        # change what profcheck gets. When the only difference is FWA that
+        # this measurement cannot use (the FWA gate leaves -f out either
+        # way), nothing is asked and the note says why.
+        mismatch = False
+        if spectral and built.known:
+            from workflow.fwa_gate import drop_fwa
+            target = cc.apply_to_check(params, built.colorimetry)
+            if self._fwa_refused() is not None:
+                drop_fwa(target)
+            mismatch = bool(cc.differences(
+                cc.from_check_params(cc.as_run(target)),
+                cc.from_check_params(cc.as_run(params))))
         choice = ""
         if mismatch:
             choice = self._ask_colorimetry(built.colorimetry, check)
@@ -2024,6 +2035,16 @@ class TabCheckRefine(QWidget):
                     built=cc.describe(built.colorimetry),
                     check=cc.describe(check))
                 notes.append(body)
+        elif spectral and built.known and cc.differences(
+                built.colorimetry, cc.from_check_params(cc.as_run(params))):
+            # the same settings, except FWA this measurement cannot use
+            notes.append(tr(
+                "This profile was built with {settings}. The check uses "
+                "{used}: FWA compensation is left out, because this "
+                "measurement cannot use it.").format(
+                    settings=cc.describe(built.colorimetry),
+                    used=cc.describe(cc.from_check_params(
+                        cc.as_run(params)))))
         elif spectral and built.known and not built.colorimetry.is_default:
             notes.append(tr(
                 "This profile was built with {settings}, and the check uses "

@@ -215,6 +215,29 @@ def record_for_build(params) -> dict:
     return {RECORD_KEY: from_profile_params(params).as_record()}
 
 
+def stamp(path) -> "int | None":
+    """A file's modification time in nanoseconds, None when it is absent."""
+    try:
+        return Path(path).stat().st_mtime_ns
+    except (OSError, TypeError, ValueError):
+        return None
+
+
+#: A file system's clock may lag the process's by a little.
+_CLOCK_SLACK_NS = 2_000_000_000
+
+
+def written_since(path, before: "int | None", started_ns: int) -> bool:
+    """Whether *path* was written by the tool run that started at
+    *started_ns* (`time.time_ns()`), its stamp before that run being
+    *before* (`stamp`): it exists, its stamp changed, and it is not older
+    than the run (verification V1: a tool that REPORTS a path is not one
+    that wrote it)."""
+    now = stamp(path)
+    return (now is not None and now != before
+            and now >= started_ns - _CLOCK_SLACK_NS)
+
+
 def record_derived(out_icc, colorimetry: "Colorimetry | None",
                    source: str = "") -> bool:
     """Record the colour settings of a profile made from or beside the run's
@@ -326,6 +349,10 @@ def built_colorimetry(icc_path) -> Built:
     if col is None:
         return Built(None, "built before ChromIQ recorded the colour settings",
                      UNKNOWN_OLD)
+    if not entry.get("profile_sha256"):
+        # only this branch's first, never released, commit wrote such
+        return Built(None, "the record does not identify the file (no size "
+                           "or SHA-256)", UNKNOWN_OLD)
     fp = fingerprint(icc)
     if (not fp or entry.get("profile_sha256") != fp["profile_sha256"]
             or entry.get("profile_size") != fp["profile_size"]):
@@ -426,6 +453,9 @@ def check_log_line(built: Built, check: Colorimetry, *, spectral: bool,
                      "settings change no number")
     elif mismatch:
         parts.append(f"they differ: warning shown, chosen: {choice or '-'}")
+    elif built.known and differences(built.colorimetry, check):
+        parts.append("FWA compensation left out: this measurement cannot "
+                     "use it (FWA gate)")
     elif built.known:
         parts.append("they match")
     return "Check colour settings: " + "; ".join(parts)

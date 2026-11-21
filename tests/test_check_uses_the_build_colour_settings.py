@@ -817,3 +817,139 @@ def test_inspect_shows_the_settings_beside_its_score():
         Ti3InfoDialog._run_profcheck)
     assert 'tr("Colour settings"), _cn' in inspect.getsource(
         Ti3InfoDialog._accuracy_section)
+
+
+# ---------------------------------------------------------------------------
+# last fix round (verification of 2026-11-21): V1, V4, V5
+# ---------------------------------------------------------------------------
+
+def _applycal_tab(tmp_path, qtbot, mode, monkeypatch, *, write: bool):
+    from tests.test_the_new_profile_engine_is_one_switch import (
+        _run_with_ti3, _tab)
+    tab = _tab(tmp_path, profile_engine_beta=False)
+    qtbot.addWidget(tab)
+    run, ti3 = _run_with_ti3(tab, tmp_path)
+    icc = ti3.with_suffix(".icc")
+    icc.write_bytes(b"the run's profile" * 30)
+    info = {"builder": "colprof", "profile": icc.name}
+    info.update(cc.record_for_build(__import__(
+        "workflow.profile_builder", fromlist=["x"]).ProfileParams(
+            ti3_path=ti3, observer="2015_2")))
+    info.update(cc.fingerprint(icc))
+    run.record_profile_build(info)
+    cal_file = tmp_path / "x.cal"
+    cal_file.write_text("CAL", encoding="utf-8")
+    tab._ac_cal_edit.setText(str(cal_file))
+    tab._ac_in_edit.setText(str(icc))
+    tab._ac_mode_combo.setCurrentIndex(tab._ac_mode_combo.findData(mode))
+    monkeypatch.setattr(tab, "_confirm_not_calibrated_twice", lambda *_a: True)
+    monkeypatch.setattr(tab, "_show_applycal_result_dialog", lambda *_a: None)
+
+    def _fake_run(*, cal_path, in_icc, out_icc, mode, verbose, on_line,
+                  on_finish):
+        if write:
+            Path(out_icc).write_bytes(b"freshly calibrated" * 30)
+        on_finish(Path(out_icc))      # check mode reports the path too
+
+    monkeypatch.setattr(tab._applycal_runner, "run", _fake_run)
+    return tab, run
+
+
+def test_check_calibration_records_nothing(tmp_path, qtbot, monkeypatch):
+    """Verification V1: "Check calibration" writes no file but reports the
+    run's calibrated.icc. An old calibrated.icc built otherwise must stay
+    unknown and the record must not change."""
+    import os
+    tab, run = _applycal_tab(tmp_path, qtbot, "check", monkeypatch,
+                             write=False)
+    stale = run.calibrated_icc
+    stale.write_bytes(b"an old calibrated copy, built with -i A -f" * 9)
+    past = time.time() - 3600
+    os.utime(stale, (past, past))
+    before = run.load_meta().profile_build
+    tab._on_applycal_run()
+    assert run.load_meta().profile_build == before
+    assert not cc.built_colorimetry(stale).known
+
+
+def test_apply_calibration_records_the_file_it_wrote(tmp_path, qtbot,
+                                                     monkeypatch):
+    tab, run = _applycal_tab(tmp_path, qtbot, "apply", monkeypatch,
+                             write=True)
+    tab._on_applycal_run()
+    got = cc.built_colorimetry(run.calibrated_icc)
+    assert got.known and got.colorimetry.observer == "2015_2"
+
+
+def test_apply_that_wrote_nothing_records_nothing(tmp_path, qtbot,
+                                                  monkeypatch):
+    """A successful apply whose output is the old file, untouched (the tool
+    reported a path it did not write), records nothing."""
+    import os
+    tab, run = _applycal_tab(tmp_path, qtbot, "apply", monkeypatch,
+                             write=False)
+    old = run.calibrated_icc
+    old.write_bytes(b"old" * 50)
+    past = time.time() - 3600
+    os.utime(old, (past, past))
+    tab._on_applycal_run()
+    assert not cc.built_colorimetry(old).known
+
+
+def test_a_build_that_reports_a_file_it_did_not_write_records_no_settings(
+        tmp_path, qtbot):
+    import os
+    from tests.test_the_new_profile_engine_is_one_switch import (
+        _run_with_ti3, _tab)
+    from workflow.profile_builder import ProfileParams
+    tab = _tab(tmp_path, profile_engine_beta=False)
+    qtbot.addWidget(tab)
+    run, ti3 = _run_with_ti3(tab, tmp_path)
+    icc = ti3.with_suffix(".icc")
+    icc.write_bytes(b"an older profile" * 20)
+    past = time.time() - 3600
+    os.utime(icc, (past, past))
+    tab._active_params = ProfileParams(ti3_path=ti3, observer="2015_2")
+    tab._build_icc_before = cc.stamp(icc)
+    tab._build_started_ns = time.time_ns()
+    tab._note_a_colprof_build(icc)                   # nothing was written
+    rec = run.load_meta().profile_build
+    assert "colorimetry" not in rec and not cc.built_colorimetry(icc).known
+    icc.write_bytes(b"the new profile" * 20)         # now it was written
+    tab._note_a_colprof_build(icc)
+    assert cc.built_colorimetry(icc).colorimetry.observer == "2015_2"
+
+
+def test_a_record_without_a_hash_is_not_called_replaced(tmp_path):
+    """Verification V4."""
+    _s, work = _settings(tmp_path)
+    run, _ti3, icc = _run(work)
+    run.record_profile_build({"builder": "colprof", "profile": icc.name,
+                              "colorimetry": {"observer": "2015_2"}})
+    got = cc.built_colorimetry(icc)
+    assert not got.known and got.reason == cc.UNKNOWN_OLD
+    assert "does not identify the file" in got.why
+
+
+def test_fwa_the_measurement_cannot_use_is_not_asked_about(
+        qapp, tmp_path, monkeypatch, caplog):
+    """Verification V5: built with -f; the checked measurement is refused
+    -f by the FWA gate (it names no instrument); otherwise the settings
+    match. The window would offer a choice that changes nothing, so it is
+    not shown; the note says why FWA compensation is left out."""
+    from workflow.profile_builder import ProfileParams
+    s, work = _settings(tmp_path)
+    run, ti3, icc = _run(work)
+    info = {"builder": "colprof", "profile": icc.name}
+    info.update(cc.record_for_build(ProfileParams(
+        ti3_path=Path("elsewhere.ti3"), fwa_enabled=True)))
+    info.update(cc.fingerprint(icc))
+    run.record_profile_build(info)
+    tab = _check_tab(s, ti3, icc)
+    runs, asked = _capture(monkeypatch, tab, answer="profile")
+    with caplog.at_level(logging.INFO):
+        tab._on_run()
+    assert not asked and runs
+    assert "FWA compensation is left out" in tab._log.toPlainText()
+    assert "FWA compensation left out: this measurement cannot use it" in \
+        tab._colour_record
