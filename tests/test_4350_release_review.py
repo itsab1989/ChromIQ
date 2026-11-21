@@ -59,8 +59,10 @@ def test_the_entry_names_things_as_the_app_shows_them():
     from core.i18n import tr  # noqa: F401
     from workflow import measurement_messages as M
     text = "\n".join(_entry("v4.3.50"))
+    # (4.3.56 gave STILL-AIMING a new title, for answers that do not agree; the title 4.3.50 named,
+    # "The table is still in its aiming mode", is now REPAIR-AT-START's, the page START shows then)
     for msg in (M.M_I1IO_DRIVE_HOME_AT_END, M.M_I1IO_DRIVE_FRONT, M.M_I1IO_DRIVE_FRONT_STOPPED,
-                M.M_I1IO_DRIVE_STILL_AIMING, M.M_I1IO_DRIVE_CONSENT):
+                M.M_I1IO_DRIVE_REPAIR_AT_START, M.M_I1IO_DRIVE_CONSENT):
         assert msg.title in text, msg.id
     assert M.M_I1IO_DRIVE_ROW_M0_ONLY.title.format(row="5") in text
     assert M.M_STRIP_ENDS_SHIFTED_LATE.title.format(strip="A") in text

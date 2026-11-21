@@ -57,8 +57,10 @@ def test_the_entry_names_things_as_the_app_shows_them():
     from workflow import measurement_messages as M
     text = "\n".join(_entry("v4.3.51"))
     # (4.3.52 withdrew ARM-OUT-TRY; its title is HOME-AT-START's, the page that replaced it)
+    # (4.3.56 gave STILL-AIMING a new title, for answers that do not agree; the title 4.3.51 named,
+    # "The table is still in its aiming mode", is now REPAIR-AT-START's, the page START shows then)
     for msg in (M.M_I1IO_DRIVE_HOME_AT_START, M.M_I1IO_DRIVE_HOME_TRY_FAILED,
-                M.M_I1IO_DRIVE_STILL_AIMING, M.M_I1IO_DRIVE_COLD, M.M_I1IO_DRIVE_FRONT):
+                M.M_I1IO_DRIVE_REPAIR_AT_START, M.M_I1IO_DRIVE_COLD, M.M_I1IO_DRIVE_FRONT):
         assert msg.title in text, msg.id
     for s in ("Bring the arm home", "End measurement", "START MEASUREMENT", "The arm is out",
               "Show the log file", "← Back", "Log file:", "X-Rite i1iO support",
