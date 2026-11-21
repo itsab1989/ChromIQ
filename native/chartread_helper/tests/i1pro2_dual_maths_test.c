@@ -98,7 +98,7 @@ static void pairing_cases(const char *path) {
  * it): per case "cut <name> <ncell> <nlamp> <nuv>", then "C" and 2 x ncell
  * ints (first reading, count), "P" and nlamp lamp positions, "Q" and nuv UV
  * positions, then nuv lines "U" of 36 numbers. Prints "cutcase <name>
- * <ok|reason> <flatness> <counts...> | <the first band of each patch>". */
+ * <ok|reason> <flatness> <window flatness> <counts...> | <the first band of each patch>". */
 static int read_n(FILE *f, const char *tag, double *v, int n) {
 	char t[8];
 	int j;
@@ -143,8 +143,10 @@ static void cut_cases(const char *path) {
 			counts[k] = -1;
 		why = cq_dual_cut(CQ_DUAL_NB, nc, (const int (*)[2])cells, nl, lp, nu, up, uv,
 		                  CQ_DUAL_TRIM, CQ_DUAL_MIN_UV, CQ_DUAL_EDGE_STEPS, out, counts);
-		printf("cutcase %s %s %.17g", name, why == NULL ? "ok" : why,
-		       cq_dual_flatness(CQ_DUAL_NB, nc, (const int (*)[2])cells, lp, nu, up, uv, CQ_DUAL_TRIM));
+		printf("cutcase %s %s %.17g %.17g", name, why == NULL ? "ok" : why,
+		       cq_dual_flatness(CQ_DUAL_NB, nc, (const int (*)[2])cells, lp, nu, up, uv, CQ_DUAL_TRIM),
+		       cq_dual_window_flatness(CQ_DUAL_NB, nc, (const int (*)[2])cells, lp, nu, up, uv,
+		                               CQ_DUAL_EDGE_STEPS));
 		for (k = 0; k < nc; k++)
 			printf(" %d", counts[k]);
 		printf(" |");
@@ -255,8 +257,8 @@ int main(void) {
 		pairing_cases(getenv("CQ_DUAL_PAIRING_CASES"));
 	if (getenv("CQ_DUAL_CUT_CASES") != NULL)
 		cut_cases(getenv("CQ_DUAL_CUT_CASES"));
-	printf("edge_steps %.17g trim %.17g min_uv %d\n", (double)CQ_DUAL_EDGE_STEPS,
-	       (double)CQ_DUAL_TRIM, CQ_DUAL_MIN_UV);
+	printf("edge_steps %.17g trim %.17g min_uv %d max_edge_flatness %.17g\n", (double)CQ_DUAL_EDGE_STEPS,
+	       (double)CQ_DUAL_TRIM, CQ_DUAL_MIN_UV, (double)CQ_DUAL_MAX_EDGE_FLATNESS);
 	printf("ALL DONE\n");
 	return 0;
 }

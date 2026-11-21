@@ -152,7 +152,7 @@ static void cq_dd_after_cal(inst *p) {
 static int cq_dd_pass_level(const char *why) {
 	static const char *pass[] = { "lamp", "uv_pass_missing", "uv_pass_short",
 	                              "uv_pass_stalled", "uv_pass_too_fast",
-	                              "uv_pass_misaligned", "uv_pass_count", "no_ruler",
+	                              "uv_pass_misaligned", "uv_pass_shifted", "uv_pass_count", "no_ruler",
 	                              "uv_pass_wrong_strip", "uv_pass_no_uv_light",
 	                              "uv_pass_too_long", "uv_spot_failed", NULL };
 	int i;
@@ -226,6 +226,7 @@ typedef struct {
 	const int *cells;			/* ArgyllCMS's trimmed lamp cells: readings per patch */
 	const int *counts;			/* UV readings per patch (the cut) */
 	int npatch;
+	double flat_c, flat_w;		/* the alignment gates' measures (-1 not judged) */
 	cq_dual_times t;
 } cq_dd_pace;
 
@@ -264,7 +265,7 @@ static long cq_dd_after(unsigned int stamp, unsigned int base) {
 static void cq_dd_result(const char *what, const char *strip, const char *why, int nuv,
                          const int *counts, int npatch, const cq_dual_uv *u, const char *pairing,
                          int calibrate, const cq_dd_pace *pc) {
-	char sb[64], pace[512];
+	char sb[64], pace[768];
 	char *lc = NULL, *uc = NULL;
 	int i, mn = -1;
 	cq_json_escape(sb, sizeof(sb), strip != NULL ? strip : "");
@@ -281,12 +282,15 @@ static void cq_dd_result(const char *what, const char *strip, const char *why, i
 		         ",\"pace\":true,\"need\":%d,\"edge_steps\":%.2f,\"reading_ms\":%.3f,"
 		         "\"lamp_readings\":%d,\"lamp_s\":%.2f,\"lamp_travel\":%.0f,\"lamp_dir\":%d,"
 		         "\"uv_s\":%.2f,\"uv_travel\":%.0f,\"uv_dir\":%d,"
-		         "\"lamp_off_ms\":%ld,\"uv_dark_ms\":%ld,\"uv_trigger_ms\":%ld,\"uv_done_ms\":%ld",
+		         "\"lamp_off_ms\":%ld,\"uv_dark_ms\":%ld,\"uv_trigger_ms\":%ld,\"uv_done_ms\":%ld,"
+		         "\"flatness\":%.6g,\"window_flatness\":%.6g,\"max_window_flatness\":%.6g",
 		         CQ_DUAL_MIN_UV, (double)CQ_DUAL_EDGE_STEPS, rs * 1000.0,
 		         pc->n1, pc->n1 * rs, pc->lamp_travel, pc->lamp_dir,
 		         pc->n2 * rs, pc->uv_travel, pc->uv_dir,
 		         cq_dd_after(pc->t.lamp_off, b), cq_dd_after(pc->t.uv_dark, b),
-		         cq_dd_after(pc->t.uv_trigger, b), cq_dd_after(pc->t.uv_done, b));
+		         cq_dd_after(pc->t.uv_trigger, b), cq_dd_after(pc->t.uv_done, b),
+		         pc->flat_c == pc->flat_c ? pc->flat_c : -1.0,
+		         pc->flat_w == pc->flat_w ? pc->flat_w : -1.0, (double)CQ_DUAL_MAX_EDGE_FLATNESS);
 	}
 	cq_emit_raw("{\"event\":\"dual_pass_result\",\"what\":\"%s\",\"strip\":\"%s\",\"ok\":%s,"
 	            "\"why\":\"%s\",\"uv_readings\":%d,\"fewest_per_patch\":%d,\"uv_triggers\":%d,"
@@ -378,6 +382,7 @@ static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, 
 	int *counts = NULL;
 	inst_code rv2;
 	int lamp_ok, got_r = 0, calibrate = 0;
+	double flat_c = -1.0, flat_w = -1.0;	/* -1: not measured / not judged */
 	const char *why = NULL, *pairing = "";
 	char sb[64];
 
@@ -507,6 +512,11 @@ static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, 
 				why = cq_dual_cut(CQ_DUAL_NB, npatch, (const int (*)[2])cells, n1, lp,
 				                  u.n, up, u.U, CQ_DUAL_TRIM, CQ_DUAL_MIN_UV,
 				                  CQ_DUAL_EDGE_STEPS, cutv, counts);
+				/* fix round of 2026-11-21: both alignment measures for the log */
+				flat_c = cq_dual_flatness(CQ_DUAL_NB, npatch, (const int (*)[2])cells, lp,
+				                          u.n, up, u.U, CQ_DUAL_TRIM);
+				flat_w = cq_dual_window_flatness(CQ_DUAL_NB, npatch, (const int (*)[2])cells,
+				                                 lp, u.n, up, u.U, CQ_DUAL_EDGE_STEPS);
 				free(cells);
 			}
 		}
@@ -536,6 +546,8 @@ static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, 
 			pc.uv_travel = fabs(up[pc.n2 - 1] - up[0]);
 			pc.lamp_dir = cq_dd_dir(lp, pc.n1);
 			pc.uv_dir = cq_dd_dir(up, pc.n2);
+			pc.flat_c = flat_c;
+			pc.flat_w = flat_w;
 			if (counts != NULL && got_r && r.ncut == npatch) {
 				pc.cells = r.cut_no;
 				pc.counts = counts;

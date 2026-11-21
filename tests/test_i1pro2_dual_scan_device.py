@@ -231,7 +231,7 @@ def test_the_helper_reports_the_device_word_and_the_new_build():
     # 2026-11-20a (4.3.52): + the lights' quiet time and the dual scan's blue; 20b: + the
     # blue's own quiet time (fix round); 20c: that floor only before the strip's return pass;
     # 20d (4.3.53): the waits as values the app passes
-    assert "chromiq-chartread 2026-11-21b " in h and "+i1pro2-dual-device+i1pro2-dual-safety+" in h
+    assert "chromiq-chartread 2026-11-21c " in h and "+i1pro2-dual-device+i1pro2-dual-safety+" in h
 
 
 def test_a_failed_pass_is_read_again_and_a_session_failure_keeps_m0():

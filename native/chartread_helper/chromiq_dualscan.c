@@ -166,12 +166,37 @@ const char *cq_dual_cut(int nb, int ncell, const int (*cells)[2],
 		if (f == f && f > CQ_DUAL_MAX_FLATNESS)
 			return "uv_pass_misaligned";
 	}
+	/* the same measure over the readings that are AVERAGED (the span less
+	 * *edge*): the two passes lined up there too (header, CQ_DUAL_MAX_EDGE_FLATNESS) */
+	{
+		double f = cq_dual_window_flatness(nb, ncell, cells, lamp_pos, nuv, uv_pos, uv, edge);
+		if (f == f && f > CQ_DUAL_MAX_EDGE_FLATNESS)
+			return "uv_pass_shifted";
+	}
 	return NULL;
 }
+
+static double cq_dual_flat_win(int nb, int ncell, const int (*cells)[2],
+                               const double *lamp_pos, int nuv, const double *uv_pos,
+                               const double *uv, double trim, double edge);
 
 double cq_dual_flatness(int nb, int ncell, const int (*cells)[2],
                         const double *lamp_pos, int nuv, const double *uv_pos,
                         const double *uv, double trim) {
+	return cq_dual_flat_win(nb, ncell, cells, lamp_pos, nuv, uv_pos, uv, trim, -1.0);
+}
+
+double cq_dual_window_flatness(int nb, int ncell, const int (*cells)[2],
+                               const double *lamp_pos, int nuv, const double *uv_pos,
+                               const double *uv, double edge) {
+	return cq_dual_flat_win(nb, ncell, cells, lamp_pos, nuv, uv_pos, uv, 0.0, edge);
+}
+
+/* *edge* < 0: the window is the central part (trim at each end); else the
+ * span less *edge* ruler steps at each end (the averaging window) */
+static double cq_dual_flat_win(int nb, int ncell, const int (*cells)[2],
+                               const double *lamp_pos, int nuv, const double *uv_pos,
+                               const double *uv, double trim, double edge) {
 	double within = 0.0, msum = 0.0, m2sum = 0.0, mu, var;
 	int k, i, j, nm = 0;
 	int b0 = nb > 13 ? 2 : 0, b1 = nb > 13 ? 13 : nb;
@@ -180,8 +205,10 @@ double cq_dual_flatness(int nb, int ncell, const int (*cells)[2],
 		double a = lamp_pos[s], b = lamp_pos[s + n - 1];
 		double lo = a < b ? a : b, hi = a < b ? b : a, w = hi - lo;
 		double sum = 0.0, sq = 0.0;
+		double wlo = edge >= 0.0 ? lo + edge : lo + trim * w;
+		double whi = edge >= 0.0 ? hi - edge : hi - trim * w;
 		for (i = 0; i < nuv; i++) {
-			if (uv_pos[i] >= lo + trim * w && uv_pos[i] <= hi - trim * w) {
+			if (uv_pos[i] >= wlo && uv_pos[i] <= whi) {
 				double sig = 0.0;
 				for (j = b0; j < b1; j++)
 					sig += uv[i * nb + j];

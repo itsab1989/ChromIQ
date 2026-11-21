@@ -8768,14 +8768,26 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             kind = failure_kind(reason)
 
             pace = tracker.strip_timed(elapsed, patches) if patches else None
-            # after 4.3.54: a second pass refused as too fast, with its numbers
+            # after 4.3.54: a refused second pass with a text of its own
+            # (too fast, with its numbers; not lined up): the dual check owns
+            # this strip's verdict, in one short line (fix round, review m2),
+            # and the time under the strip is the pass's seconds of reading,
+            # the number the texts state (review m3)
             from workflow.dual_scan import pace as _P
             fev = getattr(self, "_dual_failed_ev", None)
-            dual_tf = _P.too_fast_text(fev) if fev else None
-            if dual_tf is not None:
+            dual_line = None
+            if fev:
+                if str(fev.get("why") or "") == "uv_pass_shifted":
+                    _t = _P.refusal_text(fev)
+                    dual_line = (_t[0], "") if _t else None
+                else:
+                    dual_line = _P.too_fast_line(fev)
+            if dual_line is not None:
                 letter = getattr(self, "_current_strip_letter", "") or "?"
-                self._pace_times[letter] = (elapsed, False)
-                self._refresh_pace_panel(f"{dual_tf[0]} · {dual_tf[1]}", _P.TOO_FAST)
+                self._pace_times[letter] = (_P.reading_seconds(fev) or elapsed, False)
+                self._refresh_pace_panel(
+                    f"{dual_line[0]} · {dual_line[1]}" if dual_line[1] else dual_line[0],
+                    _P.TOO_FAST)
                 return
             if kind == "too_fast":
                 headline = tr("Too fast — that is probably why the strip failed")
@@ -13861,7 +13873,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 if _txt is not None:
                     _t, _b, _c = _txt
                     self._log.appendPlainText(f"[{_t}]\n{_b}")
-                    self._dual_pace_line = (strip, f"{_t} · {_b}", _c)
+                    self._dual_pace_line = (strip, f"{_t} · {_b}", _c,
+                                            _P.reading_seconds(ev))
             notes = []
             if str(ev.get("pairing") or "") == "pairing_not_checked":
                 notes.append("pairing_not_checked")
@@ -13893,8 +13906,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                                           self._dual_cal_id, ()))
         elif pass_level:
             self._dual_failed = (what, strip, why)
-            if _P.too_fast_text(ev) is not None:
-                self._dual_failed_ev = dict(ev)   # the window says by how much
+            if _P.refusal_text(ev) is not None:
+                self._dual_failed_ev = dict(ev)   # the window says what and by how much
             if what == "strip" and strip:
                 self._dual_buffer.append(("strip", strip, False, rid,
                                           self._dual_cal_id, ()))
@@ -13928,7 +13941,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             # after 4.3.54: "too fast" says by how much when the engine tells
             from workflow.dual_scan import pace as _P
             fev = getattr(self, "_dual_failed_ev", None)
-            tf = _P.too_fast_text(fev) if fev and str(
+            tf = _P.refusal_text(fev) if fev and str(
                 fev.get("strip") or "") == str(strip) else None
             title, body = M.M_DUAL_PASS_FAILED.render(
                 strip=self._strip_name(strip) or strip,
@@ -21797,14 +21810,6 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         from core.measure_pace import (measured_phrase, strip_limit_fact,
                                        strip_limit_phrase)
         measured = measured_phrase(pace)
-        dual = getattr(self, "_dual_pace_line", None)
-        if dual is not None and str(dual[0]) == str(strip) and not pace.too_fast:
-            # after 4.3.54: a hand dual strip is judged by its second pass's
-            # readings per patch, which the engine counted (the time above is
-            # that pass's)
-            self._dual_pace_line = None
-            self._refresh_pace_panel(dual[1], dual[2])
-            return
         if pace.too_fast:
             colour, verdict = "#ff6b6b", tr("Too fast — read more slowly")
             limit = tr("Aim for {limit}.").format(
@@ -22432,6 +22437,22 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 # Every strip of a chart holds the same number, so this is what
                 # a FAILED strip (which returns nothing) is judged by.
                 self._last_strip_patches = patches
+            # ONE VERDICT PER DUAL STRIP (fix round of 2026-11-21, review M2).
+            # The clock above runs from the SECOND pass's beep, and its limit is
+            # ArgyllCMS's lamp-pass rule (samples per patch), which nothing
+            # applies to the UV pass: at i1Profiler's own normal pace it said
+            # "Too fast" (and offered to read again) while the strip's readings
+            # per patch, the rule that does decide the UV pass, left room. So a
+            # hand dual strip whose engine gave the pace is judged by that alone:
+            # its line, its seconds of reading under the strip, no #131 prompt.
+            _dual = getattr(self, "_dual_pace_line", None)
+            if _dual is not None and str(_dual[0]) == str((ev or {}).get("strip", "")):
+                self._dual_pace_line = None
+                self._pace_patches = pace.patches
+                self._pace_times[str(_dual[0]) or "?"] = (_dual[3] or pace.elapsed, True)
+                self._refresh_pace_panel(_dual[1], _dual[2])
+                self._strip_verdict(ev, too_fast=False)
+                return
             self._show_strip_pace(str((ev or {}).get("strip", "")), pace,
                                   tracker.config)
             msg = strip_pace_message(pace, tracker.config)

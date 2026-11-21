@@ -43,7 +43,8 @@ const char *cq_dual_patch(const cq_dual_cal *c, double s, const double *L,
  * uv[nuv][nb]; out[ncell][nb], counts[ncell]. NULL on success, else a
  * reason id ("no_ruler", "uv_pass_count", "uv_pass_short",
  * "uv_pass_stalled", "uv_pass_too_fast": cut.py::travel_verdict;
- * "uv_pass_misaligned": the alignment gate, cut.py::_flatness).
+ * "uv_pass_misaligned": the alignment gate, cut.py::_flatness;
+ * "uv_pass_shifted": the same over the averaging window).
  * A patch's UV readings are those whose ruler position lies in its lamp
  * cell's span (the first to the last lamp reading's position) less *edge*
  * ruler steps at each end (CQ_DUAL_EDGE_STEPS, cut.py EDGE_STEPS); *trim*
@@ -82,12 +83,29 @@ const char *cq_dual_cut(int nb, int ncell, const int (*cells)[2],
 #define CQ_DUAL_TILE_LO 380.0
 #define CQ_DUAL_TILE_HI 410.0
 #define CQ_DUAL_MAX_FLATNESS 0.01	/* an aligned UV pass */
+/* THE PASSES LINED UP WHERE THEY ARE AVERAGED (fix round of 2026-11-21,
+ * review B1). The gate above looks at the central 60 % of each span, but the
+ * readings are averaged out to half a step from its ends, so a misalignment
+ * of 1 to 4 steps changed the averaged readings (M2 up to 2.7 dE00) while
+ * that gate saw clean readings. So the same measure is also taken over the
+ * averaging window ("uv_pass_shifted"). 0.001: replaying instrument 1's 13
+ * recorded strips with their UV positions shifted by -3 to +3 steps, the
+ * largest threshold that keeps every shift's worst accepted patch within
+ * 0.1 dE00 of the unshifted level (0.47 -> at most 0.52 dE00), while the
+ * passes as recorded give at most 0.00008, and simulated up to 1.75 times
+ * faster at most 0.00027 (0 of 13 refused by it). */
+#define CQ_DUAL_MAX_EDGE_FLATNESS 0.001
 #define CQ_DUAL_MIN_ALIGN_SPREAD 0.05	/* the cells differ enough to judge */
 
 /* The alignment measure (cut.py::_flatness): NAN when not judged. */
 double cq_dual_flatness(int nb, int ncell, const int (*cells)[2],
                         const double *lamp_pos, int nuv, const double *uv_pos,
                         const double *uv, double trim);
+/* The same measure over the AVERAGING window (the span less *edge* steps):
+ * cut.py::_flatness(..., edge=). NAN when not judged. */
+double cq_dual_window_flatness(int nb, int ncell, const int (*cells)[2],
+                               const double *lamp_pos, int nuv, const double *uv_pos,
+                               const double *uv, double edge);
 
 /* DOES THIS UV PASS BELONG TO THIS LAMP PASS? (safety review 2026-11-18,
  * M1): the C twin of workflow/dual_scan/pairing.py::check_pairing, the same

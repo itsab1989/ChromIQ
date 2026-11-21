@@ -19,6 +19,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+import numpy as np
+
 import pytest
 
 from workflow import measurement_messages as M
@@ -28,8 +30,9 @@ from workflow.dual_scan import session as D
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def _ev(ok=True, fewest=5, uv_s=4.1, lamp_s=3.7, why="", strip="B", n=12):
-    counts = [fewest + 2 + (k % 3) for k in range(n)]
+def _ev(ok=True, fewest=5, uv_s=4.1, lamp_s=3.7, why="", strip="B", n=12, median=None):
+    med = fewest + 3 if median is None else median
+    counts = [med - 1 + (k % 3) for k in range(n)]
     counts[n // 2] = fewest
     return {"event": "dual_pass_result", "what": "strip", "strip": strip, "ok": ok,
             "why": why, "uv_readings": 840, "fewest_per_patch": fewest, "uv_triggers": 1,
@@ -38,6 +41,7 @@ def _ev(ok=True, fewest=5, uv_s=4.1, lamp_s=3.7, why="", strip="B", n=12):
             "lamp_readings": 756, "lamp_s": lamp_s, "lamp_travel": 515, "lamp_dir": -1,
             "uv_s": uv_s, "uv_travel": 512, "uv_dir": 1, "lamp_off_ms": 2,
             "uv_dark_ms": 1150, "uv_trigger_ms": 1190, "uv_done_ms": 5290,
+            "flatness": 0.00002, "window_flatness": 0.00003, "max_window_flatness": 0.001,
             "lamp_cells": [c + 3 for c in counts], "uv_counts": counts}
 
 
@@ -55,34 +59,82 @@ def test_an_accepted_strip_with_room_is_green_and_says_both_passes():
     assert (title, body) == M.M_DUAL_PASS_PACE.render(
         strip="B", fewest=5, need=3, lamp_s="3.7", uv_s="4.1")
     assert colour == P.GOOD
-    assert "3.7 seconds" in body and "4.1 seconds" in body and "at least 5" in body
+    assert "3.7 seconds" in body and "4.1 seconds of reading" in body and "at least 5" in body
 
 
-def test_an_accepted_strip_at_the_limit_is_amber():
-    title, body, colour = P.accepted_text(_ev(fewest=3), "B")
+@pytest.mark.parametrize("f", [3, 4])
+def test_an_accepted_strip_near_the_limit_is_amber(f):
+    """review m4: at 4 against 3 a pass a quarter faster is refused, so not "leaves room" """
+    title, body, colour = P.accepted_text(_ev(fewest=f), "B")
     assert title == M.M_DUAL_PASS_PACE_CLOSE.render(
-        strip="B", fewest=3, need=3, lamp_s="3.7", uv_s="4.1")[0]
-    assert colour == P.CLOSE and "only 3 readings" in body
+        strip="B", fewest=f, need=3, lamp_s="3.7", uv_s="4.1")[0]
+    assert colour == P.CLOSE and f"emptiest patch got {f} readings" in body
+    assert "leaves room" not in body
 
 
-def test_too_fast_says_how_many_how_many_needed_and_how_long():
-    title, body = P.too_fast_text(_ev(ok=False, fewest=2, uv_s=3.8, why="uv_pass_too_fast"))
+def test_too_fast_names_a_time_with_room_above_the_limit():
+    ev = _ev(ok=False, fewest=2, uv_s=3.8, why="uv_pass_too_fast")   # median 5
+    assert P.too_fast_case(ev) == "time"
+    title, body = P.too_fast_text(ev)
     assert title == "The second pass (UV light) was too fast"
     assert "only 2 readings" in body and "at least 3" in body
-    assert "took 3.8 seconds" in body and "about 6.0 seconds" in body   # 3.8 x 3 / 2 = 5.7 -> 6.0
+    # 3.8 x (3 + 0.5) / 2 = 6.65 -> 7.0: half a reading above the limit (review m1)
+    assert "lasted 3.8 seconds of reading" in body and "a little longer than 7.0 seconds" in body
     assert "both passes" in body                                          # section 0 (a)
 
 
 def test_too_fast_with_one_reading_is_said_in_the_singular():
-    _t, body = P.too_fast_text(_ev(ok=False, fewest=1, uv_s=2.0, why="uv_pass_too_fast"))
+    _t, body = P.too_fast_text(_ev(ok=False, fewest=1, uv_s=2.0, why="uv_pass_too_fast",
+                                   median=4))
     assert "only 1 reading," in body and "1 readings" not in body
-    assert "about 6.0 seconds" in body
+    assert "7.0 seconds" in body                                          # 2.0 x 3.5 = 7.0
+
+
+def test_a_pass_slow_enough_as_a_whole_is_told_to_move_evenly():
+    """review M3: half of the patches got twice what is needed: one fast stretch"""
+    ev = _ev(ok=False, fewest=2, uv_s=5.0, why="uv_pass_too_fast", median=7)
+    assert P.too_fast_case(ev) == "uneven"
+    title, body = P.too_fast_text(ev)
+    assert title == "The second pass (UV light) went too fast over one patch"
+    assert "Half of the patches got 7 readings or more" in body and "evenly" in body
+    assert "seconds" not in body
+
+
+@pytest.mark.parametrize("uv_s,fewest", [(6.6, 1), (13.0, 2), (19.0, 2)])
+def test_the_advice_never_names_a_time_near_the_pass_limit(uv_s, fewest):
+    """review M3: 4000 readings x 4.896 ms = 19.6 s is the longest pass taken"""
+    ev = _ev(ok=False, fewest=fewest, uv_s=uv_s, why="uv_pass_too_fast", median=fewest + 2)
+    assert P.cap_seconds(ev) == pytest.approx(19.584)
+    assert P.too_fast_case(ev) == "even"
+    _t, body = P.too_fast_text(ev)
+    assert "up to about 19 seconds" in body and "longer than" not in body
+
+
+def test_a_named_time_always_stays_under_the_limit():
+    for uv_s in np.arange(0.5, 20.0, 0.25):
+        for f in (1, 2):
+            ev = _ev(ok=False, fewest=f, uv_s=float(uv_s), why="uv_pass_too_fast", median=f + 2)
+            if P.too_fast_case(ev) == "time":
+                assert P.target_seconds(float(uv_s), f, 3) < 0.8 * P.cap_seconds(ev)
 
 
 def test_the_target_is_rounded_up_to_half_a_second():
-    assert P.target_seconds(4.0, 2, 3) == 6.0
-    assert P.target_seconds(4.1, 2, 3) == 6.5
-    assert P.target_seconds(3.0, 3, 3) == 3.0
+    assert P.target_seconds(4.0, 2, 3) == 7.0
+    assert P.target_seconds(3.8, 2, 3) == 7.0
+    assert P.target_seconds(3.0, 3, 3) == 3.5
+
+
+def test_the_line_under_the_chart_is_short():
+    """review m2: the numbers only, not the whole window text"""
+    t, b = P.too_fast_line(_ev(ok=False, fewest=2, uv_s=3.8, why="uv_pass_too_fast"))
+    assert b == "One patch got only 2 readings (3 needed) in 3.8 seconds of reading."
+
+
+def test_a_pass_that_did_not_line_up_has_its_own_text():
+    t, b = P.refusal_text(_ev(ok=False, fewest=5, why="uv_pass_shifted"))
+    assert (t, b) == M.M_DUAL_PASS_SHIFTED.render()
+    assert "on the way back" in b and "both passes" in b
+    assert D.reason_sentence("uv_pass_shifted") == b
 
 
 def test_without_the_pace_block_nothing_new_is_said():
@@ -90,6 +142,7 @@ def test_without_the_pace_block_nothing_new_is_said():
     assert P.too_fast_text(_old(_ev(ok=False, fewest=2, why="uv_pass_too_fast"))) is None
     # a refusal of another kind keeps its own sentence even with the block
     assert P.too_fast_text(_ev(ok=False, fewest=4, why="uv_pass_misaligned")) is None
+    assert P.refusal_text(_ev(ok=False, fewest=4, why="uv_pass_misaligned")) is None
 
 
 def test_the_decimal_mark_is_the_languages(monkeypatch):
@@ -111,8 +164,10 @@ def test_the_app_log_has_the_pace_and_the_lists_in_full(caplog):
     for key in ("strip=B", "ok=off", "why=uv_pass_too_fast", "lamp_dir=-1", "lamp_travel=515",
                 "lamp_readings=756", "lamp_s=3.7", "uv_dir=1", "uv_travel=512", "uv_s=3.8",
                 "uv_readings=840", "uv_count_min=2", "need=3", "edge_steps=0.5",
-                "lamp_off_ms=2", "uv_dark_ms=1150", "uv_trigger_ms=1190", "slower_factor=1.5",
-                "target_s=6", "lamp_cell_min=", "lamp_cell_median=", "uv_count_median="):
+                "lamp_off_ms=2", "uv_dark_ms=1150", "uv_trigger_ms=1190", "slower_factor=1.75",
+                "target_s=7", "advice=time", "cap_s=19.584", "flatness=0", "window_flatness=0",
+                "max_window_flatness=0.001",
+                "lamp_cell_min=", "lamp_cell_median=", "uv_count_median="):
         assert key in main[0], (key, main[0])
     assert lists[0].count(",") >= 2 * 22          # 23 patches, both lists, in full
     rec = [r for r in caplog.records if r.getMessage().startswith("dual pass patches: ")][0]
@@ -149,18 +204,79 @@ def test_the_tab_logs_the_pace_of_an_accepted_strip(qapp, tmp_path):
     assert fake._dual_pace_line[0] == "B" and fake._dual_pace_line[2] == P.CLOSE
 
 
-def test_the_reading_speed_line_shows_the_dual_strip(qapp, tmp_path):
+def _pace_fake(fake, too_fast=True):
+    """the parts of the tab _report_strip_pace / _report_failed_strip_pace use; the #131
+    tracker set to call this strip TOO FAST (the review's M2 case: a UV pass under about
+    100 ms per patch, as at i1Profiler's own normal pace)"""
+    import time
     from types import SimpleNamespace
-    T, fake, logged = _tab(tmp_path)
-    T._on_dual_pass_result(fake, _ev(fewest=6, strip="B"))
-    shown = []
+    calls = {"panel": [], "prompt": [], "verdict": [], "show": []}
+    pace = SimpleNamespace(patches=12, mean_seconds=0.06, elapsed=0.7, too_fast=too_fast,
+                           marginal=False, est_samples=12)
+    tracker = SimpleNamespace(strip_timed=lambda secs, n: pace,
+                              config=SimpleNamespace(min_samples=20, sample_hz=200.0))
+    fake._settings = {"pace_hint_enabled": True}
+    fake._pace_tracker = lambda: tracker
+    fake._scan_started_at = time.monotonic() - 0.7
+    fake._scan_awaiting_ready = False
     fake._pace_times = {}
-    fake._refresh_pace_panel = lambda text, colour: shown.append((text, colour))
-    pace = SimpleNamespace(patches=12, mean_seconds=0.3, elapsed=4.2,
-                           too_fast=False, marginal=False, est_samples=None)
-    T._show_strip_pace(fake, "B", pace, SimpleNamespace())
-    assert shown and shown[0][1] == P.GOOD and "Strip B: both passes read" in shown[0][0]
-    assert fake._pace_times["B"] == (4.2, True)       # the time under the strip as before
+    fake._spot_session = False
+    fake._last_strip_patches = 12
+    fake._current_strip_letter = "B"
+    fake._refresh_pace_panel = lambda text, colour="": calls["panel"].append((text, colour))
+    fake._prompt_too_fast_strip = lambda *a: calls["prompt"].append(a)
+    fake._strip_verdict = lambda ev, too_fast=False: calls["verdict"].append(too_fast) or True
+    fake._show_strip_pace = lambda *a: calls["show"].append(a)
+    return calls
+
+
+def test_one_verdict_per_dual_strip_the_dual_one(qapp, tmp_path):
+    """review M2: the #131 check (ArgyllCMS's lamp-pass rule, timed from the SECOND pass's
+    beep) says "Too fast" while the readings per patch leave room: the dual verdict owns the
+    strip; no #131 line, no #131 prompt, the time under the strip the pass's seconds of reading"""
+    T, fake, logged = _tab(tmp_path)
+    T._on_dual_pass_result(fake, _ev(fewest=6, strip="B", uv_s=2.4))
+    calls = _pace_fake(fake, too_fast=True)
+    T._report_strip_pace(fake, {"event": "strip_read", "strip": "B", "patches": [1] * 12})
+    assert calls["panel"] and calls["panel"][-1][1] == P.GOOD
+    assert "Strip B: both passes read" in calls["panel"][-1][0]
+    assert not calls["prompt"] and not calls["show"] and calls["verdict"] == [False]
+    assert fake._pace_times["B"] == (2.4, True)
+    assert not [x for x in logged if "Too fast" in x]
+
+
+def test_a_single_scan_strip_keeps_the_131_verdict(qapp, tmp_path):
+    """options off / no pace from the engine: the #131 check as before"""
+    T, fake, logged = _tab(tmp_path)
+    T._on_dual_pass_result(fake, _old(_ev(fewest=6, strip="B")))
+    calls = _pace_fake(fake, too_fast=True)
+    T._report_strip_pace(fake, {"event": "strip_read", "strip": "B", "patches": [1] * 12})
+    assert calls["show"], "the #131 path ran"
+
+
+def test_a_refused_strip_gets_the_short_line_and_one_time(qapp, tmp_path):
+    T, fake, logged = _tab(tmp_path)
+    T._on_dual_pass(fake, {"strip": "B", "lamp_ok": True})
+    T._on_dual_pass_result(fake, _ev(ok=False, fewest=2, uv_s=3.8, why="uv_pass_too_fast"))
+    calls = _pace_fake(fake)
+    T._report_failed_strip_pace(fake, "Misread")
+    text, colour = calls["panel"][-1]
+    assert colour == P.TOO_FAST
+    assert text == ("The second pass (UV light) was too fast · One patch got only 2 readings "
+                    "(3 needed) in 3.8 seconds of reading.")
+    assert fake._pace_times["B"] == (3.8, False)
+
+
+def test_a_pass_that_did_not_line_up_is_said_under_the_chart(qapp, tmp_path):
+    T, fake, logged = _tab(tmp_path)
+    T._on_dual_pass(fake, {"strip": "B", "lamp_ok": True})
+    T._on_dual_pass_result(fake, _ev(ok=False, fewest=5, why="uv_pass_shifted"))
+    calls = _pace_fake(fake)
+    T._report_failed_strip_pace(fake, "Misread")
+    assert calls["panel"][-1] == ("The second pass (UV light) did not line up with the first",
+                                  P.TOO_FAST)
+    html = T._dual_failure_html(fake)
+    assert "on the way back" in html and "The second pass of strip B failed" in html
 
 
 def test_the_failure_window_says_by_how_much(qapp, tmp_path):
@@ -171,7 +287,7 @@ def test_the_failure_window_says_by_how_much(qapp, tmp_path):
     html = T._dual_failure_html(fake)
     _t, tf = P.too_fast_text(ev)
     title, _b = M.M_DUAL_PASS_FAILED.render(strip="B", reason=tf)
-    assert "about 6.0 seconds" in html and "only 2 readings" in html
+    assert "a little longer than 7.0 seconds" in html and "only 2 readings" in html
     assert "The second pass of strip B failed" in html
 
 

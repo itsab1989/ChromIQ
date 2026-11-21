@@ -199,7 +199,9 @@ def main(argv: "list[str]") -> int:
         uv_s = float(cmd.get("uv_s") or 4.1)
         lamp_s = float(cmd.get("lamp_s") or 3.7)
         rms = 4.896
-        counts = [few + 2 + (k % 3) for k in range(n)]
+        # "uv_median": the median of the UV counts (an uneven pass: one fast stretch)
+        med = int(cmd.get("uv_median") or few + 3)
+        counts = [med - 1 + (k % 3) for k in range(n)]
         counts[n // 2] = few
         return {"pace": True, "need": 3, "edge_steps": 0.5, "reading_ms": rms,
                 "lamp_readings": int(round(lamp_s * 1000 / rms)), "lamp_s": lamp_s,
@@ -208,6 +210,10 @@ def main(argv: "list[str]") -> int:
                 "uv_travel": 512, "uv_dir": 1,
                 "lamp_off_ms": 2, "uv_dark_ms": 1150, "uv_trigger_ms": 1190,
                 "uv_done_ms": int(1190 + uv_s * 1000),
+                # fix round of 2026-11-21: the two alignment measures
+                "flatness": 0.00002,
+                "window_flatness": 0.0021 if why == "uv_pass_shifted" else 0.00003,
+                "max_window_flatness": 0.001,
                 "lamp_cells": [c + 3 for c in counts], "uv_counts": counts}
 
     def calibration() -> dict:
@@ -302,7 +308,7 @@ def main(argv: "list[str]") -> int:
                 cmd = {k: v for k, v in cmd.items()
                        if k not in ("uv_fault", "lamp_fault", "pairing",
                                     "needs_ruler", "uv_fewest", "uv_s", "lamp_s",
-                                    "patches")}
+                                    "patches", "uv_median")}
                 to_child(cmd)
             else:
                 try:
@@ -412,7 +418,8 @@ def main(argv: "list[str]") -> int:
             why = str(cmd["uv_fault"])
             # the cut ran for these (the pace is known), not for the others
             pc = pace_of(cmd, why) if why in (
-                "uv_pass_too_fast", "uv_pass_misaligned", "uv_pass_wrong_strip",
+                "uv_pass_too_fast", "uv_pass_misaligned", "uv_pass_shifted",
+                "uv_pass_wrong_strip",
                 "uv_pass_stalled", "uv_pass_short") else None
             st["pending"] = result("strip", strip, False, why, pace=pc)
             to_child({"cmd": "swipe", "fault": "misread", "reason": "Misread"})

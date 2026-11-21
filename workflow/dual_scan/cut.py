@@ -64,6 +64,12 @@ TRIM = 0.2
 MIN_UV_READINGS = 3
 #: largest within-cell / between-cell variance of an aligned pass
 MAX_FLATNESS = 0.01
+#: the same over the AVERAGING window (fix round of 2026-11-21, review B1;
+#: ``CQ_DUAL_MAX_EDGE_FLATNESS``): above it ``uv_pass_shifted``. The largest
+#: threshold that keeps every replayed shift's worst accepted patch within
+#: 0.1 dE00 of the unshifted level; recorded passes give at most 0.00008,
+#: simulated up to 1.75 times faster at most 0.00027
+MAX_EDGE_FLATNESS = 0.001
 #: fewest relative spread (std / mean) of the cells' UV signal to judge it
 MIN_ALIGN_SPREAD = 0.05
 
@@ -74,6 +80,7 @@ class CutResult:
     counts: "list[int]"       # UV readings averaged per patch
     flatness: float           # within-cell / between-cell variance (small = aligned)
     aligned_checked: bool = True   # False: the patches hardly differ, not judged
+    window_flatness: float = float("nan")   # the same over the averaging window
 
 
 def reading_positions(step_samples: np.ndarray, positions: np.ndarray,
@@ -130,8 +137,12 @@ def cut_uv_pass(cells, lamp_pos, uv_pos, uv_readings, *, trim: float = TRIM,
     flat = _flatness(spans, up, ur, trim)
     if flat == flat and flat > MAX_FLATNESS:
         raise DualScanRefused("uv_pass_misaligned", f"flatness {flat:.5f}")
+    # the passes lined up over the readings that are averaged (review B1)
+    wflat = _flatness(spans, up, ur, trim, edge=edge)
+    if wflat == wflat and wflat > MAX_EDGE_FLATNESS:
+        raise DualScanRefused("uv_pass_shifted", f"window flatness {wflat:.5f}")
     return CutResult(uv=np.array(out), counts=counts, flatness=flat,
-                     aligned_checked=flat == flat)
+                     aligned_checked=flat == flat, window_flatness=wflat)
 
 
 def travel_verdict(counts: "list[int]", min_readings: int = MIN_UV_READINGS
@@ -166,14 +177,19 @@ def pass_direction(positions) -> int:
     return 0 if d == 0 else (1 if d > 0 else -1)
 
 
-def _flatness(spans, up, ur, trim) -> float:
+def _flatness(spans, up, ur, trim, edge: "float | None" = None) -> float:
     """Within-cell variance over between-cell variance of the 400-500 nm UV
-    signal (bands 2..12): the alignment check of the analysis."""
+    signal (bands 2..12): the alignment check of the analysis. The window is
+    the central part of each span (*trim* at each end), or with *edge* the
+    span less *edge* ruler steps at each end (the averaging window)."""
     sig = ur[:, 2:13].mean(axis=1) if ur.shape[1] > 13 else ur.mean(axis=1)
     within, means = [], []
     for lo, hi in spans:
         w = hi - lo
-        m = (up >= lo + trim * w) & (up <= hi - trim * w)
+        if edge is not None:
+            m = (up >= lo + edge) & (up <= hi - edge)
+        else:
+            m = (up >= lo + trim * w) & (up <= hi - trim * w)
         if m.sum() < 2:
             continue
         within.append(sig[m].var())

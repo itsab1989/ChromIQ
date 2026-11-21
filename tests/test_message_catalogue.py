@@ -124,6 +124,10 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-DUAL-PASS-PACE",
     "M-DUAL-PASS-PACE-CLOSE",
     "M-DUAL-PASS-TOO-FAST",
+    "M-DUAL-PASS-TOO-FAST-UNEVEN",
+    "M-DUAL-PASS-TOO-FAST-EVEN",
+    "M-DUAL-PASS-TOO-FAST-LINE",
+    "M-DUAL-PASS-SHIFTED",
     # 2026-11-20, 4.3.54: the dual scan's notes before START (when it runs)
     "M-DUAL-GUIDED-SINGLE",
     "M-I1IO-ROW-SPEED-END",

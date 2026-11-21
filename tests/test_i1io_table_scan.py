@@ -272,13 +272,15 @@ def test_the_build_string():
     # 2026-11-21a = 20e + a new dual measurement is not refused because of the file it
     # replaces (4.3.54, issue 217; nothing for the table);
     # 2026-11-21b = 21a + the hand dual scan's UV pass counted over the whole clean middle
-    # of each patch and its pace in dual_pass_result (after 4.3.54; nothing for the table), last
-    assert "chromiq-chartread 2026-11-21b " in h
+    # of each patch and its pace in dual_pass_result (after 4.3.54; nothing for the table);
+    # 2026-11-21c = 21b + the alignment gate over the averaging window (fix round; nothing
+    # for the table), last
+    assert "chromiq-chartread 2026-11-21c " in h
     assert ("+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule"
             "+i1pro2-dual-device+i1pro2-dual-safety+i1io-table-dual+i1io-table-dual-fix2"
             "+i1io-table-dual-calreset+i1pro2-dual-gaps+conditions-kept+lights-quiet"
             "+i1pro2-dual-blue+blue-own-quiet+blue-quiet-return-only+instrument-waits"
-            "+blue-side+i1pro2-dual-fresh-start+uv-whole-middle+i1pro2-dual-pace\"") in h
+            "+blue-side+i1pro2-dual-fresh-start+uv-whole-middle+i1pro2-dual-pace+uv-window-gate\"") in h
 
 
 def _base_tree(tmp: Path) -> Path:

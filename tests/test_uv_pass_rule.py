@@ -34,7 +34,8 @@ def _argyll_trim(ss: int, no: int) -> "tuple[int, int]":
 
 
 def _strip(seed: int, *, lamp_speed: float, uv_speed: float, offset: float = 0.85,
-           patches: int = 23, patch_steps: float = 20.0, noise: float = 0.002):
+           patches: int = 23, patch_steps: float = 20.0, noise: float = 0.002,
+           aperture: float = 0.0):
     """An invented hand strip in ruler steps: the lamp pass runs DOWN the ruler at *lamp_speed*
     steps per reading (with a little wobble), the UV pass back UP at *uv_speed*, its positions
     *offset* steps high (the direction offset of the count). Returns cells (ArgyllCMS-trimmed),
@@ -64,8 +65,17 @@ def _strip(seed: int, *, lamp_speed: float, uv_speed: float, offset: float = 0.8
         # what ArgyllCMS finds: the readings well inside the patch (aperture blur at both ends)
         inner = idx[1:-1] if idx.size > 4 else idx
         cells.append(_argyll_trim(int(inner[0]), int(inner.size)))
-    up_k = patch_of(up_true)
-    sig = np.where((up_k >= 0) & (up_k < patches), level[np.clip(up_k, 0, patches - 1)], 0.05)
+    def level_at(x):
+        k = patch_of(x)
+        return np.where((k >= 0) & (k < patches), level[np.clip(k, 0, patches - 1)], 0.05)
+
+    if aperture > 0:
+        # what the aperture sees: the level averaged over +-aperture steps around the
+        # reading (blurred patch edges, as on paper; the review's m6)
+        off = np.linspace(-aperture, aperture, 41)
+        sig = level_at(up_true[:, None] + off[None, :]).mean(axis=1)
+    else:
+        sig = level_at(up_true)
     wl = np.arange(36)
     uv = (sig[:, None] * (1.0 + 0.01 * wl[None, :])
           + noise * rng.standard_normal((up_true.size, 36)))
@@ -81,6 +91,17 @@ def _cases():
     # half a patch off: the alignment gate's case
     c, lp, up, uv = _strip(7, lamp_speed=1.5, uv_speed=1.5)
     out.append(("half_pitch", c, lp, up + 7.5, uv))
+    # fix round (review B1 / m6): blurred patch edges and the UV pass shifted, so the
+    # averaging window's gate is reached in C too ("uv_pass_shifted")
+    for seed in (1, 3):
+        for d in (0.0, 2.0, 3.0):
+            out.append((f"blur{seed}_{d:+.1f}", *_strip(seed, lamp_speed=1.5, uv_speed=1.5,
+                                                         aperture=3.0, offset=0.85 + d)))
+    # the exact boundaries: positions at lo + 0.5 and hi - 0.5 count, 0.49 / 7.51 do not
+    lpb = np.arange(15, dtype=float) * 2.0
+    upb = np.array([0.49, 0.5, 4.0, 7.5, 7.51, 10.5, 14.0, 17.5, 20.5, 24.0, 27.5, 27.6])
+    out.append(("boundary", [(0, 5), (5, 5), (10, 5)], lpb, upb,
+                np.tile((1.0 + 0.1 * np.arange(12))[:, None], (1, 36))))
     return out
 
 
@@ -111,8 +132,8 @@ def c_out(tmp_path_factory) -> "tuple[dict, str]":
         if ln.startswith("cutcase "):
             head, vals = ln.split(" | ") if " | " in ln else (ln, "")
             t = head.split()
-            res[t[1]] = (t[2], float(t[3]), [int(v) for v in t[4:]],
-                         [float(v) for v in vals.split()])
+            res[t[1]] = (t[2], float(t[3]), [int(v) for v in t[5:]],
+                         [float(v) for v in vals.split()], float(t[4]))
     return res, out
 
 
@@ -128,6 +149,7 @@ def _python(cells, lp, up, uv):
         counts.append(int(m.sum()))
         firsts.append(float(uv[m, 0].mean()) if m.any() else 0.0)
     flat = cut._flatness(spans, upa, np.asarray(uv, float), cut.TRIM)
+    wflat = cut._flatness(spans, upa, np.asarray(uv, float), cut.TRIM, edge=cut.EDGE_STEPS)
     try:
         r = cut.cut_uv_pass(cells, lp, up, uv)
         why = "ok"
@@ -135,7 +157,7 @@ def _python(cells, lp, up, uv):
         np.testing.assert_allclose(r.uv[:, 0], firsts, rtol=0, atol=1e-13)
     except DualScanRefused as e:
         why = e.reason
-    return why, flat, counts, firsts
+    return why, flat, counts, firsts, wflat
 
 
 def test_the_constants_are_the_same_in_c_and_python(c_out):
@@ -145,6 +167,7 @@ def test_the_constants_are_the_same_in_c_and_python(c_out):
     assert float(t[1]) == cut.EDGE_STEPS == 0.5
     assert float(t[3]) == cut.TRIM == 0.2
     assert int(t[5]) == cut.MIN_UV_READINGS == 3
+    assert float(t[7]) == cut.MAX_EDGE_FLATNESS == 0.001
 
 
 def test_c_and_python_cut_every_case_the_same(c_out):
@@ -153,18 +176,20 @@ def test_c_and_python_cut_every_case_the_same(c_out):
     assert len(res) == len(cases)
     verdicts = set()
     for name, cells, lp, up, uv in cases:
-        why, flat, counts, firsts = _python(cells, lp, up, uv)
-        cw, cflat, ccounts, cfirsts = res[name]
+        why, flat, counts, firsts, wflat = _python(cells, lp, up, uv)
+        cw, cflat, ccounts, cfirsts, cwflat = res[name]
         assert cw == why, (name, cw, why, counts)
         assert ccounts == counts, name
-        if flat == flat:
-            assert cflat == pytest.approx(flat, rel=1e-9, abs=1e-15), name
-        else:
-            assert cflat != cflat, name
+        for c_, p_ in ((cflat, flat), (cwflat, wflat)):
+            if p_ == p_:
+                assert c_ == pytest.approx(p_, rel=1e-9, abs=1e-15), name
+            else:
+                assert c_ != c_, name
         np.testing.assert_allclose(cfirsts, firsts, rtol=0, atol=1e-12)
         verdicts.add(why)
     # the cases reach every verdict the speed can give, and the gate
-    assert {"ok", "uv_pass_too_fast", "uv_pass_misaligned"} <= verdicts, verdicts
+    assert {"ok", "uv_pass_too_fast", "uv_pass_misaligned", "uv_pass_shifted"} <= verdicts, verdicts
+    assert res["boundary"][2] == [3, 3, 3]          # inclusive at lo + 0.5 / hi - 0.5, in C too
 
 
 def test_a_uv_pass_at_the_lamp_pass_pace_is_accepted_where_4354_refused():
@@ -207,6 +232,38 @@ def test_the_alignment_gate_keeps_its_own_window():
     with pytest.raises(DualScanRefused) as e:
         cut.cut_uv_pass(cells, lp, up + 7.5, uv)    # half a patch off
     assert e.value.reason == "uv_pass_misaligned"
+
+
+def _rel_err(seed, d):
+    """the strip shifted by d steps beyond its natural offset, blurred patch edges: (verdict,
+    worst relative error of a patch's UV value against the same strip unblurred, unshifted)"""
+    c, lp, up, uv = _strip(seed, lamp_speed=1.5, uv_speed=1.5, aperture=3.0, offset=0.85 + d)
+    c0, lp0, up0, uv0 = _strip(seed, lamp_speed=1.5, uv_speed=1.5, offset=0.85)
+    ref = cut.cut_uv_pass(c0, lp0, up0, uv0)
+    try:
+        r = cut.cut_uv_pass(c, lp, up, uv)
+    except DualScanRefused as e:
+        return e.reason, None
+    return "ok", float(np.max(np.abs(r.uv[:, 0] - ref.uv[:, 0]) / ref.uv[:, 0]))
+
+
+@pytest.mark.parametrize("seed", [1, 2, 3, 4, 5])
+def test_a_shifted_uv_pass_is_refused_or_still_right(seed, monkeypatch):
+    """The review's B1 as a test: from 1 step of extra misalignment on, a strip is refused or its
+    patch values stay right (within 2.5 % of the UV signal; unshifted the noise gives 0.6 %);
+    at 2.5 steps and more it is refused. Without the averaging window's gate the same strips are
+    accepted with errors up to 14 %, so it is that gate which holds."""
+    for d in (1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0):
+        why, err = _rel_err(seed, d)
+        if why == "ok":
+            assert err <= 0.025, (seed, d, err)
+        else:
+            assert why == "uv_pass_shifted", (seed, d, why)
+        if d >= 2.5:
+            assert why == "uv_pass_shifted", (seed, d, why, err)
+    monkeypatch.setattr(cut, "MAX_EDGE_FLATNESS", 1e9)
+    worst = max(e for e in (_rel_err(seed, d)[1] for d in (3.0, 3.5, 4.0)) if e is not None)
+    assert worst > 0.04, worst
 
 
 def test_the_helper_calls_the_cut_with_the_edge():
