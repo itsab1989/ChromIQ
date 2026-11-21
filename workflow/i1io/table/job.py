@@ -4824,11 +4824,36 @@ class TableJob:
         """4.3.54 (review M2): what this read row contributes to the measurement's mark."""
         if plan.kind != "strip" or self.dual is not None or getattr(plan, "scan", None) is None:
             return
-        note = getattr(plan.scan, "speed_note", None) or {}
-        factor = float(note.get("factor", 1.0)) if not note.get("refused") else 1.0
-        fast = bool(note.get("edge_mm") is not None and note.get("rule_edge_mm") is not None
-                    and note["edge_mm"] < note["rule_edge_mm"] - 1e-9 and not note.get("refused"))
-        self.row_speed_marks[(self.page, plan.index)] = (factor, fast)
+        self.row_speed_marks[(self.page, plan.index)] = _row_speed_of(plan.scan)
+
+    def _taken_over_row_speed_marks(self) -> "list[tuple[float, bool]]":
+        """4.3.54 release (the verification's MUST): the marks of the rows of TAKEN-OVER sittings
+        (self._earlier_dirs, adopt_earlier) that the saved measurement still uses, from their row
+        records ("row_speed", written by _strip_attempt). A record is used when it still owns at
+        least one patch after every later record (sessions oldest first, as ms.assemble takes
+        them); rows of this sitting are row_speed_marks. A record without "row_speed" (a dual
+        row, a row read patch by patch, a sitting of 4.3.53) adds nothing."""
+        if not self._earlier_dirs or self.run is None:
+            return []
+        try:
+            records = ms.row_records(self._session_dirs())
+        except Exception:      # noqa: BLE001 - no records readable: nothing to add
+            return []
+        n_earlier = len(self._earlier_dirs)
+        owner: "dict[str, int]" = {}
+        for i, (_f, rec) in enumerate(records):
+            if rec.get("status") != "read":
+                continue
+            for a in rec.get("accepted") or []:
+                if a.get("loc"):
+                    owner[a["loc"]] = i
+        used = set(owner.values())
+        out = []
+        for i, (_f, rec) in enumerate(records):
+            rs = rec.get("row_speed")
+            if i in used and rec.get("_session", n_earlier) < n_earlier and rs:
+                out.append((float(rs[0]), bool(rs[1])))
+        return out
 
     def row_speed_mark(self) -> "str | None":
         """The header mark of this sitting, or None when every strip row was read at factor
@@ -4839,8 +4864,11 @@ class TableJob:
         them read with a border narrower than the safe one. A row refused at the factor's speed
         and read again at ChromIQ's own (_own_speed_after) counts at 1.00, because its values
         come from that reading; so a sitting whose fast rows were all refused and read again at
-        1.00 carries no mark, and one with ANY accepted row read at another factor does."""
-        marks = self.row_speed_marks.values()
+        1.00 carries no mark, and one with ANY accepted row read at another factor does. The
+        rows of a sitting this one took over (adopt_earlier) count the same way, from their row
+        records (_taken_over_row_speed_marks)."""
+        marks = list(self.row_speed_marks.values()) + (
+            self._taken_over_row_speed_marks() if getattr(self, "_earlier_dirs", None) else [])
         factors = sorted({f for f, _fast in marks if abs(f - 1.0) > 1e-9})
         if not factors:
             return None
@@ -4929,6 +4957,9 @@ class TableJob:
         # in the detailed table log and in the app log
         _sl = sp.speed_log_line(scan_plan)
         rec["speed_line"] = _sl
+        # 4.3.54 release (the verification's MUST): the row's share of the measurement's mark,
+        # so a later sitting that takes this one over can count it (_taken_over_row_speed_marks)
+        rec["row_speed"] = list(_row_speed_of(scan_plan))
         self.diag.log("DATA", f"row {plan.index + 1}: {_sl}")
         # (the app log line is the window's, from the strip_move event: this package uses the
         # standard library only)
@@ -6348,6 +6379,17 @@ def _is_i1pro2(model) -> bool:
 
 #: scan.run_row's clean failures (before the scan move, or after it with the arm at the row's
 #: end) as ids (the first match wins)
+def _row_speed_of(scan_plan) -> "tuple[float, bool]":
+    """(the factor a strip row's speed came from, whether it was read with a border narrower
+    than the safe one) from its plan's speed note; a re-plan at ChromIQ's own speed after a
+    refusal counts at 1.00 (4.3.54, the row speed mark)."""
+    note = getattr(scan_plan, "speed_note", None) or {}
+    factor = float(note.get("factor", 1.0)) if not note.get("refused") else 1.0
+    fast = bool(note.get("edge_mm") is not None and note.get("rule_edge_mm") is not None
+                and note["edge_mm"] < note["rule_edge_mm"] - 1e-9 and not note.get("refused"))
+    return factor, fast
+
+
 _STRIP_CLEAN_IDS = (
     ("the free arm moved", "free_arm_moved_between_two_readings"),
     ("the plan was refused", "strip_plan_refused"),
