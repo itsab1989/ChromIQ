@@ -28,7 +28,7 @@
   "operatingSystem": "macOS, Windows, Linux",
   "applicationCategory": "DesignApplication",
   "applicationSubCategory": "Colour management / printer profiling",
-  "softwareVersion": "4.3.54",
+  "softwareVersion": "4.3.55",
   "license": "https://www.gnu.org/licenses/gpl-3.0.html",
   "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"},
   "url": "https://itsab1989.github.io/ChromIQ/",
@@ -489,7 +489,10 @@ footer .sp{flex:1}
           shorter than 2.1 s have not been tried on a real instrument yet. New in 4.3.53: the blue light blinks on the side the second pass moves towards, and four waits
           can be set in Preferences &gt; Beta; the defaults are unchanged. New in 4.3.54: a dual scan
           starts also in a run that already holds a measurement read with one pass per strip, and a list
-          beside the option chooses when it runs; this fix has not run on a real instrument yet. Off until you turn it
+          beside the option chooses when it runs; this fix has not run on a real instrument yet. New in 4.3.55: the
+          second pass is lined up with the first before its readings are counted, so it is refused as too fast far
+          less often, and after each strip ChromIQ shows the pace of both passes; this was tested by replaying
+          recorded passes, not yet on a real instrument. Off until you turn it
           on in <b>Preferences &rsaquo; Beta</b>.</p>
       </div>
       <div style="display:grid;gap:22px">

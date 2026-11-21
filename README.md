@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-4.3.54-7c5cff">
+  <img alt="Version" src="https://img.shields.io/badge/version-4.3.55-7c5cff">
   <img alt="Downloads" src="https://img.shields.io/endpoint?url=https://itsab1989.github.io/github-traffic-downloads-dashboard/assets/badges/itsab1989_ChromIQ-downloads.json">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2a9d8f">
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-blue">
@@ -756,8 +756,13 @@ first try: [The dual scan, step by step](docs/i1pro2_dual_scan.md).
 > real instrument yet. New in 4.3.54: a dual scan starts also in a run that
 > already holds a measurement read with one pass per strip, and a list beside
 > the option chooses when the dual scan runs ("always" or "only for M1 or
-> M2"). This fix has not run on a real instrument yet. With the option off,
-> nothing changes.
+> M2"). This fix has not run on a real instrument yet. New in 4.3.55: the
+> second pass is lined up with the first before its readings are counted, so
+> it is refused as too fast far less often, and after each strip ChromIQ shows
+> the pace of both passes. The i1Pro 2 now waits 1.10 s after its lamp goes
+> out (the i1Pro keeps 1.5 s), with its own field in Preferences > Beta. The
+> dual scan changes were tested by replaying recorded passes, not yet on a
+> real instrument. With the option off, nothing changes.
 
 ### Tools menu — standalone utilities
 The masthead **Tools** button opens a menu of conversions and checks you can run

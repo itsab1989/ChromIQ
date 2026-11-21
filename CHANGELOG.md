@@ -1,5 +1,43 @@
 # Changelog
 
+## v4.3.55
+
+**For everyone who uses Check & Refine: “Analyse Profile Quality” now checks a profile with the colour settings it was built with (observer, illuminant and FWA compensation). Before, it used the settings on its own tab, and a profile built with other settings looked much worse than it is. Apply Calibration's “Remove” and “Check” work now; they never did with ArgyllCMS 3.5.0. For owners of an X-Rite i1Pro 2: the lamp wait before a dark reading is now 1.10 s instead of 1.5 s, and in the dual scan (beta) the second pass with the UV light is no longer refused as “too fast” at a pace the first pass accepts. The dual scan changes were tested by replaying recorded passes of a real instrument, not yet on a real instrument in this form: please read the known issues at the end.**
+
+### New
+
+- **Every profile build records the colour settings it used.** The observer, the illuminant and the FWA compensation of each build are kept in the run's files, together with which profile file they belong to. Check & Refine, Tools > Verify profile and Tools > Inspect a measurement read them from there.
+- **The app log says more about colour settings.** Every change of “CIE Observer (-o)”, “Illuminant (-i)” and “FWA compensation (-f)” on the Build Profile and Check & Refine tabs is written into the app log, with the old value, the new value and where the change came from (you, a preset, the saved defaults or the target's stored settings). Each profile check writes which settings it used.
+
+Only with the beta option “X-Rite i1Pro 2: also M1 and M2, by a dual scan (beta, first try)” on, measuring by hand:
+
+- **After each strip, ChromIQ shows the pace of both passes.** The line says how many seconds each pass took and how many readings the emptiest patch got in the second pass, against the number ChromIQ needs. When that is close to the limit, it says so, so you can go a little slower on the next strips.
+- **The app log records each dual scan strip:** the pace of both passes, the readings per patch, and how the second pass was lined up with the first.
+
+### Changed
+
+- **The lamp wait of the X-Rite i1Pro 2 is now 1.10 s.** This is how long ChromIQ waits after the lamp goes out before a dark reading. X-Rite's i1Profiler was recorded waiting 1.06 s, and a tester's real readings with gaps from 1.03 s showed no effect. It applies to every reading of an i1Pro 2 (also the EFI ES-2000 and the i1Basic Pro 2) with ChromIQ's own chart-reading engine, also on the i1iO table, whether or not a beta option is on. The original i1Pro keeps 1.5 s. Preferences > Beta now has two fields instead of one: “X-Rite i1Pro (not the i1Pro 2): lamp wait before a reading (beta):” and “X-Rite i1Pro 2: lamp wait before a reading (beta):”. If you had set the old field to something other than 1.5 s yourself, your value is kept for both.
+
+Only with the beta option “X-Rite i1Pro 2: also M1 and M2, by a dual scan (beta, first try)” on, measuring by hand:
+
+- **A refused second pass says by how much.** “The second pass (UV light) was too fast” now says how many readings the emptiest patch got, how many ChromIQ needs, and about how long to take for the pass next time.
+- **One verdict per strip.** A dual scan strip now gets one message about its pace, from the rule that decides the second pass. Before, the general pace check could also say “Too fast” about the second pass by the first pass's rule, while the second pass had readings to spare.
+- **A new refusal: “The second pass (UV light) did not line up with the first”.** It comes when the second pass lies too far from the first along the ruler, for example because the instrument was lifted, tilted or pressed differently on the way back. Both passes are then read again, as with every refused pass.
+
+### Fixed
+
+- **“Analyse Profile Quality” (Check & Refine) checked a profile with other colour settings than it was built with.** It always used the observer, illuminant and FWA compensation set on its own tab (by default the CIE 1931 2° observer, D50, FWA off), also for a profile built with others. The numbers then looked much worse than the profile is: a profile built with the CIE 2015 2° observer showed an average of 1.6 instead of 0.34, and Guided Refinement asked for strips to be read again that were fine. This was found from a tester's files in GitHub issue 217. Now, for a measurement with spectral readings, the check uses the settings the profile was built with. When the tab is set to something else, it asks first: “Use the profile's settings” (the default) or “Check with my settings”, and a check with your own settings says so in the result window and in the saved report. Tools > Verify profile and Tools > Inspect a measurement follow the profile's settings too. ChromIQ only knows the settings of a profile built with 4.3.55 or later. For a profile built with an earlier version, the check uses the tab's settings as before and the tab's log says so. If you built a profile with an observer, illuminant or FWA setting other than the defaults and checked it in an earlier version, check it again: either build it again with 4.3.55, or set the same three settings on the Check & Refine tab before you check.
+- **Apply Calibration: “Remove calibration from profile (-u)” and “Check calibration (no file written) (-c)” never worked with ArgyllCMS 3.5.0.** ChromIQ passed the calibration file to both, and ArgyllCMS refused it. Both work now, and “Check” says whether the profile has a calibration applied. The button still reads “APPLY CALIBRATION” in these two modes.
+- **i1Pro 2 dual scan (beta): the second pass (UV light) was refused as “too fast” at a pace the first pass accepts.** On one tester's instrument this happened to about one second pass in three, and each refusal meant reading both passes again. ChromIQ's own rule for the second pass was stricter than it needed to be. Now the second pass is first lined up with the first pass along the ruler, and then the whole clean middle of each patch counts. Replayed on recorded passes of a real instrument, the second pass is now first refused at about 1.7 times the recorded pace, where 4.3.54 refused it at about 1.05 times, and the values are as accurate as before. A strip whose passes cannot be lined up is read as in 4.3.54.
+
+### Known issues
+
+- **The dual scan changes of this version have not run on a real instrument in this form.** They were tested by replaying recorded passes of one real i1Pro 2 and on a simulated instrument. The app log now records how each strip was lined up, so the first real measurements will show how often it works.
+- **On some papers the second pass cannot be lined up, and then nothing is gained.** Lining up uses the readings at 380 to 400 nm. When paper and inks look alike there, as can happen on brightened papers, the strip is read as in 4.3.54: the same accuracy as 4.3.54, and the same “too fast” limit.
+- **The lamp wait of 1.10 s was tested on one tester's i1Pro 2 only.** If you see unusual dark readings or calibration problems with an i1Pro 2, set “X-Rite i1Pro 2: lamp wait before a reading (beta):” back to 1.5 s and tell us.
+- **Nothing of the i1iO table changes since 4.3.49 has run on a real table yet.** On a dual scan row of the table, the second pass is still placed by timing alone, as in 4.3.54.
+- The new and changed texts of this version are shown as proposed texts and may still be reworded.
+
 ## v4.3.54
 
 **For owners of an X-Rite i1Pro 2 who try the dual scan (beta): a dual scan now starts in a run that already holds a measurement read with one pass per strip, and a new list chooses when the dual scan runs. For owners of an X-Rite i1iO 2 table who try the beta option “X-Rite i1iO support”: every row the table reads in one move is now checked against its own readings, and a new “Row speed” factor can make rows faster, with a risk that the help explains. None of this has run on a real table or a real instrument yet: please read the known issues at the end. With the beta options off, ChromIQ measures as 4.3.53 did, except for one fix for every instrument: a ticked “Refine / resume existing measurement (-r)” over a file that cannot be continued now asks first (see Fixed).**
