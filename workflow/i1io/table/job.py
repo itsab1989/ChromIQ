@@ -66,6 +66,7 @@ from . import dual_rows as dl
 from . import geometry as geo
 from . import lines as cl
 from . import measurement as ms
+from . import placement as pl
 from . import reach as rc
 from . import reader as rd
 from . import scan as sc
@@ -134,7 +135,9 @@ CHOICES = {
     Confirm.CAL_OWN_TILE: ("ready", "stop"),
     Confirm.CAL_RESEAT: ("seated", "stop"),
     Confirm.ROW_FAILED: ("again", "skip", "stop"),
-    Confirm.ROW_FAILED_STRIP: ("again", "patch by patch", "skip", "stop"),
+    #: 4.3.54 (the row placement check's fix round): "rest patch by patch", offered once per page
+    #: after its second row the check refused (the window shows it only then)
+    Confirm.ROW_FAILED_STRIP: ("again", "patch by patch", "rest patch by patch", "skip", "stop"),
     Confirm.END: ("save", "keep measuring", "discard"),
 }
 #: what the reader consent stands for (tester 0.5.1's READER_CONSENT, as facts; the window words
@@ -936,6 +939,11 @@ class TableJob:
         self.strip_calibration: "dict | None" = None
         #: per page, the rows read patch by patch because the strip could not be used, and why
         self.strip_fallbacks: "dict[int, dict[int, str]]" = {}
+        #: 4.3.54: per page, the rows the row placement check refused; the pages where the rest
+        #: was offered patch by patch once; the pages whose rest the person chose patch by patch
+        self.placement_refused_rows: "dict[int, set]" = {}
+        self.rest_offered: "set[int]" = set()
+        self.rest_by_patch: "set[int]" = set()
         self._press_factory = press_factory or None
         self._press = None
         self._press_lock = threading.Lock()
@@ -1037,6 +1045,10 @@ class TableJob:
         self._replacing = False
         self.diag.log("INFO", f"ChromIQ table job {JOB_VERSION} (table module "
                               f"{tbl.TOOL_NAME} {tbl.TOOL_VERSION}); page {self.page + 1}")
+        # 4.3.54: the row placement check (placement.py), a veto on every row read in one move
+        self.diag.log("INFO", "row placement check: "
+                      + ("on (a row is accepted only when its readings confirm where every "
+                         "patch is)" if pl.ROW_PLACEMENT_CHECK else "OFF (developer switch)"))
 
     # ---- 4.3.52: the guidance ------------------------------------------------------------------
     @property
@@ -4422,6 +4434,11 @@ class TableJob:
                 return self._result(step, Kind.REFUSED, why, row=row,
                                     rows_read_again=self.rows_again.get(self.page, 0))
         fallback = None
+        if kind == "strip" and self.page in self.rest_by_patch:
+            # 4.3.54: the person chose to read the rest of this page patch by patch, after its
+            # second row the row placement check refused
+            kind, fallback = "spot", "chosen_by_you"
+            self._fallback_detail = {}
         try:
             try:
                 plan = (sp.plan_row(self.sheet, self.page, k, self.alignment,
@@ -4506,6 +4523,18 @@ class TableJob:
                 continue
             self._go_page = None          # a failed row: hands may reach in; GO before any move
             ask = Confirm.ROW_FAILED_STRIP if plan.kind == "strip" else Confirm.ROW_FAILED
+            # 4.3.54: after the SECOND row of this page the row placement check refused, the
+            # rest of the page is offered patch by patch, once
+            offer_rest = False
+            if plan.kind == "strip" and rec["why"] == stp.PLACEMENT_REASON:
+                refused = self.placement_refused_rows.setdefault(self.page, set())
+                refused.add(plan.index)
+                offer_rest = len(refused) >= 2 and self.page not in self.rest_offered
+                if offer_rest:
+                    self.rest_offered.add(self.page)
+                    self.diag.log("DATA", f"page {self.page + 1}: the row placement check "
+                                          f"refused its rows {sorted(r + 1 for r in refused)}; "
+                                          "the rest of the page is offered patch by patch")
             ans = yield Ask(ask, {
                 "row": plan.index + 1, "page": self.page + 1, "why": rec["why"],
                 # 4.3.50: the row's M0 readings are kept (its M1 / M2 are not): a dual row
@@ -4520,7 +4549,13 @@ class TableJob:
                 "again_allowed": self._again_refused() is None
                 and not self._calibration_due_for(len(plan.patches)),
                 "rows_read_again": self.rows_again.get(self.page, 0),
-                "calibration_due": self._calibration_due_for(len(plan.patches))})
+                "calibration_due": self._calibration_due_for(len(plan.patches)),
+                "offer_rest": offer_rest})
+            if ans == "rest patch by patch":
+                self.rest_by_patch.add(self.page)
+                self.diag.log("DATA", f"page {self.page + 1}: the person chose to read the rest "
+                                      f"of this page patch by patch (from row {plan.index + 1})")
+                ans = "patch by patch"
             if ans == "patch by patch":
                 if self._calibration_due_for(len(plan.patches)):
                     raise StageFailed("calibration_due", row=plan.index + 1)
@@ -4971,11 +5006,13 @@ class TableJob:
             self._arrived_at(scan_plan.end)
             # 4.3.53: both ends are places this table's motors brought the opening to
             self._learn_strip_ends(res, scan_plan)
-            cut = stp.cut_row(scan_plan, str(folder), res.fired)
+            cut = stp.cut_row(scan_plan, str(folder), res.fired,
+                              uniform_row=self._uniform_row(scan_plan))
             stp.save_cut_info(str(folder), name, cut)
             rec["cut"] = {"ok": cut.ok, "reason": cut.reason,
                           "readings_per_patch": cut.info.get("readings_per_patch"),
                           "recogniser": cut.info.get("recogniser")}
+            self._placement_record(rec, plan, cut.info.get("placement"))
             if not cut.ok:
                 raise _RowFailed(cut.reason, str(cut.info.get("loc") or ""))
             row_file = f"{name}.strip{stp.ROW_FILE_SUFFIX}"
@@ -5159,7 +5196,8 @@ class TableJob:
                 _wl2, urows = sc.read_spec_csv(str(folder / f"{uv.name}.spec.csv"))
             except (OSError, ValueError):
                 raise _RowFailed("strip_readings_unreadable", "") from None
-            cut = dl.cut_dual(lamp, uv, lrows, urows)
+            cut = dl.cut_dual(lamp, uv, lrows, urows, wavelengths=wl,
+                              uniform_row=self._uniform_row(lamp))
             cut.wavelengths = list(wl)
             # SHOULD-2 (table safety review, 2026-11-19): the UV pass's timing against the
             # chart's patches; both passes' best-fitting motion starts go into the record so
@@ -5172,6 +5210,7 @@ class TableJob:
                           "lamp_readings_per_patch": cut.info.get("lamp_readings_per_patch"),
                           "uv_readings_per_patch": cut.info.get("uv_readings_per_patch")}
             rec["uv_timing"] = timing
+            self._placement_record(rec, plan, cut.info.get("placement"))
             self.diag.log("DATA", f"{name}: best-fitting motion starts: UV "
                           f"{(timing.get('uv') or {}).get('best_motion_start_s')} s (assumed "
                           f"{sc.UV_MOTION_START_AFTER_TRIGGER_S} s), lamp "
@@ -5228,8 +5267,8 @@ class TableJob:
             # only the second pass (UV) failed or was refused: the row keeps its lamp pass as
             # M0 only (its M1 / M2 are missing; every other row keeps its own). The row still
             # counts as failed, so the person is asked as before and may read it again
-            if f.reason != "lamp_pass_timing_off" and getattr(results.get("lamp"), "kind",
-                                                               None) == "done":
+            if f.reason not in ("lamp_pass_timing_off", stp.PLACEMENT_REASON) and getattr(
+                    results.get("lamp"), "kind", None) == "done":
                 self._keep_lamp_pass(rec, plan, lamp, folder, name, f.reason)
             self._progress(event="row_end", row=plan.index + 1, status="failed", loc=f.loc)
             rec.update(status="failed", why=f.reason, failed_loc=f.loc or None)
@@ -5252,6 +5291,33 @@ class TableJob:
                              for n in v.get("notes", [])]})
         return rec
 
+    def _uniform_row(self, plan) -> bool:
+        """4.3.54 (the row placement check, review S3): True when the chart gives every patch of
+        *plan* the same device values (a row of identical patches, which its own readings can
+        never place). Read once from the chart; False when it cannot be read."""
+        dev = getattr(self, "_device_by_loc", None)
+        if dev is None:
+            dev = self._device_by_loc = (ms.device_values_by_loc(self._chart_ti2)
+                                         if self._chart_ti2 is not None else {})
+        vals = [dev.get(q.loc) for q in plan.patches]
+        return bool(vals) and None not in vals and len(set(vals)) == 1
+
+    def _placement_record(self, rec: dict, plan, check) -> None:
+        """4.3.54: the row placement check's verdict (placement.py) into the row's record, the
+        detailed table log and (through the row_placement event, the window's line) the app
+        log, with its numbers: which patch, by how many mm, the fitted start and scale. Only
+        when the released checks let the row reach it (a row they refuse is not checked)."""
+        if not check:
+            return
+        rec["placement"] = {k: check.get(k) for k in (
+            "confirmed", "reason", "says", "patch", "off_mm", "value_de00", "fit", "ms",
+            "refused_patches", "on", "timing_only", "off_patches")}
+        text = pl.summary(check)
+        self.diag.log("DATA", f"row {plan.index + 1}: {text}")
+        self._progress(event="row_placement", row=plan.index + 1,
+                       confirmed=bool(check.get("confirmed")), reason=check.get("reason"),
+                       patch=check.get("patch"), off_mm=check.get("off_mm"), what=text)
+
     def _keep_lamp_pass(self, rec: dict, plan, lamp, folder: Path, name: str,
                         why: str) -> bool:
         """4.3.50: a dual row whose second pass failed after a complete lamp pass keeps the lamp
@@ -5263,7 +5329,7 @@ class TableJob:
             wl, lrows = sc.read_spec_csv(str(folder / f"{lamp.name}.spec.csv"))
         except (OSError, ValueError):
             return False
-        cut = dl.cut_lamp_only(lamp, lrows)
+        cut = dl.cut_lamp_only(lamp, lrows, wavelengths=wl, uniform_row=self._uniform_row(lamp))
         cut.wavelengths = list(wl)
         timing = dl.lamp_timing(lamp, lrows, wl)
         _write_json(folder / f"{name}.lamp_only_cut.json",

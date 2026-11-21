@@ -56,7 +56,16 @@ def _choice_label_pages() -> "list[tuple[str, list[str]]]":
     for k, v in zip(table.keys, table.values):
         kind = k.elts[0].value
         pages.setdefault(kind, []).append(v.args[0].value)
-    return sorted(pages.items())
+    out = sorted(pages.items())
+    # 4.3.54: row_failed_strip shows "Read it patch by patch" OR, on the one page that offers it
+    # (the second row of a page the row placement check refused), "Rest patch by patch" in its
+    # place (the window's own rule): never both, so its two real pages are measured
+    both = dict(out).get("row_failed_strip", [])
+    if "Rest patch by patch" in both:
+        out = [(k, v) for k, v in out if k != "row_failed_strip"]
+        out += [("row_failed_strip", [x for x in both if x != "Rest patch by patch"]),
+                ("row_failed_strip", [x for x in both if x != "Read it patch by patch"])]
+    return out
 
 
 def _literal_pages() -> "tuple[list[tuple[str, list[str]]], set[str]]":

@@ -527,6 +527,23 @@ class _Clock:
         self.sim.clock += dt
 
 
+def _through_aperture(a, b, L: float, s: float, ap: float) -> "list[float]":
+    """What a round opening of *ap* mm sees at *s* mm along the row a -> b (L mm long): the
+    sheet's spectrum averaged over 9 slices across the opening, each weighted by its chord
+    (4.3.54, the row placement check's tests: the recorded readings are such averages)."""
+    r = ap / 2.0
+    acc, wsum = [0.0] * 36, 0.0
+    for k in range(9):
+        u = -r + (k + 0.5) * ap / 9
+        w = math.sqrt(max(0.0, r * r - u * u))
+        f = (s + u) / L if L else 0
+        x, y = a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1])
+        sp_ = _spectrum_at(x, y)
+        acc = [c + w * v for c, v in zip(acc, sp_)]
+        wsum += w
+    return [c / wsum for c in acc]
+
+
 def _spectrum_at(x: float, y: float) -> "list[float]":
     """The simulated sheet: a different, smooth spectrum per 8.7 mm cell; the bare table where
     nothing is (0.80 everywhere) is used only by tests that say so."""
@@ -846,12 +863,19 @@ class FakeScanReader:
         rows = []
         first, start = ((UV_FIRST_READING_S, TABLE_MOTION_START_AFTER_UV_S) if which == "uv"
                         else (0.370, TABLE_MOTION_START_AFTER_LAMP_S))
+        # 4.3.54 (the row placement check's tests): "sheet_offset_mm": the printed sheet lies that
+        # far further along the row than the aims put it (the opening sees the sheet that much
+        # behind where it stands)
+        off = float(self.faults.get("sheet_offset_mm", 0.0) or 0.0)
+        # ... and "aperture_mm": each reading sees the sheet through the i1Pro 2's round opening
+        # (each slice along the row weighted by its chord), not as one point
+        ap = float(self.faults.get("aperture_mm", 0.0) or 0.0)
         for i in range(n):
             t = first + (i + 0.5) * READING_S - start
-            s = s_at(t)
+            s = s_at(t) - off
             f = s / L if L else 0
             x, y = a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1])
-            spec = _spectrum_at(x, y)
+            spec = _spectrum_at(x, y) if not ap else _through_aperture(a, b, L, s, ap)
             if which == "uv":
                 # the UV pass in lamp-white units: the LED light the patch reflects (strong at
                 # 380-400 nm, none beyond 450) and a little glow; small numbers, as recorded

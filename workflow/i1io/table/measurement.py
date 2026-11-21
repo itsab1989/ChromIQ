@@ -150,6 +150,21 @@ def _rows_by_loc(path: Path) -> "tuple[list[str], dict[str, list[str]], str]":
     return fields, out, text
 
 
+def device_values_by_loc(chart_ti2) -> "dict[str, tuple]":
+    """4.3.54 (the row placement check): each location's device values in the chart (the
+    columns a measurement does NOT keep, the same rule as ``_device_free``). Empty when the
+    chart cannot be read: then no row counts as a row of identical patches."""
+    try:
+        fields, rows, _text = _rows_by_loc(Path(chart_ti2))
+    except (Refused, OSError, ValueError, TypeError):
+        return {}
+    keep = set(_device_free(fields))
+    dev = [i for i in range(len(fields)) if i not in keep]
+    if not dev:
+        return {}
+    return {loc: tuple(parts[i] for i in dev) for loc, parts in rows.items()}
+
+
 def _xyz_agrees(fields, parts, xyz) -> bool:
     if not all(k in fields for k in ("XYZ_X", "XYZ_Y", "XYZ_Z")) or xyz is None:
         return True                   # -l saves Lab instead: nothing to compare

@@ -592,6 +592,8 @@ def choice_label(kind: str, value: str) -> str:
         ("row_failed", "stop"): tr("End this step"),
         ("row_failed_strip", "again"): tr("Read it again as a strip"),
         ("row_failed_strip", "patch by patch"): tr("Read it patch by patch"),
+        # 4.3.54: offered once per page, after its second row the row placement check refused
+        ("row_failed_strip", "rest patch by patch"): tr("Rest patch by patch"),
         ("row_failed_strip", "skip"): tr("Skip it"),
         ("row_failed_strip", "stop"): tr("End this step"),
         ("end_of_session", "save"): tr("Save and stop"),
@@ -1008,6 +1010,10 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
             "the readings of a patch did not all show the same colour, so ChromIQ could not be "
             "sure where that patch is"),
         "strip_patch_implausible": tr("a patch came out with values no printed patch can have"),
+        # 4.3.54: the row placement check (workflow/i1io/table/placement.py)
+        "strip_placement_not_confirmed": tr(
+            "the readings did not confirm where the patches are in this row, so ChromIQ did "
+            "not use them"),
         "strip_plan_refused": tr("the strip move was not inside the part of the table ChromIQ "
                                  "uses"),
         "strip_reader_not_running": tr("ChromIQ's reading program had stopped"),
@@ -3007,6 +3013,16 @@ class TableMeasureWindow(QFrame):
                      what=ev.get("speed_line"))
             except Exception:      # noqa: BLE001 - a log line never stops a row
                 pass
+        if _kind == "row_placement":
+            # 4.3.54: the row placement check's verdict, with its numbers
+            try:
+                from core.app_log import line
+                line("table row placement", row=ev.get("row"),
+                     confirmed="yes" if ev.get("confirmed") else "no",
+                     reason=ev.get("reason") or None, patch=ev.get("patch"),
+                     off_mm=ev.get("off_mm"), what=ev.get("what"))
+            except Exception:      # noqa: BLE001 - a log line never stops a row
+                pass
         live = getattr(self, "_live", None)
         if not live:
             return
@@ -3891,6 +3907,8 @@ class TableMeasureWindow(QFrame):
         elif kind == "row_failed_strip":
             # 4.3.50: a dual row that keeps its lamp pass as M0 only has its own words
             msg = (M.M_I1IO_DRIVE_ROW_M0_ONLY_STRIP if d.get("m0_kept")
+                   # 4.3.54: the second row of this page the row placement check refused
+                   else M.M_I1IO_DRIVE_ROW_PLACEMENT_REST if d.get("offer_rest")
                    else M.M_I1IO_DRIVE_ROW_FAILED_STRIP)
             title, body = msg.render(
                 row=d.get("row", "?"), page=d.get("page", page),
@@ -3918,12 +3936,17 @@ class TableMeasureWindow(QFrame):
             body = M.M_I1IO_DRIVE_GO.render()[1]
         self._pending_kind = kind
         values = SHOWN_CHOICES.get(kind, res.choices)
+        if kind == "row_failed_strip":
+            # 4.3.54: "Rest patch by patch" takes the place of "Read it patch by patch" on the
+            # one page that offers it (four answers fit in one row in every language)
+            drop = "patch by patch" if d.get("offer_rest") else "rest patch by patch"
+            values = tuple(v for v in values if v != drop)
         buttons = [(choice_label(kind, v), self._answer_slot(v)) for v in values]
         made = self._show(kind, title, body, buttons)
         if kind in ("row_failed", "row_failed_strip") and not d.get("again_allowed", True):
             made[0].setEnabled(False)
             if kind == "row_failed_strip":
-                made[1].setEnabled(False)       # patch by patch is a row read again too
+                made[1].setEnabled(False)       # patch by patch (or the rest) is a row read again
             if self._popups:
                 self._style_popup_buttons()
         self._status.setText(tr("ChromIQ waits for your answer. Nothing moves until you "
@@ -5455,9 +5478,19 @@ def _applog_table_opened(win) -> None:
              report_after_each_step=bool(getattr(job, "ask_after_each_step", True)),
              dual_scan=getattr(job, "dual", None) is not None,
              stored_tile_white=bool(getattr(job, "stored_tile_white", False)),
+             row_placement_check=_row_placement_check(),
              popups=bool(getattr(win, "_popups", False)))
     except Exception:      # noqa: BLE001
         pass
+
+
+def _row_placement_check() -> str:
+    """4.3.54: "on" or "off" (the table code's developer switch)."""
+    try:
+        from workflow.i1io.table import placement as P
+        return "on" if P.ROW_PLACEMENT_CHECK else "off"
+    except Exception:      # noqa: BLE001
+        return "unknown"
 
 
 def _applog_table_result(win, res) -> None:

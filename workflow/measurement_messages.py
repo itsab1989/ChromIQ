@@ -13084,6 +13084,27 @@ M_I1IO_DRIVE_ROW_FAILED_STRIP = _m(
     "  •  End this step.",
     approved=False)
 
+#: 4.3.54 (the row placement check's fix round): shown IN PLACE of M-I1IO-DRIVE-ROW-FAILED-STRIP,
+#: once per page, when the row placement check has refused a SECOND row of that page; its four
+#: answers: again as a strip / "Rest patch by patch" (this row and every row after it on the
+#: page) / skip / end this step. {why} the reason as a clause
+M_I1IO_DRIVE_ROW_PLACEMENT_REST = _m(
+    "M-I1IO-DRIVE-ROW-PLACEMENT-REST",
+    "Row {row} could not be read as a strip",
+    "The arm is held where the strip move ended. Before it moves again, ChromIQ asks "
+    "you to take your hands away from the table and the arm.\n\nRow {row} of page "
+    "{page} could not be read as a strip: {why}. This is the second row of this page "
+    "where that happened: the sheet may lie a little off the marks you aimed at. "
+    "ChromIQ uses none of this row's values, because it never guesses a value. What "
+    "would you like to do?\n  •  Read it again as a strip.\n  •  Read the rest patch by "
+    "patch: this row and every row after it on this page, each patch on its own, so "
+    "this does not matter. The rows read so far keep their values.\n  •  Skip this "
+    "row: the measurement is saved without it, and you can read it later.\n  •  End "
+    "this step. If the sheet may have moved, end the measurement and start it again: "
+    "you aim again, and Continue Measurement reads only the rows that are still "
+    "missing.",
+    approved=False)
+
 #: 4.3.50 (Basti's rule of 19 Nov 2026, as by hand): a dual row whose first pass (the lamp) was
 #: read and kept while its second pass (the UV light) could not be used: the row has M0 only,
 #: every other row keeps its M1 and M2. {why} the second pass's reason as a clause
@@ -14161,6 +14182,7 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_NOTE, M_I1IO_DRIVE_NEXT_PAGE, M_I1IO_DRIVE_STOPPED_BY_YOU,
     M_I1IO_DRIVE_REFUSED, M_I1IO_DRIVE_FRONT_END, M_I1IO_DRIVE_FRONT_STOPPED,
     M_I1IO_DRIVE_ROW_M0_ONLY_STRIP, M_I1IO_DRIVE_ROW_M0_ONLY,
+    M_I1IO_DRIVE_ROW_PLACEMENT_REST,
     M_I1IO_DRIVE_HOME_OFFERED,
     M_I1IO_DRIVE_SWITCH_OFF,
     M_I1IO_DRIVE_STOPPED, M_I1IO_DRIVE_LINK_LOST,

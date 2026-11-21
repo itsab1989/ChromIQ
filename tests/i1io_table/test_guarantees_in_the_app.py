@@ -55,7 +55,9 @@ STEP6_MODULES = {"job.py", "caps.py", "usb_system.py", "diagnostics.py",
                  # files, its pass adapter
                  "dual_rows.py",
                  # 4.3.49: the table's remembered reach (records and learns; never sends)
-                 "reach.py"}
+                 "reach.py",
+                 # 4.3.54: the row placement check (a veto on a row's readings; never sends)
+                 "placement.py"}
 
 
 def test_the_package_holds_the_five_moved_modules_and_the_job():
@@ -72,7 +74,9 @@ STDLIB = {"__future__", "csv", "json", "os", "time", "dataclasses", "pathlib", "
           "hashlib",       # review 8, S-4: the filing note's checksum of the measurement
           "struct",        # D-4b: the table's 36 stored white tile values (bytes 88-231 only)
           # 4.3.49 (reach.py): the table's salted key, and the salt made on this computer
-          "hmac", "secrets"}
+          "hmac", "secrets",
+          # 4.3.54 (placement.py): the run medians, kept sorted as they grow
+          "bisect"}
 #: step 7: the measurement is made with the APP's own functions for a measurement (the
 #: i1Profiler import's pairing, the measurement states, the atomic replace), never a second
 #: writer of its own; nothing else of the app is imported
@@ -103,6 +107,12 @@ STEP7_APP_IMPORTS = {
                        "workflow.i1pro3_conditions"},
     # the dual scan's header keywords, as storage names them
     "dual_rows.py": {"workflow.dual_scan.storage"},
+    # 4.3.54: the row placement check (the row placement study's method (d)): numpy, as the
+    # app already uses it, the dual scan's own spectrum -> Lab (the study's), the app's
+    # ArgyllCMS method for other band sets, the app's CIEDE2000; all imported lazily, inside
+    # the check, so loading the package stays standard library only
+    "placement.py": {"numpy", "workflow.dual_scan.colour", "workflow.argyll_colorimetry",
+                     "workflow.profile_engine.metrics"},
 }
 
 

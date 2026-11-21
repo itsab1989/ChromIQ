@@ -119,8 +119,8 @@ def test_a_failing_strip_white_fails_the_calibration_truthfully(tmp_path):
 def _broken_stream(monkeypatch, reason="strip_patch_not_on_one_colour"):
     real = stp.cut_row
 
-    def cut(plan, outdir, fired):
-        c = real(plan, outdir, fired)
+    def cut(plan, outdir, fired, **kw):          # 4.3.54: uniform_row
+        c = real(plan, outdir, fired, **kw)
         return stp.Cut(False, reason, info=c.info)
     monkeypatch.setattr(stp, "cut_row", cut)
 
@@ -410,8 +410,8 @@ def test_the_panel_offers_four_ways_after_a_failed_strip(qtbot, monkeypatch, tmp
                                                         ):
     from workflow.i1io.table import strip as stp2
     real = stp2.cut_row
-    monkeypatch.setattr(stp2, "cut_row", lambda plan, outdir, fired: stp2.Cut(
-        False, "strip_patch_not_on_one_colour", info=real(plan, outdir, fired).info))
+    monkeypatch.setattr(stp2, "cut_row", lambda plan, outdir, fired, **kw: stp2.Cut(
+        False, "strip_patch_not_on_one_colour", info=real(plan, outdir, fired, **kw).info))
     win, sim, run, person, saved, finished = open_window(
         qtbot, monkeypatch, tmp_path, settings, asking=False, args=STRIP)
     person.drive_until("row_failed_strip")
@@ -419,6 +419,9 @@ def test_the_panel_offers_four_ways_after_a_failed_strip(qtbot, monkeypatch, tmp
     for want in ("Read it again as a strip", "Read it patch by patch", "Skip it",
                  "End this step"):
         assert want in labels, labels
+    # 4.3.54: the rest of the page is offered only after a second row the row placement
+    # check refused
+    assert "Rest patch by patch" not in labels
     assert "could not be sure where that patch is" in win._text.text()
     assert not any(b.isDefault() or b.autoDefault() for b in win._buttons)
     person.press("Read it patch by patch")

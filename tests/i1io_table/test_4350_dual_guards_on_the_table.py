@@ -149,7 +149,9 @@ def test_the_cut_alone_refuses_two_colours_and_a_value_that_is_not_a_number():
     lamp = sc.plan_row("t", (1100, 900), (300, 900), 132, pts, dual=True)
     n = lamp.N + 4
     flat = [[0.5] * 36 for _ in range(n)]
-    ok = dl.cut_lamp_only(lamp, flat)
+    # 4.3.54: a flat stream has no patch edges; the row placement check uses it only as a row of
+    # identical patches (uniform_row), which this flat row is
+    ok = dl.cut_lamp_only(lamp, flat, uniform_row=True)
     assert ok.ok, ok.reason
     striped = [[0.1 if i % 2 else 0.9] * 36 for i in range(n)]
     assert dl.cut_lamp_only(lamp, striped).reason == "strip_patch_not_on_one_colour"

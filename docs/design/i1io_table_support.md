@@ -1705,3 +1705,59 @@ synthetic passes; never run on a real table. Tests: `tests/i1io_table/test_4354_
   than 1.00 carries `CHROMIQ_ROW_SPEED` ("factor F: N of M rows faster than the safe border")
   beside `CHROMIQ_VERSION`, kept through Continue, merge and average; the measurement report
   names it, and one line says it at the end of the table measurement (M-I1IO-ROW-SPEED-END).
+
+### ⏳ Awaiting confirmation: the row placement check, a veto on every row read in one move (2026-11-21, for 4.3.54)
+
+**Confirmed by:** *nobody yet.* The coordinator's decision of 2026-11-21 (the safe first step of
+the row placement study, work folder 2026-11-21_row_placement_study, `design.txt` section 6 step
+1). The study found, on the volunteer's recorded rows and on synthetic rows built from them, that
+the released cut (by time alone, clean border max(0.5 mm, speed x 18 ms)) accepted wrong patches
+at its own speeds (1.11 and 2.05 dE00 on recorded rows at 82 and 51 mm/s; 1 to 3 of 20
+synthetic ChromIQ rows at 61 and 88 mm/s): the larger errors are the aim points and the print,
+1 to 2.5 mm at any speed. Never run on a real table. Code: `workflow/i1io/table/placement.py`.
+Tests: `tests/i1io_table/test_4354_row_placement_check.py`, `test_4354_row_placement_job.py`.
+
+* **What it is.** Every row read in one move (a strip row; the lamp pass of a dual row) is
+  ALSO placed by the readings themselves (the study's method (d)): the timing gives the rough
+  place; each reading is "stable" when it and its two neighbours lie within 0.6 dE00 of their
+  median (1.2 below L* 30); the row's start and scale are fitted within the timing's own bound
+  (+-(12 ms + 3 mm / speed), +-2 %) so that every patch centre lies deepest inside a stable
+  stretch; each patch's run of stable readings is found around its fitted place.
+* **A veto only.** The row's values stay the released cut's, unchanged to the last bit. The row
+  is accepted only when the readings confirm it: every patch centre on stable readings, one
+  place clearly best, that place inside the timing's bound (the consistency check), each
+  patch's run within 2 mm of its place and with at least 3 clean readings, and **every patch's
+  released window inside that patch's stable run**, its value within 0.5 dE00 of the run's own.
+  Anything else, any doubt, any failure of the check itself: not confirmed.
+* **A row it does not confirm** is a row that could not be read, with the reason
+  `strip_placement_not_confirmed`: the released path unchanged (asked again / patch by patch /
+  skip / stop, the countdown rules of 4.3.53), the sentence "the readings did not confirm where
+  the patches are in this row, so ChromIQ did not use them". It can cause extra re-reads, never
+  a different accepted value.
+* **Logs.** The detailed table log and the app log ("table row placement") carry, per row, the
+  verdict with its numbers (which patch, by how many mm, the fitted start in ms and mm, the
+  scale, the time the check took); the session header and the app log's "table session" line
+  say "row placement check: on".
+* **The switch.** No option for the person. One constant in the table code
+  (`placement.ROW_PLACEMENT_CHECK`, default on) turns it off, for a developer.
+* **At every Row speed factor.** A fast row the readings do not confirm is not accepted, which
+  closes the factor's measured risk (synthetic, factor 2.00, 10 mm patch: 8.62 dE00 accepted
+  without the check; with it none above 0.5 dE00).
+* **Unchanged.** Nothing sent to the table, no speed, no border, the released checks.
+* **What it cannot see.** A sheet a whole pitch off (aims made on the neighbouring patch): every
+  window then lies on the neighbour's clean middle; reading patch by patch would read the same
+  wrong patches.
+* **Fix round after the independent review (2026-11-21).** (1) The window rule relaxed: a
+  window may reach up to 2 readings beyond its stable run when its value lies within 0.3 dE00
+  of the run's (checked first on the recorded rows: every wrong cut still refused; and on 2,330
+  synthetic rows with 799 wrong released cuts: none accepted); false refusals about halved
+  (clean print 11.4 % -> 5.1 %, vendor-like 22.1 % -> 11.6 % over 40-168 mm/s). (2) A row
+  whose readings show no patch edge at all (a constant stream, bare paper) is not confirmed
+  ("no_patch_edges"); only a row whose CHART gives every patch the same device values is then
+  used by timing alone, as in 4.3.53, and the logs say "cannot confirm". (3) After the SECOND
+  row of a page the check refused, that row's question is asked once as
+  M-I1IO-DRIVE-ROW-PLACEMENT-REST (proposed): "Rest patch by patch" takes the place of "Read it
+  patch by patch" and reads this row and every row after it on the page patch by patch (GO
+  first; the rows already read keep their values). There is no way to aim again in the middle
+  of a measurement; the page names the one that exists (end it, start again, Continue). (4) The
+  second pass of a dual row (UV, M1 / M2) is not checked by it, as before.
