@@ -148,7 +148,7 @@ class HelperSim:
         table simulator's clock). Like ArgyllCMS, a strip white made by one reader is found by
         the next. Faults: ``HelperSim(faults={"scan": {...}})`` (FakeScanReader's own: no_lamp,
         not_ready, lights_err, dark_fail, fire_unsent, dies_at_fire, cal_fails, no_instrument,
-        dead), ``"scan_at": n`` for the n-th scan reader only."""
+        dead), ``"scan_at": n`` for the n-th scan reader only (4.3.54: or a tuple of n)."""
         from tests.i1io_table import part_c_sim as csim
         helper = self
 
@@ -156,7 +156,8 @@ class HelperSim:
             helper.scans.append(str(folder))
             faults = dict(helper.faults.get("scan") or {})
             at = helper.faults.get("scan_at")
-            if at is not None and at != len(helper.scans):
+            if at is not None and (len(helper.scans) not in at if isinstance(at, (tuple, list, set))
+                                   else at != len(helper.scans)):
                 faults = {}
             if helper.strip_calibrated:
                 faults["restored"] = True

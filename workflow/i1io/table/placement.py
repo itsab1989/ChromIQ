@@ -214,8 +214,8 @@ def _depth(lab):
 
 def _fit(plan, n, depth, first_s, motion_s):
     """Every (dt, eps) of the bound, scored as the study's ``global_fit``: (patches whose
-    centre reading is stable, the sum of their depths), best first; ties: the smaller |dt|,
-    then the smaller |eps|, then the order of the grid."""
+    centre reading is stable, the sum of their depths), best first; ties: the most central
+    place (see below), the smaller |dt|, the smaller |eps|, the order of the grid."""
     import numpy as np
     V = float(plan.speed)
     b = FIT_DT_S + FIT_DX_MM / V
@@ -240,7 +240,13 @@ def _fit(plan, n, depth, first_s, motion_s):
     dep = depth[kk]
     hits = (dep >= FIT_HIT_DEPTH).sum(axis=1)
     deep = np.minimum(dep, FIT_DEPTH_CAP).sum(axis=1)
-    order = np.lexsort((np.arange(len(E)), np.abs(E), np.abs(D), -deep, -hits))
+    # ties (equally many patches, equally deep): the most CENTRAL place of the bound first (the
+    # study's prototype took the smallest |dt| first, which on a short row whose centres lie deep
+    # in their stretches over a range of places picked a scale ON the bound and called that a
+    # disagreement), then the smaller |dt|, the smaller |eps|, the grid's order
+    ext = np.maximum(np.abs(D) / b, np.abs(E) / FIT_SCALE)
+    order = np.lexsort((np.arange(len(E)), np.abs(E), np.abs(D), np.round(ext, 9), -deep,
+                        -hits))
     return D[order], E[order], hits[order], deep[order], b
 
 
@@ -384,9 +390,15 @@ def _check(plan, spec_rows, windows, wavelengths, first_s, motion_s) -> dict:
                     rival={"dt_ms": round(float(D[k]) * 1000.0, 1),
                            "scale_pct": round(float(E[k]) * 100.0, 2),
                            "patches_on_stable_readings": int(H[k])})
+    # how far the readings put each patch from where the timing puts it (mm, the largest)
+    tau = np.array([sc.time_at(plan, q.along_mm) for q in plan.patches], float)
+    moved = np.abs(_positions(plan, tau / (1.0 + ge) + gdt)
+                   - np.array([q.along_mm for q in plan.patches], float))
+    fit["largest_shift_mm"] = round(float(moved.max()), 2)
     if abs(gdt) >= bound - BOUND_DT_S or abs(ge) >= FIT_SCALE - BOUND_SCALE:
-        return _off("edges_disagree_with_timing", fit=fit,
-                    off_mm=round(abs(gdt) * V, 2))
+        k = int(np.argmax(moved))
+        return _off("edges_disagree_with_timing", fit=fit, patch=plan.patches[k].loc,
+                    off_mm=round(float(moved[k]), 2))
     k = np.arange(n)
     pos = _positions(plan, (first_s + k * sc.READING_S - motion_s - gdt) * (1.0 + ge))
     per = []
