@@ -8119,15 +8119,23 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             mark = read_row_speed(ti3)
             if not mark:
                 return
-            title, body = M.M_I1IO_ROW_SPEED_END.render(mark=mark)
+            from workflow.ti3_provenance import row_speed_mark_text
+            title, body = M.M_I1IO_ROW_SPEED_END.render(mark=row_speed_mark_text(mark))
             self._log.appendPlainText(f"[{title}]\n{body}")
             self._log.ensureCursorVisible()
+            # under the chart once the table's window has closed (its end clears the notices)
+            self._row_speed_notice = body
+        except Exception:      # noqa: BLE001 - a note never breaks the end of a measurement
+            log.debug("row speed: no end line", exc_info=True)
+
+    def _show_row_speed_notice(self) -> None:
+        """The row speed line under the chart, after the table's window has closed."""
+        body, self._row_speed_notice = getattr(self, "_row_speed_notice", None), None
+        if body:
             try:
                 self._preview.set_notice(body, warn=True)
             except Exception:      # noqa: BLE001
                 pass
-        except Exception:      # noqa: BLE001 - a note never breaks the end of a measurement
-            log.debug("row speed: no end line", exc_info=True)
 
     def _on_table_measurement_saved(self, path, detail: dict) -> None:
         """The table window saved into the run: announced as after a hand
@@ -8234,6 +8242,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             self._drop_unused_verification_stage()
         self._reset_progress(from_files=True)
         self.measurement_active.emit(False)
+        if getattr(self, "_row_speed_notice", None):              # 4.3.54 (review M2)
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(0, self._show_row_speed_notice)
         if why == "consent_declined":
             self._log.appendPlainText(tr(
                 "Measurement not started: you chose Not now for the i1iO table."))

@@ -9654,5 +9654,6 @@
  "Read at a row speed other than 1.00": "以不同于 1.00 的行速度读取",
  "Read by the i1iO table at a row speed other than 1.00 ({mark}). Patches can be wrong without any warning. Compare with a measurement at 1.00 before you trust it.": "由 i1iO 测量台以不同于 1.00 的行速度读取（{mark}）。色块可能在没有任何警告的情况下出错。在信任它之前，请与 1.00 的测量进行比较。",
  "This measurement was read at a row speed other than 1.00 ({mark}). Patches can be wrong without any warning. Compare it with a measurement at 1.00 before you build a profile from it.": "本次测量以不同于 1.00 的行速度读取（{mark}）。色块可能在没有任何警告的情况下出错。在用它生成配置文件之前，请与 1.00 的测量进行比较。",
- "the table answered that it ran another speed than ChromIQ sent, so the readings cannot be placed and are not used. If you read the row again, ChromIQ uses its own speed for it": "测量台回答它以不同于 ChromIQ 发送的速度运行，因此无法确定读数的位置，不会使用这些读数。如果您重新读取该行，ChromIQ 会使用它自己的速度"
+ "the table answered that it ran another speed than ChromIQ sent, so the readings cannot be placed and are not used. If you read the row again, ChromIQ uses its own speed for it": "测量台回答它以不同于 ChromIQ 发送的速度运行，因此无法确定读数的位置，不会使用这些读数。如果您重新读取该行，ChromIQ 会使用它自己的速度",
+ "factor {factor}: {n} of {total} rows faster than the safe border": "系数 {factor}：{total} 行中有 {n} 行快于安全边距允许的速度"
 }

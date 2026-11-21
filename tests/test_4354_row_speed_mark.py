@@ -114,9 +114,36 @@ def test_one_line_at_the_end_of_a_table_measurement(qapp, tmp_path):
                            _preview=SimpleNamespace(set_notice=lambda b, warn: notice.append(b)))
     p = _file(tmp_path, "m.ti3", "factor 1.95: 22 of 22 rows faster than the safe border")
     TabMeasure._say_row_speed_at_end(fake, p)
-    title, body = M.M_I1IO_ROW_SPEED_END.render(mark=tp.read_row_speed(p))
-    assert got == [f"[{title}]\n{body}"] and notice == [body]
+    title, body = M.M_I1IO_ROW_SPEED_END.render(mark=tp.row_speed_mark_text(tp.read_row_speed(p)))
+    assert got == [f"[{title}]\n{body}"] and fake._row_speed_notice == body
+    # under the chart once the table's window has closed (its end clears the notices)
+    TabMeasure._show_row_speed_notice(fake)
+    assert notice == [body] and fake._row_speed_notice is None
     assert "1.00" in body and "without any warning" in body and "factor 1.95" in body
     got.clear()
     TabMeasure._say_row_speed_at_end(fake, _file(tmp_path, "n.ti3"))
     assert got == []
+
+
+def test_the_mark_is_shown_in_the_readers_language(qapp):
+    from core import i18n
+    mark = "factor 1.95: 3 of 4 rows faster than the safe border + factor 0.75: 0 of 4 rows " \
+           "faster than the safe border"
+    assert tp.row_speed_mark_text(mark) == ("factor 1.95: 3 of 4 rows faster than the safe "
+                                            "border; factor 0.75: 0 of 4 rows faster than the "
+                                            "safe border")
+    assert tp.row_speed_mark_text("something else") == "something else"
+    old = i18n.current_language() if hasattr(i18n, "current_language") else None
+    try:
+        i18n.set_language("de")
+        de = tp.row_speed_mark_text(mark)
+        assert "1,95" in de and "safe border" not in de
+    finally:
+        i18n.set_language(old or "en")
+
+
+def test_the_window_end_shows_the_line_under_the_chart():
+    import inspect
+    from ui.tabs.tab_measure import TabMeasure
+    src = inspect.getsource(TabMeasure._on_table_window_finished)
+    assert "QTimer.singleShot(0, self._show_row_speed_notice)" in src

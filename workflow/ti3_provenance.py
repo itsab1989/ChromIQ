@@ -113,6 +113,33 @@ def read_row_speed(path) -> "str | None":
         return None
 
 
+_MARK_RE = None
+
+
+def row_speed_mark_text(mark) -> str:
+    """The file's row-speed mark ("factor 1.95: 22 of 22 rows faster than the safe border",
+    parts joined by " + ") in the reader's language, FOR DISPLAY ONLY. A part that is not in
+    that form is shown as written."""
+    import re
+    from core.i18n import tr, decimal_text
+    global _MARK_RE
+    if _MARK_RE is None:
+        _MARK_RE = re.compile(r"^factor ([0-9.]+): (\d+) of (\d+) rows faster than the safe "
+                              r"border$")
+    out = []
+    for part in str(mark or "").split(" + "):
+        part = part.strip()
+        if not part:
+            continue
+        m = _MARK_RE.match(part)
+        if m is None:
+            out.append(part)
+            continue
+        out.append(tr("factor {factor}: {n} of {total} rows faster than the safe border").format(
+            factor=decimal_text(m.group(1)), n=m.group(2), total=m.group(3)))
+    return "; ".join(out)
+
+
 def _combine_marks(*marks) -> str:
     out = []
     for m in marks:

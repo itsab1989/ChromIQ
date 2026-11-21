@@ -9654,5 +9654,6 @@
  "Read at a row speed other than 1.00": "1.00 以外の行の速度で読み取り",
  "Read by the i1iO table at a row speed other than 1.00 ({mark}). Patches can be wrong without any warning. Compare with a measurement at 1.00 before you trust it.": "i1iO テーブルが 1.00 以外の行の速度で読み取りました ({mark})。パッチが警告なしに誤っている可能性があります。信頼する前に 1.00 での測定と比較してください。",
  "This measurement was read at a row speed other than 1.00 ({mark}). Patches can be wrong without any warning. Compare it with a measurement at 1.00 before you build a profile from it.": "この測定は 1.00 以外の行の速度で読み取られました ({mark})。パッチが警告なしに誤っている可能性があります。プロファイルを作成する前に 1.00 での測定と比較してください。",
- "the table answered that it ran another speed than ChromIQ sent, so the readings cannot be placed and are not used. If you read the row again, ChromIQ uses its own speed for it": "テーブルが ChromIQ の送った速度とは別の速度で動いたと応答したため、読み取り値の位置を特定できず、使用しません。行を読み直す場合、ChromIQ は自身の速度を使います"
+ "the table answered that it ran another speed than ChromIQ sent, so the readings cannot be placed and are not used. If you read the row again, ChromIQ uses its own speed for it": "テーブルが ChromIQ の送った速度とは別の速度で動いたと応答したため、読み取り値の位置を特定できず、使用しません。行を読み直す場合、ChromIQ は自身の速度を使います",
+ "factor {factor}: {n} of {total} rows faster than the safe border": "係数 {factor}: {total} 行中 {n} 行が安全な余白の許す速度より速い"
 }
