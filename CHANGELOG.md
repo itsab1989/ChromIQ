@@ -1,5 +1,44 @@
 # Changelog
 
+## v4.3.54
+
+**For owners of an X-Rite i1Pro 2 who try the dual scan (beta): a dual scan now starts in a run that already holds a measurement read with one pass per strip, and a new list chooses when the dual scan runs. For owners of an X-Rite i1iO 2 table who try the beta option “X-Rite i1iO support”: every row the table reads in one move is now checked against its own readings, and a new “Row speed” factor can make rows faster, with a risk that the help explains. None of this has run on a real table or a real instrument yet: please read the known issues at the end. With the beta options off, ChromIQ measures as 4.3.53 did, except for one fix for every instrument: a ticked “Refine / resume existing measurement (-r)” over a file that cannot be continued now asks first (see Fixed).**
+
+### New
+
+Only with the beta option “X-Rite i1Pro 2: also M1 and M2, by a dual scan (beta, first try)” on:
+
+- **A list chooses when the dual scan runs.** It is beside the option in Preferences > Beta. “always”: every strip is read twice, and M0, M1 and M2 are saved, in MANUAL and in GUIDED. “only for M1 or M2”: in MANUAL, “Spectral filter type (-F)” decides. With M0 chosen, each strip is read once and only M0 is saved. With M1 or M2 chosen, each strip is read twice. GUIDED has no choice of condition, so there each strip is read once. When you switch the option on, the list starts on “only for M1 or M2”. If the dual scan was already on before 4.3.54, “always” is kept, so nothing changes until you choose.
+- **A note before START says what will happen.** When the dual scan will not run for this measurement, the Measure tab says why before you start: M0 is chosen, GUIDED is used, the instrument is not an i1Pro 2, the chart is the calibration chart, “High resolution spectral mode (-H)” or “Skip initial calibration (-N)” is on, or the measurement you continue was read with one pass per strip. A note that takes away a dual scan you asked for comes at every start.
+- **A measurement you continue goes on the way it was started.** One started with one pass per strip continues with one pass per strip, also under “always”. One started with two passes continues with two.
+
+Only with the beta option “X-Rite i1iO support” on:
+
+- **“Row speed”: a factor on the speed of a row read as a strip.** It is in Preferences > Beta, beside “Table charts start with “Patch-by-patch mode (-p)” ticked”, from 0.50 to 2.00, and the default is 1.00 (ChromIQ's own speeds, as in 4.3.53). The speed always stays between 40 and 168 mm/s, the range X-Rite's i1Profiler was recorded using for rows. Above 1.00, ChromIQ keeps a narrower clean border at each patch edge, so a reading near the edge can take in light from the next patch. The (i) beside the field says what this risks and what ChromIQ checks. Rows of patches 14 mm and longer already run at 168 mm/s, dual rows always run at 132 mm/s, and rows read patch by patch are not affected. The factor stays set until you set it back to 1.00.
+- **A measurement read at a factor other than 1.00 says so.** Its file carries the factor and how many rows were read faster than the safe border (CHROMIQ_ROW_SPEED), and keeps it through Continue, merge and average. The measurement report names it, and one line says it at the end of the table measurement. Only the rows the measurement uses count: a row read again at 1.00 counts as read at 1.00.
+- **If the table runs another speed than ChromIQ sent, that row is not used.** In every recording, the table repeated the speed it was sent. A row read again after such a refusal, or after the table refused a speed, runs at ChromIQ's own speed (factor 1.00).
+
+### Changed
+
+Only with the beta option “X-Rite i1iO support” on:
+
+- **Every row read in one move is checked against its own readings.** ChromIQ uses a row only when each patch's readings clearly come from that patch and not from its edge. Otherwise it says so (“the readings did not confirm where the patches are in this row”) and offers to read the row again or patch by patch. A row read at a “Row speed” other than 1.00 is then read again at 1.00. When this happens to a second row of the same page, ChromIQ also offers to read the rest of that page patch by patch (“Rest patch by patch”). The values of a row it accepts are exactly what 4.3.53 gave, nothing new is sent to the table, and the speeds at 1.00 are unchanged. On a dual scan row, only the first pass (with the lamp) is checked. A row of identical patches cannot be placed from its own readings: it is used as in 4.3.53, and the app log says so.
+
+### Fixed
+
+- **A dual scan did not start in a run that already held a measurement read with one pass per strip** (i1Pro 2 dual scan, beta). Each strip was read once, and the Measure tab went on to the next strip after the first pass, without a word. Now a new measurement with the dual scan starts with two passes per strip whatever the run held before. This needs the reading program that comes with 4.3.54. Thanks to joshuaziff for the report and the app log (GitHub issue 217).
+- **A ticked “Refine / resume existing measurement (-r)” over a file that cannot be continued replaced that file without asking** (every instrument). This happened when the file did not fit the chart, or when only “Refine” was ticked. The earlier file was kept in the run's “old” folder, but the window did not say so. Now one decision says whether a read continues the measurement. When it does not, you see the usual window first, and the earlier file is moved to the “old” folder before the reading starts.
+- **Rows on the i1iO table could have a few patches slightly wrong** (i1iO table beta, rows read as strips). 4.3.53 placed a row's readings by timing alone. When the sheet or the print lay 1 to 2 mm away from where the aims put it, a few patches could take in light from the next patch. On rows recorded on a tester's table, 4.3.53 accepted two rows with one patch 1.1 and 2.05 dE00 off, without a warning. Every row is now checked against its own readings (see Changed). If you read rows as strips with 4.3.53, a few patches of those measurements may be slightly wrong; measurements read patch by patch are not affected.
+
+### Known issues
+
+- **Nothing of the i1iO table changes in this version has run on a real table,** and the dual scan fix has not run on a real instrument. The row check was tested on simulated rows and on one table's recordings.
+- **The row check cannot see a sheet or an aim point that is off by a whole patch.** Every reading then comes from the clean middle of the next patch and looks right. Reading patch by patch reads the same wrong patches, so aiming at the right marks stays your part.
+- **On a dual scan row, the second pass (with the UV light, for M1 and M2) is still placed by timing alone,** as in 4.3.53, with its own timing check.
+- **More rows are read again than before.** The check also refuses some good rows: in our tests up to about one in five at 168 mm/s, and more on unevenly printed sheets and at slow speeds. In our tests no patch it accepted was more than about 0.5 dE00 worse than a correctly placed reading.
+- **“Row speed” sends speeds between 40 and 168 mm/s that were never recorded,** but only in a measurement whose factor is not 1.00. If a table refuses such a speed, the row is read again at ChromIQ's own speed. Before you trust a fast measurement, compare it once with one at 1.00.
+- The new and changed texts of this version are shown as proposed texts and may still be reworded.
+
 ## v4.3.53
 
 **For owners of an X-Rite i1iO 2 table who try the beta option “X-Rite i1iO support”: a chart is now read in rows wherever it lies on the table, at speeds i1Profiler uses, and ChromIQ remembers each table. After the first careful time on a table, it moves without extra steps and asks fewer questions. For owners of an X-Rite i1Pro 2 who try the dual scan and the instrument lights (both beta): the blue light now blinks on the side the second pass moves towards, and four waiting times can be set in Preferences > Beta. None of this has run on a real table or a real instrument yet: please read the known issues at the end. With the beta options off, ChromIQ measures as 4.3.52 did, except for one fix for every strip instrument: with “Auto” strip recognition, a chart that names no instrument, read with an i1 Pro, is now read in both directions (see Changed). The charts ChromIQ makes and your earlier measurements and profiles do not change.**

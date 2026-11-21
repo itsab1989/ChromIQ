@@ -28,7 +28,7 @@
   "operatingSystem": "macOS, Windows, Linux",
   "applicationCategory": "DesignApplication",
   "applicationSubCategory": "Colour management / printer profiling",
-  "softwareVersion": "4.3.53",
+  "softwareVersion": "4.3.54",
   "license": "https://www.gnu.org/licenses/gpl-3.0.html",
   "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"},
   "url": "https://itsab1989.github.io/ChromIQ/",
@@ -468,7 +468,9 @@ footer .sp{flex:1}
           measure without the step-by-step guidance and keep a shorter log; neither has run on a real
           table yet. New in 4.3.53: rows are read as rows wherever the chart lies, faster, at speeds i1Profiler uses
           (each patch keeps a clean border that grows with the speed), and ChromIQ remembers each table
-          after the first careful time; this has not run on a real table yet. Off until you turn it on in
+          after the first careful time; this has not run on a real table yet. New in 4.3.54: every row
+          read in one move is checked against its own readings, and a new &ldquo;Row speed&rdquo; factor can
+          make rows faster, with a risk its (i) explains; this has not run on a real table yet. Off until you turn it on in
           <b>Preferences &rsaquo; Beta</b>; with it off, nothing changes. Your report is welcome on
           <a href="https://github.com/itsab1989/ChromIQ/issues/129">GitHub issue 129</a>.</p>
         <p><b class="mono" style="color:var(--amb)">IN BETA &middot; X-RITE i1PRO 2 DUAL SCAN</b><br>
@@ -485,7 +487,9 @@ footer .sp{flex:1}
           instrument lights on as well, the left light pulses blue when the second pass is due, as in
           i1Profiler, and you can set the wait after a light change; the blue light and any wait
           shorter than 2.1 s have not been tried on a real instrument yet. New in 4.3.53: the blue light blinks on the side the second pass moves towards, and four waits
-          can be set in Preferences &gt; Beta; the defaults are unchanged. Off until you turn it
+          can be set in Preferences &gt; Beta; the defaults are unchanged. New in 4.3.54: a dual scan
+          starts also in a run that already holds a measurement read with one pass per strip, and a list
+          beside the option chooses when it runs; this fix has not run on a real instrument yet. Off until you turn it
           on in <b>Preferences &rsaquo; Beta</b>.</p>
       </div>
       <div style="display:grid;gap:22px">

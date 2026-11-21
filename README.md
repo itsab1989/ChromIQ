@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-4.3.53-7c5cff">
+  <img alt="Version" src="https://img.shields.io/badge/version-4.3.54-7c5cff">
   <img alt="Downloads" src="https://img.shields.io/endpoint?url=https://itsab1989.github.io/github-traffic-downloads-dashboard/assets/badges/itsab1989_ChromIQ-downloads.json">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2a9d8f">
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-blue">
@@ -699,6 +699,11 @@ ways:
 >   extra steps. A reading that fails with the arm on its patch is read once
 >   more by itself, and a free arm is brought home from wherever it is. None
 >   of this has run on a real table yet.
+> - New in 4.3.54: every row read in one move is checked against its own
+>   readings, and a row whose readings do not show each patch read on that
+>   patch is not used and is offered again. A new "Row speed" factor in
+>   Preferences > Beta can make rows faster, with a risk its (i) explains.
+>   None of this has run on a real table yet.
 > - The option is off by default, and with it off nothing changes.
 
 Why it may be worth it all the same: X-Rite has ended support for these
@@ -748,7 +753,11 @@ first try: [The dual scan, step by step](docs/i1pro2_dual_scan.md).
 > four waits (after a light change, after the blue light, when the blue light
 > comes, and ArgyllCMS's lamp wait) can be set in Preferences > Beta. The defaults are
 > unchanged; any shorter wait and the right blue light have not been tried on a
-> real instrument yet. With the option off, nothing changes.
+> real instrument yet. New in 4.3.54: a dual scan starts also in a run that
+> already holds a measurement read with one pass per strip, and a list beside
+> the option chooses when the dual scan runs ("always" or "only for M1 or
+> M2"). This fix has not run on a real instrument yet. With the option off,
+> nothing changes.
 
 ### Tools menu — standalone utilities
 The masthead **Tools** button opens a menu of conversions and checks you can run
