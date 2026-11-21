@@ -31,16 +31,12 @@ I18N = Path(__file__).resolve().parents[2] / "data" / "i18n"
 LANGS = ["en"] + sorted(p.stem for p in I18N.glob("*.json"))
 
 FLAGGED = {
-    "M-I1IO-DRIVE-STOPPED", "M-I1IO-DRIVE-STOPPED-END-FIRST", "M-I1IO-DRIVE-AFTER-PROBLEM-OUT",
-    "M-I1IO-DRIVE-SWITCH-OFF", "M-I1IO-DRIVE-LINK-LOST", "M-I1IO-DRIVE-LINK-LOST-SWITCH-OFF",
-    # 4.3.53 fix round (SHOULD-3): FREE-LEFT no longer names i1Profiler (the power switch
-    # and ChromIQ's own START bring the arm home)
-    "M-I1IO-DRIVE-COLD", "M-I1IO-DRIVE-COLD-WAY-OUT",
-    # 4.3.52: HOME-AFTER-STOP no longer names i1Profiler; ARM-OUT-AT-START(-AREA) withdrawn
-    "M-I1IO-DRIVE-LEFT-OUT", "M-I1IO-DRIVE-STILL-AIMING",
-    "M-I1IO-DRIVE-START-UP", "M-I1IO-DRIVE-USB-MISSING",
-    # 4.3.52: the one arm question after power-on with the guidance off
-    "M-I1IO-DRIVE-START-UP-ARM",
+    # 2026-11-21 (the owner: "driving the table should work without involving i1profiler"): no
+    # page that brings the arm home, ends a stop or recovers the table names i1Profiler any more
+    # (STOPPED, STOPPED-END-FIRST, AFTER-PROBLEM-OUT, SWITCH-OFF, LINK-LOST(-SWITCH-OFF), COLD,
+    # COLD-WAY-OUT, LEFT-OUT, STILL-AIMING, START-UP, START-UP-ARM: START MEASUREMENT and the
+    # power switch). What stays flagged is measuring in i1Profiler and IMPORT instead.
+    "M-I1IO-DRIVE-USB-MISSING",
     "M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM", "M-I1IO-DRIVE-TABLE-DRIVER",
     "M-I1IO-DRIVE-TABLE-DRIVER-FILE",
 }
@@ -85,8 +81,9 @@ def test_every_table_message_naming_old_i1profiler_is_flagged_or_named_here():
 
 def test_the_window_texts_naming_old_i1profiler_are_flagged():
     i18n.set_language("en")
-    assert M.needs_i1profiler_limit(W.table_state_text("123456"))
-    assert M.needs_i1profiler_limit(W.table_state_text(""))
+    # 2026-11-21: the unknown-state page no longer names i1Profiler
+    assert not M.needs_i1profiler_limit(W.table_state_text("123456"))
+    assert not M.needs_i1profiler_limit(W.table_state_text(""))
     _t, body = M.M_I1IO_DRIVE_NOT_I1IO2.render()
     assert not M.needs_i1profiler_limit(body)
 
@@ -114,10 +111,10 @@ def test_in_the_window_a_flagged_page_says_the_limit_once_and_no_other_page_does
 
 
 @pytest.mark.parametrize("code", ["en", "de"])
-def test_the_still_aiming_page_gets_the_notice_by_its_flag(
+def test_the_table_left_in_its_aiming_mode_gets_no_i1profiler_notice(
         qtbot, monkeypatch, tmp_path, settings, code):  # noqa: F811
-    """The re-review's case: this page names 3.8.6 and not 3.8.7, so only the window's
-    addition gives it the notice."""
+    """2026-11-21: the re-review's case (the table still in its aiming mode at a START) is now
+    put right by ChromIQ itself: the repair page, with no i1Profiler notice."""
     i18n.set_language(code)
     try:
         sim = _LeftOutSim()
@@ -126,11 +123,12 @@ def test_the_still_aiming_page_gets_the_notice_by_its_flag(
         assert p.drive_until("ready_to_open") == "ready_to_open"
         win._tick_widgets[1].setChecked(True)
         p.press("The arm is out")
-        assert p.drive_until(("stopped", "refused", "done")) == "stopped"
-        title, _b = M.M_I1IO_DRIVE_STILL_AIMING.render(log="x")
+        assert p.drive_until(("repair_at_start",)) == "repair_at_start"
+        title, _b = M.M_I1IO_DRIVE_REPAIR_AT_START.render()
         assert win._title.text() == title
         text = win._text.text()
-        assert text.count(M.M_I1IO_DRIVE_I1PROFILER_LIMIT.render()[1]) == 1
+        assert M.M_I1IO_DRIVE_I1PROFILER_LIMIT.render()[1] not in text
+        assert "i1Profiler" not in text
         assert sim.sim.violations == []
     finally:
         i18n.set_language("en")

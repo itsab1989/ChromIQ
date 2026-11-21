@@ -59,6 +59,15 @@ AIMS = (8, 0)              # three p1, s0, f4 x 4 (stage D1)
 CHECK_MOVE = (6, 1)        # stage D2: p0 (twice if free), m0, p0 (+1: S-7, the arrival read again)
 #                            (+1: 4.3.47 MUST-1, read again after a first-visit question)
 HOME = (8, 1)              # stage F: s0 p0 i1 s0 f0 f4 f4 p0
+#: 2026-11-21, THE VENDOR'S WAY HOME (geometry.homing_detour): at most two detour moves before
+#: the homing (R1's two from the back strip; N3's one from the far side), each m0 with its
+#: arrival p0 and that p0 read once more after 0.3 s, plus one more reading of a free arm before
+#: the first of them (it must stand still): 2 x 3 + 1 lines, 2 movements
+DETOUR = (2 * 3 + 1, 2)
+HOME_DETOUR = (HOME[0] + DETOUR[0], HOME[1] + DETOUR[1])
+#: 2026-11-21: the end of an aiming mode found left on, at rest after a homing: f0 f4 f4 p0
+#: (i1Profiler's end-of-job tail after "i1 s0", R19 513.6-517.6)
+END_MODE = (4, 0)
 #: 4.3.49 fix round (safety review 449, MUST-1): a HELD arm standing where no recorded homing
 #: starts (in front of Y 3114, after the creep met the front end or after a front row) is first
 #: taken back along the way it came, to places the motors verifiably brought it to in this

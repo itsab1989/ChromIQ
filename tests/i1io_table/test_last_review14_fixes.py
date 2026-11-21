@@ -188,11 +188,11 @@ def test_m1_something_wrong_at_the_alignment_start_states_the_true_place(qtbot, 
     # review 13 on the real table's geometry: from the alignment start (2507, 1429) the homing
     # is refused, so the way back is i1Profiler (the simulated table allows that homing; the
     # job's answer is set as the real table gives it)
-    monkeypatch.setattr(job, "way_back", lambda: J.WayBack.OPEN_I1PROFILER_ONCE)
+    monkeypatch.setattr(job, "way_back", lambda: J.WayBack.END_THEN_START_AGAIN)
     win._on_problem()
     _btn(win, "Something looks or sounds wrong").click()
     p.idle()
-    assert job.way_back() == "open_i1profiler_once"
+    assert job.way_back() == "end_then_start_again"
     assert not win._arm_at_rest()
     text = win._text.text()
     assert RESTING not in text.lower()

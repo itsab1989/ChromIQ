@@ -50,6 +50,9 @@ def test_on_at_the_opening_keeps_the_earlier_measurement_sentence(tmp_path):
     job, sim, helper, run, p = job_for(tmp_path, {J.Confirm.READY_TO_OPEN: "arm out"},
                                        real_table=False)
     sim.pos, sim.mode, sim.free_arm = list(OUT_HELD), "01", True
+    # 2026-11-21: a table left in its aiming mode answers a0 with bit 0x40 and is put right at
+    # START; the sentence is for the case the two answers DISAGREE (a0 130000, f4 01)
+    sim.a0_aiming = "130000"
     r = p.drive(job.open())
     assert r.kind == J.Kind.STOPPED and r.reason == "mode_flag_unexpected"
     assert (r.detail["mode_answer"], r.detail["mode_expected"], r.detail["at_opening"]) == \

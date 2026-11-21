@@ -46,6 +46,8 @@ from workflow.i1io.table import session_table as tbl
 OUT_HELD = [0.0, 1600.0]              # out over the bed, inside the measuring area
 #: 4.3.52: the one place a held arm is not brought home from (job.in_back_strip)
 BACK_STRIP = [1058.0, 317.0]
+#: 2026-11-21: a place in the back strip with no way home (beyond the target area's left end)
+FAR_BACK = (2600, 300)
 #: 4.3.52: the START rule's homing (i1Profiler's start homing + the reading at rest)
 HOMING = [";s022", ";p025", ";i12b", ";s022", ";p025"]
 MOVES = ("m0", "m1", "m2", "i1", "i0")
@@ -106,7 +108,7 @@ def test_it_is_offered_once(tmp_path):
     sim.inject("status", "i1", 3)
     res = p.drive(job.home_after_stop())
     assert res.kind == J.Kind.STOPPED
-    assert job.way_back() == J.WayBack.OPEN_I1PROFILER_ONCE
+    assert job.way_back() == J.WayBack.END_THEN_START_AGAIN
     n = len(sim.received)
     assert job.home_after_stop().reason == "tried_already"
     assert sim.received[n:] == []
@@ -119,8 +121,12 @@ def test_after_save_or_discard_the_ending_offers_it(tmp_path):
 
 # ---- not offered ------------------------------------------------------------------------------
 def test_not_from_the_back_strip(tmp_path):
+    """2026-11-21: the back strip has i1Profiler's own way out (R1); only a place in it beyond
+    the left end of the target area (X above 2507) has none."""
     job, sim, p, r = _stopped_at_the_homing(tmp_path, BACK_STRIP)
-    assert r.way_back == J.WayBack.OPEN_I1PROFILER_ONCE
+    assert r.way_back == J.WayBack.HOME_AFTER_STOP
+    job, sim, p, r = _stopped_at_the_homing(tmp_path / "far", FAR_BACK)
+    assert r.way_back == J.WayBack.END_THEN_START_AGAIN
     n = len(sim.received)
     res = job.home_after_stop()
     assert res.reason == "arm_in_the_back_strip" and sim.received[n:] == []
@@ -165,7 +171,7 @@ def test_not_after_a_move_that_did_not_arrive(tmp_path):
     _arrive_beside(sim, 2, 0, -40, reads=2)
     r = p.drive(job.read_row())
     assert r.kind == J.Kind.STOPPED and r.reason == "arm_not_where_expected"
-    assert r.way_back == J.WayBack.OPEN_I1PROFILER_ONCE
+    assert r.way_back == J.WayBack.END_THEN_START_AGAIN
     assert job.home_after_stop().reason == "stop_not_at_a_place_check"
 
 
@@ -214,8 +220,8 @@ def test_planted_a_wider_offer_is_caught(tmp_path, monkeypatch, plant):
         # still refuses (no reading came with it), which is the second line of defence
         assert job._home_after_stop_why() in ("no_fresh_position_reading", "arm_not_held")
     elif plant == "any place":
-        job, sim, p, r = _stopped_at_the_homing(tmp_path, BACK_STRIP)
-        monkeypatch.setattr(J, "in_back_strip", lambda p: False)
+        job, sim, p, r = _stopped_at_the_homing(tmp_path, FAR_BACK)
+        monkeypatch.setattr(J.geo, "homing_detour", lambda p: ())
         assert job._home_after_stop_why() is None          # the plant shows
         monkeypatch.undo()
         assert job._home_after_stop_why() == "arm_in_the_back_strip"
@@ -249,24 +255,25 @@ def test_start_with_the_arm_out_reads_it_and_brings_it_home(tmp_path):
 def test_start_with_the_arm_out_in_the_back_strip_offers_nothing(tmp_path):
     job, sim, helper, run, p = job_for(tmp_path, {J.Confirm.READY_TO_OPEN: "arm out"},
                                        real_table=False)
-    sim.pos = list(BACK_STRIP)
+    sim.pos = list(FAR_BACK)
     assert p.drive(job.open()).ok
     r = p.drive(job.where_is_the_arm())
     assert r.reason == "arm_not_at_rest"
-    assert r.way_back == J.WayBack.OPEN_I1PROFILER_ONCE
+    assert r.way_back == J.WayBack.END_THEN_START_AGAIN
     n = len(sim.received)
     assert job.home().reason == "arm_in_the_back_strip" and sim.received[n:] == []
 
 
 def test_start_with_the_arm_out_and_free_offers_nothing(tmp_path):
-    """The mode for aiming by hand still on (f4 01 at the opening): no recording shows an opening
-    in that state on a started table; the opening stops as before, nothing moves."""
+    """The mode for aiming by hand still on (f4 01 at the opening). 2026-11-21: recorded now
+    (the table owner's N1, 21 Nov 2026): the opening moves nothing; the START rule's homing is
+    not offered (a free arm); the repair is (its own question, test_4355_table_without_i1profiler)."""
     job, sim, helper, run, p = job_for(tmp_path, {J.Confirm.READY_TO_OPEN: "arm out"},
                                        real_table=False)
     sim.pos, sim.mode, sim.free_arm = list(OUT_HELD), "01", True
     r = p.drive(job.open())
-    assert r.kind == J.Kind.STOPPED and r.reason == "mode_flag_unexpected"
-    assert r.way_back != J.WayBack.HOME_AFTER_STOP
+    assert r.ok and r.detail["aiming_mode_left_on"] is True
+    assert r.way_back == J.WayBack.REPAIR_AT_START
     assert job.home_after_stop().kind == J.Kind.REFUSED
     assert not [ln for ln in sim.received if ln[1:3] in MOVES]
 
@@ -286,11 +293,11 @@ def test_the_held_arm_out_of_the_area_is_never_offered_the_usual_homing(tmp_path
     refused after sending s0 p0. Now the offer says what the homing would do (4.3.52: the
     alignment start gets the START homing; the back strip is the place left)."""
     job, sim, helper, run, p = job_for(tmp_path, real_table=False)
-    sim.pos = list(BACK_STRIP)
+    sim.pos = list(FAR_BACK)
     assert p.drive(job.open()).ok
     r = p.drive(job.calibrate())
     assert r.reason == "arm_not_at_rest"
-    assert r.way_back == J.WayBack.OPEN_I1PROFILER_ONCE
+    assert r.way_back == J.WayBack.END_THEN_START_AGAIN
 
 
 @pytest.mark.parametrize("fault", ["no_lamp", "fire_unsent", "dies_at_fire"])

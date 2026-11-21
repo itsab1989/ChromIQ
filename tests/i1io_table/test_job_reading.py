@@ -546,8 +546,12 @@ def test_a_problem_at_every_line_of_reading_is_taken(tmp_path, kind):
             assert job.only_home or job.stopped_by_person, i
             # at most the recorded step on its way (b_align: 3 movements), never a computed
             # move after the report: the row stops before its next move
-            assert len([x for x in later if x != ";i12b"]) <= 3, (i, later)
-            assert all(x in wire for x in later), (i, later)
+            # 2026-11-21: the vendor's way home (a move at speed 200 to the home line) is part
+            # of the homing
+            assert len([x for x in later if x != ";i12b" and x[11:15] != "00c8"]) <= 3, \
+                (i, later)
+            # (2026-11-21: plus the vendor's detour lines, recorded: geometry.detour_line)
+            assert all(x in wire or _is_detour(x) for x in later), (i, later)
         assert sim.violations == [], i
 
 
@@ -753,3 +757,13 @@ def test_a_row_needs_its_time_and_the_margin_left_on_the_white(tmp_path):
     # the row's own time is left, but not the two minutes on top
     sim.clock = job.calibration["t"] + sp.CAL_VALID_S - sp.row_seconds(4) - sp.CAL_MARGIN_S / 2
     assert job.read_row().reason == "calibration_due"
+
+
+def _is_detour(line: str) -> bool:
+    """2026-11-21: one of the vendor's detour lines (N3, R1), as the allow-list classifies it."""
+    from workflow.i1io.table import lines as cl
+    from workflow.i1io.table import session_table as tbl
+    try:
+        return cl.classify((line + "\r").encode())[2] == "detour m0"
+    except tbl.ForbiddenLine:
+        return False

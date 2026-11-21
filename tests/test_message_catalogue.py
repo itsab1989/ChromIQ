@@ -204,6 +204,8 @@ AWAITING_APPROVAL: "set[str]" = {
     # 2026-11-20: the START rule by state, one page, HOME-AT-START; ARM-OUT-BACK for the back
     # strip, the one place nothing is offered)
     "M-I1IO-DRIVE-HOME-AT-START", "M-I1IO-DRIVE-ARM-OUT-BACK",
+    # 2026-11-21: the table found in its aiming mode, put right at START (no i1Profiler)
+    "M-I1IO-DRIVE-REPAIR-AT-START", "M-I1IO-DRIVE-START-UP-AIMING",
     "M-I1IO-DRIVE-HOME-AT-START-DONE",
     # 2026-11-20, 4.3.51, the owner's decision: when it does not work
     "M-I1IO-DRIVE-HOME-TRY-FAILED",

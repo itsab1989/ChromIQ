@@ -26,13 +26,12 @@ LANGS = ["en"] + sorted(p.stem for p in (ROOT / "data" / "i18n").glob("*.json"))
 @pytest.mark.parametrize("msg", [M.M_I1IO_DRIVE_STILL_AIMING, M.M_I1IO_DRIVE_ARM_WAY_OUT_ENDED],
                          ids=lambda m: m.id)
 def test_s1_the_power_switch_comes_before_i1profiler(msg):
+    """2026-11-21 (the owner: "driving the table should work without involving i1profiler"):
+    no i1Profiler at all; START MEASUREMENT and the power switch are the way; no forcing by hand."""
     body = msg.body
-    assert body.index("Switch the table off at its power switch") < body.index("i1Profiler")
-    assert body.index("push the arm gently by hand") < body.index("i1Profiler")
-    # i1Profiler is the LAST step
-    last = body.split("\n\n")[1].split("\n")[-1] if msg is M.M_I1IO_DRIVE_STILL_AIMING \
-        else body.split("\n")[-1]
-    assert "i1Profiler 3.8.6 or older" in last
+    assert "i1Profiler" not in body
+    assert "START MEASUREMENT" in body and "power switch" in body
+    assert "push the arm gently by hand" not in body
 
 
 def test_s1_the_done_page_takes_the_way_from_the_catalogue():
@@ -51,11 +50,10 @@ def test_s1_s2_every_language_has_the_texts(code):
             if code != "en":
                 assert body != msg.body.replace("{log}", "x"), (code, msg.id)
             assert "—" not in body
-        # the ended way states the limit itself (not flagged); the aiming page is flagged
-        assert "3.8.7" in M.M_I1IO_DRIVE_ARM_WAY_OUT_ENDED.render()[1]
+        # 2026-11-21: neither names i1Profiler any more, so neither is flagged
+        assert "3.8.7" not in M.M_I1IO_DRIVE_ARM_WAY_OUT_ENDED.render()[1]
         assert not M.M_I1IO_DRIVE_ARM_WAY_OUT_ENDED.needs_old_i1profiler
-        assert M.M_I1IO_DRIVE_STILL_AIMING.needs_old_i1profiler
-        assert "3.8.7" not in M.M_I1IO_DRIVE_STILL_AIMING.render(log="x")[1]
+        assert not M.M_I1IO_DRIVE_STILL_AIMING.needs_old_i1profiler
     finally:
         i18n.set_language("en")
 
@@ -96,23 +94,20 @@ def test_s3_the_released_v4351_section_is_unchanged():
 @pytest.mark.parametrize("code", ["en", "de"])
 def test_s1_the_done_page_after_the_back_strip_gives_the_power_switch_first(
         qtbot, monkeypatch, tmp_path, settings, code):  # noqa: F811
-    """The reviewer's case on screen: the back-strip page (power switch first) and, after End
-    measurement, the done page, which used to send the person to i1Profiler only."""
+    """The reviewer's case on screen, 2026-11-21: the back strip has i1Profiler's own way out
+    now; the place with no way home is beyond the left end (2600, 300). Its page and, after End
+    measurement, the done page give START MEASUREMENT and the power switch, never i1Profiler."""
     from tests.i1io_table.test_4352_start_rule_by_state import _moves, _window
     i18n.set_language(code)
     try:
-        win, sim, p = _window(qtbot, monkeypatch, tmp_path, settings, (1058.0, 317.0))
+        win, sim, p = _window(qtbot, monkeypatch, tmp_path, settings, (2600.0, 300.0))
         p.drive_until(("refused", "stopped"))
         p.press("End measurement")
         assert p.drive_until(("done",)) == "done", win.pages_shown[-4:]
         text = win._text.text()
         way = M.M_I1IO_DRIVE_ARM_WAY_OUT_ENDED.render()[1]
         assert way in text
-        # step 1 is the power switch (ARM-WAY-OUT's step 2, as translated), i1Profiler the last
-        switch = M.M_I1IO_DRIVE_ARM_WAY_OUT.render()[1].split("\n")[2][3:]
-        assert way.split("\n")[3] == "1. " + switch
-        assert text.index(switch) < text.index("i1Profiler")
-        assert text.count("3.8.7") == 1          # the limit once (the way states it itself)
+        assert "i1Profiler" not in text
         assert not _moves(sim.sim.received)
     finally:
         i18n.set_language("en")

@@ -143,5 +143,5 @@ def test_an_ended_session_with_the_arm_left_out_says_only_the_way_home(qtbot, mo
     p.leave_it_there()
     assert p.page() == "done"
     text = win._text.text()
-    assert "The arm stayed extended over the table" in text and "saved into the run" in text
+    assert "The arm stayed out over the table" in text and "saved into the run" in text
     assert "you can still save them" not in text

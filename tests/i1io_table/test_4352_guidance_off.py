@@ -185,9 +185,9 @@ def test_t3_cold_table_arm_out_sends_no_movement(qtbot, monkeypatch, tmp_path, s
     win, sim, run, p, saved, finished = _unguided(
         qtbot, monkeypatch, tmp_path, settings, sim=sim)
     assert p.page() == "start_up_arm"
-    assert p.labels() == [tr("Let i1Profiler start it"), tr("No, the arm is out over the table"),
+    assert p.labels() == [tr("Not now"), tr("No, the arm is out over the table"),
                           tr("Yes. Start the table")] or set(p.labels()) == {
-        tr("Let i1Profiler start it"), tr("No, the arm is out over the table"),
+        tr("Not now"), tr("No, the arm is out over the table"),
         tr("Yes. Start the table")}
     p.press("No, the arm is out over the table")
     assert _moves(sim.sim.received) == 0

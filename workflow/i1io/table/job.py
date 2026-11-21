@@ -336,8 +336,10 @@ class WayBack:
     """Which way back applies (the later window words each; part C's where_text order)."""
     NONE = "none"                                   # nothing was moved, or at rest and held
     HOME_OFFERED = "home_offered"                   # out on the table, known: the homing step
-    OPEN_I1PROFILER_ONCE = "open_i1profiler_once"   # where the arm stands is known or not, but
-                                                    # this job sends nothing more
+    #: where the arm stands is known or not, but this job sends nothing more: End measurement,
+    #: then START MEASUREMENT again (2026-11-21: a START now brings the arm home and ends an
+    #: aiming mode left on, as i1Profiler does; until then this was "open i1Profiler once")
+    END_THEN_START_AGAIN = "end_then_start_again"
     SWITCH_OFF_UNFINISHED = "switch_off_unfinished"     # a movement never reported finished
     SWITCH_OFF_PENDING = "switch_off_pending"       # a strip move may still wait for the lamp
     LINK_LOST_REPLUG = "link_lost_replug"           # lost link, nothing waiting
@@ -348,6 +350,9 @@ class WayBack:
     HOME_AFTER_STOP = "home_after_stop"
     COLD_NOT_STARTED = "cold_not_started"           # a just-switched-on table, start-up not sent
     COLD_WAY_OUT = "cold_way_out"                   # the start-up was sent and did not finish
+    #: 2026-11-21: the opening found the aiming mode left on by an earlier ending; ChromIQ may
+    #: bring the arm home and end the mode itself (repair_at_start), after the hands-off question
+    REPAIR_AT_START = "repair_at_start"
 
 
 @dataclass(frozen=True)
@@ -428,7 +433,7 @@ F4_AFTER_AIMS = 2
 MAX_RUNS = {"park": 8, "d1": 5, "dz": 3, "f": 8, "c1": 3, "c2": 3}
 #: the steps and the tester's stage key each writes its result block under (4.3.50: no "d2")
 STAGE_KEY = {"park": "park", "align": "d1", "creep": "dz", "home": "f",
-             "home_after_stop": "f",
+             "home_after_stop": "f", "repair_at_start": "f",
              "calibrate": "c1", "read_tile": "c2", "read_row": "row"}
 #: the step caps the tester used for its own stages (lines, movements)
 DZ_CAPS = cp.CREEP
@@ -463,6 +468,8 @@ _DOUBT_IDS = (
     ("a scan move may be pending", "strip_move_may_be_pending"),
     # 4.3.50 (table re-review, MUST-A): the held arm read elsewhere right before a homing
     ("before the homing the held arm reads", "arm_moved_before_homing"),
+    # 2026-11-21: a free arm (or one whose state is not known) moved before the way home
+    ("before the way home the arm reads", "arm_moved_before_homing"),
 )
 
 
@@ -554,8 +561,7 @@ def in_back_strip(p) -> bool:
     there either: from (1058, 317) i1Profiler first drove the arm out to Y 1202 and then sent its
     homing (12 Nov, R1 84.137-87.448). geometry.check_move_from_reading keeps every computed move
     from starting in the same strip."""
-    return p is not None and p[1] < geo.AREA_RAW.ymin and not (
-        tbl.START_GUARD.xmin <= p[0] <= tbl.START_GUARD.xmax)
+    return geo.in_back_strip(p)
 
 
 def homing_starts_here(p, arm_free, cap_y=None) -> bool:  # noqa: ARG001 - cap_y: unused
@@ -586,7 +592,8 @@ def homing_starts_here(p, arm_free, cap_y=None) -> bool:  # noqa: ARG001 - cap_y
     the power switch first on the page that follows. The back strip stays out for both."""
     if p is None:
         return False
-    return not in_back_strip(p)
+    # 2026-11-21: from the back strip too, by the vendor's own way out first (geometry.homing_detour)
+    return geo.homing_detour(p) is not None
 
 
 #: 4.3.52: the time window of the table's homing from wherever a held arm stands: near the
@@ -1020,6 +1027,17 @@ class TableJob:
         #: page), and how many times it brought the arm home (the app log)
         self.start_homing_failed = False
         self.brought_home_at_start = 0
+        #: 2026-11-21: the table found in its aiming mode was brought home and the mode ended
+        #: (repair_at_start / the start-up's end of the mode), and whether that was tried
+        self.repaired_at_start = 0
+        self._repair_tried = False
+        #: 2026-11-21: the window's name for the way this sitting is ending (window closed, app
+        #: quit, Close after Not now, ...); None: the job's own (ended / stopped / fault)
+        self.exit_path: "str | None" = None
+        #: 2026-11-21: what close() found and left (``_ending_record``), for the app log
+        self.ending_record: "dict | None" = None
+        #: 2026-11-21: every vendor's way home sent (geometry.homing_detour): from, legs, arrivals
+        self.detours: "list[dict]" = []
         #: 4.3.51: what the START found and offered (the session log and the app log read it):
         #: table state, the first reading, the START rule's place, what was offered and why,
         #: the person's answers; start_case_seq counts its changes
@@ -1133,9 +1151,10 @@ class TableJob:
             return None if START_UP_ASKS_ABOUT_THE_ARM else "countdown"
         if kind in COUNTDOWN_INSTEAD:
             step = d.get("step")
-            if step == "home_at_start":
+            if step in ("home_at_start", "repair_at_start"):
                 # 4.3.52: the START rule's homing inside the step that found the arm away from
-                # rest: the countdown, as before every first movement (not a fault)
+                # rest: the countdown, as before every first movement (not a fault); 2026-11-21:
+                # the same for the homing that ends an aiming mode found left on
                 return "countdown"
             if step == "home_after_stop" or d.get("at_start"):
                 return None               # the homing offered on a page after a stop stays
@@ -1326,25 +1345,29 @@ class TableJob:
             return WayBack.LINK_LOST_SWITCH_OFF_FIRST if lost else WayBack.SWITCH_OFF_UNFINISHED
         if lost:
             return WayBack.LINK_LOST_REPLUG
+        if getattr(d, "mode_left_on", False) and d.mode_on:
+            # 2026-11-21: the aiming mode found left on at this START, not ended yet
+            return (WayBack.REPAIR_AT_START if self._repair_why() is None
+                    else WayBack.END_THEN_START_AGAIN)
         p = d.position_now
         if d.motions_sent == 0 and p is None:
             return WayBack.NONE
         if self.parked():
             return WayBack.NONE
         if p is None:
-            return WayBack.OPEN_I1PROFILER_ONCE
+            return WayBack.END_THEN_START_AGAIN
         if tbl.REST_GUARD.contains(p) and d.arm_free is False:
-            return WayBack.OPEN_I1PROFILER_ONCE if d.mode_on else WayBack.NONE
+            return WayBack.END_THEN_START_AGAIN if d.mode_on else WayBack.NONE
         if self._nothing_moved_yet():
             # 4.3.51: at a START the arm found out is offered the START rule's homing or
             # nothing, whichever step read it first (never the usual homing's wider region)
             return (WayBack.HOME_AFTER_STOP if self._home_after_stop_why() is None
-                    else WayBack.OPEN_I1PROFILER_ONCE)
+                    else WayBack.END_THEN_START_AGAIN)
         if d.closed_reason is None and self.phase == "open" and self._ready("home") is None:
             return WayBack.HOME_OFFERED
         if self._home_after_stop_why() is None:
             return WayBack.HOME_AFTER_STOP
-        return WayBack.OPEN_I1PROFILER_ONCE
+        return WayBack.END_THEN_START_AGAIN
 
     def _progress(self, **event) -> None:
         cb = self.on_progress
@@ -1405,10 +1428,20 @@ class TableJob:
             d = self._table
             if d is None or self.start_case is not None:
                 return
-            case = {"answer_at_start": "arm out" if self.opened_with_arm_out else "yes"}
-            if d.state == "cold" and not d.start_up_sent:
+            case = {"answer_at_start": "arm out" if self.opened_with_arm_out else "yes",
+                    "a0": getattr(d, "a0_answer", None)}
+            if getattr(d, "mode_left_on", False) and d.state == "warm" and \
+                    d.closed_reason is None:
+                # 2026-11-21: started, the aiming mode left on by an earlier ending
+                p = d.last_read
+                case.update(table="aiming_mode_left_on", place=None if p is None else
+                            [int(p[0]), int(p[1])], where=start_place(p),
+                            offered="repair_at_start" if wb == WayBack.REPAIR_AT_START
+                            else "nothing", why=self._repair_why())
+            elif d.state == "cold" and not d.start_up_sent:
                 refused = self.opened_with_arm_out and START_UP_ASKS_ABOUT_THE_ARM
-                case.update(table="cold", place=None, where=None,
+                case.update(table="cold_aiming_mode_left_on" if getattr(d, "mode_left_on", False)
+                            else "cold", place=None, where=None,
                             offered="nothing" if refused else "start_up",
                             why="arm_out_start_up_not_recorded" if refused else None)
             elif d.state in (None, "cold") or d.closed_reason is not None and d.last_read is None:
@@ -1587,7 +1620,8 @@ class TableJob:
         res = self._drive_inner(value, step, throw)
         t = self._table
         if (self.report_after_each_step and self._gen is None and t is not None
-                and t.closed_reason is None and step not in ("home", "home_after_stop", None)
+                and t.closed_reason is None
+                and step not in ("home", "home_after_stop", "repair_at_start", None)
                 and (
                     t.motions_sent > moves_before or (step == "start_up" and t.start_up_sent))):
             # tester 0.6.0 asked after every stage that moved (and after the start-up)
@@ -1945,7 +1979,12 @@ class TableJob:
         d._touch_out = lambda: "asked after the step"
         state = d.opening()
         self._load_reach(d)
-        out = {"table": state, "system": pf.system}
+        out = {"table": state, "system": pf.system, "a0": d.a0_answer}
+        if d.mode_left_on:
+            # 2026-11-21: an earlier ending left the aiming mode on: the window asks the
+            # hands-off question and ChromIQ ends it the way i1Profiler does (repair_at_start;
+            # for a just-switched-on table inside the start-up)
+            out["aiming_mode_left_on"] = True
         if self.opened_with_arm_out:
             out["arm_out"] = True
         if pf.system == "windows":
@@ -1975,7 +2014,9 @@ class TableJob:
     def _start_up(self):
         d = self._table
         ans = yield Ask(Confirm.START_UP, {"guided": self.guided,
-                                           "asks_about_the_arm": START_UP_ASKS_ABOUT_THE_ARM})
+                                           "asks_about_the_arm": START_UP_ASKS_ABOUT_THE_ARM,
+                                           "aiming_left_on": bool(getattr(d, "mode_left_on",
+                                                                          False))})
         if ans == "arm out" and START_UP_ASKS_ABOUT_THE_ARM:
             # 4.3.52 (the owner, W9: "if the question is important we have to ask it"): the
             # unguided page asks whether the arm is at its resting place; "out" is the 4.3.48
@@ -2007,10 +2048,20 @@ class TableJob:
         if found is not None:
             # 4.3.52 (the owner's ruling; the tester: i1Profiler always repositions the arm at
             # its start): the start-up ran, its own reading before its homing found the arm
-            # away from rest: a started table now, so the START rule applies
-            yield from self._start_homing(found)
+            # away from rest: a started table now, so the START rule applies; 2026-11-21: with
+            # the aiming mode left on, i1Profiler's end of a job (it also ends the mode)
+            if getattr(d, "mode_left_on", False):
+                yield from self._repair_homing(found, "start_up")
+            else:
+                yield from self._start_homing(found)
             return {"start_up_took_s": round(d.start_up_took or 0.0, 3), "read_before_homing":
                     list(found), "brought_home_at_start": True}
+        if getattr(d, "mode_left_on", False):
+            # 2026-11-21: recording A (a0 511800): the start-up brought the arm home with the mode
+            # still on; it is ended now with i1Profiler's end-of-job tail
+            self._end_mode_at_rest()
+            return {"start_up_took_s": round(d.start_up_took, 3),
+                    "read_before_homing": d.cold_read, "aiming_mode_ended": True}
         return {"start_up_took_s": round(d.start_up_took, 3), "read_before_homing": d.cold_read}
 
     def _start_up_found_the_arm_out(self) -> "tuple[int, int] | None":
@@ -2024,7 +2075,8 @@ class TableJob:
         if not (reason.startswith(HOME_AFTER_STOP_REASONS) and d.start_up_sent
                 and d.start_up_took is not None and d.motions_sent == 1
                 and not d.motion_unconfirmed and d.link_lost_at is None
-                and d.position_now is not None and d.arm_free is False and not d.mode_on
+                and d.position_now is not None and d.arm_free is False
+                and (not d.mode_on or getattr(d, "mode_left_on", False))
                 and getattr(d, "read_at_line", None) == d.lines_sent):
             return None
         d.cold_done = True
@@ -2060,6 +2112,9 @@ class TableJob:
         d = self._table
         if d.state == "cold":
             return "table_not_started"
+        if getattr(d, "mode_left_on", False) and d.mode_on:
+            # 2026-11-21: the aiming mode found left on is ended first (repair_at_start)
+            return "aiming_mode_left_on"
         key = self.STAGE_KEY[step]
         if self.instrument_out and step != "calibrate":
             return "instrument_not_in_the_arm"
@@ -2189,6 +2244,8 @@ class TableJob:
             return self._result(step, Kind.REFUSED, why)
         if self._table.state == "cold":
             return self._result(step, Kind.REFUSED, "table_not_started")
+        if getattr(self._table, "mode_left_on", False) and self._table.mode_on:
+            return self._result(step, Kind.REFUSED, "aiming_mode_left_on")
         return self._begin(step, self._where_is_the_arm())
 
     def _where_is_the_arm(self):
@@ -2265,7 +2322,7 @@ class TableJob:
         self._home_after_stop_tried = True
         stopped_because = d.closed_reason
         if stopped_because is not None:
-            d.reopen_for_homing(stopped_because, cp.HOME)
+            d.reopen_for_homing(stopped_because, cp.HOME_DETOUR)
         try:
             self._home_at_start(found, stage)
         except BaseException:
@@ -2319,7 +2376,9 @@ class TableJob:
             return "arm_not_held"
         if tbl.REST_GUARD.contains(p):
             return "at_rest"
-        if in_back_strip(p):
+        if geo.homing_detour(p) is None:
+            # 2026-11-21: the back strip itself has the vendor's way out (R1); only a place in it
+            # beyond the left end of the target area has none
             return "arm_in_the_back_strip"
         return None
 
@@ -2356,7 +2415,7 @@ class TableJob:
         self._home_after_stop_tried = True
         stopped_because = d.closed_reason
         if stopped_because is not None:
-            d.reopen_for_homing(stopped_because, cp.HOME)
+            d.reopen_for_homing(stopped_because, cp.HOME_DETOUR)
         self.runs[(self.page, "f")] = self.runs.get((self.page, "f"), 0) + 1
         self._grant_for_run("f")
         self._start_block("home_after_stop")
@@ -2390,14 +2449,15 @@ class TableJob:
         right before i1 must lie where the arm was found (within 5 units: a held arm moved while
         the question was shown is a doubt, nothing moves) and not in the back strip."""
         d = self._table
-        self._step(f"{stage}_start", *cp.HOME)
+        self._step(f"{stage}_start", *cp.HOME_DETOUR)
         d.exchange("status")
         got = d.position()
         if found is not None and not _near(got, found):
             raise d._doubt(f"before the homing the held arm reads {got}, not {found}, where "
                            f"ChromIQ found it")
-        if in_back_strip(got):
-            raise StageFailed("arm_in_the_back_strip", read=got)
+        # 2026-11-21: the vendor's way home first where it was recorded (the back strip, the
+        # far side): geometry.homing_detour; the back strip is no longer refused
+        got = self._way_home(got)
         window, timeout = homing_window(got)
         try:
             d.c_exchange(tbl.WIRE["home"], 0, window=window, timeout=timeout,
@@ -3445,14 +3505,16 @@ class TableJob:
         return {"read": self._table.position_now}
         yield  # pragma: no cover
 
-    def _end_of_job(self) -> None:
+    def _end_of_job(self, stage: "str | None" = None) -> None:
         """i1Profiler's end of a job from where the arm stands: s0 p0 i1 s0 f0 f4 f4 p0 (f0 ends
         the aiming mode ChromIQ's alignment switched on), the last reading at rest. 4.3.52: a
         HELD arm from everywhere but the back strip, DIRECTLY, as i1Profiler homes (the move
         back along the way the arm came, 4.3.49-4.3.51, was our own invention and is gone); a
-        FREE arm keeps its own region (``homing_starts_here``)."""
+        FREE arm keeps its own region (``homing_starts_here``). 2026-11-21: from the back strip
+        and the far side the vendor's own detour to the home line first (:meth:`_way_home`);
+        *stage*: the name for the step cap when no result block is open."""
         d = self._table
-        self._step(f"{self._block['stage']}_end", *cp.HOME)
+        self._step(f"{stage or self._block['stage']}_end", *cp.HOME_DETOUR)
         d.exchange("status")
         last = d.position_now
         got = d.position()
@@ -3461,13 +3523,15 @@ class TableJob:
             # held arm was moved while it waited; nothing that moves was sent)
             raise d._doubt(f"before the homing the held arm reads {got}, not {last}, where "
                            f"ChromIQ left it")
-        if not homing_starts_here(got, d.arm_free):
-            # 4.3.53 fix round 2: the back strip is the one place, held or free
-            raise StageFailed("arm_in_the_back_strip", read=got, arm_free=bool(d.arm_free))
+        # 2026-11-21: the vendor's way home (a detour to the home line first, from the back strip
+        # and from the far side; geometry.homing_detour); the back strip is no longer refused
+        got = self._way_home(got)
         # 4.3.47's window (0.8-8.0 s); 4.3.52: a held arm may now start close to the resting
-        # place, so from there the lower edge is the START homing's (homing_window)
-        window = (0.8, 8.0) if d.arm_free is not False else (
-            min(homing_window(got)[0][0], 0.8), 8.0)
+        # place, so from there the lower edge is the START homing's (homing_window); 2026-11-21:
+        # so may a free arm, or one whose state is not known (a table found in its aiming mode:
+        # i1Profiler homed such an arm from (1104, 43) in 0.336 s, the owner's recording N1)
+        window = (0.8, 8.0) if d.arm_free is not False and not tbl.START_GUARD.contains(got) \
+            else (min(homing_window(got)[0][0], 0.8), 8.0)
         try:
             d.c_exchange(tbl.WIRE["home"], 0, window=window, timeout=15.0,
                          late_is_doubt=False)
@@ -3487,6 +3551,199 @@ class TableJob:
             d.outside_at = p
             raise d._doubt(f"after the homing the arm reads {p}, not at its resting place")
         d.state = "b_done"
+
+    def _way_home(self, got):
+        """2026-11-21, THE VENDOR'S WAY HOME (geometry.homing_detour): from the reading *got*
+        (taken right before), the detour moves i1Profiler was recorded sending before its homing
+        from there, each an m0 at speed 200 to the home line (R1 from the back strip, N3 from
+        the far side), each arrival read (and once more after 0.3 s when it reads beside, as
+        every computed move). Returns the reading the homing starts from: *got* itself where
+        the vendor homes straight. A free arm (or one whose state is not known) is read once
+        more first and must stand still (a hand on it shows as a difference). Raises
+        StageFailed (nothing sent) only where no way home can be sent (a place in the back
+        strip beyond the left end of the target area)."""
+        d = self._table
+        legs = geo.homing_detour(got)
+        if legs is None:
+            self._no_way_home(got)
+        if not legs:
+            return got
+        d.log("DATA", f"the way home from {tuple(got)}: first to "
+                      + " then ".join(str(tuple(t)) for t in legs)
+                      + f" at speed {geo.DETOUR_SPEED}, as i1Profiler does from there, then the "
+                        "homing")
+        entry = {"from": list(got), "legs": [list(t) for t in legs], "arrivals": []}
+        self.detours.append(entry)
+        a = got
+        if d.arm_free is not False:
+            b = d.position()
+            if not _near(b, a, tbl.STILL_UNITS):
+                raise d._doubt(f"before the way home the arm reads {b}, not {a}: it moved "
+                               "while nothing was sent")
+            a = b
+            # the way out of the back strip goes straight ahead from where the arm reads NOW
+            legs = geo.homing_detour(a)
+            if not legs:
+                return a if legs == () else self._no_way_home(a)
+            entry["legs"] = [list(t) for t in legs]
+        phase = "back_strip" if geo.in_back_strip(a) else "out"
+        for t in legs:
+            win = geo.move_window(a, t, geo.DETOUR_SPEED)
+            d.detour_phase = phase
+            try:
+                d.c_exchange(geo.detour_line(*t), 0, window=win, timeout=win[1] + 4.0,
+                             late_is_doubt=False)
+                late = None
+            except tbl.MoveOutside as exc:
+                late = exc
+            finally:
+                d.detour_phase = None
+            p = d.position()
+            if not _near(p, t):
+                d.c_wait(ARRIVAL_RECHECK_S)
+                p = d.position()
+                if not _near(p, t):
+                    d.outside_at = p
+                    raise d._doubt(f"on the way home the arm reads {p}, not {t} (twice)")
+            if late is not None:
+                d.log("DATA", f"on the way home the move to {t} took {late.took:.2f} s (outside "
+                              f"{late.lo:.2f}-{late.hi:.2f} s); the arm reads {p}, where it was "
+                              "sent")
+            entry["arrivals"].append(list(p))
+            a = p
+            phase = "out"
+        return a
+
+    def _no_way_home(self, p):
+        raise StageFailed("arm_in_the_back_strip", read=p,
+                          arm_free=bool(self._table.arm_free))
+
+    # ---- 2026-11-21: THE TABLE WITHOUT i1PROFILER: a table found in its aiming mode ----------
+    # The owner, 2026-11-21: "remember that driving the table should work without involving
+    # i1profiler". An ending without the homing (Stop with "Leave it there", "Not now" and Close,
+    # the window closed, the app quit or killed, an error, a lost link) leaves the table in its
+    # aiming mode, and a0 then answers with bit 0x40 (511800 / 530000 / 540000), also after a
+    # power cycle. Until 4.3.54 every later START refused such a table and the pages sent the
+    # person to i1Profiler. i1Profiler itself, recorded meeting such a table (the table owner's
+    # N1, 21 Nov 2026: a0 530000, f4 01 x4; the owner's start-up capture of 19 Nov 2026,
+    # recording A: a0 511800, i0, f4 01 x4), does nothing special: its usual opening, then its
+    # usual homing s0 p0 i1 s0, and the mode ends with f0 (at the end of a job: i1 s0 f0 f4 f4,
+    # R19 513.6-517.6). So does ChromIQ now: the hands-off question (with the guidance off: the
+    # countdown), then i1Profiler's end of a job s0 p0 [way home] i1 s0 f0 f4 f4 p0 (the same
+    # lines ChromIQ ends every measurement with), the arm read at rest, and the measurement goes
+    # on. A just-switched-on table in that mode gets its recorded start-up first (recording A),
+    # and then f0 f4 f4 p0.
+
+    def _repair_why(self) -> "str | None":
+        """None when ChromIQ may end the aiming mode it found left on (with the homing); else
+        why not. STATES only, from the table's answers."""
+        d = self._table
+        if d is None or self.phase != "open":
+            return "table_not_open"
+        if not (getattr(d, "mode_left_on", False) and d.mode_on):
+            return "aiming_mode_not_left_on"
+        if self._repair_tried:
+            return "tried_already"
+        if d.link_lost_at is not None:
+            return "link_lost"
+        if d.motion_unconfirmed or d.closed_reason == "a scan move may be pending":
+            return "movement_may_be_unfinished"
+        if d.state == "cold" or (d.start_up_sent and not d.cold_done):
+            return "table_not_started"
+        reason = d.closed_reason
+        if reason is not None and not reason.startswith(HOME_AFTER_STOP_REASONS):
+            return "stop_not_at_a_place_check"
+        if self.stopped_by_person:
+            return "stopped_by_person"
+        if self.instrument_out:
+            return "instrument_not_in_the_arm"
+        return None
+
+    def repair_at_start(self) -> StepResult:
+        """At a START on a table whose opening found the aiming mode left on (a0 with bit 0x40,
+        f4 01 x4): the hands-off question, then i1Profiler's end of a job from wherever the arm
+        stands (the vendor's way home where it was recorded), the arm read at rest with the mode
+        off; then the measurement goes on as at any START. Once per sitting."""
+        step = "repair_at_start"
+        if self._gen is not None:
+            return self._begin(step, None)
+        why = SESSION_ENDED if self.ended is not None else self._repair_why()
+        if why:
+            return self._result(step, Kind.REFUSED, why)
+        return self._begin(step, self._repair_at_start())
+
+    def _repair_at_start(self):
+        d = self._table
+        self.runs[(self.page, "f")] = self.runs.get((self.page, "f"), 0) + 1
+        self._start_block("repair_at_start")
+        yield from self._repair_homing(d.position_now, "repair_at_start")
+        return {"read": d.position_now, "repaired": True, "a0": d.a0_answer}
+
+    def _repair_homing(self, found, stage: str):
+        """The repair itself (a generator): its hands-off question, then the lines. With the
+        sending stopped at a place check (the start-up's own reading before its homing), it is
+        opened for exactly these lines and, with the arm read at rest, for the measurement."""
+        d = self._table
+        ans = yield Ask(Confirm.GO, {"step": "repair_at_start", "page": self.page + 1,
+                                     "at_start": True, "aiming_left_on": True,
+                                     "a0": d.a0_answer, "inline": stage != "repair_at_start"})
+        self._start_case_answer(ans)
+        if ans != "yes":
+            raise PersonStopped("person_chose_back")
+        why = self._repair_why()            # nothing may have changed while it was asked
+        if why:
+            raise StageFailed(why)
+        self._check_other_program()
+        self._repair_tried = True
+        stopped_because = d.closed_reason
+        if stopped_because is not None:
+            d.reopen_for_homing(stopped_because, cp.HOME_DETOUR)
+        else:
+            self._grant("the homing that ends the aiming mode found at the start", *cp.HOME_DETOUR)
+        d.log("DATA", f"the table was found in its aiming mode (a0 {d.a0_answer}): ChromIQ sends "
+                      "i1Profiler's end of a job (s0 p0 i1 s0 f0 f4 f4 p0) to bring the arm home "
+                      "and end the mode, as i1Profiler does with such a table")
+        try:
+            self._end_of_job(stage)
+        except BaseException:
+            self.start_homing_failed = True
+            if stopped_because is not None:
+                d.close_for_sending("the homing that ends the aiming mode did not end at the "
+                                    "resting place; nothing more is sent in this measurement")
+            raise
+        finally:
+            d.current_step = None
+        d.mode_left_on = False
+        if stopped_because is not None:
+            d.reopen_after_homing()
+        self.repaired_at_start += 1
+        self.brought_home_at_start += 1
+        d.log("DATA", f"the aiming mode is ended and the arm is at its resting place "
+                      f"{d.position_now} (found {found}); the measurement goes on")
+
+    def _end_mode_at_rest(self) -> None:
+        """A just-switched-on table found in its aiming mode: after its recorded start-up (which
+        ends with the homing, i1 s0) the mode is ended with i1Profiler's end-of-job tail f0 f4 f4
+        and the arm read at rest (R19 513.6-517.6). Nothing that moves is sent."""
+        d = self._table
+        self._grant("the end of the aiming mode found at the start", *cp.END_MODE)
+        self._step("start_up_end_mode", *cp.END_MODE)
+        try:
+            d.exchange("f0")
+            d.mode_on = False
+            for _ in range(2):
+                d._f4("00")
+            p = d.position()
+        finally:
+            d.current_step = None
+        if not tbl.REST_GUARD.contains(p):
+            d.outside_at = p
+            raise d._doubt(f"after the end of the aiming mode the arm reads {p}, not at its "
+                           "resting place")
+        d.mode_left_on = False
+        self.repaired_at_start += 1
+        d.log("DATA", f"the aiming mode found at the start is ended (f0); the arm is at its "
+                      f"resting place {p}")
 
     # ==== step 7: READING ========================================================================
     # ---- options, resume ---------------------------------------------------------------------
@@ -6176,6 +6433,40 @@ class TableJob:
                     for v in rows.values())
                 or any(self.rows_again.values()))
 
+    def _ending_record(self, st: TableState, wb: str) -> dict:
+        """2026-11-21: the exit path, what was sent at the end, the table's state left behind
+        and what the next START does with it, from the table's own answers. Never raises."""
+        try:
+            d = self._table
+            p = None if d is None else (d.position_now or d.last_read)
+            path = self.exit_path or ("ended_" + self.ended if self.ended else
+                                      "stopped" if self.stop_pressed or self.stopped_by_person
+                                      else "fault" if self._fault_seen else "closed")
+            homed = bool(d is not None and d.state == "b_done" and self.at_rest())
+            if d is None or (d.motions_sent == 0 and not getattr(d, "mode_left_on", False)):
+                nxt = "nothing_needed"
+            elif st.movement_may_be_unfinished or st.strip_move_may_be_pending:
+                nxt = "power_switch_first_then_start_up_brings_the_arm_home"
+            elif st.link_lost:
+                nxt = "reconnect_then_start_brings_the_arm_home"
+            elif st.mode_on:
+                nxt = "start_brings_the_arm_home_and_ends_the_aiming_mode"
+            elif st.at_rest or homed:
+                nxt = "nothing_needed"
+            else:
+                nxt = "start_brings_the_arm_home"
+            return {"exit_path": path, "ended": self.ended or "no_ending",
+                    "sent_at_close": "nothing", "homed_at_end": homed,
+                    "last_homing": next((k for k, _t in reversed(d.timings) if k.startswith(
+                        "i1")), None) if d is not None else None,
+                    "mode_left_on": bool(st.mode_on), "arm": None if p is None else
+                    [int(p[0]), int(p[1])], "arm_free": st.arm_free, "at_rest": st.at_rest,
+                    "way_back": wb, "next_start": nxt,
+                    "repaired_at_start": self.repaired_at_start,
+                    "detours": len(self.detours)}
+        except Exception:      # noqa: BLE001 - a record, never the job's concern
+            return {"exit_path": self.exit_path or "unknown"}
+
     # ---- close: sends nothing ----------------------------------------------------------------
     def close(self) -> StepResult:
         if self._gen is not None:
@@ -6217,11 +6508,13 @@ class TableJob:
         self._acknowledge_in_use_markers()
         if d is not None and d.mode_on:
             # 4.3.50 fix round (MUST-1; the start-up analysis of 19 Nov 2026, 5.1): f0 is sent
-            # only after a homing (the only place it is recorded), so the table stays in its
-            # aiming mode, and a new START meets it there (f4 01, most likely a0 530000)
+            # only after a homing (the only place it is recorded: no recording shows f0 with the
+            # arm out), so the table stays in its aiming mode. 2026-11-21: the next START finds
+            # it there (a0 with bit 0x40, f4 01) and ends it with the homing, as i1Profiler does
             self.diag.log("INFO", "the table is left in its aiming mode: f1 was sent and no f0 "
-                                  "(f0 is sent only after a homing); a new START cannot run "
-                                  f"until the arm is home (arm last read {d.position_now})")
+                                  "(f0 is sent only after a homing); the next START brings the "
+                                  "arm home and ends the mode, after the hands-off question "
+                                  f"(arm last read {d.position_now})")
         if d is not None:
             self.diag.log("INFO", f"result: table {d.state or 'not asked'}; "
                                   f"{d.lines_sent} lines sent, {d.motions_sent} movements; "
@@ -6234,11 +6527,19 @@ class TableJob:
                  and not self.problems and not self.stopped_by_person and not self.only_home
                  # fix round 10 (open point e): never after a Stop or a failed / skipped row
                  and not self.stop_pressed and not self._a_row_failed()
+                 # 2026-11-21: and no step ended on a fault or a refusal (a refused alignment
+                 # used to be caught only because its arm then stood in the back strip, which
+                 # is no longer refused)
+                 and self._fault_seen is None
                  and self.report_due is None
                  and all(a == "as described" for _s, a in self.reports)
                  and d.closed_reason == "the session is over" and wb == WayBack.NONE
                  and not st.movement_may_be_unfinished and not st.link_lost)
         detail = {"offer": MAY_OFFER_DO_NOT_ASK_AGAIN} if clean else {}
+        # 2026-11-21: which way the sitting ended, what was sent at its end, the state the table
+        # is left in and what the next START does about it (the app log carries it too)
+        self.ending_record = self._ending_record(st, wb)
+        self.diag.log("INFO", "the ending: " + json.dumps(self.ending_record, default=str))
         if clean:
             self.diag.log("INFO", "a clean measurement in the asking mode: the window may offer "
                                   "not to ask after each step")

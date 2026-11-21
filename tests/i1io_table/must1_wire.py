@@ -76,3 +76,23 @@ def without_must1(got, job):
             assert got[k + 1].startswith(";m0"), (k, got[k - 2:k + 3])
     drop = set(extra)
     return [ln for n, ln in enumerate(got) if n not in drop]
+
+
+#: 2026-11-21, THE VENDOR'S WAY HOME (geometry.homing_detour): the tester 0.6.0 captures home
+#: straight from everywhere; the job first drives to the home line from the far side and the back
+#: strip (i1Profiler's recordings N3, R1). The wire tests compare the rest with the capture.
+def without_detours(got):
+    """(got without the detour lines, the lines taken out): each m0 at speed 200 and the one p0
+    after it (its arrival; the simulator arrives exactly, so it is not read again), and the
+    second reading of a free arm right before the first of them."""
+    out, taken = list(got), []
+    for _ in range(2):                                  # at most two detour moves
+        k = next((i for i, ln in enumerate(out) if ln.startswith(";m0") and ln[11:15] == "00c8"),
+                 None)
+        if k is None:
+            break
+        first = k - 1 if not taken and out[k - 1] == out[k - 2] == ";p025" else k
+        assert out[k + 1] == ";p025", out[k:k + 2]
+        taken += out[first:k + 2]
+        out = out[:first] + out[k + 2:]
+    return out, taken

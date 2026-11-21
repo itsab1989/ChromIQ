@@ -155,13 +155,15 @@ def test_a_free_arm_at_the_front_is_homed_where_it_stands():
 
 
 def test_the_table_state_after_a_hand_move_names_its_answer_and_sends_nothing_more():
+    """2026-11-21: 530000 is the aiming mode left on (put right at START); an answer no
+    recording shows still stops the opening after its six lines."""
     from tests.i1io_table import part_c_sim as csim
     sim = csim.CSimTable(part_c=True, aims=H.demo_aims())
-    sim.inject("a0_after_hand", "a0")
+    sim.inject("a0_other", "a0")
     res, job, sim, _p = H.run_steps(["open"], sim=sim)
     r = res[0]
     assert (r.kind, r.reason) == (J.Kind.STOPPED, "table_state_unknown")
-    assert r.detail["a0"] == "530000"
+    assert r.detail["a0"] == "120000"
     assert sim.received[-1] == ";a034" and len(sim.received) == 6
 
 
@@ -255,17 +257,15 @@ def test_the_free_arm_after_refused_aims_is_brought_home(qtbot, monkeypatch, tmp
 
 def test_the_table_state_page_says_what_the_table_answered(qtbot, monkeypatch, tmp_path,
                                                            settings):
-    sim = WindowSim(table_faults=[("a0_after_hand", "a0")])
+    sim = WindowSim(table_faults=[("a0_other", "a0")])
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
                                                     sim=sim)
     p.drive_until(("stopped", "refused", "done"))
     text = win._text.text()
     assert "ChromIQ could not do this step" not in text
-    assert "with 530000" in text and "111800 (just switched on)" in text
-    # 4.3.50 fix round (MUST-1): the start-up recording of 19 Nov showed an arm moved by hand
-    # without this answer; what the answer may mean, and the honest way on for an arm out
-    assert "after its arm was moved by hand" not in text
-    assert "may mean that the table is still in its aiming mode" in text
-    assert "switch the table off at its power switch, wait a few seconds" in text
-    assert "which brings the arm to its resting place" not in text
+    assert "with 120000" in text and "an answer ChromIQ does not know" in text
+    # 2026-11-21: the way on is the power switch and START, never i1Profiler
+    assert "switch the table off at its power switch" in text.lower() or \
+        "Switch the table off at its power switch" in text
+    assert "i1Profiler" not in text
     assert "you can still save them" not in text and "Nothing was read" in text

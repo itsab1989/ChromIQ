@@ -13022,20 +13022,20 @@ M_I1IO_DRIVE_MARKER = _m(
 M_I1IO_DRIVE_START_UP = _m(
     "M-I1IO-DRIVE-START-UP",
     "The table has just been switched on",
-    "ChromIQ can start it now, the way i1Profiler does when it finds a table "
-    "that was just switched on. The arm moves during the start-up and ends at "
-    "its resting place, so please take your hands away from the table and the "
-    "arm first. When you press “Start the table, my hands are away”, the "
-    "start-up begins at once.\n\n"
-    "ChromIQ's tester program has sent this start-up to a real table once: "
-    "it took about three seconds, the arm travelled and came back to its "
-    "resting place, and nothing went wrong.\n\n"
-    "Or leave the start-up to i1Profiler: ChromIQ then lets go of the table. "
-    "Open i1Profiler 3.8.6 or older once, let it find the table, quit it, and "
-    "press START MEASUREMENT again.\n\n"
+    "ChromIQ can start it now, the way i1Profiler does when it finds a table that was just "
+    "switched on. The arm moves during the start-up and ends at its resting place, so please "
+    "take your hands away from the table and the arm first. When you press “Start the table, "
+    "my hands are away”, the start-up begins at once.\n"
+    "\n"
+    "ChromIQ's tester program has sent this start-up to a real table once: it took about three "
+    "seconds, the arm travelled and came back to its resting place, and nothing went wrong.\n"
+    "\n"
+    "Or press Not now: ChromIQ then lets go of the table, and nothing moves. You can start "
+    "again later with START MEASUREMENT.\n"
+    "\n"
     "To stop the arm at once, switch the table off at its power switch.",
     approved=False,
-    needs_old_i1profiler=True)
+    needs_old_i1profiler=False)
 
 M_I1IO_DRIVE_GO = _m(
     "M-I1IO-DRIVE-GO",
@@ -13388,20 +13388,21 @@ M_I1IO_DRIVE_COUNTDOWN = _m(
 M_I1IO_DRIVE_START_UP_ARM = _m(
     "M-I1IO-DRIVE-START-UP-ARM",
     "The table has just been switched on",
-    "The table was just switched on. Is the arm at its resting place, over the small "
-    "white tile?\n\n"
+    "The table was just switched on. Is the arm at its resting place, over the small white "
+    "tile?\n"
+    "\n"
     "•  Yes: ChromIQ starts the table the way i1Profiler does. The arm moves during the "
-    "start-up and ends at its resting place. {countdown}Please keep your hands away from "
-    "the table and the arm.\n"
-    "•  No: ChromIQ sends nothing to the table. The start-up of a table that was just "
-    "switched on has never been recorded with the arm out over the table.\n"
-    "•  Or let i1Profiler start the table: ChromIQ then lets go of the table. Open "
-    "i1Profiler 3.8.6 or older once, let it find the table, quit it, and press START "
-    "MEASUREMENT again.\n\n"
+    "start-up and ends at its resting place. {countdown}Please keep your hands away from the "
+    "table and the arm.\n"
+    "•  No: ChromIQ sends nothing to the table. The start-up of a table that was just switched "
+    "on has never been recorded with the arm out over the table.\n"
+    "•  Not now: ChromIQ lets go of the table, and nothing moves. You can start again later "
+    "with START MEASUREMENT.\n"
+    "\n"
     "To stop the arm at once, switch the table off at its power switch.",
     approved=False,
     # 4.3.52 on 4.3.51: it sends the person to i1Profiler 3.8.6 or older, as START-UP does
-    needs_old_i1profiler=True)
+    needs_old_i1profiler=False)
 
 M_I1IO_DRIVE_CONSENT_GUIDANCE = _m(
     "M-I1IO-DRIVE-CONSENT-GUIDANCE",
@@ -13647,102 +13648,101 @@ M_I1IO_DRIVE_HOME_OFFERED = _m(
 M_I1IO_DRIVE_SWITCH_OFF = _m(
     "M-I1IO-DRIVE-SWITCH-OFF",
     "Switch the table off now",
-    "Switch the table off now with its power switch. A move may still be "
-    "waiting, or a movement was not reported as finished. Please do not "
-    "unplug its USB cable instead: that does not switch the table off, so "
-    "the move would still be waiting.\n\n"
-    "Leave it off for ten seconds and switch it on again. When this "
-    "measurement has ended, press START MEASUREMENT again: ChromIQ starts "
-    "the table the way i1Profiler does, and the "
-    "table brings the arm home. Please keep your hands away from the table "
-    "and the arm while it moves. Only if that does not bring the arm home: "
-    "i1Profiler 3.8.6 or older can do it too. Your readings so far are kept. "
+    "Switch the table off now with its power switch. A move may still be waiting, or a "
+    "movement was not reported as finished. Please do not unplug its USB cable instead: that "
+    "does not switch the table off, so the move would still be waiting.\n"
+    "\n"
+    "Leave it off for ten seconds and switch it on again. When this measurement has ended, "
+    "press START MEASUREMENT again: ChromIQ starts the table, and the table brings the arm "
+    "home. If the table is still in its aiming mode, ChromIQ ends that mode too. Please keep "
+    "your hands away from the table and the arm while it moves. Your readings so far are kept. "
     "The diagnostics file of this measurement is {log}.",
     approved=False,
-    needs_old_i1profiler=True)
+    needs_old_i1profiler=False)
 
 M_I1IO_DRIVE_STOPPED = _m(
     "M-I1IO-DRIVE-STOPPED",
     "ChromIQ has stopped and let go of the table",
-    "ChromIQ has stopped and let go of the table, and sends nothing more in "
-    "this measurement. The arm last reported {where}.\n\n"
-    "Your readings so far are kept, and you can still save them.\n\n"
-    "To bring the arm home: switch the table off at its power switch, leave "
-    "it off for ten seconds and switch it on again. Then start your next "
-    "measurement with START MEASUREMENT as usual: ChromIQ starts the table "
-    "the way i1Profiler does, and the table brings the arm home. Please keep "
-    "your hands away from the table and the arm while it moves. Only if that "
-    "does not bring the arm home: i1Profiler 3.8.6 or older can do it too."
-    "\n\n"
+    "ChromIQ has stopped and let go of the table, and sends nothing more in this measurement. "
+    "The arm last reported {where}.\n"
+    "\n"
+    "Your readings so far are kept, and you can still save them.\n"
+    "\n"
+    "To bring the arm home, press START MEASUREMENT for your next measurement: ChromIQ asks "
+    "you to take your hands away, then brings the arm home before anything else, and ends the "
+    "table's aiming mode if it is still on. If the table does not answer then, switch it off "
+    "at its power switch, leave it off for ten seconds, switch it on again and press START "
+    "MEASUREMENT: the table's start-up brings the arm home.\n"
+    "\n"
     "Please send us the diagnostics file of this measurement: {log}.",
     approved=False,
-    needs_old_i1profiler=True)
+    needs_old_i1profiler=False)
 
 M_I1IO_DRIVE_LINK_LOST = _m(
     "M-I1IO-DRIVE-LINK-LOST",
     "The table's USB connection was lost",
-    "The table's USB connection was lost. The arm last reported {where}; "
-    "what the table did after that, ChromIQ cannot know. The safe way back, "
-    "in this order:\n\n"
+    "The table's USB connection was lost. The arm last reported {where}; what the table did "
+    "after that, ChromIQ cannot know. The safe way back, in this order:\n"
+    "\n"
     "1. ChromIQ has stopped and let go of the table.\n"
-    "2. Switch the table off with its power switch, wait ten seconds and "
-    "switch it on again. Unplugging its USB cable is not enough, because that "
-    "does not switch the table off.\n"
-    "3. Open i1Profiler 3.8.6 or older and let it find the table (it brings "
-    "the arm home as usual).\n"
-    "4. If i1Profiler does not find the table, restart the computer.\n\n"
-    "Please do not press START MEASUREMENT again before i1Profiler has found "
-    "the table. Your readings so far are kept. The diagnostics file is {log}.",
+    "2. Switch the table off with its power switch, wait ten seconds and switch it on again. "
+    "Unplugging its USB cable is not enough, because that does not switch the table off.\n"
+    "3. Check that the USB cable is plugged in, then press START MEASUREMENT. ChromIQ starts "
+    "the table, and the table brings the arm home. If the table is still in its aiming mode, "
+    "ChromIQ ends that mode too.\n"
+    "4. If ChromIQ does not find the table, restart the computer.\n"
+    "\n"
+    "Your readings so far are kept. The diagnostics file is {log}.",
     approved=False,
-    needs_old_i1profiler=True)
+    needs_old_i1profiler=False)
 
 M_I1IO_DRIVE_LINK_LOST_SWITCH_OFF = _m(
     "M-I1IO-DRIVE-LINK-LOST-SWITCH-OFF",
     "Switch the table off: its USB connection was lost",
-    "The table's USB connection was lost while a move may still be waiting. "
-    "First switch the table off with its power switch, if you have not "
-    "already, and leave it off for ten seconds. Please do not unplug its USB "
-    "cable instead: that does not switch the table off, so a move that is "
-    "waiting would still be waiting. Then, in this order:\n\n"
+    "The table's USB connection was lost while a move may still be waiting. First switch the "
+    "table off with its power switch, if you have not already, and leave it off for ten "
+    "seconds. Please do not unplug its USB cable instead: that does not switch the table off, "
+    "so a move that is waiting would still be waiting. Then, in this order:\n"
+    "\n"
     "1. ChromIQ has stopped and let go of the table.\n"
     "2. Switch the table on again.\n"
-    "3. Only then open i1Profiler 3.8.6 or older and let it find the table "
-    "(it brings the arm home as usual).\n"
-    "4. If i1Profiler does not find the table, restart the computer.\n\n"
-    "Please do not press START MEASUREMENT again before i1Profiler has found "
-    "the table. Your readings so far are kept. The diagnostics file is {log}.",
+    "3. Check that the USB cable is plugged in, then press START MEASUREMENT. ChromIQ starts "
+    "the table, and the table brings the arm home. If the table is still in its aiming mode, "
+    "ChromIQ ends that mode too.\n"
+    "4. If ChromIQ does not find the table, restart the computer.\n"
+    "\n"
+    "Your readings so far are kept. The diagnostics file is {log}.",
     approved=False,
-    needs_old_i1profiler=True)
+    needs_old_i1profiler=False)
 
 M_I1IO_DRIVE_COLD = _m(
     "M-I1IO-DRIVE-COLD",
     "The table has not been started",
-    "The table has just been switched on and has not been started yet. "
-    "ChromIQ has let go of it. Please open i1Profiler 3.8.6 or older once, "
-    "let it find the table, quit it, and press START MEASUREMENT again.",
+    "The table has just been switched on and has not been started yet. ChromIQ has let go of "
+    "it, and nothing moved. When you are ready, press START MEASUREMENT again: ChromIQ then "
+    "offers to start the table.",
     approved=False,
-    needs_old_i1profiler=True)
+    needs_old_i1profiler=False)
 
 M_I1IO_DRIVE_COLD_WAY_OUT = _m(
     "M-I1IO-DRIVE-COLD-WAY-OUT",
     "The table's start-up did not finish",
-    "The table's start-up did not finish the way it was recorded, so ChromIQ "
-    "has stopped and let go of the table. Please switch the table off at its "
-    "power switch, leave it off for ten seconds and switch it on again. Then "
-    "open i1Profiler 3.8.6 or older once and let it find the table. Please "
-    "send us the diagnostics file of this measurement: {log}.",
+    "The table's start-up did not finish the way it was recorded, so ChromIQ has stopped and "
+    "let go of the table. Please switch the table off at its power switch, leave it off for "
+    "ten seconds and switch it on again. Then press START MEASUREMENT again: ChromIQ offers "
+    "the table's start-up once more. Please send us the diagnostics file of this measurement: "
+    "{log}.",
     approved=False,
-    needs_old_i1profiler=True)
+    needs_old_i1profiler=False)
 
 M_I1IO_DRIVE_FREE_LEFT = _m(
     "M-I1IO-DRIVE-FREE-LEFT",
     "The arm is still free",
-    "The arm is still free: the motors have let go of it, and the table is "
-    "still in the mode in which you aim by hand. Please leave the arm where "
-    "it is and do not push it. Switch the table off with its power switch, "
-    "wait ten seconds and switch it on again: the table then leaves that "
-    "mode. At the next START MEASUREMENT, ChromIQ starts the table the way "
-    "i1Profiler does, which brings the arm home.",
+    "The arm is still free: the motors have let go of it, and the table is still in the mode "
+    "in which you aim by hand. Please leave the arm where it is. You do not need to do "
+    "anything else now: the next time you press START MEASUREMENT, ChromIQ asks you to take "
+    "your hands away, then brings the arm home and ends that mode before the measurement "
+    "starts.",
     # 4.3.53 fix round (rows review SHOULD-3, the owner's ruling of 20 Nov 2026): the power
     # switch and ChromIQ's own START, no longer i1Profiler as the way out
     approved=False)
@@ -13753,21 +13753,20 @@ M_I1IO_DRIVE_FREE_LEFT = _m(
 M_I1IO_DRIVE_STOPPED_END_FIRST = _m(
     "M-I1IO-DRIVE-STOPPED-END-FIRST",
     "ChromIQ has stopped",
-    "ChromIQ has stopped and sends nothing more to the table in this "
-    "measurement. The arm last reported {where}.{free_arm}\n\n"
+    "ChromIQ has stopped and sends nothing more to the table in this measurement. The arm last "
+    "reported {where}.{free_arm}\n"
+    "\n"
     "What to do now:\n"
-    "1. Press End measurement. Until you do, ChromIQ still holds the "
-    "table's USB connection.\n"
-    "2. Switch the table off at its power switch, leave it off for ten "
-    "seconds, and switch it on again.\n"
-    "3. Press START MEASUREMENT. ChromIQ starts the table the way i1Profiler "
-    "does, and the table brings the arm home from where it is. Please keep "
-    "your hands away from the table and the arm while it moves.\n"
-    "4. Only if that does not bring the arm home: i1Profiler 3.8.6 or older "
-    "can do it too. Open it once and let it find the table.\n\n"
+    "1. Press End measurement. Until you do, ChromIQ still holds the table's USB connection.\n"
+    "2. Press START MEASUREMENT. ChromIQ asks you to take your hands away, then brings the arm "
+    "home from where it is, and ends the table's aiming mode if it is still on.\n"
+    "3. If the table does not answer then: switch it off at its power switch, leave it off for "
+    "ten seconds, switch it on and press START MEASUREMENT again. Its start-up brings the arm "
+    "home.\n"
+    "\n"
     "Please send us the diagnostics file of this measurement: {log}.",
     approved=False,
-    needs_old_i1profiler=True)
+    needs_old_i1profiler=False)
 
 # --- PROPOSED (4.3.48): ChromIQ stopped at a place check, and may bring the arm home itself ----
 M_I1IO_DRIVE_HOME_AFTER_STOP = _m(
@@ -13784,9 +13783,34 @@ M_I1IO_DRIVE_HOME_AFTER_STOP = _m(
 M_I1IO_DRIVE_HOME_AFTER_STOP_DONE = _m(
     "M-I1IO-DRIVE-HOME-AFTER-STOP-DONE",
     "The arm is at its resting place",
-    "ChromIQ has brought the arm home, and the table reports it at its resting place. "
-    "ChromIQ sends nothing more in this measurement, and you do not need i1Profiler "
-    "for the arm this time.\n\n{next}",
+    "ChromIQ has brought the arm home, and the table reports it at its resting place. ChromIQ "
+    "sends nothing more in this measurement.\n"
+    "\n"
+    "{next}",
+    approved=False)
+
+#: 2026-11-21 (the owner: "driving the table should work without involving i1profiler"):
+#: see workflow/i1io/table/job.py, repair_at_start.
+M_I1IO_DRIVE_REPAIR_AT_START = _m(
+    "M-I1IO-DRIVE-REPAIR-AT-START",
+    "The table is still in its aiming mode",
+    "An earlier measurement ended before the arm went back to its resting place, so the table "
+    "is still in its aiming mode, the mode in which you aim at the marks by hand. That is "
+    "nothing to worry about. ChromIQ now brings the arm to its resting place and ends that "
+    "mode. Then this measurement goes on as usual.\n"
+    "\n"
+    "Please take your hands away from the table and the arm. From some places the arm first "
+    "moves towards the middle of the table. To stop the arm at once, switch the table off at "
+    "its power switch.",
+    approved=False)
+
+#: 2026-11-21 (the owner: "driving the table should work without involving i1profiler"):
+#: see workflow/i1io/table/job.py, repair_at_start.
+M_I1IO_DRIVE_START_UP_AIMING = _m(
+    "M-I1IO-DRIVE-START-UP-AIMING",
+    "The table has just been switched on",
+    "The table is also still in its aiming mode from an earlier measurement. ChromIQ ends that "
+    "mode right after the start-up, with the arm at its resting place.",
     approved=False)
 
 # --- PROPOSED (4.3.52): the arm found away from its resting place at a START ------------------
@@ -13809,8 +13833,10 @@ M_I1IO_DRIVE_HOME_AT_START = _m(
 M_I1IO_DRIVE_ARM_OUT_BACK = _m(
     "M-I1IO-DRIVE-ARM-OUT-BACK",
     "The arm is not at its resting place",
-    "The arm is not at its resting place. It is at the back of the table, beside the holder "
-    "of the white tile. ChromIQ does not move it from there.\n\n{way}",
+    "The arm is not at its resting place. It is at the back of the table, at its far left end, "
+    "beside the holder of the white tile. ChromIQ has no way to bring it home from there.\n"
+    "\n"
+    "{way}",
     approved=False)
 
 M_I1IO_DRIVE_HOME_AT_START_DONE = _m(
@@ -13825,16 +13851,16 @@ M_I1IO_DRIVE_HOME_AT_START_DONE = _m(
 M_I1IO_DRIVE_ARM_WAY_OUT = _m(
     "M-I1IO-DRIVE-ARM-WAY-OUT",
     "The arm is not at its resting place",
-    "What you can do:\n1. Press End measurement. Until you do, ChromIQ still holds the "
-    "table's USB connection.\n2. Switch the table off at its power switch.\n3. With the table "
-    "switched off, try to push the arm gently by hand to its resting place, over the small "
-    "white tile. We do not know yet whether the arm moves by hand while the table is off. If "
-    "it does not move easily, stop and do not force it.\n4. When the arm is at its resting "
-    "place, switch the table on and press START MEASUREMENT again.\n5. If the arm does not "
-    "move by hand, i1Profiler 3.8.6 or older may bring it home: switch the table on, then "
-    "open i1Profiler once and let it find the table. Stay beside the table with the power switch in reach, because no recording "
-    "shows i1Profiler doing this from where the arm is now. i1Profiler 3.8.7 and newer no "
-    "longer work with the i1iO 2, so you may not have a version that can do this.",
+    "What you can do:\n"
+    "1. Press End measurement. Until you do, ChromIQ still holds the table's USB connection.\n"
+    "2. Press START MEASUREMENT when you are ready. ChromIQ asks you to take your hands away "
+    "from the table and the arm, then brings the arm home before anything else, and ends the "
+    "table's aiming mode if it is still on.\n"
+    "3. If the table does not answer then: switch it off at its power switch, leave it off for "
+    "ten seconds, switch it on and press START MEASUREMENT again. The table's start-up brings "
+    "the arm home.\n"
+    "4. If the arm still does not get home, please do not force it by hand, and send us the "
+    "diagnostics file of this measurement.",
     approved=False)
 
 #: 4.3.52 (review 2, S-1): the way home on the DONE page, after ChromIQ has let go of the
@@ -13843,17 +13869,17 @@ M_I1IO_DRIVE_ARM_WAY_OUT = _m(
 M_I1IO_DRIVE_ARM_WAY_OUT_ENDED = _m(
     "M-I1IO-DRIVE-ARM-WAY-OUT-ENDED",
     "The arm is not at its resting place",
-    "The arm is not at its resting place.\n\nWhat you can do:\n1. Switch the table off at "
-    "its power switch.\n2. With the table switched off, try to push the arm gently by "
-    "hand to its resting place, over the small white tile. We do not know yet whether "
-    "the arm moves by hand while the table is off. If it does not move easily, stop and "
-    "do not force it.\n3. When the arm is at its resting place, switch the table on and "
-    "press START MEASUREMENT again.\n4. If the arm does not move by hand, i1Profiler "
-    "3.8.6 or older may bring it home: switch the table on, then open i1Profiler once "
-    "and let it find the table. Stay beside the table with the power switch in reach, "
-    "because no recording shows i1Profiler doing this from where the arm is now. "
-    "i1Profiler 3.8.7 and newer no longer work with the i1iO 2, so you may not have a "
-    "version that can do this.",
+    "The arm is not at its resting place.\n"
+    "\n"
+    "What you can do:\n"
+    "1. Press START MEASUREMENT when you are ready. ChromIQ asks you to take your hands away "
+    "from the table and the arm, then brings the arm home before anything else, and ends the "
+    "table's aiming mode if it is still on.\n"
+    "2. If the table does not answer then: switch it off at its power switch, leave it off for "
+    "ten seconds, switch it on and press START MEASUREMENT again. The table's start-up brings "
+    "the arm home.\n"
+    "3. If the arm still does not get home, please do not force it by hand, and send us the "
+    "diagnostics file of this measurement.",
     approved=False)
 
 #: {why}: the reason in plain words; {where}; {way}: M-I1IO-DRIVE-ARM-WAY-OUT; {log}
@@ -13894,17 +13920,20 @@ M_I1IO_DRIVE_HOME_AT_END = _m(
     "M-I1IO-DRIVE-HOME-AT-END",
     "The arm now goes back to its resting place",
     "{what} The arm is still out over the table, so ChromIQ now moves it to its resting place. "
-    "If needed, it first moves the arm a little back along the way it came.\n\n"
+    "From some places the arm first moves towards the middle of the table.\n"
+    "\n"
     "Please take your hands away from the table and the arm, then press “Bring the arm home, "
-    "my hands are away”: the arm moves at once.\n\n"
-    "If the arm does not go home now, the table stays in its aiming mode. ChromIQ cannot start "
-    "a new measurement on it until the arm is home. So press “Not now” only if you must get to the "
-    "sheet first"
-    ": nothing moves, and you can still bring the arm home from this window "
-    "afterwards.\n\n"
-    "Please do not move the arm while you reach for the sheet. ChromIQ brings the arm home only "
-    "from the place where it left it. If the arm has been moved, ChromIQ does not move it "
-    "any more.\n\n"
+    "my hands are away”: the arm moves at once.\n"
+    "\n"
+    "If the arm does not go home now, the table stays in its aiming mode until the next START "
+    "MEASUREMENT, which brings the arm home first. So press “Not now” only if you must get to "
+    "the sheet first: nothing moves, and you can still bring the arm home from this window "
+    "afterwards.\n"
+    "\n"
+    "Please do not move the arm while you reach for the sheet. ChromIQ brings the arm home "
+    "only from the place where it left it. If the arm has been moved, ChromIQ does not move it "
+    "any more.\n"
+    "\n"
     "To stop the arm at once, switch the table off at its power switch.",
     approved=False)
 
@@ -13915,15 +13944,19 @@ M_I1IO_DRIVE_HOME_NOT_NOW = _m(
     "M-I1IO-DRIVE-HOME-NOT-NOW",
     "The arm has not gone home yet",
     "Nothing has moved. The arm stays out over the table, and the table stays in its aiming "
-    "mode. ChromIQ cannot start a new measurement on this table until the arm is home.\n\n"
-    "ChromIQ can bring the arm home only from this window, because only this measurement knows "
-    "the way the arm came. When you are ready, take your hands away from the table and the arm, "
-    "then press “Bring the arm home, my hands are away”. The arm moves at once.\n\n"
-    "If you press Close, ChromIQ ends its connection to the table. After that, ChromIQ cannot "
-    "bring the arm home.\n\n"
-    "Please do not move the arm while you reach for the sheet. ChromIQ brings the arm home only "
-    "from the place where it left it. If the arm has been moved, ChromIQ does not move it "
-    "any more.\n\n"
+    "mode.\n"
+    "\n"
+    "When you are ready, take your hands away from the table and the arm, then press “Bring "
+    "the arm home, my hands are away”. The arm moves at once.\n"
+    "\n"
+    "If you press Close, ChromIQ ends its connection to the table and the arm stays where it "
+    "is. That is all right: the next time you press START MEASUREMENT, ChromIQ asks you to "
+    "take your hands away and brings the arm home first.\n"
+    "\n"
+    "Please do not move the arm while you reach for the sheet. From this window ChromIQ brings "
+    "the arm home only from the place where it left it. If the arm has been moved, ChromIQ "
+    "does not move it from this window.\n"
+    "\n"
     "To stop the arm at once, switch the table off at its power switch.",
     approved=False)
 
@@ -13934,46 +13967,32 @@ M_I1IO_DRIVE_HOME_NOT_NOW = _m(
 M_I1IO_DRIVE_LEFT_OUT = _m(
     "M-I1IO-DRIVE-LEFT-OUT",
     "The arm stayed extended over the table",
-    "The arm stayed extended over the table, and the table is still in its aiming mode. ChromIQ "
-    "cannot start a new measurement on this table until the arm is home again. ChromIQ cannot "
-    "bring it home from a new measurement either: only the measurement that took the arm there "
-    "knows the way back.\n\n"
-    "What you can do:\n"
-    "1. Stay beside the table, with its power switch in reach. Open i1Profiler 3.8.6 or older "
-    "once and let it find the table. It should bring the arm home, but no recording shows it "
-    "doing that from where the arm is now.\n"
-    "2. When the arm is at its resting place, close i1Profiler. Then press START MEASUREMENT in "
-    "ChromIQ again.\n\n"
-    "If you switch the table off and on instead: ChromIQ starts a table that was just switched "
-    "on only when the arm is at its resting place, and it asks you about that first. How the "
-    "table starts with the arm out over the table has never been recorded, so ChromIQ does not "
-    "try it.",
+    "The arm stayed out over the table, and the table is still in its aiming mode. You do not "
+    "need to do anything now. The next time you press START MEASUREMENT, ChromIQ first asks "
+    "you to take your hands away from the table and the arm, then brings the arm home and ends "
+    "the aiming mode, and the measurement starts as usual.",
     approved=False,
-    needs_old_i1profiler=True)
+    needs_old_i1profiler=False)
 
 #: 4.3.50 fix round (MUST-1): at a START the table reports (f4 answers 01 at the opening) that it
 #: is still in its aiming mode; ChromIQ sent nothing that moves and read nothing.
 M_I1IO_DRIVE_STILL_AIMING = _m(
     "M-I1IO-DRIVE-STILL-AIMING",
     "The table is still in its aiming mode",
-    "The table reports that it is still in its aiming mode, the mode in which you aim at "
-    "the marks by hand. Most likely an earlier measurement ended with the arm out over "
-    "the table, before the arm was brought home. ChromIQ cannot start a new measurement "
-    "on a table in this mode, so it has sent nothing that could move the arm. Nothing "
-    "was read.\n\nWhat you can do:\n1. Press End measurement. Until you do, ChromIQ still "
-    "holds the table's USB connection.\n2. Switch the table off at its power switch.\n3. "
-    "With the table switched off, try to push the arm gently by hand to its resting "
-    "place, over the small white tile. We do not know yet whether the arm moves by hand "
-    "while the table is off. If it does not move easily, stop and do not force it.\n4. "
-    "When the arm is at its resting place, switch the table on and press START "
-    "MEASUREMENT again.\n5. If the arm does not move by hand, i1Profiler 3.8.6 or older "
-    "may bring it home: switch the table on, then open i1Profiler once and let it find "
-    "the table. Stay beside the table with the power switch in reach, because no "
-    "recording shows i1Profiler doing this from where the arm is now. When the arm is at "
-    "its resting place, close i1Profiler. Then press START MEASUREMENT again.\n\nPlease "
-    "send us the diagnostics file of this measurement: {log}.",
+    "The table gave two answers about its aiming mode, the mode in which you aim at the marks "
+    "by hand, that do not agree with each other. ChromIQ cannot tell which one is true, so it "
+    "has sent nothing that could move the arm. Nothing was read.\n"
+    "\n"
+    "What you can do:\n"
+    "1. Press End measurement. Until you do, ChromIQ still holds the table's USB connection.\n"
+    "2. Switch the table off at its power switch, leave it off for ten seconds and switch it "
+    "on again.\n"
+    "3. Press START MEASUREMENT. The table's start-up brings the arm home, and ChromIQ ends "
+    "the aiming mode if the table reports it.\n"
+    "\n"
+    "Please send us the diagnostics file of this measurement: {log}.",
     approved=False,
-    needs_old_i1profiler=True)
+    needs_old_i1profiler=False)
 
 #: 4.3.50 integration (table re-review of 20 Nov 2026, MUST-A): the homing of the ending found the
 #: held arm away from the place where ChromIQ left it (after "Not now" the person reached the
@@ -14224,15 +14243,17 @@ M_I1IO_DRIVE_AFTER_PROBLEM_OUT = _m(
     "M-I1IO-DRIVE-AFTER-PROBLEM-OUT",
     "ChromIQ cannot bring the arm home now",
     "After the problem you reported, nothing more moves in this measurement, and ChromIQ "
-    "cannot bring the arm home from where it is. The table has not reported the arm at its "
-    "resting place: it last reported {where}.\n\n"
+    "cannot bring the arm home from where it is now. The table has not reported the arm at its "
+    "resting place: it last reported {where}.\n"
+    "\n"
     "To stop the arm at once, switch the table off at its power switch. That is always "
-    "allowed.\n\n"
+    "allowed.\n"
+    "\n"
     "Please press End measurement: you can keep what was read (Save and stop) or discard it. "
-    "Then open i1Profiler 3.8.6 or older once and let it find the table: it brings the arm "
-    "home. Afterwards you can start again with START MEASUREMENT.",
+    "Then press START MEASUREMENT when you are ready: ChromIQ asks you to take your hands away "
+    "and brings the arm home first.",
     approved=False,
-    needs_old_i1profiler=True)
+    needs_old_i1profiler=False)
 
 # review 14, M-2: a session keeps the white reference of its first calibration
 M_I1IO_DRIVE_WHITE_LATER_REFUSED = _m(
@@ -14362,6 +14383,7 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_COLD_WAY_OUT, M_I1IO_DRIVE_FREE_LEFT, M_I1IO_DRIVE_STOPPED_END_FIRST,
     M_I1IO_DRIVE_HOME_AFTER_STOP, M_I1IO_DRIVE_HOME_AFTER_STOP_DONE,
     M_I1IO_DRIVE_HOME_AT_START, M_I1IO_DRIVE_ARM_OUT_BACK,
+    M_I1IO_DRIVE_REPAIR_AT_START, M_I1IO_DRIVE_START_UP_AIMING,
     M_I1IO_DRIVE_HOME_AT_START_DONE,
     M_I1IO_DRIVE_ARM_WAY_OUT, M_I1IO_DRIVE_ARM_WAY_OUT_ENDED, M_I1IO_DRIVE_HOME_TRY_FAILED,
     M_I1IO_DRIVE_I1PROFILER_LIMIT,

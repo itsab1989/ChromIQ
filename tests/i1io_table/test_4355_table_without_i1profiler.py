@@ -1,0 +1,375 @@
+"""2026-11-21: THE TABLE WITHOUT i1PROFILER.
+
+The project owner, Basti, 2026-11-21, after the table owner reported that the arm stayed on the
+last patch and asked whether he must open i1Profiler to finish: "remember that driving the table
+should work without involving i1profiler".
+
+Until 4.3.54 every ending without the homing (Stop with "Leave it there", "Not now" and Close, the
+window closed, the app quit or killed, an error, a lost link) left the table in its AIMING MODE
+(f1 sent, no f0). a0 then answers with bit 0x40 (511800 just switched on, 530000 / 540000
+started), also after a power cycle, and every later START refused the table: only i1Profiler
+helped. What i1Profiler does with such a table is now recorded (numbers and command forms only;
+the recordings themselves stay private):
+
+* N1 (the table owner, 21 Nov 2026 18:31): a0 530000, s0, f4 x4 answering 01, s0, p0 (1104, 43),
+  i1 (0.336 s), s0; the mode ended at its quit.
+* recording A (the owner's start-up capture, 19 Nov 2026): a0 511800, i0 (3.327 s), s0, f4 x4
+  answering 01, s0, p0 (1102, 27), i1 (0.288 s), s0.
+* R19 (19 Nov 2026): the end of a job s0 p0 i1 s0 f0 f4 f4.
+
+And its WAY HOME from two places: N3 (21 Nov 2026 18:37) from (2134, 1801): m0 to (1102, 1498) at
+speed 200 (1.487 s), then i1 (2.367 s); R1 (12 Nov 2026) from the back strip at (1058, 317): m0 to
+(1058, 1202) at 200, m0 to (1102, 1202) at 200, then i1. From (1281, 1423) (N2) it homed straight.
+"""
+from __future__ import annotations
+
+import pytest
+
+from tests.i1io_table import job_harness as H
+from workflow.i1io.table import caps as cp
+from workflow.i1io.table import geometry as geo
+from workflow.i1io.table import job as J
+from workflow.i1io.table import lines as cl
+from workflow.i1io.table import session_table as tbl
+
+C = J.Confirm
+MOVES = ("m0", "m1", "m2", "i1", "i0")
+#: i1Profiler's opening of a started table, as recorded in N1 (the mode answers 01)
+OPEN_AIMING = [";a133", ";a133", ";k228", ";u8000060000100d1", ";u8000061000068c3", ";a034",
+               ";s022", ";f42b", ";f42b", ";f42b", ";f42b"]
+#: the repair: i1Profiler's end of a job (N1's homing, R19's tail) and ChromIQ's reading at rest
+REPAIR = [";s022", ";p025", ";i12b", ";s022", ";f02f", ";f42b", ";f42b", ";p025"]
+#: the vendor's detour lines, byte for byte as recorded (N3 1.358; R1 84.153, 85.529)
+N3_LINE = ";m0044e05da00c806"
+R1_OUT = ";m0042204b200c86d"
+R1_ACROSS = ";m0044e04b200c838"
+
+
+@pytest.fixture(autouse=True)
+def _no_breach():
+    J.HANDS_OFF_BREACHES.clear()
+    yield
+    assert J.HANDS_OFF_BREACHES == []
+
+
+def _moves(lines):
+    return [ln for ln in lines if ln[1:3] in MOVES]
+
+
+def _table(pos, cold=False, a0="530000", **kw):
+    job, sim, _t = H.make_job(cold=cold, real_table=False, **kw)
+    sim.mode = "01"
+    sim.a0_aiming = a0
+    sim.pos = [float(pos[0]), float(pos[1])]
+    return job, sim
+
+
+def _open(job, sim, script=None):
+    p = H.Person(job, sim, script)
+    r = p.drive(job.open())
+    assert r.ok, (r.reason, r.detail)
+    return p, r
+
+
+# ---- 1. the state at START -> the recorded sequence ----------------------------------------------
+#: (-1317, 3185) and (-1193, 3253): where the table owner's real arm was left, held, mode on, after
+#: his complete pages of 21 Nov (4.3.54) and 20 Nov (4.3.50); the next START met a0 540000
+@pytest.mark.parametrize("a0,pos", [("530000", (1104, 43)), ("540000", (-1193, 3253)),
+                                    ("540000", (-1317, 3185)),
+                                    ("530000", (0, 1600)), ("540000", (1281, 1423))])
+def test_a_started_table_in_its_aiming_mode_is_brought_home_as_i1profiler_does(a0, pos):
+    job, sim = _table(pos, a0=a0)
+    p, r = _open(job, sim)
+    assert sim.received == OPEN_AIMING
+    assert r.detail["aiming_mode_left_on"] is True and r.detail["a0"] == a0
+    assert r.way_back == J.WayBack.REPAIR_AT_START
+    # nothing else may run before the mode is ended
+    assert job.park().reason == "aiming_mode_left_on"
+    assert not _moves(sim.received)
+    n = len(sim.received)
+    r = p.drive(job.repair_at_start())
+    assert r.ok, (r.reason, r.detail)
+    gos = [a for a in p.asked if a[1] == C.GO]
+    assert len(gos) == 1 and gos[0][2]["step"] == "repair_at_start" and gos[0][3] == n
+    assert sim.received[n:] == REPAIR
+    assert sim.mode == "00" and not job._table.mode_on and job.at_rest()
+    assert sim.violations == []
+    # and the measurement goes on as at any START
+    assert p.drive(job.park()).ok
+    assert p.drive(job.align()).ok
+    assert sim.violations == []
+
+
+def test_from_the_far_side_the_repair_takes_the_vendors_detour_first():
+    job, sim = _table((2506, 1440))
+    p, _r = _open(job, sim)
+    n = len(sim.received)
+    assert p.drive(job.repair_at_start()).ok
+    # the arm's state is not known (free or held): read twice; then N3's line, its arrival, i1
+    assert sim.received[n:] == [";s022", ";p025", ";p025", N3_LINE, ";p025", ";i12b", ";s022",
+                                ";f02f", ";f42b", ";f42b", ";p025"]
+    assert sim.detour_moves == [((2506.0, 1440.0), (1102, 1498))]
+    assert sim.violations == []
+
+
+def test_from_the_back_strip_the_repair_takes_the_recorded_way_out():
+    job, sim = _table((1058, 317))
+    p, _r = _open(job, sim)
+    n = len(sim.received)
+    assert p.drive(job.repair_at_start()).ok
+    assert sim.received[n:] == [";s022", ";p025", ";p025", R1_OUT, ";p025", R1_ACROSS,
+                                ";p025", ";i12b", ";s022", ";f02f", ";f42b", ";f42b", ";p025"]
+    assert sim.violations == []
+
+
+def test_a_just_switched_on_table_in_its_aiming_mode_gets_recording_a_then_the_mode_ended():
+    job, sim = _table((1102, 27), cold=True)
+    sim.i0_after = (1102.0, 27.0)
+    p, r = _open(job, sim)
+    assert r.detail["table"] == "cold" and r.detail["aiming_mode_left_on"] is True
+    assert sim.received[-1] == ";a034" and len(sim.received) == 6
+    n = len(sim.received)
+    r = p.drive(job.start_up())
+    assert r.ok, (r.reason, r.detail)
+    start_ups = [a for a in p.asked if a[1] == C.START_UP]
+    assert start_ups and start_ups[0][2]["aiming_left_on"] is True
+    # recording A, line for line (i0, s0, f4 x4 01, s0, p0, i1, s0), then R19's tail
+    assert sim.received[n:] == [";i02c", ";s022", ";f42b", ";f42b", ";f42b", ";f42b", ";s022",
+                                ";p025", ";i12b", ";s022", ";f02f", ";f42b", ";f42b", ";p025"]
+    assert r.detail["aiming_mode_ended"] is True and job.repaired_at_start == 1
+    assert sim.mode == "00" and job.at_rest()
+    assert p.drive(job.park()).ok and sim.violations == []
+
+
+def test_a_just_switched_on_table_with_the_arm_out_after_its_start_up():
+    job, sim = _table((0, 1600), cold=True)
+    sim.i0_after = (0.0, 1600.0)
+    p, _r = _open(job, sim)
+    n = len(sim.received)
+    r = p.drive(job.start_up())
+    assert r.ok, (r.reason, r.detail)
+    gos = [a for a in p.asked if a[1] == C.GO and a[2].get("step") == "repair_at_start"]
+    assert len(gos) == 1
+    assert _moves(sim.received[n:gos[0][3]]) == [";i02c"], "only the start-up before the question"
+    assert sim.received[gos[0][3]:] == REPAIR
+    assert job.at_rest() and sim.violations == []
+
+
+def test_not_now_sends_nothing_and_the_offer_stays():
+    job, sim = _table((0, 1600))
+    p, _r = _open(job, sim, {C.GO: "back"})
+    n = len(sim.received)
+    r = p.drive(job.repair_at_start())
+    assert r.kind == J.Kind.REFUSED and r.reason == "person_chose_back"
+    assert sim.received[n:] == [] and r.way_back == J.WayBack.REPAIR_AT_START
+    p.script[C.GO] = "yes"
+    r = p.drive(job.repair_at_start())
+    assert r.ok and sim.received[n:] == REPAIR
+
+
+def test_with_the_guidance_off_the_countdown_stands_in_for_the_question():
+    job, sim = _table((0, 1600))
+    job.guided = False
+    p, _r = _open(job, sim)
+    n = len(sim.received)
+    r = p.drive(job.repair_at_start())
+    assert r.ok, (r.reason, r.detail)
+    assert not [a for a in p.asked if a[1] == C.GO]
+    assert [c["for"] for c in job.countdowns] == ["repair_at_start"]
+    assert sim.received[n:] == REPAIR
+
+
+def test_an_unknown_state_answer_still_moves_nothing():
+    job, sim, _t = H.make_job(real_table=False)
+    sim.inject("a0_other", "a0")
+    r = H.Person(job, sim).drive(job.open())
+    assert r.kind == J.Kind.STOPPED and r.reason == "table_state_unknown"
+    assert not _moves(sim.received)
+
+
+def test_a0_and_f4_that_disagree_move_nothing():
+    """a0 says the mode is on, f4 says it is off: a state no recording shows."""
+    job, sim, _t = H.make_job(real_table=False)
+    sim.a0_aiming = "530000"
+    sim.inject("a0_after_hand", "a0")          # 530000 with the mode off (f4 00)
+    r = H.Person(job, sim).drive(job.open())
+    assert r.kind == J.Kind.STOPPED and r.reason == "mode_flag_unexpected"
+    assert not _moves(sim.received)
+
+
+# ---- 2. the chain: an ending that sends nothing, then the next START repairs -------------------
+def _leave_it_there(sim_pos=None):
+    """A sitting that aims and then ends without the homing (the window's "Leave it there", the
+    window closed, the app quit, a killed app: close() sends nothing in all of them)."""
+    job, sim, _t = H.make_job(real_table=False)
+    if sim_pos is not None:
+        sim.pos = [float(sim_pos[0]), float(sim_pos[1])]
+    p = H.Person(job, sim)
+    assert p.drive(job.open()).ok
+    assert p.drive(job.park()).ok
+    assert p.drive(job.align()).ok
+    n = len(sim.received)
+    job.close()
+    assert sim.received[n:] == [], "close() sends nothing"
+    rec = job.ending_record
+    assert rec["mode_left_on"] is True and rec["sent_at_close"] == "nothing"
+    assert rec["next_start"] == "start_brings_the_arm_home_and_ends_the_aiming_mode"
+    assert sim.mode == "01" and sim.free_arm
+    return sim
+
+
+def test_an_ending_without_the_homing_is_repaired_by_the_next_start():
+    sim = _leave_it_there()
+    job2, sim2, _t = H.make_job(sim=sim)
+    p2 = H.Person(job2, sim2)
+    n = len(sim.received)
+    r = p2.drive(job2.open())
+    assert r.ok and r.detail["aiming_mode_left_on"] and sim.received[n:] == OPEN_AIMING
+    r = p2.drive(job2.repair_at_start())
+    assert r.ok, (r.reason, r.detail)
+    assert sim.mode == "00" and job2.at_rest() and sim.violations == []
+    # the arm stood where the person last aimed (the far side of the demo sheet): the detour
+    sent = sim.received[n + len(OPEN_AIMING):]
+    assert sent[-6:] == [";i12b", ";s022", ";f02f", ";f42b", ";f42b", ";p025"]
+    assert p2.drive(job2.park()).ok and p2.drive(job2.align()).ok
+
+
+def test_the_same_after_a_power_cycle():
+    sim = _leave_it_there()
+    # the power switch: the table comes back just switched on, the mode bit survives (rec A)
+    sim.cold, sim.started, sim.i0_sent = True, False, False
+    sim.i0_after = (1102.0, 27.0)
+    sim.free_arm = False
+    job2, sim2, _t = H.make_job(sim=sim)
+    p2 = H.Person(job2, sim2)
+    r = p2.drive(job2.open())
+    assert r.ok and r.detail["table"] == "cold" and r.detail["aiming_mode_left_on"]
+    assert sim.received[-1] == ";a034"
+    r = p2.drive(job2.start_up())
+    assert r.ok, (r.reason, r.detail)
+    assert sim.mode == "00" and job2.at_rest() and sim.violations == []
+
+
+# ---- 3. the vendor's way home: the region and the gate -----------------------------------------
+@pytest.mark.parametrize("p,legs", [
+    ((1281, 1423), ()),                                   # N2: straight
+    ((1282, 1423), ((1102, 1498),)),                      # beyond N2's X: N3's detour
+    ((2134, 1801), ((1102, 1498),)),                      # N3 itself
+    ((2507, 1429), ((1102, 1498),)),                      # the alignment start
+    ((1500, 3300), ((1102, 1498),)),                      # far side, front
+    ((-1288, 3236), ()),                                  # R19's cancel: straight
+    ((-1437, 1794), ()),                                  # right-hand end: straight
+    ((1102, 1202), ()),                                   # home line: straight
+    ((1102, 30), ()),                                     # at rest
+    ((1090, 300), ()), ((1115, 300), ()),                 # the home line's band in the strip
+    ((1058, 317), ((1058, 1202), (1102, 1202))),          # R1 itself
+    ((1089, 472), ((1089, 1202), (1102, 1202))),          # the strip's edges
+    ((1116, 0), ((1116, 1202), (1102, 1202))),
+    ((1500, 472), ((1500, 1202), (1102, 1202))),          # the strip on the far side: R1's form
+    ((1500, 473), ((1102, 1498),)),                       # just in front of the strip: N3's
+    ((2600, 300), None),                                  # beyond the left end, in the strip
+])
+def test_the_detour_region(p, legs):
+    assert geo.homing_detour(p) == legs
+    assert J.homing_starts_here(p, False) is (legs is not None)
+
+
+def test_the_detour_lines_are_the_recorded_bytes():
+    assert geo.detour_line(1102, 1498).decode().rstrip("\r") == N3_LINE
+    assert geo.detour_line(1058, 1202).decode().rstrip("\r") == R1_OUT
+    assert geo.detour_line(1102, 1202).decode().rstrip("\r") == R1_ACROSS
+    with pytest.raises(geo.AreaRefused):
+        geo.detour_line(1102, 1500)
+    with pytest.raises(geo.AreaRefused):
+        geo.m0_line(1102, 1498, speed=200)          # never a chart move at 200
+
+
+def test_the_gate_lets_a_detour_move_through_only_on_the_way_home():
+    for line in (N3_LINE, R1_OUT, R1_ACROSS):
+        assert cl.classify((line + "\r").encode())[2] == "detour m0"
+        assert cl.wire_gate((line + "\r").encode()) == "m0"
+    with pytest.raises(tbl.ForbiddenLine):
+        cl.classify(geo._line("m0", 1000, 1498, 200))      # not a detour target
+    with pytest.raises(tbl.ForbiddenLine):
+        cl.classify(geo._line("m0", 1102, 1498, 250))      # an unrecorded speed
+
+    class T:
+        position_now = (2134, 1801)
+        detour_phase = None
+    gate = cl.make_gate(T)
+    with pytest.raises(tbl.ForbiddenLine):
+        gate((N3_LINE + "\r").encode())                    # outside the way home
+    T.detour_phase = "out"
+    assert gate((N3_LINE + "\r").encode())[0] == "m0"
+    T.position_now = (1058, 317)                           # the back strip: only straight ahead
+    with pytest.raises(tbl.ForbiddenLine):
+        gate((N3_LINE + "\r").encode())
+    T.detour_phase = "back_strip"
+    assert gate((R1_OUT + "\r").encode())[0] == "m0"
+    with pytest.raises(tbl.ForbiddenLine):
+        gate(geo._line("m0", 1000, 1202, 200))
+    T.position_now = None
+    with pytest.raises(tbl.ForbiddenLine):
+        gate((R1_OUT + "\r").encode())
+
+
+def test_the_start_rule_homing_from_the_far_side_takes_the_detour():
+    """A started table, the mode off, the arm held on the far side: the START rule's homing with
+    N3's detour first (4.3.52-4.3.54 homed straight from there)."""
+    job, sim, _t = H.make_job(real_table=False)
+    sim.pos = [2000.0, 1500.0]
+    p = H.Person(job, sim, {C.READY_TO_OPEN: "arm out"})
+    assert p.drive(job.open()).ok
+    n = len(sim.received)
+    r = p.drive(job.where_is_the_arm())
+    assert r.ok, (r.reason, r.detail)
+    assert sim.received[n:] == [";p025", ";s022", ";p025", N3_LINE, ";p025", ";i12b", ";s022",
+                                ";p025"]
+    assert sim.violations == []
+
+
+def test_the_caps_carry_the_detour():
+    assert cp.HOME_DETOUR == (cp.HOME[0] + 7, cp.HOME[1] + 2)
+    assert J.TableJob.RUN_GRANT["f"][0] >= cp.HOME_DETOUR[0]
+    assert J.TableJob.RUN_GRANT["f"][1] >= cp.HOME_DETOUR[1]
+
+
+# ---- 4. the logs -------------------------------------------------------------------------------
+def test_the_start_case_names_the_state_and_the_repair():
+    job, sim = _table((0, 1600), a0="540000")
+    p, _r = _open(job, sim)
+    assert job.start_case["table"] == "aiming_mode_left_on"
+    assert job.start_case["a0"] == "540000" and job.start_case["offered"] == "repair_at_start"
+    p.drive(job.repair_at_start())
+    assert job.start_case["answer_to_offer"] == "yes"
+    job.close()
+    rec = job.ending_record
+    assert rec["repaired_at_start"] == 1
+
+
+# ---- 5. texts: no way out through i1Profiler ---------------------------------------------------
+RECOVERY_IDS = ("START-UP", "START-UP-ARM", "SWITCH-OFF", "STOPPED", "LINK-LOST",
+                "LINK-LOST-SWITCH-OFF", "COLD", "COLD-WAY-OUT", "FREE-LEFT", "STOPPED-END-FIRST",
+                "HOME-AFTER-STOP-DONE", "ARM-WAY-OUT", "ARM-WAY-OUT-ENDED", "HOME-NOT-NOW",
+                "HOME-AT-END", "LEFT-OUT", "STILL-AIMING", "AFTER-PROBLEM-OUT", "ARM-OUT-BACK",
+                "REPAIR-AT-START", "START-UP-AIMING", "HOME-TRY-FAILED", "HOME-AFTER-STOP",
+                "HOME-AT-START", "HOME-AT-START-DONE")
+
+
+@pytest.mark.parametrize("mid", RECOVERY_IDS)
+def test_no_way_out_of_the_table_sends_the_person_to_i1profiler(mid):
+    from workflow import measurement_messages as M
+    m = M.CATALOGUE["M-I1IO-DRIVE-" + mid]
+    assert "i1Profiler 3.8" not in m.body and "open i1Profiler" not in m.body.lower()
+    assert "i1Profiler once" not in m.body
+    assert not getattr(m, "needs_old_i1profiler", False)
+
+
+def test_the_windows_own_way_out_texts_name_no_i1profiler(qapp):
+    from ui import i1io_table_window as W
+    for text in (W.table_state_text("120000"), W.table_state_text("")):
+        assert "i1Profiler" not in text
+    import inspect
+    for fn in (W.TableMeasureWindow._arm_out_text, W.TableMeasureWindow._show_arm_out_cold,
+               W.TableMeasureWindow._front_stop_way):
+        assert "i1Profiler 3.8" not in inspect.getsource(fn)

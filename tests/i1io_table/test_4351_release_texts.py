@@ -24,21 +24,22 @@ SWITCH_ON = {"de": "Schalte den Tisch ein", "es": "enciende la mesa", "fr": "all
              "zh_CN": "先打开扫描台"}
 
 
-def _step5(text):
-    return [ln for ln in text.split("\n") if ln.startswith("5.")][0]
-
-
 def test_step_5_switches_the_table_on_before_i1profiler_in_english():
-    s5 = _step5(M.M_I1IO_DRIVE_ARM_WAY_OUT.body)
-    assert s5.index("switch the table on") < s5.index("open i1Profiler")
+    """2026-11-21 (the owner: "driving the table should work without involving i1profiler"):
+    the way out has no i1Profiler step any more; START MEASUREMENT brings the arm home and the
+    power switch with the table's start-up is the step after it."""
+    body = M.M_I1IO_DRIVE_ARM_WAY_OUT.body
+    assert "i1Profiler" not in body
+    assert body.index("START MEASUREMENT") < body.index("power switch")
 
 
 @pytest.mark.parametrize("code", LANGS)
 def test_step_5_switches_the_table_on_before_i1profiler(code):
     d = json.loads((I18N / f"{code}.json").read_text(encoding="utf-8"))
-    s5 = _step5(d[M.M_I1IO_DRIVE_ARM_WAY_OUT.body])
-    assert SWITCH_ON[code] in s5, s5
-    assert s5.index(SWITCH_ON[code]) < s5.rindex("i1Profiler 3.8.7"), s5
+    body = d[M.M_I1IO_DRIVE_ARM_WAY_OUT.body]
+    assert "i1Profiler" not in body, code
+    if code == "de":
+        assert "MESSUNG STARTEN" in body and "Netzschalter" in body
 
 
 # S4 (the START page inside 4.3.48's envelope said only what the recordings from there show) is

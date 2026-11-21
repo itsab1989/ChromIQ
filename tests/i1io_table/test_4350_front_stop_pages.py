@@ -92,7 +92,7 @@ def test_a_creep_step_answered_badly_stops_with_its_facts_and_sends_nothing_more
     assert len(sim.received) == n
     # ChromIQ's own homing is not offered (the table's state is not known)
     want = (J.WayBack.SWITCH_OFF_UNFINISHED if kind == "no_answer"
-            else J.WayBack.OPEN_I1PROFILER_ONCE)
+            else J.WayBack.END_THEN_START_AGAIN)
     assert job.way_back() == want
     assert sim.violations == []
 
@@ -116,9 +116,11 @@ def test_each_case_has_its_own_true_page(rid):
     assert "X 1402, Y 3170" in body and "X 1402, Y 3220" in body
     assert "The table has not reported where the arm stands now." in body
     assert "about 12 mm further towards the back" in body and "session.log" in body
-    # the way on: power switch, End measurement, ten seconds off, i1Profiler once
+    # the way on: power switch, End measurement, ten seconds off, then START (2026-11-21: the
+    # table's start-up brings the arm home; never i1Profiler)
+    assert "i1Profiler" not in body
     for words in ("What to do now:", "power switch", "Press End measurement",
-                  "ten seconds", "open i1Profiler 3.8.6 or older once",
+                  "ten seconds", "press START MEASUREMENT",
                   "does not bring the arm home itself this time"):
         assert words in body, (rid, words)
     assert "Bring the arm home" not in body
@@ -183,7 +185,8 @@ def test_in_the_window_the_page_and_its_way_home_after_the_ending(
         p.press("Discard and stop")
         page = p.drive_until(("done",))
     text = win._text.text()
-    assert "power switch" in text and "i1Profiler 3.8.6 or older once" in text
+    assert "power switch" in text and "press START MEASUREMENT" in text
+    assert "i1Profiler" not in text
     assert tr("Press End measurement. Your readings so far are kept, and ChromIQ asks whether "
               "to save them.") not in text
     assert len(sim.sim.received) == n

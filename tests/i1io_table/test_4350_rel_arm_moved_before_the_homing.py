@@ -107,18 +107,21 @@ def test_the_doubt_before_the_homing_has_its_own_id():
 
 def test_the_a0_530000_page_says_end_measurement_before_i1profiler(
         qtbot, monkeypatch, tmp_path, settings):  # noqa: F811
+    """2026-11-21: a0 530000 is the aiming mode left on, put right at START; here its mode
+    answers say 00 (the two answers disagree): nothing moves, End measurement first, then the
+    power switch and START, never i1Profiler."""
+    from workflow import measurement_messages as M
     sim = WindowSim(table_faults=[("a0_after_hand", "a0")])
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
                                                     sim=sim, asking=False)
     page = p.drive_until(("stopped", "refused", "done"))
     assert page == "stopped"
+    assert win._title.text() == M.M_I1IO_DRIVE_STILL_AIMING.render(log="x")[0]
     text = win._text.text()
     end = text.find("1. Press End measurement")
-    i1p = text.find("i1Profiler 3.8.6 or older")
-    assert end != -1 and i1p != -1 and end < i1p, text
-    assert "i1Profiler cannot find the table" in text
-    assert "no recording shows" in text
-    assert "it brings the arm home" not in text
+    start = text.find("START MEASUREMENT")
+    assert end != -1 and start != -1 and end < start, text
+    assert "i1Profiler" not in text
     assert tr("End measurement") in p.labels() and sim.jobs[-1].phase == "open"
 
 
@@ -143,8 +146,9 @@ def test_the_front_stop_way_promises_no_homing_that_no_recording_shows():
     for rid in W.FRONT_STOP_IDS:
         for ending in (True, False):
             way = W.TableMeasureWindow._front_stop_way(win, rid, ending)
-            assert "it brings the arm home" not in way
-            assert "no recording shows" in way
+            # 2026-11-21 (the owner: "driving the table should work without involving
+            # i1profiler"): the way on is the power switch and START, never i1Profiler
+            assert "i1Profiler" not in way and "START MEASUREMENT" in way
 
 
 def test_the_consent_is_asked_again_for_this_version():

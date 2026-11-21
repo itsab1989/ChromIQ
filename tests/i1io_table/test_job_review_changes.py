@@ -342,7 +342,7 @@ def test_a_problem_at_every_line_is_taken(kind):
         if kind == J.PROBLEM_STOP_NOW:
             assert len(sim.received) == i + 1, i                  # the line on its way, no more
             way = job.way_back()
-            assert way in (J.WayBack.SWITCH_OFF_UNFINISHED, J.WayBack.OPEN_I1PROFILER_ONCE,
+            assert way in (J.WayBack.SWITCH_OFF_UNFINISHED, J.WayBack.END_THEN_START_AGAIN,
                            J.WayBack.NONE, J.WayBack.COLD_NOT_STARTED,
                            J.WayBack.LINK_LOST_REPLUG), (i, way)
         else:
@@ -352,8 +352,12 @@ def test_a_problem_at_every_line_is_taken(kind):
             wire = {v.decode().rstrip("\r") for v in tbl.WIRE.values()}
             later = moves(sim.received[i + 1:])
             assert job.only_home or job.stopped_by_person, i
-            assert len([x for x in later if x != ";i12b"]) <= 3, (i, later)
-            assert all(x in wire for x in later), (i, later)
+            # 2026-11-21: the vendor's way home (a move at speed 200 to the home line) is part
+            # of the homing
+            assert len([x for x in later if x != ";i12b" and x[11:15] != "00c8"]) <= 3, \
+                (i, later)
+            # (2026-11-21: plus the vendor's detour lines, recorded: geometry.detour_line)
+            assert all(x in wire or _is_detour(x) for x in later), (i, later)
 
 
 def test_stop_now_while_a_movement_may_be_waiting_says_switch_off_first():
@@ -531,8 +535,18 @@ def test_stop_now_between_steps_closes_the_sending_at_once(asking):
     assert p.drive(job.open()).ok and p.drive(job.align()).ok
     r = job.report_problem(J.PROBLEM_STOP_NOW)
     assert r.kind == J.Kind.STOPPED and r.state.sending_closed and r.state.stopped_by_person
-    assert r.way_back == J.WayBack.OPEN_I1PROFILER_ONCE      # out on the table, free
+    assert r.way_back == J.WayBack.END_THEN_START_AGAIN      # out on the table, free
     n = len(sim.received)
     for s in ("park", "align", "home", "next_page"):
         assert getattr(job, s)().kind == J.Kind.REFUSED
     assert len(sim.received) == n
+
+
+def _is_detour(line: str) -> bool:
+    """2026-11-21: one of the vendor's detour lines (N3, R1), as the allow-list classifies it."""
+    from workflow.i1io.table import lines as cl
+    from workflow.i1io.table import session_table as tbl
+    try:
+        return cl.classify((line + "\r").encode())[2] == "detour m0"
+    except tbl.ForbiddenLine:
+        return False

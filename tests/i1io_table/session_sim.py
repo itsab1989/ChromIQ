@@ -553,6 +553,14 @@ class SimTable:
                 # the volunteer's real table, 19 Nov 2026 (two openings, 12:37 and 12:38):
                 # `:$a00530000B9` after the arm had been moved by hand and put back
                 return 0, "530000", 0.0
+            if self.mode == "01":
+                # 2026-11-21: the aiming mode left on by an earlier ending (bit 0x40): 511800 on
+                # a table just switched on (recording A, 19 Nov 2026), 530000 started (N1, 21
+                # Nov 2026), 540000 as the table owner's table answered with the arm left held
+                # out (his ChromIQ 4.3.50 log, 20 Nov 09:53): ``a0_aiming`` picks it
+                if self.cold and not self.started:
+                    return 0, "511800", 0.0
+                return 0, getattr(self, "a0_aiming", "530000"), 0.0
             return 0, ("111800" if self.cold else "130000"), 0.0
         if cid == "f4":
             if kind == "free":
