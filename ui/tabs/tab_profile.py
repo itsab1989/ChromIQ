@@ -599,6 +599,19 @@ class TabProfile(QWidget):
         self._restore_defaults()
         self._link_guided_and_manual_header_fields()
         self._settle_linked_header_fields()
+        # Issue 217: every later change of a colour setting is logged with
+        # its source (`ui.setting_change_log`).
+        from ui.setting_change_log import watch
+        for _attr, _name in (
+                ("_obs_combo", "Guided, observer"),
+                ("_illum_combo", "Guided, illuminant"),
+                ("_fwa_check", "Guided, FWA compensation"),
+                ("_fwa_illum_combo", "Guided, FWA illuminant"),
+                ("_m_obs_combo", "Manual, observer"),
+                ("_m_illum_combo", "Manual, illuminant"),
+                ("_m_fwa_check", "Manual, FWA compensation"),
+                ("_m_fwa_illum_combo", "Manual, FWA illuminant")):
+            watch(getattr(self, _attr, None), tab="Build Profile", name=_name)
 
     # ------------------------------------------------------------------
     # Guided and Manual share the profile header fields (Knut, #182
@@ -2515,16 +2528,24 @@ class TabProfile(QWidget):
             return
         cal = self._ac_cal_edit.text().strip()
         in_icc = self._ac_in_edit.text().strip()
-        if not cal or not in_icc:
+        mode = self._ac_mode_combo.currentData() or "apply"
+        # Only applying takes the .cal file (applycal's usage); removing and
+        # checking need the profile alone (issue 217 verification, P1).
+        if not in_icc or (mode == "apply" and not cal):
             self._ac_log.setPlainText(
                 tr("[ERROR] Please select a .cal file and an input ICC "
-                   "profile."))
+                   "profile.") if mode == "apply" else
+                tr("[ERROR] Please select an input ICC profile."))
             return
         out_icc = self._applycal_output(in_icc)
 
-        mode = self._ac_mode_combo.currentData() or "apply"
         if mode == "apply" and not self._confirm_not_calibrated_twice(in_icc):
             return
+        # Issue 217 (verification V1): what the output file looked like
+        # before this run, so only a file this run WROTE is recorded.
+        import time as _time
+        from workflow.check_colorimetry import stamp as _stamp
+        _out_before, _started_ns = _stamp(out_icc), _time.time_ns()
         self._ac_log.clear()
         self._ac_run_btn.setEnabled(False)
         self._ac_progress.set_label(tr("Applying calibration…"), "applycal")
@@ -2548,9 +2569,37 @@ class TabProfile(QWidget):
                     self._show_tool_failure_dialog(
                         "Apply Calibration Failed", failure[1]
                     )
+            elif mode == "check":
+                # no file is written: say what applycal found
+                from workflow.applycal_runner import CHECK_APPLIED
+                applied = (self._applycal_runner.check_state
+                           == CHECK_APPLIED)
+                self._ac_log.appendPlainText("\n" + (
+                    tr("[OK] This profile has calibration curves applied: "
+                       "{name}").format(name=Path(in_icc).name) if applied
+                    else tr("[OK] This profile has no calibration curves "
+                            "applied: {name}").format(
+                                name=Path(in_icc).name)))
+                self._ac_log.ensureCursorVisible()
             else:
                 self._ac_log.appendPlainText(f"\n[OK] Done. Output: {result}")
                 self._ac_log.ensureCursorVisible()
+                # Issue 217: applycal does not change the colour settings the
+                # profile was fitted with, so the calibrated copy keeps its
+                # source's record (when the source has one).
+                # Never in "Check calibration", which writes no file while
+                # still naming the run's calibrated.icc (verification V1).
+                try:
+                    from workflow.check_colorimetry import (
+                        built_colorimetry, record_derived, written_since)
+                    src = built_colorimetry(in_icc)
+                    if (mode in ("apply", "remove") and src.known
+                            and written_since(result, _out_before,
+                                              _started_ns)):
+                        record_derived(result, src.colorimetry,
+                                       source=Path(in_icc).name)
+                except Exception:      # noqa: BLE001
+                    log.debug("calibrated copy not recorded", exc_info=True)
                 if mode == "apply":
                     self._show_applycal_result_dialog(result)
 
@@ -3489,22 +3538,31 @@ class TabProfile(QWidget):
         # header fields once at the end, not mirror by mirror.
         self._header_mirror_paused = True
         try:
+            # Issue 217: every colour setting this changes is logged with
+            # the target as its source (`ui.setting_change_log`).
+            from ui.setting_change_log import setting_source
+            _where = Path(str(getattr(store, "dir", "") or "?")).name
             if not stored:
                 # §4 S4–S7 — and the fault the Measure tab had: returning here
                 # leaves the PREVIOUS target's values on screen, which is how a
                 # setting leaks from one run to another.
-                self._restore_defaults()
+                with setting_source(
+                        f"the target ({_where}) has no stored settings"):
+                    self._restore_defaults()
                 if hasattr(self, "_load_build_from"):
                     self._load_build_from(None)
                 return False
-            self._m_apply_preset_data(stored)
+            with setting_source(f"the target's stored settings ({_where})"):
+                self._m_apply_preset_data(stored)
             set_black = getattr(self, "_m_set_black", None)
             if "black_depth" not in stored and set_black is not None:
                 # Stored before "Darkest black" was a Build Profile option:
                 # it reads what the global preference said at the move
                 # (settings schema 33), until it is changed here.
                 set_black(_black_for_older_targets(self._settings))
-            self._apply_guided_profile_fields(stored)
+            with setting_source(
+                    f"the target's stored settings ({_where}), Guided"):
+                self._apply_guided_profile_fields(stored)
             if hasattr(self, "_load_build_from"):
                 self._load_build_from(stored)
             return True
@@ -3661,6 +3719,16 @@ class TabProfile(QWidget):
         combo.setCurrentIndex(max(0, combo.findData(black_depth_value(value))))
 
     def _on_m_preset_selected(self, index: int) -> None:
+        # Issue 217: the colour settings a preset sets are logged with the
+        # preset as their source (`ui.setting_change_log`).
+        from ui.setting_change_log import setting_source
+        src = ("the Manual preset list: none (the saved defaults, else the "
+               "factory settings)" if index <= 0 else
+               f"the Manual preset {self._m_preset_combo.currentData()!r}")
+        with setting_source(src):
+            self._on_m_preset_selected_now(index)
+
+    def _on_m_preset_selected_now(self, index: int) -> None:
         self._m_preset_del_btn.setEnabled(index > 0)
         s = self._settings
         if index == 0:
@@ -7156,6 +7224,16 @@ class TabProfile(QWidget):
         # fresh file so Check & Refine keeps working on the physical chart.
         params = self._apply_preconditioning_merge(params)
         self._active_params = params
+        # Issue 217 (verification V1): the record names only a file this
+        # build writes (`_record_profile_build`).
+        import time as _time
+        from workflow.check_colorimetry import stamp as _stamp
+        try:
+            _icc_planned = self._builder.expected_icc_path(params)
+        except Exception:      # noqa: BLE001
+            _icc_planned = None
+        self._build_icc_before = _stamp(_icc_planned)
+        self._build_started_ns = _time.time_ns()
         # R26-F1: the profile about to be overwritten goes to `old/` first. Last
         # thing before the builders, so every refusal above has had its say and
         # the merge above has settled which file that actually is.
@@ -7391,6 +7469,26 @@ class TabProfile(QWidget):
                      if hasattr(self, "_built_from_record") else {})
             if built:
                 info.update(built)
+            # Issue 217: the observer, illuminant and FWA compensation the
+            # build passed on, so Check & Refine checks this profile with
+            # the same (`workflow.check_colorimetry`).
+            active = getattr(self, "_active_params", None)
+            # Only a file this build wrote (verification V1): the build
+            # notes its start in `_on_build`; a direct call (tests) has none.
+            started = getattr(self, "_build_started_ns", None)
+            if started is not None and active is not None:
+                from workflow.check_colorimetry import written_since
+                if not written_since(icc, getattr(self, "_build_icc_before",
+                                                  None), started):
+                    log.warning("the build reported %s but did not write "
+                                "it: no colour settings recorded", icc)
+                    active = None
+            if active is not None:
+                from workflow.check_colorimetry import (fingerprint,
+                                                        record_for_build)
+                info.update(record_for_build(active))
+                # ...for THIS file only: its size and SHA-256 (review M1)
+                info.update(fingerprint(icc))
             run.record_profile_build(info)
         except Exception:      # noqa: BLE001 - a record never fails a build
             log.warning("could not record the profile build", exc_info=True)
@@ -7534,6 +7632,14 @@ class TabProfile(QWidget):
         self._runner.last_failed_to_start = None
         self._drop_comparison_work()
         if kept is not None:
+            # Issue 217: built with the same colour settings as the profile
+            try:
+                from workflow.check_colorimetry import (from_profile_params,
+                                                        record_derived)
+                record_derived(kept, from_profile_params(cparams),
+                               source="colprof comparison")
+            except Exception:      # noqa: BLE001
+                log.debug("comparison profile not recorded", exc_info=True)
             self._log.appendPlainText(tr(
                 "ArgyllCMS colprof's profile from the same measurement was "
                 "saved beside the new one for comparison: {path}").format(
@@ -7685,22 +7791,19 @@ class TabProfile(QWidget):
     def _note_a_colprof_build(self, icc: Path) -> None:
         """Keep the run's build record true after a colprof build.
 
-        Written only where it is needed, so a build with the new profile
-        engine switched off touches the run exactly as it always did: when
-        this colprof build stood in for the engine, or when the run still
-        carries the record of an engine build that this profile replaces."""
+        WRITTEN AFTER EVERY colprof BUILD since issue 217 (2026-11-21).
+        Until then it was written only when this build stood in for the
+        engine, when the M0/M1/M2 Beta named a condition, or when an engine
+        record had to be replaced, so that a build with the engine switched
+        off left ``meta.json`` as it always had. Check & Refine now needs to
+        know which observer, illuminant and FWA compensation every profile
+        was built with (`workflow.check_colorimetry`), and this record is
+        where it reads them. Nothing on screen changes by it."""
         reason = getattr(self, "_fallback_reason", "")
         self._fallback_reason = ""
         try:
             run = Run.for_dir(Path(icc).parent)
             if not run.meta_path.is_file():
-                return
-            # ...or when the M0/M1/M2 Beta is on: Check & Refine must know
-            # which condition's readings the profile was built from.
-            built = (self._built_from_record()
-                     if hasattr(self, "_built_from_record") else {})
-            if not reason and not built and not getattr(
-                    run.load_meta(), "profile_build", None):
                 return
         except Exception:      # noqa: BLE001
             return
@@ -8356,6 +8459,13 @@ class TabProfile(QWidget):
         self._log.ensureCursorVisible()
 
     def _restore_defaults(self) -> None:
+        # Issue 217: the colour settings this sets are logged with it as the
+        # source (`ui.setting_change_log`).
+        from ui.setting_change_log import setting_source
+        with setting_source("the saved defaults, else the factory settings"):
+            self._restore_defaults_now()
+
+    def _restore_defaults_now(self) -> None:
         s = self._settings
 
         def _set_combo(combo: QComboBox, key: str, default: str) -> None:

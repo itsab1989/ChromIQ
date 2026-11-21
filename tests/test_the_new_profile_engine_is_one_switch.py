@@ -845,15 +845,21 @@ def test_a_multi_ink_build_has_no_comparison(tmp_path, qtbot, monkeypatch):
     assert not (tmp_path / COLPROF_COMPARISON_NAME).exists()
 
 
-def test_a_colprof_build_with_the_switch_off_writes_no_record(
+def test_a_colprof_build_with_the_switch_off_writes_its_record(
         tmp_path, qtbot):
+    # Issue 217 (2026-11-21): every colprof build records how it was built,
+    # because Check & Refine reads the observer / illuminant / FWA from it
+    # (`workflow.check_colorimetry`). Until then a build with the switch
+    # off left meta.json untouched.
     tab = _tab(tmp_path, profile_engine_beta=False)
     qtbot.addWidget(tab)
     run, ti3 = _run_with_ti3(tab, tmp_path)
-    before = run.meta_path.read_bytes()
+    tab._active_params = ProfileParams(ti3_path=ti3, observer="2015_2")
     tab._note_a_colprof_build(ti3.with_suffix(".icc"))
-    assert run.meta_path.read_bytes() == before
-    # ...but an engine record is not left describing a colprof profile
+    rec = run.load_meta().profile_build
+    assert rec["builder"] == "colprof"
+    assert rec["colorimetry"]["observer"] == "2015_2"
+    # ...and an engine record is not left describing a colprof profile
     run.record_profile_build({"builder": "engine"})
     tab._note_a_colprof_build(ti3.with_suffix(".icc"))
     assert run.load_meta().profile_build["builder"] == "colprof"
