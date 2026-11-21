@@ -11215,8 +11215,8 @@ def i1io_row_speed_help() -> str:
     user could figure out best speed himself")."""
     return "\n\n".join((
         tr("**What it does.** When the i1iO table reads a row as a strip, this factor "
-           "multiplies the speed of the arm. 1.00 is ChromIQ's own choice. 1.50 reads half as "
-           "fast again, 0.75 slower. The speed is kept between the slowest and the fastest "
+           "multiplies the speed of the arm. 1.00 is ChromIQ's own choice. 1.50 makes the arm "
+           "one and a half times as fast, 0.75 makes it slower. The speed is kept between the slowest and the fastest "
            "speed X-Rite's i1Profiler was recorded using for rows: 40 and 168 mm/s."),
         tr("**What i1Profiler does.** For rows of patches about 10 mm long, i1Profiler was "
            "recorded reading at 137 to 168 mm/s. ChromIQ's own choice for its 10 mm patches is "

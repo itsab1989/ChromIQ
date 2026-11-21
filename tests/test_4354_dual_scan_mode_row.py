@@ -115,3 +115,70 @@ def test_the_help_states_the_trade_off():
     assert "only for M1 or M2" in h and "always" in h
     assert "has no M1 or M2" in h and "measuring the chart again" in h
     assert "GUIDED" in h
+
+
+# ---- 4.3.54: the i1iO's "Row speed" field, in the row of "Table charts start with -p ticked" ----
+
+@pytest.mark.parametrize("lang", ["en"] + list(shipped_languages()))
+def test_the_row_speed_field_fits_in_its_row_at_the_minimum_size(qapp, lang):
+    from core import i18n
+    i18n.set_language(lang)
+    dlg = _dialog(qapp, _S({"i1io_support_beta": True}))
+    # the dialog's own floor on a real screen (1040 px; offscreen the virtual screen is smaller
+    # and clamps it, which re-wraps the long notes above whatever this row holds)
+    dlg.resize(max(1040, dlg.minimumWidth()), dlg.height())
+    qapp.processEvents()
+    dlg._beta_page.layout().activate()
+    qapp.processEvents()
+    try:
+        cb, lab, spin = dlg._i1io_pbp_check, dlg._i1io_speed_label, dlg._i1io_speed_spin
+        tip, pbp_tip = dlg._i1io_speed_tip, dlg._i1io_pbp_tip
+        assert spin.objectName() == "compact_input"
+        for w in (lab, spin, tip):
+            assert abs(w.geometry().center().y() - cb.geometry().center().y()) <= 3, w
+        assert cb.width() >= cb.sizeHint().width() and lab.width() >= lab.sizeHint().width()
+        assert spin.width() >= spin.sizeHint().width()
+        assert cb.geometry().right() < lab.geometry().left() < spin.geometry().left()
+        assert tip.geometry().right() < pbp_tip.geometry().left()
+        row = cb.parentWidget().layout()
+        row_w = next(row.itemAt(i).layout().minimumSize().width()
+                     for i in range(row.count())
+                     if row.itemAt(i).layout() is not None
+                     and row.itemAt(i).layout().indexOf(spin) >= 0)
+        assert row_w + 32 <= 1040 - 80, row_w
+        below = [w for w in (dlg._isis_charts_check, dlg._i1io_pbp_tip)]
+        ys = [w.geometry().y() for w in below] + [cb.geometry().y(), cb.height()]
+        for w in (lab, spin, tip):
+            w.setVisible(False)
+        dlg._beta_page.layout().activate()
+        qapp.processEvents()
+        assert [w.geometry().y() for w in below] + [cb.geometry().y(), cb.height()] == ys
+    finally:
+        dlg.close()
+        dlg.deleteLater()
+
+
+def test_the_row_speed_field_is_greyed_with_the_i1io_option_and_saved(qapp):
+    s = _S({"i1io_support_beta": False, "i1io_table_row_speed_factor": 1.37})
+    dlg = _dialog(qapp, s)
+    try:
+        spin = dlg._i1io_speed_spin
+        assert spin.value() == pytest.approx(1.35)          # on its grid
+        assert (spin.minimum(), spin.maximum(), spin.singleStep(), spin.decimals()) == (
+            0.5, 2.0, 0.05, 2)
+        assert not spin.isEnabled()
+        dlg._i1io_support_check.setChecked(True)
+        assert spin.isEnabled()
+        spin.setValue(1.95)
+        dlg._save_and_close()
+        assert s["i1io_table_row_speed_factor"] == pytest.approx(1.95)
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_row_speed_help_says_the_risk_and_the_numbers():
+    from ui.dialogs.settings_dialog import i1io_row_speed_help
+    h = i1io_row_speed_help()
+    for s in ("1.00", "40 and 168 mm/s", "137 to 168 mm/s", "88 mm/s", "1.95",
+              "WITHOUT A WARNING", "measurement report", "app log", "clean border"):
+        assert s in h, s

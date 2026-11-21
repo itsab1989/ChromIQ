@@ -1658,3 +1658,41 @@ What 4.3.53 does after its fix round (driven on the simulated table only; never 
 * **The way out after a move that did not arrive**: the power switch, then ChromIQ's own START,
   i1Profiler 3.8.6 or older last.
 * **The lamp wait of Preferences > Beta reaches the table's patch by patch readers.**
+
+### ⏳ Awaiting confirmation: "Row speed", a factor on a strip row's speed (2026-11-21, for 4.3.54)
+
+**Confirmed by:** *nobody yet.* Built on the owner's words of 2026-11-21, quoted as given: *"for
+the table you mention in the readme it now reads rows / strips at the speed i1profiler does. but
+comparing the numbers i1profiler still seems faster. could you also make an option in the beta
+section that allows to increase or decrease the speed within a certain frame by a factor? that
+way the user could figure out best speed himself."* Tested on the simulated table and with
+synthetic passes; never run on a real table. Tests: `tests/i1io_table/test_4354_row_speed.py`,
+`tests/test_4354_dual_scan_mode_row.py`. Safety brief: work folder 2026-11-20_dualmode454,
+`safety_brief_speed.txt`.
+
+* **Where.** Preferences > Beta, under "X-Rite i1iO support", in the row of "Table charts start
+  with “Patch-by-patch mode (-p)” ticked" (no new line): "Row speed:" with a factor, 0.50 to 2.00
+  in steps of 0.05, default 1.00; greyed with the i1iO option. Key `i1io_table_row_speed_factor`,
+  named in the session header's Beta list.
+* **1.00 is 4.3.53 line for line**: ChromIQ's own choice (the vendor's first-pass speed for the
+  pitch, then the fastest recorded speed whose clean border leaves every patch 3 readings).
+* **Not 1.00**: ChromIQ's own speed x factor, a whole number, kept inside THE FRAME 40..168 mm/s,
+  the slowest and the fastest speed i1Profiler was recorded sending in a single row's scan move
+  (`geometry.RECORDED_M2_SPEEDS`; 40 a slow repeat of a failed row, 16 Nov 2026 recordings; 168
+  the volunteer's table, 17 Nov 2026). The table's motor was seen driven across that range in
+  the same recorded m2 form; any whole number inside it may now go out in that form
+  (`geometry.row_speed_ok`, the gate `lines.classify`), never the dual row's 132. Dual rows,
+  rows read patch by patch and the careful first-visit steps are not affected.
+* **The clean border at the person's speed.** Faster: the rule's border (max(0.5 mm, speed x 18
+  ms)) where every patch keeps 3 clean readings; otherwise the border shrunk just enough to keep
+  them, and the row is marked in the app log and the detailed table log: "read faster than the
+  safe border allows (factor x.xx): border y.yy mm in place of z.zz mm". Where not even no border
+  leaves 3 readings, the speed is lowered step by step until one does (logged). Slower: the
+  rule's border, never below 0.5 mm; a row the reader cannot take at that speed is raised step by
+  step (logged). Every check on the readings stays (readings per patch, uniformity, plausible).
+* **The risk, as a number** (synthetic passes, the motion start off by up to the measured 18 ms):
+  at factor 2.00 a 10 mm patch can be wrong by up to 8.62 dE00 without a warning (168 mm/s,
+  border 1.08 mm in place of 3.02); the help says it in plain words and asks for a comparison
+  with a measurement at 1.00 before a fast one is trusted.
+* **Logs.** Every strip row: the factor, the speed and the border, in the detailed table log
+  and the app log ("table row speed").
