@@ -36,7 +36,9 @@ def _first_time_on_new_ground(monkeypatch):
     monkeypatch.setattr(_J.TableJob, "_known_ground", lambda self, p: False)
 
 def _person(win, sim, qtbot):
-    return WindowPerson(win, sim, lambda c: qtbot.waitUntil(c, timeout=15000))
+    # 60 s, not 15 (4.3.54 release): budgeted for a loaded gate, where the first job call of a
+    # window once took longer than 15 s (CLAUDE.md: a timeout too tight is a phantom red)
+    return WindowPerson(win, sim, lambda c: qtbot.waitUntil(c, timeout=60000))
 
 
 # ---- B-1: quitting ChromIQ during a table session ------------------------------------------------

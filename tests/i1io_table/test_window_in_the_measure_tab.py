@@ -36,6 +36,14 @@ def tab(qapp, tmp_path):
     if w is not None:
         w._finished = True
         w.close()
+        # 4.3.54 release (the gate's hang): never delete the panel (a child of the tab) under a
+        # job call that still runs. The app never does (retire_window waits for the pool); this
+        # fixture did, after a first job call that outlived the person's wait under load, and
+        # the worker then spun for good in PyQt's slot-proxy destructor (~PyQtSlotProxy, in
+        # pytest-qt's teardown processEvents): 2026-11-18, -20 (twice) and -21 gates. The call
+        # needs nothing from the GUI thread (its result is queued), so waiting here is safe.
+        import ui.i1io_table_window as W
+        W._pool().waitForDone(60000)
     t.close()
     t.deleteLater()
 

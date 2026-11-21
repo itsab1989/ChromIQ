@@ -5,6 +5,11 @@ from __future__ import annotations
 
 import pytest
 
+#: 4.3.54 release: a completion-window test that does not end fails within 3 minutes (the
+#: thread method dumps every stack and ends the worker, which fails the run at once) instead of
+#: spinning for 50 minutes as on the 2026-11-21 gate; faulthandler_timeout only dumps
+pytestmark = pytest.mark.timeout(180, method="thread")
+
 from tests.i1io_table.test_fix10_open_points import _finish_complete
 from tests.i1io_table.test_window_in_the_measure_tab import beta, tab, table_run  # noqa: F401
 

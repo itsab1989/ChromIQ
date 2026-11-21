@@ -11,6 +11,9 @@ from __future__ import annotations
 
 import pytest
 
+#: 4.3.54 release: the table's completion-window tests fail fast instead of hanging a gate
+pytestmark = pytest.mark.timeout(180, method="thread")
+
 from tests.i1io_table.test_fix10_review10 import _person
 from tests.i1io_table.test_window_in_the_measure_tab import (beta, start, tab,  # noqa: F401
                                                              table_run)
