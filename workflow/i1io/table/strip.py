@@ -31,10 +31,13 @@ import os
 from core.cgats_date import created_stamp
 from dataclasses import dataclass, field
 
+from . import placement as pl
 from . import scan as sc
 from . import spot as sp
 
 CUT_BY = "position (first try)"
+#: 4.3.54: the reason of a row the row placement check (placement.py) did not confirm
+PLACEMENT_REASON = "strip_placement_not_confirmed"
 ROW_FILE_SUFFIX = ".ti3"
 
 
@@ -96,6 +99,12 @@ def cut_row(plan, outdir: str, fired: "dict | None") -> Cut:
         why = sp.plausible(xyz)
         if why or not all(math.isfinite(v) for v in xyz):
             return Cut(False, "strip_patch_implausible", info=dict(info, loc=q.loc))
+    # 4.3.54: THE ROW PLACEMENT CHECK (placement.py), a veto only: the values above stay the
+    # cut's own; the row is accepted only when its readings confirm every patch's window
+    check = pl.check_row(plan, rows, info["windows"], wl)
+    info = dict(info, placement=check)
+    if not check.get("confirmed"):
+        return Cut(False, PLACEMENT_REASON, info=dict(info, loc=check.get("patch") or ""))
     info = dict(info, recogniser=_recogniser(plan, outdir, fired))
     return Cut(True, "", [(q.sample_id, q.loc, v, x)
                           for q, v, x in zip(plan.patches, vals, xyzs)], list(wl), info)

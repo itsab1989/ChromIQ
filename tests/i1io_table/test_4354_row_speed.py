@@ -151,17 +151,27 @@ def test_slower_keeps_the_rules_border_never_below_half_a_millimetre():
 WORST_DE00_10MM_AT_2 = 8.62
 
 
-def test_the_risk_at_factor_two_for_a_10_mm_patch_is_documented(tmp_path):
+def _worst_at_two(tmp_path, tag):
     base, p = _factored(10.0, 2.0)
     worst, refused = 0.0, 0
     for ms in range(-18, 19):
-        d = tmp_path / f"s{ms + 18}"
+        d = tmp_path / f"{tag}{ms + 18}"
         d.mkdir()
         cut = T._cut(p, T.stream(p, 10.0, ms / 1000.0), d)
         if not cut.ok:
             refused += 1
             continue
         worst = max(worst, float(T._errors(p, cut).max()))
+    return worst, refused
+
+
+def test_the_risk_at_factor_two_for_a_10_mm_patch_is_documented(tmp_path, monkeypatch):
+    """WITHOUT the row placement check (4.3.54, placement.py: the developer switch off) the
+    released checks accept cuts at factor 2.00 with a patch 8.62 dE00 off: the risk the factor's
+    help text warns about."""
+    from workflow.i1io.table import placement as pl
+    monkeypatch.setattr(pl, "ROW_PLACEMENT_CHECK", False)
+    worst, refused = _worst_at_two(tmp_path, "off")
     assert worst == pytest.approx(WORST_DE00_10MM_AT_2, abs=0.05)
     assert refused > 0, "the uniformity and reading checks still refuse some"
     # and at 1.00 the same patch length is right whatever the shift (4.3.53's own test)
@@ -171,6 +181,15 @@ def test_the_risk_at_factor_two_for_a_10_mm_patch_is_documented(tmp_path):
         d.mkdir()
         cut = T._cut(p1, T.stream(p1, 10.0, ms / 1000.0), d)
         assert not cut.ok or T._errors(p1, cut).max() <= T.DE_TOL
+
+
+def test_the_row_placement_check_closes_the_risk_at_factor_two(tmp_path):
+    """4.3.54: WITH the row placement check (the default) the same 37 cuts at factor 2.00 are
+    either refused or right: no accepted patch beyond DE_TOL (the veto applies at every
+    factor; it can only refuse, so the values it lets through are the released cut's)."""
+    worst, refused = _worst_at_two(tmp_path, "on")
+    assert worst <= T.DE_TOL, worst
+    assert refused > 0
 
 
 # ---- the window passes the factor to the job --------------------------------------------------------

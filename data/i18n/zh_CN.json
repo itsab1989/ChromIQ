@@ -9069,6 +9069,7 @@
  "This tolerance tells ArgyllCMS how different the readings along a strip may be before it refuses the strip. The i1iO table knows where every patch is, so ArgyllCMS's strip check is not used for this chart, also when the table reads a row as a strip. Your setting is remembered for other charts.": "这个容差告诉 ArgyllCMS，沿一条色条的读数相差多少时它就拒绝这条色条。i1iO 扫描台知道每个色块的位置，所以这张色卡不使用 ArgyllCMS 的色条检查，即使扫描台把一行当作色条来读取也一样。你的设置会为其他色卡保留。",
  "You can also use the button on the instrument": "你也可以使用仪器上的按钮",
  "a patch came out with values no printed patch can have": "有一个色块得出的数值是任何印刷色块都不可能有的",
+ "the readings did not confirm where the patches are in this row, so ChromIQ did not use them": "读数未能确认这一行中各色块的位置，所以 ChromIQ 没有使用它们",
  "a patch got too few readings": "有一个色块得到的读数太少",
  "only some patches of the row are to be read": "只需要读取这一行的部分色块",
  "some patches lie outside the readings the instrument took": "有些色块落在仪器采集的读数范围之外",

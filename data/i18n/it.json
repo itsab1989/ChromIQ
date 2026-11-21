@@ -9073,6 +9073,7 @@
  "This tolerance tells ArgyllCMS how different the readings along a strip may be before it refuses the strip. The i1iO table knows where every patch is, so ArgyllCMS's strip check is not used for this chart, also when the table reads a row as a strip. Your setting is remembered for other charts.": "Questa tolleranza dice ad ArgyllCMS quanto possono differire le letture lungo una striscia prima che rifiuti la striscia. Il tavolo i1iO sa dove si trova ogni tassello, quindi il controllo delle strisce di ArgyllCMS non viene usato per questo grafico, nemmeno quando il tavolo legge una riga come striscia. La tua impostazione viene ricordata per gli altri grafici.",
  "You can also use the button on the instrument": "Puoi usare anche il pulsante sullo strumento",
  "a patch came out with values no printed patch can have": "un tassello ha ottenuto valori che nessun tassello stampato può avere",
+ "the readings did not confirm where the patches are in this row, so ChromIQ did not use them": "le letture non hanno confermato dove si trovano i tasselli in questa riga, quindi ChromIQ non le ha usate",
  "a patch got too few readings": "un tassello ha ricevuto troppo poche letture",
  "only some patches of the row are to be read": "solo alcuni tasselli della riga vanno letti",
  "some patches lie outside the readings the instrument took": "alcuni tasselli si trovano fuori dalle letture eseguite dallo strumento",

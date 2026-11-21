@@ -10133,6 +10133,7 @@
  "This tolerance tells ArgyllCMS how different the readings along a strip may be before it refuses the strip. The i1iO table knows where every patch is, so ArgyllCMS's strip check is not used for this chart, also when the table reads a row as a strip. Your setting is remembered for other charts.": "Цей допуск повідомляє ArgyllCMS, наскільки можуть відрізнятися показання вздовж смуги, перш ніж він відхилить смугу. Стіл i1iO знає, де лежить кожен патч, тому перевірку смуг ArgyllCMS для цієї діаграми не використовують, зокрема й тоді, коли стіл зчитує ряд як смугу. Ваше налаштування зберігається для інших діаграм.",
  "You can also use the button on the instrument": "Можна також скористатися кнопкою на приладі",
  "a patch came out with values no printed patch can have": "у одного патча вийшли значення, яких не може мати надрукований патч",
+ "the readings did not confirm where the patches are in this row, so ChromIQ did not use them": "показання не підтвердили, де лежать патчі в цьому ряду, тому ChromIQ їх не використав",
  "a patch got too few readings": "для одного патча отримано надто мало показань",
  "only some patches of the row are to be read": "потрібно зчитати лише деякі патчі ряду",
  "some patches lie outside the readings the instrument took": "деякі патчі лежать за межами показань, знятих приладом",

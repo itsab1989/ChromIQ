@@ -9069,6 +9069,7 @@
  "This tolerance tells ArgyllCMS how different the readings along a strip may be before it refuses the strip. The i1iO table knows where every patch is, so ArgyllCMS's strip check is not used for this chart, also when the table reads a row as a strip. Your setting is remembered for other charts.": "Denne toleransen forteller ArgyllCMS hvor forskjellige avlesningene langs en stripe kan være før den avviser stripen. i1iO-bordet vet hvor hvert felt ligger, så ArgyllCMS' stripekontroll brukes ikke for dette kartet, heller ikke når bordet leser en rad som en stripe. Innstillingen din huskes for andre kart.",
  "You can also use the button on the instrument": "Du kan også bruke knappen på instrumentet",
  "a patch came out with values no printed patch can have": "et felt kom ut med verdier som ikke noe trykt felt kan ha",
+ "the readings did not confirm where the patches are in this row, so ChromIQ did not use them": "avlesningene bekreftet ikke hvor feltene i denne raden ligger, så ChromIQ brukte dem ikke",
  "a patch got too few readings": "et felt fikk for få avlesninger",
  "only some patches of the row are to be read": "bare noen av feltene i raden skal leses",
  "some patches lie outside the readings the instrument took": "noen felt ligger utenfor avlesningene instrumentet tok",

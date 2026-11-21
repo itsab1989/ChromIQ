@@ -1008,6 +1008,10 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
             "the readings of a patch did not all show the same colour, so ChromIQ could not be "
             "sure where that patch is"),
         "strip_patch_implausible": tr("a patch came out with values no printed patch can have"),
+        # 4.3.54: the row placement check (workflow/i1io/table/placement.py)
+        "strip_placement_not_confirmed": tr(
+            "the readings did not confirm where the patches are in this row, so ChromIQ did "
+            "not use them"),
         "strip_plan_refused": tr("the strip move was not inside the part of the table ChromIQ "
                                  "uses"),
         "strip_reader_not_running": tr("ChromIQ's reading program had stopped"),
@@ -3001,6 +3005,16 @@ class TableMeasureWindow(QFrame):
                      factor=f"{float(ev.get('factor', 1.0)):.2f}",
                      edge_mm=f"{float(ev.get('edge_mm', 0.0)):.2f}",
                      what=ev.get("speed_line"))
+            except Exception:      # noqa: BLE001 - a log line never stops a row
+                pass
+        if _kind == "row_placement":
+            # 4.3.54: the row placement check's verdict, with its numbers
+            try:
+                from core.app_log import line
+                line("table row placement", row=ev.get("row"),
+                     confirmed="yes" if ev.get("confirmed") else "no",
+                     reason=ev.get("reason") or None, patch=ev.get("patch"),
+                     off_mm=ev.get("off_mm"), what=ev.get("what"))
             except Exception:      # noqa: BLE001 - a log line never stops a row
                 pass
         live = getattr(self, "_live", None)
@@ -5451,9 +5465,19 @@ def _applog_table_opened(win) -> None:
              report_after_each_step=bool(getattr(job, "ask_after_each_step", True)),
              dual_scan=getattr(job, "dual", None) is not None,
              stored_tile_white=bool(getattr(job, "stored_tile_white", False)),
+             row_placement_check=_row_placement_check(),
              popups=bool(getattr(win, "_popups", False)))
     except Exception:      # noqa: BLE001
         pass
+
+
+def _row_placement_check() -> str:
+    """4.3.54: "on" or "off" (the table code's developer switch)."""
+    try:
+        from workflow.i1io.table import placement as P
+        return "on" if P.ROW_PLACEMENT_CHECK else "off"
+    except Exception:      # noqa: BLE001
+        return "unknown"
 
 
 def _applog_table_result(win, res) -> None:

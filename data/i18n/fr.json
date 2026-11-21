@@ -9073,6 +9073,7 @@
  "This tolerance tells ArgyllCMS how different the readings along a strip may be before it refuses the strip. The i1iO table knows where every patch is, so ArgyllCMS's strip check is not used for this chart, also when the table reads a row as a strip. Your setting is remembered for other charts.": "Cette tolérance indique à ArgyllCMS à quel point les lectures le long d'une bande peuvent différer avant qu'il refuse la bande. La table i1iO sait où se trouve chaque plage, donc la vérification des bandes d'ArgyllCMS n'est pas utilisée pour cette mire, même quand la table lit une ligne comme une bande. Ton réglage est conservé pour les autres mires.",
  "You can also use the button on the instrument": "Tu peux aussi utiliser le bouton de l'instrument",
  "a patch came out with values no printed patch can have": "une plage a obtenu des valeurs qu'aucune plage imprimée ne peut avoir",
+ "the readings did not confirm where the patches are in this row, so ChromIQ did not use them": "les lectures n'ont pas confirmé l'emplacement des plages dans cette rangée, donc ChromIQ ne les a pas utilisées",
  "a patch got too few readings": "une plage a obtenu trop peu de lectures",
  "only some patches of the row are to be read": "seules certaines plages de la ligne sont à lire",
  "some patches lie outside the readings the instrument took": "certaines plages se trouvent en dehors des lectures prises par l'instrument",
