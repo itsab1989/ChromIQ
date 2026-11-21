@@ -1712,7 +1712,13 @@ class TableJob:
                                                            or d.closed_reason):
             res = replace(res, kind=Kind.STOPPED)
         # 4.3.52 fix round (MUST-1): a step that ended on a fault turns the rest of the sitting
-        # guided (with the guidance off)
+        # guided (with the guidance off). 2026-11-21: not the Save that finds the run's earlier
+        # measurement (the replace the person agreed to at START): that is book-keeping, the
+        # window archives the earlier file and saves, and the end of the page goes on as after
+        # any Save (the table owner's 4.3.54 page ended guided there, with no homing)
+        if step in ("end", "save") and res.kind == Kind.REFUSED and \
+                res.reason == "run_has_a_measurement_already":
+            return res
         if self._fault_seen is None:
             self._fault_seen = f"{step}: {res.reason}"
         self._turn_guided(f"fault: {step}: {res.reason}")
@@ -5800,7 +5806,10 @@ class TableJob:
         return self._begin("end", self._end(st))
 
     def _after_end(self) -> dict:
-        """What may follow an ending: the homing when it can run (its own GO). Review 8, NOTE:
+        """THE ONE DECISION of what follows the end of a page or a sitting (2026-11-21: every
+        ending path uses it: end(), its save / discard, and save() / discard() called by the
+        window directly, as its replace path does). What may follow an ending: the homing when
+        it can run (its own GO). Review 8, NOTE:
         the same test the way back uses for HOME_OFFERED (``_ready("home")``), so ``next``
         never names a homing that would be refused (the instrument out of the arm, say).
         4.3.48: after a stop, the homing after the stop when it is offered."""
@@ -5966,6 +5975,13 @@ class TableJob:
         self.diag.log("INFO", f"the measurement was saved into the run "
                               f"({self._assembly.state}, {self._assembly.read} readings, "
                               f"verdict {detail['verdict']})")
+        # 2026-11-21 (the table owner's 4.3.54 page, proven on a real table): a Save ends the
+        # sitting, so its result carries THE decision of what follows the end of a page
+        # (``_after_end``: the homing when it can run), whichever path called it. Until now only
+        # end() added it, and the window's replace path (the run held a measurement; the job's
+        # own Save was refused, the earlier file archived, save() called directly) closed the
+        # session with the arm out over the sheet and the aiming mode on
+        detail.update(self._after_end())
         return self._result("save", Kind.OK, "", **detail)
 
     def discard(self) -> StepResult:
@@ -6005,6 +6021,7 @@ class TableJob:
         detail = {"session_folder_kept": True, "discarded_sessions": marked}
         if not_marked:
             detail["not_marked"] = not_marked
+        detail.update(self._after_end())      # 2026-11-21: as for save(): the homing follows
         return self._result("discard", Kind.OK, "", **detail)
 
     # ---- what the next START finds (step 8) -------------------------------------------------
