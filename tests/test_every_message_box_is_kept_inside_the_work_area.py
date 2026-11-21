@@ -34,6 +34,12 @@ ALLOWED = {
         "_scroll_the_preflight_text after the last-resort scroll area). "
         "Calling it before exec would size the wide version that is about to "
         "be replaced.",
+    ("ui/tabs/tab_check_refine.py", "_colorimetry_box"):
+        "Issue 217 (4.3.55): the box is BUILT here, with the helper applied "
+        "once after its text and buttons, and returned to _ask_colorimetry, "
+        "which tints and shows it; it is split so the tests can inspect the "
+        "box without showing it. That the helper is still applied here once "
+        "is pinned by test_the_colour_settings_box_still_meets_the_helper_once.",
 }
 
 #: Calls that show a box: its own methods, and the app's one-door wrappers
@@ -292,3 +298,17 @@ def test_self_test_about_qt_is_caught():
         assert _about_calls("planted.py", _planted(call)) == ["planted.py:1"], call
     # the control: an app method of the same name is not a QMessageBox
     assert _about_calls("planted.py", _planted("self.about(parent)")) == []
+
+
+def test_the_colour_settings_box_still_meets_the_helper_once():
+    """The ALLOWED builder (issue 217) is exempt only from the "shown here"
+    rule: it must still apply the helper to its box exactly once, and its one
+    caller must show it after building it."""
+    rows = [b for b in _boxes()
+            if b[0] == "ui/tabs/tab_check_refine.py" and b[1] == "_colorimetry_box"]
+    assert len(rows) == 1, rows
+    _rel, _fn, _line, var, keeps, show = rows[0]
+    assert var == "dlg" and len(keeps) == 1 and show is None, rows[0]
+    src = (ROOT / "ui/tabs/tab_check_refine.py").read_text(encoding="utf-8")
+    body = src.split("def _ask_colorimetry", 1)[1].split("\n    def ", 1)[0]
+    assert body.index("self._colorimetry_box(") < body.index("dlg.exec()")
