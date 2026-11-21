@@ -315,6 +315,8 @@ def test_few_readings_per_patch_are_not_confirmed_by_default():
 
 # ---- the false-refusal rate, stated ---------------------------------------------------------------
 
+#: (Before the fix round's relaxed window rule; with it the rates are lower: work folder
+#: fix_round/final_sweep_out.txt. The bounds below are kept as they were.)
 #: MEASURED with this test's own rows (work folder scripts/false_refusals.py ->
 #: synthetic_result.txt): realistic GOOD rows (the released cut accepts them and every patch is
 #: within DE_TOL; start +-6 ms, the row +-0.4 mm, the aim grid 0.5 % long), ChromIQ's own speed

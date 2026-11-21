@@ -1738,3 +1738,17 @@ Tests: `tests/i1io_table/test_4354_row_placement_check.py`, `test_4354_row_place
 * **What it cannot see.** A sheet a whole pitch off (aims made on the neighbouring patch): every
   window then lies on the neighbour's clean middle; reading patch by patch would read the same
   wrong patches.
+* **Fix round after the independent review (2026-11-21).** (1) The window rule relaxed: a
+  window may reach up to 2 readings beyond its stable run when its value lies within 0.3 dE00
+  of the run's (checked first on the recorded rows: every wrong cut still refused; and on 2,330
+  synthetic rows with 799 wrong released cuts: none accepted); false refusals about halved
+  (clean print 11.4 % -> 5.1 %, vendor-like 22.1 % -> 11.6 % over 40-168 mm/s). (2) A row
+  whose readings show no patch edge at all (a constant stream, bare paper) is not confirmed
+  ("no_patch_edges"); only a row whose CHART gives every patch the same device values is then
+  used by timing alone, as in 4.3.53, and the logs say "cannot confirm". (3) After the SECOND
+  row of a page the check refused, that row's question is asked once as
+  M-I1IO-DRIVE-ROW-PLACEMENT-REST (proposed): "Rest patch by patch" takes the place of "Read it
+  patch by patch" and reads this row and every row after it on the page patch by patch (GO
+  first; the rows already read keep their values). There is no way to aim again in the middle
+  of a measurement; the page names the one that exists (end it, start again, Continue). (4) The
+  second pass of a dual row (UV, M1 / M2) is not checked by it, as before.
