@@ -1020,6 +1020,10 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
         "strip_move_refused_here": tr("ChromIQ's own checks refused the strip move before it "
                                       "was sent"),
         "strip_move_refused_by_the_table": tr("the table refused the strip move"),
+        "strip_speed_not_as_sent": tr("the table answered that it ran another speed than "
+                                      "ChromIQ sent, so the readings cannot be placed and are "
+                                      "not used. If you read the row again, ChromIQ uses its "
+                                      "own speed for it"),
         "strip_failed": tr("the strip could not be read"),
         "strip_row_too_long": tr("the row is too long for one strip move"),
         "strip_row_outside_area": tr("the strip would start or end outside the part of the "

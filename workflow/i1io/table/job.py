@@ -4476,6 +4476,7 @@ class TableJob:
             self.row_status.setdefault(self.page, {})[plan.index] = "failed"
             # 4.3.52: a row that could not be read keeps the detailed lines before it
             self.diag.trip(f"row {plan.index + 1} of page {self.page + 1} failed: {rec['why']}")
+            plan = self._own_speed_after(plan, rec)
             if (plan.kind == "spot" and not reread_by_itself
                     and rec["why"] in sp.READ_AGAIN_BY_ITSELF
                     and not self._calibration_due_for(len(plan.patches))):
@@ -4777,6 +4778,34 @@ class TableJob:
                 return None
             out[cond] = Path(f).relative_to(Path(folder)).as_posix()
         return out
+
+    def _own_speed_after(self, plan, rec):
+        """4.3.54 (review M1, S2, "Row speed"): a strip row the table ran at another speed than
+        was sent, or refused at a speed other than ChromIQ's own, is read again (when the person
+        reads it again) at ChromIQ's own speed for its patches, factor 1.00, never again at the
+        factor's; the detailed table log says so. Anything else: the plan as it was."""
+        if plan.kind != "strip" or self.dual is not None or rec.get("why") not in (
+                "strip_speed_not_as_sent", "strip_move_refused_by_the_table"):
+            return plan
+        note = getattr(getattr(plan, "scan", None), "speed_note", None) or {}
+        if rec["why"] == "strip_move_refused_by_the_table" and not note:
+            return plan                     # ChromIQ's own speed was refused: nothing to change
+        try:
+            own = sp.plan_row(self.sheet, self.page, plan.index, self.alignment,
+                              self._table.front_y, cap_y=self._cap(), kind="strip",
+                              only_locs=self.only_locs, speed_factor=1.0)
+        except Exception as exc:      # noqa: BLE001 - the plan as it was; the log says why
+            self.diag.log("DATA", f"row {plan.index + 1}: no plan at ChromIQ's own speed: {exc}")
+            return plan
+        self.diag.log("DATA", f"row {plan.index + 1}: {rec['why']}; it is read again at "
+                              f"ChromIQ's own speed {own.scan.speed} mm/s (factor 1.00), not "
+                              f"at {plan.scan.speed} mm/s")
+        own.scan.speed_note = {"factor": 1.0, "base_speed": own.scan.speed,
+                               "wanted": own.scan.speed, "speed": own.scan.speed,
+                               "rule_edge_mm": None, "edge_mm": None, "lowered": False,
+                               "raised": False,
+                               "refused": f"{rec['why']} at {plan.scan.speed} mm/s"}
+        return own
 
     def _strip_attempt(self, plan: "sp.RowPlan", attempt: int):
         """One strip row: the first-visit rule for the way to its start and the run, the front
@@ -6209,6 +6238,8 @@ _STRIP_CLEAN_IDS = (
     ("the instrument is not ready to fire", "strip_instrument_not_ready"),
     ("the scan move was refused by the program's own checks", "strip_move_refused_here"),
     ("scan move refused", "strip_move_refused_by_the_table"),
+    # 4.3.54 (review M1): the a3 answer named another speed than the scan move sent
+    ("the table ran another speed than was sent", "strip_speed_not_as_sent"),
     ("the scan move ran and the arm is at the row end, but the instrument did not deliver",
      "strip_instrument_delivered_nothing"),
 )

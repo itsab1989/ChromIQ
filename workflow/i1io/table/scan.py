@@ -324,6 +324,10 @@ class RowResult:
                 "end_xy": self.end_xy, "notes": self.notes}
 
 
+#: 4.3.54 (review M1): the start of a row result's "why" when the table answered another speed
+SPEED_NOT_AS_SENT = "the table ran another speed than was sent"
+
+
 class CleanFail(Exception):
     """Before the scan move: something failed, nothing is pending, the arm is where last read."""
 
@@ -513,6 +517,12 @@ def _one_path_to_the_fire(table: tbl.Table, inst, plan: RowPlan, outdir: str,
                         if res.a3 != (plan.A, plan.T, plan.speed):
                             res.notes.append(f"a3 {res.a3} differs from the plan "
                                              f"{(plan.A, plan.T, plan.speed)} (logged only)")
+                        # 4.3.54 (review M1, "Row speed"): the speed the table says it runs is
+                        # the speed the readings are placed by. In every recorded row it
+                        # repeated the speed sent, so anything else fails the row (after the
+                        # move: the fire has to follow), its readings unused
+                        if not plan.dual and res.a3[2] != plan.speed:
+                            res.speed_answered = res.a3[2]
                     else:
                         res.notes.append(f"a3 answered {d!r}")
                     t = table.t.now()
@@ -613,6 +623,10 @@ def _one_path_to_the_fire(table: tbl.Table, inst, plan: RowPlan, outdir: str,
     if doubts:
         res.kind, res.why = "after_doubt", "; ".join(doubts)
         table.close_for_sending(doubts[0])
+    elif getattr(res, "speed_answered", None) is not None:
+        res.kind, res.why = "failed_clean", (
+            f"{SPEED_NOT_AS_SENT}: it answered {res.speed_answered} mm/s, {plan.speed} mm/s "
+            "was sent; the readings cannot be placed and are not used")
     else:
         res.kind = "done"
         res.why = ""
