@@ -1910,6 +1910,11 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
         "sheet_kind": ("verification" if is_verification_ti3(data)
                        else _sheet_kind(ti3_path)),
     }
+    # 4.3.54 (review M2): read by the i1iO table at a row speed factor other than 1.00
+    # (CHROMIQ_ROW_SPEED, workflow.ti3_provenance); only when the file says so
+    _rs = str(data.keywords.get("CHROMIQ_ROW_SPEED") or "").strip().strip('"')
+    if _rs:
+        report["row_speed"] = _rs
 
     # Paper white (lightest) and darkest black by measured L* — THE ONE RULE,
     # in `measurement_facts`, because these three numbers are also the only

@@ -314,6 +314,28 @@ RECORDED_M2_SPEEDS = (40, 53, 54, 61, 87, 88, 110, 118, 137, 138, 168)
 #: (lines.classify, the table's dual phase); 82 and 51, i1Profiler's slow repeats of a failed
 #: row, are NOT used (a failed dual row is offered again, or patch by patch).
 DUAL_M2_SPEEDS = (132,)
+#: 4.3.54 (the owner, 2026-11-21: "an option in the beta section that allows to increase or
+#: decrease the speed within a certain frame by a factor"): THE FRAME of a single strip row's
+#: speed. Its two ends are the slowest and the fastest speed i1Profiler was recorded sending in
+#: a single row's scan move (RECORDED_M2_SPEEDS): 40 mm/s (one of its slow repeats of a failed
+#: row in the 16 Nov 2026 recordings, passes.json of 2026-11-16_i1io_scan_mode) and 168 mm/s
+#: (both rows of the volunteer's table, 17 Nov 2026). The table's motor was seen driven at every
+#: speed in between that is listed there, in the same recorded m2 FORM; with "Row speed" not at
+#: 1.00 ChromIQ may send any whole number inside the frame in that same form. 132 stays the
+#: dual row's own (the gate and the simulator know a dual row by it): a single row never uses it.
+ROW_SPEED_FRAME = (min(RECORDED_M2_SPEEDS), max(RECORDED_M2_SPEEDS))
+
+
+def row_speed_ok(speed, dual: bool = False) -> bool:
+    """The scan move's speed may be sent: a dual row only at DUAL_M2_SPEEDS; a single row at a
+    recorded speed or (4.3.54, "Row speed") a whole number inside ROW_SPEED_FRAME, never the
+    dual row's 132."""
+    if dual:
+        return speed in DUAL_M2_SPEEDS
+    if speed in RECORDED_M2_SPEEDS:
+        return True
+    return (isinstance(speed, int) and ROW_SPEED_FRAME[0] <= speed <= ROW_SPEED_FRAME[1]
+            and speed not in DUAL_M2_SPEEDS)
 
 #: Run-in / run-out allowed beyond the aimed marks along a row, and across the rows.
 RUN_OUT_MM = 10.0
@@ -458,7 +480,7 @@ def m2_line(x: int, y: int, speed: int, dual: bool = False) -> bytes:
     """The ONLY builder of a computed scan move (m2): the recorded form apart from X, Y and a
     recorded speed. *dual*: a pass of the dual row, whose only recorded speed is
     :data:`DUAL_M2_SPEEDS` (and no other)."""
-    if speed not in (DUAL_M2_SPEEDS if dual else RECORDED_M2_SPEEDS):
+    if not row_speed_ok(speed, dual):
         raise AreaRefused(f"a scan move at speed {speed}: not a recorded speed"
                           + (" for a dual row" if dual else ""))
     if not CAP_AREA.contains((x, y)):

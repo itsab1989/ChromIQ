@@ -50,6 +50,7 @@ class _Box:
     def isChecked(self):  return self._c
     def setChecked(self, v): self._c = bool(v)
     def isVisible(self):  return True
+    def isHidden(self):   return False
     def isEnabled(self):  return True
     def blockSignals(self, _v): pass
 
@@ -105,6 +106,16 @@ class Tab(QWidget):
     # re-implementing the resume test, so the archive and the question can
     # never disagree (#130, 2026-08-01 — they did, and it lost a measurement).
     _read_builds_on_existing = TabMeasure._read_builds_on_existing
+    # 4.3.54 (review S5): the one decision, borrowed; the file here stands for a resumable
+    # measurement (its own state is the subject of tests/test_4354_one_resume_decision.py)
+    _will_resume = TabMeasure._will_resume
+    _resume_ticked = TabMeasure._resume_ticked
+
+    def _resume_has_anything_to_resume(self, ticked):
+        return bool(ticked)
+
+    def _verification_to_stage(self):
+        return None
     _replace_warning_scope = TabMeasure._replace_warning_scope
     _replace_warning_silence_label = TabMeasure._replace_warning_silence_label
     _offer_silence_label = TabMeasure._offer_silence_label
@@ -266,6 +277,7 @@ def test_repl_offers_no_tick_when_it_cannot_be_scoped(qapp, tmp_path, monkeypatc
 def test_repl_stays_quiet_when_refine_is_ticked(qapp, tmp_path, monkeypatch):
     tab = Tab(tmp_path)
     tab._m_refine_cb.setChecked(True)
+    tab._m_resume_cb.setChecked(True)          # 4.3.54: refinement rides on -r, as in the app
     seen = _answer(monkeypatch)
     assert tab._confirm_replacing_measurement() is True
     assert not seen["shown"], "nothing is being replaced, so nothing to warn about"

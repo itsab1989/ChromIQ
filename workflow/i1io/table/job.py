@@ -778,6 +778,12 @@ class TableJob:
         #: per band to the white tile values stored in the table's memory, as i1Profiler does.
         #: Off: the i1Pro 2's own white reference, as in a measurement by hand.
         self.stored_tile_white = bool(stored_tile_white)
+        #: 4.3.54 ("Row speed", Preferences > Beta): the person's factor on a strip row's speed,
+        #: set by the window before the job opens (1.0 = ChromIQ's own choice, line for line)
+        self.row_speed_factor = 1.0
+        #: 4.3.54 (review M2): per (page, row) read as a strip, (the factor its speed came from,
+        #: whether it was read faster than the safe border): the measurement's header mark
+        self.row_speed_marks: "dict[tuple[int, int], tuple[float, bool]]" = {}
         #: THE i1Pro 2 DUAL SCAN ON THE TABLE (2026-11-18, a first try): what START decided
         #: (dual_rows.DualSetup), set by the window before the job opens; None = the released
         #: job, line for line (no dual argument, no dual line, no dual file)
@@ -1901,6 +1907,8 @@ class TableJob:
         d.front_y = None
         d.creep = False
         d.c_gate = cl.make_gate(d)
+        # 4.3.54 (review S3): unrecorded speeds inside the frame only when "Row speed" is not 1.00
+        d.row_speed_frame = abs(float(self.row_speed_factor) - 1.0) > 1e-9
         #: the dual row's phase ("lamp" / "uv") while it reads that pass; None otherwise
         d.dual_phase = None
         d.c_caps = (self.caps.lines, self.caps.moves)
@@ -4420,7 +4428,8 @@ class TableJob:
                                     self._table.front_y, cap_y=self._cap(), kind=kind, only_locs=self.only_locs,
                                     dual=True) if self.dual is not None else
                         sp.plan_row(self.sheet, self.page, k, self.alignment,
-                                    self._table.front_y, cap_y=self._cap(), kind=kind, only_locs=self.only_locs))
+                                    self._table.front_y, cap_y=self._cap(), kind=kind, only_locs=self.only_locs,
+                                    speed_factor=self.row_speed_factor))
             except sp.RowRefused as exc:
                 if kind != "strip" or exc.reason not in sp.STRIP_FALLBACK_REASONS:
                     raise
@@ -4468,10 +4477,12 @@ class TableJob:
                 rec = yield from self._row_attempt(plan, attempt)
             if rec["status"] == "read":
                 self.row_status.setdefault(self.page, {})[plan.index] = "read"
+                self._note_row_speed(plan)
                 break
             self.row_status.setdefault(self.page, {})[plan.index] = "failed"
             # 4.3.52: a row that could not be read keeps the detailed lines before it
             self.diag.trip(f"row {plan.index + 1} of page {self.page + 1} failed: {rec['why']}")
+            plan = self._own_speed_after(plan, rec)
             if (plan.kind == "spot" and not reread_by_itself
                     and rec["why"] in sp.READ_AGAIN_BY_ITSELF
                     and not self._calibration_due_for(len(plan.patches))):
@@ -4774,6 +4785,65 @@ class TableJob:
             out[cond] = Path(f).relative_to(Path(folder)).as_posix()
         return out
 
+    def _note_row_speed(self, plan) -> None:
+        """4.3.54 (review M2): what this read row contributes to the measurement's mark."""
+        if plan.kind != "strip" or self.dual is not None or getattr(plan, "scan", None) is None:
+            return
+        note = getattr(plan.scan, "speed_note", None) or {}
+        factor = float(note.get("factor", 1.0)) if not note.get("refused") else 1.0
+        fast = bool(note.get("edge_mm") is not None and note.get("rule_edge_mm") is not None
+                    and note["edge_mm"] < note["rule_edge_mm"] - 1e-9 and not note.get("refused"))
+        self.row_speed_marks[(self.page, plan.index)] = (factor, fast)
+
+    def row_speed_mark(self) -> "str | None":
+        """The header mark of this sitting, or None when every strip row was read at factor
+        1.00 (4.3.53's own speeds): "factor F: N of M rows faster than the safe border"."""
+        marks = self.row_speed_marks.values()
+        factors = sorted({f for f, _fast in marks if abs(f - 1.0) > 1e-9})
+        if not factors:
+            return None
+        fast = sum(1 for _f, is_fast in marks if is_fast)
+        return (f"factor {', '.join(f'{f:.2f}' for f in factors)}: {fast} of {len(marks)} "
+                "rows faster than the safe border")
+
+    def _stamp_row_speed(self, path) -> None:
+        """4.3.54 (review M2): the row-speed mark into a file the job writes, together with the
+        marks of the measurement it continues (never dropped). Never raises."""
+        try:
+            from workflow.ti3_provenance import stamp_row_speed
+            base = self._base()
+            stamp_row_speed(path, self.row_speed_mark(), [base] if base else [])
+        except Exception:      # noqa: BLE001
+            pass
+
+    def _own_speed_after(self, plan, rec):
+        """4.3.54 (review M1, S2, "Row speed"): a strip row the table ran at another speed than
+        was sent, or refused at a speed other than ChromIQ's own, is read again (when the person
+        reads it again) at ChromIQ's own speed for its patches, factor 1.00, never again at the
+        factor's; the detailed table log says so. Anything else: the plan as it was."""
+        if plan.kind != "strip" or self.dual is not None or rec.get("why") not in (
+                "strip_speed_not_as_sent", "strip_move_refused_by_the_table"):
+            return plan
+        note = getattr(getattr(plan, "scan", None), "speed_note", None) or {}
+        if rec["why"] == "strip_move_refused_by_the_table" and not note:
+            return plan                     # ChromIQ's own speed was refused: nothing to change
+        try:
+            own = sp.plan_row(self.sheet, self.page, plan.index, self.alignment,
+                              self._table.front_y, cap_y=self._cap(), kind="strip",
+                              only_locs=self.only_locs, speed_factor=1.0)
+        except Exception as exc:      # noqa: BLE001 - the plan as it was; the log says why
+            self.diag.log("DATA", f"row {plan.index + 1}: no plan at ChromIQ's own speed: {exc}")
+            return plan
+        self.diag.log("DATA", f"row {plan.index + 1}: {rec['why']}; it is read again at "
+                              f"ChromIQ's own speed {own.scan.speed} mm/s (factor 1.00), not "
+                              f"at {plan.scan.speed} mm/s")
+        own.scan.speed_note = {"factor": 1.0, "base_speed": own.scan.speed,
+                               "wanted": own.scan.speed, "speed": own.scan.speed,
+                               "rule_edge_mm": None, "edge_mm": None, "lowered": False,
+                               "raised": False,
+                               "refused": f"{rec['why']} at {plan.scan.speed} mm/s"}
+        return own
+
     def _strip_attempt(self, plan: "sp.RowPlan", attempt: int):
         """One strip row: the first-visit rule for the way to its start and the run, the front
         rows' two spot moves to the row's ends (tester fix 2), the table-scan reader, then
@@ -4794,11 +4864,25 @@ class TableJob:
                "white_scale": list(self.white_scale) if self.white_scale else None}
         self._decide_white_by_a_row()
         if attempt > 1:
+            _edge, _note = scan_plan.edge_mm, getattr(scan_plan, "speed_note", None)
             scan_plan = sc.plan_row(name, scan_plan.start, scan_plan.end, scan_plan.speed,
                                     [sc.Patch(q.sample_id, q.loc, q.xy, q.along_mm, q.half_mm)
                                      for q in scan_plan.patches])
+            scan_plan.edge_mm = _edge          # 4.3.54: the same border at a read again
+            if _note is not None:
+                scan_plan.speed_note = _note
         else:
             scan_plan.name = name
+        # 4.3.54 ("Row speed"): the factor, the planned speed and the border of every strip row,
+        # in the detailed table log and in the app log
+        _sl = sp.speed_log_line(scan_plan)
+        rec["speed_line"] = _sl
+        self.diag.log("DATA", f"row {plan.index + 1}: {_sl}")
+        # (the app log line is the window's, from the strip_move event: this package uses the
+        # standard library only)
+        self._speed_fields = {"speed_line": _sl,
+                              "factor": round(float(self.row_speed_factor), 2),
+                              "edge_mm": round(sc.plan_edge_mm(scan_plan), 2)}
         scan = None
         self._progress(event="row_start", row=plan.index + 1, kind="strip",
                        locs=[p.loc for p in plan.patches])
@@ -4856,7 +4940,8 @@ class TableJob:
                 # strip reader open, the row fails cleanly before anything moves
                 raise _RowFailed("strip_move_refused_here", "")
             self._step("row", 12, 2)
-            self._progress(event="strip_move", row=plan.index + 1, speed=scan_plan.speed)
+            self._progress(event="strip_move", row=plan.index + 1, speed=scan_plan.speed,
+                           **getattr(self, "_speed_fields", {}))
             guard = self._latency_guard() if self._latency_guard is not None else None
             if guard is not None:
                 guard.__enter__()
@@ -5399,6 +5484,7 @@ class TableJob:
                 record_condition(dest, cond)
                 ic._set_condition_of(dest, key)
                 _stamp_provenance(dest)     # A10 (4.3.50); its pairing key is header-blind
+                self._stamp_row_speed(dest)
                 self._dual_files[cond] = dest
             self._dual_pair = "partial" if partial else "complete"
         else:
@@ -5683,6 +5769,7 @@ class TableJob:
             # A10 (4.3.50): who wrote it, into the assembled file's header, BEFORE the note
             # takes its checksum (the run's .ti3 is a copy of these very bytes)
             _stamp_provenance(self._assembly.path)
+            self._stamp_row_speed(self._assembly.path)     # 4.3.54 (review M2)
             note = se.filing_note(self._assembly.path, self.stamp)
             for sdir in self._session_dirs():
                 se.write_json_now(Path(sdir) / ms.FILING, note)
@@ -6190,6 +6277,8 @@ _STRIP_CLEAN_IDS = (
     ("the instrument is not ready to fire", "strip_instrument_not_ready"),
     ("the scan move was refused by the program's own checks", "strip_move_refused_here"),
     ("scan move refused", "strip_move_refused_by_the_table"),
+    # 4.3.54 (review M1): the a3 answer named another speed than the scan move sent
+    ("the table ran another speed than was sent", "strip_speed_not_as_sent"),
     ("the scan move ran and the arm is at the row end, but the instrument did not deliver",
      "strip_instrument_delivered_nothing"),
 )

@@ -50,7 +50,10 @@ class _S(dict):
 
 
 def _on(**kw):
-    return _S({"i1pro3_conditions_beta": True, D.SETTING: True, **kw})
+    # 4.3.54: these rules are the dual scan's "always" (4.3.53's behaviour); the
+    # "only for M1 or M2" mode is pinned in tests/test_4354_dual_scan_mode.py
+    return _S({"i1pro3_conditions_beta": True, D.SETTING: True,
+               D.MODE_SETTING: D.MODE_ALWAYS, **kw})
 
 
 # ------------------------------------------------------------------ the rules
@@ -148,7 +151,9 @@ def test_a_measurement_is_never_continued_the_other_way(tmp_path):
     (tmp_path / "s").mkdir()
     single = _dual_main(tmp_path / "s", dual=False)
     plan = D.plan_for(_on(), CAPS, None, None, single)
-    assert plan.dual is False and plan.refusal == "mixed_scan_kind"
+    # 4.3.54 (review S1, "a run continues the way it was started"): a one-pass run is
+    # continued with one pass per strip, in both modes; never with the dual scan
+    assert plan.dual is False and plan.refusal == "" and plan.why_not == "single_record"
     (tmp_path / "d").mkdir()
     dual = _dual_main(tmp_path / "d")
     # a single scan on a dual measurement: refused, where the engine can tell

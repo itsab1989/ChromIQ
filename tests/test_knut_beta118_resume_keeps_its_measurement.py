@@ -54,7 +54,12 @@ def tab_and_ti3(qapp, tmp_path):
     proj = Project.create(tmp_path / "out" / "Demo", "Demo")
     run = proj.current_run()
     ti2 = run.dir / f"{run.stem}.ti2"
-    ti2.write_text("CTI2\n\nNUMBER_OF_SETS 4\n", encoding="utf-8")
+    # 4.3.54 (review S5): a chart chartread can resume against (four patches, one read): the
+    # tests below are about a read that really continues it (-r sent)
+    ti2.write_text("CTI2\n\nNUMBER_OF_FIELDS 5\nBEGIN_DATA_FORMAT\n"
+                   "SAMPLE_ID SAMPLE_LOC RGB_R RGB_G RGB_B\nEND_DATA_FORMAT\n\n"
+                   "NUMBER_OF_SETS 4\nBEGIN_DATA\n1 A1 100 100 100\n2 A2 0 0 0\n"
+                   "3 A3 50 50 50\n4 A4 20 20 20\nEND_DATA\n", encoding="utf-8")
     ti3 = run.dir / f"{run.stem}.ti3"
     ti3.write_text(
         "CTI3\n\nNUMBER_OF_SETS 1\n\nBEGIN_DATA_FORMAT\n"
@@ -80,6 +85,11 @@ def _set_refine(tab, on: bool):
     cb.setVisible(True)
     cb.setEnabled(True)
     cb.setChecked(on)
+    # 4.3.54 (review S5): refinement rides on "Refine / resume" (-r), as in the app, where the
+    # refine box is enabled only while the resume box is ticked; the one decision is "-r sent"
+    rb = tab._resume_cb if guided else tab._m_resume_cb
+    rb.setHidden(False)                 # offered, as the app offers it with a measurement
+    rb.setChecked(on)
     return cb
 
 
@@ -120,6 +130,8 @@ def test_a_hidden_refine_box_does_not_count(tab_and_ti3):
     tab, ti3, _run = tab_and_ti3
     cb = _set_refine(tab, True)
     cb.setEnabled(False)
+    # 4.3.54 (review S5): the refine box by itself never resumes; only -r does
+    (tab._m_resume_cb if tab._current_mode() != "guided" else tab._resume_cb).setChecked(False)
     assert tab._read_builds_on_existing() is False
     tab._archive_measurement_before_replacing()
     assert not ti3.is_file()

@@ -817,3 +817,97 @@ decisions; the lights are a Beta option and a light cannot harm anything).
   measurement is made with (its report this session, the one this app run has seen, or the dual
   scan's instrument); an i1 Pro reads both directions (-b). Auto off: the person's choice, always.
   The app log says what Auto decided from at every start.
+
+### 16. When the dual scan runs: "always" or "only for M1 or M2" (2026-11-20, for 4.3.54)
+
+**Confirmed by:** *nobody yet.* Built on the owner's words of 2026-11-20, quoted as given:
+*"for the dual scan i think this could be nice to leave it always on but then at least
+selectable in a combobox as part of this option one should be able to choose whether to only
+use the dual scan when choosing another measurement condition then m0. so choosing m0 would
+only do the regular scan and m1 or m2 would do the 2 pass dual scan and save all conditions.
+that way the user does not always have to spend time for something he does not need and has to
+set one option less in case he does need it at some point"*, and *"that second option can
+already be built before leaving the beta so it is more what we expect"* (the option stays a
+Beta option in Preferences > Beta; leaving the Beta is not part of this). On the layout: *"i hope
+the combobox does not need an extra line in the beta section and fits right within the line of
+the main option"*. On the note: *"for the message shown before the first strip the user shall be
+able to choose to never show this again or something. because once you know this the message
+every time gets annoying"*. Asked whether it affects the i1iO 2 table: yes (the coordinator,
+the same day). Tested against the simulated helper and the simulated table; never on a real
+instrument or table. Tests: `tests/test_4354_dual_scan_mode.py`, `tests/test_4354_dual_scan_notes.py`,
+`tests/test_4354_dual_scan_mode_row.py`, `tests/i1io_table/test_4354_dual_mode_on_the_table.py`.
+
+* **Where.** A box in the dual scan switch's own row (right of its label, left of its (i)), with
+  "always" and "only for M1 or M2"; greyed with the switch, as the other sub-controls are. Settings
+  key `i1pro2_dual_scan_mode` ("always" / "m1_m2"), named in the app log's session header.
+* **The rule, ONE function for the hand path and the table** (`workflow/dual_scan/session.plan_for`;
+  the table's START `TabMeasure._table_dual_setup` asks it, the table window and job never read
+  the option). "always" = 4.3.53, argument for argument. "only for M1 or M2": M0 chosen (the
+  filter row off, or "M0: no filter") = the ordinary single scan: no `--dual-*`, and the row's
+  "-F n" is not sent (an i1Pro 2 refuses every -F; with no -F in the row the command line is
+  exactly the one with the dual scan off); M1 or M2 chosen = the dual scan of "always", every
+  condition saved. Checked first, in both modes, as before: the switches, the engine, an
+  instrument known to be another model, the polariser / D65.
+* **Guided** has no condition row (`GUIDED_CHARTREAD_KEYS`). The owner's decision of 2026-11-21
+  (replacing the builder's first choice, which ran the dual scan there as with "always"): *"i would
+  have leaned to make it single pass in guided only and leave the condition choice and in turn the
+  dual scan to manual module"*. So under "only for M1 or M2" GUIDED reads a single pass (no choice =
+  M0; `why_not` "guided") and its note says that M1 and M2 are read from MANUAL by choosing M1 or M2
+  there (M-DUAL-GUIDED-SINGLE, dismissible like the others); under "always" GUIDED keeps the dual
+  scan (always means always; testers who have the option on today keep it). The i1iO table uses
+  the filter row of the module it is started from, so the same rule holds there.
+* **A continued measurement keeps the kind it was started with** (`session.started_as`, the
+  run's own record: the main file's dual record, or its pass record): under "only for M1 or M2"
+  a dual measurement continues as a dual scan whatever is chosen now; a single-scan measurement
+  continues as a single scan (M0 only, the row not sent as -F), never refused and never mixed.
+  This holds for Continue Measurement, Check & Refine's re-reads, the next page of a multi-page
+  chart read as a Continue, and the table's rows and re-reads. After the review of 2026-11-21
+  (S1, "a run continues the way it was started") the same holds under "always": a one-pass run
+  is continued with one pass per strip (4.3.53 refused it at START, `mixed_scan_kind`). A
+  re-read inside a sitting is the sitting's own (decided once at START).
+* **After the review of 2026-11-21 (M3): a note that takes away a dual scan the person asked
+  for is never hidden.** With mode "always", or M1 / M2 chosen, the notes for a one-pass
+  measurement being continued, an instrument known as another model, a reading program or an
+  engine that cannot do the dual scan, and an older reading program with the run's one-pass file
+  in the way, have no "Don't show this again" and show at every start, also when an earlier
+  build had hidden that kind (nothing else says it before the readings: no --dual-* is passed,
+  so no M-DUAL-ENDED comes). Every other note stays dismissible as built.
+* **Default and migration** (the coordinator's decision): a new store reads "only for M1 or M2";
+  a store whose dual scan switch was already on when 4.3.54 first runs is given "always" once
+  (settings schema 35, `_migrate_dual_scan_mode_keep_4353`), so nothing changes silently for the
+  testers who use it. Decided once (the schema step), never again at a later start.
+* **The note before START** (status line under the log, one line, the whole note on hover and
+  once in the log; texts §M-PROPOSED M-DUAL-GUIDED-SINGLE, M-DUAL-OLD-FILE, M-DUAL-M0-CHOSEN, -SINGLE-CONTINUES, -NOT-I1PRO2,
+  -NOT-THIS-CHART, -NO-ENGINE, -HIGHRES-NOTE, -NOCAL-NOTE, -FILTER-NOTE, -CANNOT-CONTINUE,
+  -LAST-CANNOT, -BEFORE-START-TABLE beside the existing M-DUAL-BEFORE-START and
+  M-DUAL-CONTINUE-M0). Every reason the code has for not running the dual scan has its sentence:
+  M0 chosen; GUIDED under "only for M1 or M2"; a single-scan measurement continued (its own
+  sentence: "You are continuing a measurement that was read with one pass per strip ...",
+  `mixed_single_continued`, also in the START refusal and the session's end line); a reading
+  program older than 4.3.54 with the run's one-pass file beside the chart (`mixed_new`, issue
+  217's R1); the instrument not an i1Pro 2; a calibration
+  chart, or a chart for another instrument (FD-9, CR30); the chart-reading engine off, or one
+  without the dual scan; "-H"; "-N"; the polariser / D65; a measurement that cannot be continued
+  with it (another factor, or single under "always"); and what the LAST measurement found about
+  the instrument or its calibration (no UV light, no factory data, the tile reading with the UV
+  light failed: `dual_scan_last_cannot`, forgotten at the next good dual calibration). A note for
+  a chart the table reads speaks of rows, not of the ruler.
+* **"Don't show this again"** beside the note (a link in the same line; the app's existing
+  wording and its existing pattern of a stored bool per kind, here one key
+  `dual_scan_notes_hidden` holding the kinds): per kind, "will_run", "m0_chosen", and
+  "cannot:<reason>" per reason, so a new reason shows again once. Restore Factory Defaults brings
+  them back (the app has no other reset for "don't show again"; none was invented). Not the
+  self-retiring pattern of the table's row note (4.3.52): that note retires after a completed
+  measurement because it warns about something unproved; these notes are information the person
+  decides to stop seeing. The note that M1 / M2 stopped during a measurement (M-DUAL-ENDED) is an
+  event of the running measurement and is unchanged.
+* **The app log** says the decision at every START with the dual scan on, also when the note is
+  switched off: `dual scan decision: where=hand|table mode=... kind=... hidden=... why="..."`.
+* **Texts.** The filter row's (i) says what the row does with the dual scan in each mode, and
+  "You measure the chart once, not once for each condition"; Build Profile's reason for an
+  i1Pro 2 measurement without the dual scan no longer reads "Only an X-Rite i1Pro 3 gives all
+  three conditions from one scan" (it says the measurement was read without the dual scan, and
+  how to get M1 / M2); the dual scan's (i) states the trade-off of "only for M1 or M2" (a chart
+  measured with M0 chosen has no M1 or M2 later without measuring it again).
+* **Not changed:** what is sent to the instrument or the table in a dual scan or a single scan;
+  Build Profile's offer (an M0-only run behaves as any i1Pro 2 run without the dual scan).

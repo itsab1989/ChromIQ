@@ -95,6 +95,88 @@ def stamp(path, helper_build: "str | None" = None) -> bool:
         return False
 
 
+#: 4.3.54 (review M2, "Row speed"): a measurement any of whose rows the i1iO table read at a row
+#: speed factor other than 1.00 says so in its header, with how many rows were read faster than the
+#: safe border, e.g. ``CHROMIQ_ROW_SPEED "factor 1.95: 22 of 22 rows faster than the safe
+#: border"``. Never removed: a continued, merged or averaged file keeps every mark of its inputs
+#: (the worst case wins: if any contributing reading has it, the result has it).
+ROW_SPEED_KEYWORD = "CHROMIQ_ROW_SPEED"
+
+
+def read_row_speed(path) -> "str | None":
+    """The row-speed mark of *path*, or None."""
+    try:
+        from workflow.measurement_condition import read_header_keyword
+        v = read_header_keyword(path, ROW_SPEED_KEYWORD)
+        return str(v).strip() or None if v is not None else None
+    except Exception:      # noqa: BLE001
+        return None
+
+
+_MARK_RE = None
+
+
+def row_speed_mark_text(mark) -> str:
+    """The file's row-speed mark ("factor 1.95: 22 of 22 rows faster than the safe border",
+    parts joined by " + ") in the reader's language, FOR DISPLAY ONLY. A part that is not in
+    that form is shown as written."""
+    import re
+    from core.i18n import tr, decimal_text
+    global _MARK_RE
+    if _MARK_RE is None:
+        _MARK_RE = re.compile(r"^factor ([0-9.]+): (\d+) of (\d+) rows faster than the safe "
+                              r"border$")
+    out = []
+    for part in str(mark or "").split(" + "):
+        part = part.strip()
+        if not part:
+            continue
+        m = _MARK_RE.match(part)
+        if m is None:
+            out.append(part)
+            continue
+        out.append(tr("factor {factor}: {n} of {total} rows faster than the safe border").format(
+            factor=decimal_text(m.group(1)), n=m.group(2), total=m.group(3)))
+    return "; ".join(out)
+
+
+def _combine_marks(*marks) -> str:
+    out = []
+    for m in marks:
+        for part in str(m or "").split(" + "):
+            part = part.strip()
+            if part and part not in out:
+                out.append(part)
+    return " + ".join(out)
+
+
+def stamp_row_speed(path, mark: "str | None" = None, sources=()) -> bool:
+    """Write the row-speed mark into *path*'s header: *mark* together with the marks *path*
+    and every file in *sources* already carry (nothing is ever dropped). Nothing at all when
+    none of them has one. True when the file changed. Never raises."""
+    try:
+        value = _combine_marks(read_row_speed(path), *(read_row_speed(s) for s in sources),
+                               mark)
+        if not value:
+            return False
+        p = Path(path)
+        raw = p.read_bytes()
+        head, sep, rest = raw.partition(b"BEGIN_DATA_FORMAT")
+        if not sep:
+            return False
+        nl = b"\r\n" if b"\r\n" in head[:4096] else b"\n"
+        new = _set(head, nl, ROW_SPEED_KEYWORD, _SAFE.sub("_", value)[:400])
+        if new == head:
+            return False
+        tmp = p.with_name(p.name + ".provenance-tmp")
+        tmp.write_bytes(new + sep + rest)
+        os.replace(tmp, p)
+        return True
+    except Exception:      # noqa: BLE001
+        log.debug("row-speed mark not written into %s", path, exc_info=True)
+        return False
+
+
 def read(path) -> "tuple[str | None, str | None]":
     """(version, helper build) from *path*'s header, None where absent."""
     try:

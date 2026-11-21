@@ -238,7 +238,11 @@ class CSimTable(SimTable):
             x, y, v = _s16(args[0:4]), _s16(args[4:8]), int(args[8:12], 16)
             if cid == "m0" and v != 300:
                 raise SimViolation(f"m0 at {v}")
-            if cid == "m2" and v not in C_SPEEDS_M2 and not (self.dual and v in C_SPEEDS_DUAL):
+            # 4.3.54 ("Row speed"): a single row may run at any whole speed inside the frame of
+            # the recorded ones (40..168), never at the dual row's 132
+            in_frame = C_SPEEDS_M2[0] <= v <= C_SPEEDS_M2[-1] and v not in C_SPEEDS_DUAL
+            if cid == "m2" and v not in C_SPEEDS_M2 and not in_frame \
+                    and not (self.dual and v in C_SPEEDS_DUAL):
                 raise SimViolation(f"m2 at {v}")
             if cid == "m2" and v in C_SPEEDS_DUAL and self.received[-3:-1] and \
                     self.received[-3] not in (C_D1, C_D1_UV):
@@ -415,8 +419,13 @@ class CSimTable(SimTable):
             return 3, "", 0.016             # INVENTED: no scan move waiting (it was lost)
         if cid == "a3":
             p = self.m2_pending
+            # 4.3.54 (review M1): 'a3_v' makes the table answer another speed than was sent
+            # (an int: that speed; a callable: the answer for the speed sent), as a table that
+            # snapped an unrecorded speed to one of its own might
+            v_ans = self.c_faults.get("a3_v")
+            v = v_ans(p["v"]) if callable(v_ans) else (int(v_ans) if v_ans else p["v"])
             return 0, f"{p['A']:08X}{p['T'] + int(self.c_faults.get('a3_off', 0)):08X}" \
-                      f"{p['v']:04X}", 0.016
+                      f"{v:04X}", 0.016
         if cid == "c3":
             self.m2_pending["c3"] = True
             return 0, "", 0.016

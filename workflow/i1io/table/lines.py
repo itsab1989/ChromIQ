@@ -121,8 +121,9 @@ def classify(line: bytes, dual_phase: "str | None" = None) -> "tuple[str, bool, 
     if cid == "m2" and dual_phase is not None and v not in geo.DUAL_M2_SPEEDS:
         raise tbl.ForbiddenLine(f"m2 at speed {v} in a dual row (recorded: "
                                 f"{geo.DUAL_M2_SPEEDS[0]} only)")
-    if cid == "m2" and dual_phase is None and v not in geo.RECORDED_M2_SPEEDS:
-        raise tbl.ForbiddenLine(f"m2 at speed {v}: not a recorded scan speed")
+    if cid == "m2" and dual_phase is None and not geo.row_speed_ok(v):
+        raise tbl.ForbiddenLine(f"m2 at speed {v}: not a recorded scan speed, nor inside the "
+                                f"recorded frame {geo.ROW_SPEED_FRAME}")
     if not geo.CAP_AREA.contains((x, y)):
         raise tbl.ForbiddenLine(f"{cid} to ({x}, {y}): outside the measuring area (beyond the "
                                 "front zone's cap or the sides)")
@@ -135,6 +136,14 @@ def make_gate(table):
     def gate(line: bytes):
         phase = getattr(table, "dual_phase", None)
         cid, motion, label = classify(line) if phase is None else classify(line, phase)
+        # 4.3.54 (review S3): a speed inside the frame that was never recorded only in a sitting
+        # whose person set "Row speed" to something other than 1.00 (the job sets
+        # ``row_speed_frame``); otherwise only the recorded speeds, as up to 4.3.53
+        if cid == "m2" and phase is None and not getattr(table, "row_speed_frame", False):
+            _c2, _x2, _y2, v2 = geo.decode_xyv(line)
+            if v2 not in geo.RECORDED_M2_SPEEDS:
+                raise tbl.ForbiddenLine(f"m2 at speed {v2}: not a recorded scan speed, and "
+                                        "this sitting reads at ChromIQ's own speeds")
         if label in ("computed m0", "scan move"):
             start = table.position_now
             if start is None:

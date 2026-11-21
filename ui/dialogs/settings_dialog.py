@@ -3947,9 +3947,31 @@ class SettingsDialog(QDialog):
             tr("i1Pro 2 dual scan (beta)"), i1pro2_dual_scan_help(), self,
             min_width=680)
         self._i1pro2_dual_check.clicked.connect(self._on_i1pro2_dual_clicked)
+        # 4.3.54 (the owner, 2026-11-20): WHEN the dual scan runs, in the
+        # switch's own row ("fits right within the line of the main option"),
+        # short entries; the explanation is in the (i). workflow/dual_scan/
+        # session.py MODE_*.
+        from workflow.dual_scan.session import mode_labels as _dual_modes
+        from PyQt6.QtWidgets import QComboBox as _QCBm
+        self._dual_mode_combo = _QCBm(self)
+        # the themes' compact box (22 px, as the Measure tab's option rows): a
+        # Preferences box is 36 px tall and would make the row 14 px taller
+        # (measured on screen, 2026-11-20)
+        self._dual_mode_combo.setObjectName("compact_input")
+        self._dual_mode_combo.setAccessibleName("i1pro2_dual_scan_mode")
+        for _data, _text in _dual_modes():
+            self._dual_mode_combo.addItem(_text, _data)
+        self._dual_mode_combo.setSizeAdjustPolicy(
+            _QCBm.SizeAdjustPolicy.AdjustToContents)
+        self._dual_mode_combo.setToolTip(tr("When the dual scan runs"))
+        # the row keeps the checkbox's and the (i)'s height: the Beta page must not
+        # grow (the owner, 2026-11-20); the box takes the row's height
+        from PyQt6.QtWidgets import QSizePolicy as _QSPm
+        self._dual_mode_combo.setSizePolicy(_QSPm.Policy.Fixed, _QSPm.Policy.Ignored)
         _dualrow = QHBoxLayout()
         _dualrow.setContentsMargins(24, 0, 0, 0)
         _dualrow.addWidget(self._i1pro2_dual_check)
+        _dualrow.addWidget(self._dual_mode_combo)
         _dualrow.addStretch()
         _dualrow.addWidget(dual_tip)
         _beta.addLayout(_dualrow)
@@ -4187,9 +4209,32 @@ class SettingsDialog(QDialog):
         # "-p" default, the same value Save as Defaults keeps with a table chart loaded
         self._i1io_pbp_check = QCheckBox(
             tr("Table charts start with “Patch-by-patch mode (-p)” ticked"), self)
+        # ...and in the same row (4.3.54, the owner: "an option in the beta section that allows
+        # to increase or decrease the speed within a certain frame by a factor"): "Row speed",
+        # a factor on the speed of a row read as a strip. One compact field, no new line.
+        from core.i1io_row_speed import RANGE as _RSR, STEP as _RSS
+        from PyQt6.QtCore import QLocale as _QLoc
+        from core.i18n import uses_decimal_comma as _udc
+        self._i1io_speed_label = _QL(tr("Row speed:"), self)
+        self._i1io_speed_spin = NoScrollDoubleSpinBox(self)
+        self._i1io_speed_spin.setObjectName("compact_input")
+        self._i1io_speed_spin.setAccessibleName("i1io_table_row_speed_factor")
+        self._i1io_speed_spin.setLocale(_QLoc(_QLoc.Language.German) if _udc() else _QLoc.c())
+        self._i1io_speed_spin.setRange(*_RSR)
+        self._i1io_speed_spin.setDecimals(2)
+        self._i1io_speed_spin.setSingleStep(_RSS)
+        self._i1io_speed_spin.setPrefix("× ")
+        self._i1io_speed_spin.setMinimumWidth(84)
+        self._i1io_speed_label.setBuddy(self._i1io_speed_spin)
+        self._i1io_speed_tip = TooltipButton(tr("Row speed"), i1io_row_speed_help(), self,
+                                             min_width=640)
         _i1iopbp = QHBoxLayout()
         _i1iopbp.setContentsMargins(28, 0, 0, 0)
         _i1iopbp.addWidget(self._i1io_pbp_check)
+        _i1iopbp.addSpacing(16)
+        _i1iopbp.addWidget(self._i1io_speed_label)
+        _i1iopbp.addWidget(self._i1io_speed_spin)
+        _i1iopbp.addWidget(self._i1io_speed_tip)
         _i1iopbp.addStretch()
         self._i1io_pbp_tip = TooltipButton(
             tr("Table charts start with “Patch-by-patch mode (-p)” ticked"),
@@ -5115,8 +5160,10 @@ class SettingsDialog(QDialog):
         combo = getattr(self, "_dual_model_combo", None)
         if combo is not None:
             both = on and self._i1pro2_dual_check.isChecked()
-            for w in (combo, self._dual_model_lbl, self._dual_model_note):
-                w.setEnabled(both)
+            for w in (combo, self._dual_model_lbl, self._dual_model_note,
+                      getattr(self, "_dual_mode_combo", None)):
+                if w is not None:
+                    w.setEnabled(both)
         self._i1pro2_dual_check.setToolTip("" if on else tr(
             "Switch on “X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every scan” "
             "above to choose this: the dual scan keeps its M1 and M2 in the "
@@ -7051,6 +7098,9 @@ class SettingsDialog(QDialog):
             bool(s.get("i1pro3_conditions_beta", False)))
         self._i1pro2_dual_check.setChecked(
             bool(s.get("i1pro2_dual_scan_beta", False)))
+        from workflow.dual_scan import session as _ds
+        self._dual_mode_combo.setCurrentIndex(
+            max(0, self._dual_mode_combo.findData(_ds.mode(s))))
         from workflow.dual_scan import instrument_model as _im
         _rem = _im.remembered(s)
         self._dual_model_loaded = _rem.kind
@@ -7092,6 +7142,9 @@ class SettingsDialog(QDialog):
                 bool(s.get("i1io_table_stored_tile_white", True)))
         if getattr(self, "_i1io_pbp_check", None) is not None:
             self._i1io_pbp_check.setChecked(bool(s.get("i1io_table_patch_by_patch", True)))
+        if getattr(self, "_i1io_speed_spin", None) is not None:
+            from core.i1io_row_speed import clean as _cf
+            self._i1io_speed_spin.setValue(_cf(s.get("i1io_table_row_speed_factor", 1.0)))
         self._isis_charts_check.setChecked(
             bool(s.get("isis_charts_beta", False)))
         self._isis_charts_toggled()
@@ -7472,7 +7525,10 @@ class SettingsDialog(QDialog):
                             self._i1io_log_tip, self._i1io_cal_label, self._i1io_cal_combo,
                             self._i1io_cal_tip, self._i1io_stored_white_check,
                             self._i1io_stored_white_tip, self._i1io_pbp_check,
-                            self._i1io_pbp_tip) if w is not None]
+                            self._i1io_pbp_tip,
+                            getattr(self, "_i1io_speed_label", None),
+                            getattr(self, "_i1io_speed_spin", None),
+                            getattr(self, "_i1io_speed_tip", None)) if w is not None]
 
     def _i1io_rows_follow(self, *_a) -> None:
         """The i1iO Beta's sub-options are greyed, their values shown, while its box is
@@ -8830,6 +8886,7 @@ class SettingsDialog(QDialog):
         s.set("i1pro3_conditions_beta",
               self._i1pro3_conditions_check.isChecked())
         s.set("i1pro2_dual_scan_beta", self._i1pro2_dual_check.isChecked())
+        s.set("i1pro2_dual_scan_mode", str(self._dual_mode_combo.currentData()))
         # the instrument for the dual scan: written only when it was changed
         # here, so a model the instrument reported stays as it reported it
         _kind = str(self._dual_model_combo.currentData() or "")
@@ -8876,6 +8933,11 @@ class SettingsDialog(QDialog):
                 self._i1io_pbp_check.isChecked() != bool(
                     s.get("i1io_table_patch_by_patch", True)):
             s.set("i1io_table_patch_by_patch", self._i1io_pbp_check.isChecked())
+        if getattr(self, "_i1io_speed_spin", None) is not None:
+            from core.i1io_row_speed import clean as _cf
+            _f = _cf(self._i1io_speed_spin.value())
+            if abs(_f - _cf(s.get("i1io_table_row_speed_factor", 1.0))) > 1e-9:
+                s.set("i1io_table_row_speed_factor", _f)
         s.set("isis_charts_beta", self._isis_charts_check.isChecked())
         # Written only when it differs from the store, so Preferences closed
         # with OK leaves no new key behind for anyone who never ticks it.
@@ -10841,8 +10903,25 @@ def i1pro2_dual_scan_help() -> str:
            "patch by patch with the instrument's position ruler, so read "
            "both passes on the ruler, without lifting the instrument between "
            "them. Without the ruler only M0 is measured."),
-        tr("**Which condition the profile is made from.** In the Measure "
-           "tab, “Spectral filter type (-F)” then chooses M0, M1 or M2 for "
+        tr("**When the dual scan runs.** The list beside this option "
+           "chooses it. “{always}”: every strip is read twice, and M0, M1 "
+           "and M2 are saved, whatever condition you choose, in MANUAL and in "
+           "GUIDED. “{m1m2}”: in the Measure tab's MANUAL, “Spectral filter "
+           "type (-F)” decides. With M0 chosen (or the row switched off), each "
+           "strip is read once, as without this option, and only M0 is saved. "
+           "With M1 or M2 chosen, each strip is read twice, and M0, M1 and M2 "
+           "are all saved. GUIDED has no such row, so there each strip is read "
+           "once and only M0 is saved: for M1 and M2, measure in MANUAL."
+           ).format(always=tr("always"), m1m2=tr("only for M1 or M2")),
+        tr("**What “{m1m2}” costs.** A chart you measure with M0 chosen has "
+           "no M1 or M2. You cannot add them later without measuring the "
+           "chart again as a new measurement. A measurement you continue "
+           "goes on the way it was started: one started with one pass per "
+           "strip continues with one pass per strip, and one started with "
+           "two passes continues with two, whatever you choose now.").format(
+            m1m2=tr("only for M1 or M2")),
+        tr("**Which condition the profile is made from.** When the dual "
+           "scan runs, “Spectral filter type (-F)” chooses M0, M1 or M2 for "
            "your profile instead of being sent to the instrument (an "
            "i1Pro 2 accepts no filter choice). The measurement itself is "
            "saved in M0, and M1 and M2 beside it, in the same files the "
@@ -10888,7 +10967,10 @@ def i1pro2_dual_scan_help() -> str:
         tr("It works only with “X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every "
            "scan” switched on, and with ChromIQ's chart-reading engine. The "
            "option is read each time you start a measurement."),
-        tr("**Default:** off."),
+        tr("**Default:** off. When it is switched on: “{m1m2}”. If the dual "
+           "scan was already on before ChromIQ 4.3.54, “{always}” is kept, so "
+           "nothing changes for you until you choose.").format(
+            m1m2=tr("only for M1 or M2"), always=tr("always")),
     ))
 
 
@@ -11126,6 +11208,40 @@ def i1io_cal_place_help() -> str:
         "need to change this. Either way, ChromIQ makes the white only with the arm at its "
         "resting place over the table's tile, and after a white on the instrument's own tile "
         "it reads the table's tile once to check that the white is right.")
+
+
+def i1io_row_speed_help() -> str:
+    """The (i) of Preferences > Beta > the i1iO's "Row speed" (4.3.54, the owner: "that way the
+    user could figure out best speed himself"; strengthened after the review, S4). Every number
+    is the work folder's speed/worst_case.json; true with and without a placement check."""
+    return "\n\n".join((
+        tr("**What it does.** When the i1iO table reads a row as a strip, this factor "
+           "multiplies the speed of the arm. 1.00 is ChromIQ's own choice. 1.50 makes the arm "
+           "up to one and a half times as fast, 0.75 makes it slower. The speed always stays "
+           "between 40 and 168 mm/s, the slowest and the fastest speed X-Rite's i1Profiler was "
+           "recorded using for rows. Rows of patches 14 mm and longer are already read at "
+           "168 mm/s, so they gain nothing. Dual rows (the i1Pro 2 dual scan on the table) are "
+           "not affected: they always run at their own recorded 132 mm/s."),
+        tr("**What i1Profiler does.** For rows of patches about 10 mm long, i1Profiler was "
+           "recorded reading at 137 to 168 mm/s. ChromIQ's own choice for its 10 mm patches is "
+           "88 mm/s; a factor of 1.95 gives 168 mm/s."),
+        tr("**Why ChromIQ's choice is slower.** ChromIQ cannot yet place the readings along "
+           "the row as exactly as that speed needs. So it leaves a wider clean border at each "
+           "edge of a patch and uses only the readings in its middle. The faster the arm "
+           "moves, the wider that border must be, and a short patch then has too few readings "
+           "left."),
+        tr("**The risk above 1.00.** A reading at the edge of a patch can include light from "
+           "the next patch, and ChromIQ may not notice. In our tests a 10 mm patch read at "
+           "factor 2.00 came out up to about 9 dE00 wrong, and shorter patches are at greater "
+           "risk. A profile built from such a measurement is wrong too, and nothing will warn "
+           "you. Before you trust a fast measurement, measure the same sheet once at 1.00 and "
+           "once at your factor, and compare the two, for example in the measurement report."),
+        tr("**It stays set.** The factor is used for every later table measurement until you "
+           "set it back to 1.00. ChromIQ writes it into the measurement file and the app log, "
+           "and says it at the end of every table measurement read with it."),
+        tr("**Default:** 1.00. Rows read patch by patch are not affected, and neither are the "
+           "table's careful moves."),
+    ))
 
 
 def i1io_table_pbp_help() -> str:

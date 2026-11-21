@@ -14420,6 +14420,17 @@ class MeasurementReportDialog(QDialog):
         if _covers:
             out += (f"<div style='color:{_C['faint']};margin:6px 0 0'>"
                     + html.escape(_covers) + "</div>")
+        # 4.3.54 (review M2, "Row speed"): a measurement the i1iO table read at a row speed
+        # factor other than 1.00 says so here, where the report names what it covers
+        _rs = sorted({str(r.get("row_speed")) for r in runs if r.get("row_speed")})
+        from workflow.ti3_provenance import row_speed_mark_text as _mark_text
+        if _rs:
+            out += (f"<div style='color:{_C['fail']};margin:6px 0 0'>"
+                    + html.escape(tr(
+                        "Read by the i1iO table at a row speed other than 1.00 ({mark}). "
+                        "Patches can be wrong without any warning. Compare with a "
+                        "measurement at 1.00 before you trust it.").format(
+                            mark="; ".join(_mark_text(m) for m in _rs))) + "</div>")
         # Honesty note: a filtered report must say it is filtered, so it can
         # never pass as the complete history (Sebastian, 2026-08-10).
         # COUNT WHAT THE USER UNTICKED, not what is missing from the list.

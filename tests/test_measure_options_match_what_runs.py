@@ -41,18 +41,25 @@ def test_both_modules_read_their_own_resume_box():
 
     guided = inspect.getsource(TabMeasure._collect_guided)
     manual = inspect.getsource(TabMeasure._collect_manual)
-    assert "self._resume_cb.isChecked()" in guided, \
+    # 4.3.54 (review S5): each through the one decision, for its OWN module's box
+    # (`_will_resume("guided")` reads _resume_cb, `_will_resume("manual")` _m_resume_cb)
+    assert '_will_resume("guided")' in guided, \
         "the guided command no longer reads _resume_cb"
-    assert "self._m_resume_cb.isChecked()" in manual, \
+    assert '_will_resume("manual")' in manual, \
         "the manual command no longer reads _m_resume_cb"
+    wr = inspect.getsource(TabMeasure._will_resume)
+    assert "self._resume_ticked(mode)" in wr
+    assert 'self._resume_cb if mode == "guided" else self._m_resume_cb' in \
+        inspect.getsource(TabMeasure._resume_ticked)
     # Each still reads its OWN box, and neither reads the other's.
     assert "_m_resume_cb" not in guided, "guided is reading manual's box"
     assert "self._resume_cb." not in manual, "manual is reading guided's box"
     # Both resolve it through the one shared rule, so the two cannot drift
     # apart — the fault that ran every guided measurement uncalibrated.
     for name, src in (("guided", guided), ("manual", manual)):
-        assert "_resume_has_anything_to_resume" in src, (
+        assert "_will_resume(" in src, (
             f"{name} bypasses the shared §3a check")
+    assert "_resume_has_anything_to_resume" in wr
 
 
 def test_the_pop_up_sets_both_boxes():

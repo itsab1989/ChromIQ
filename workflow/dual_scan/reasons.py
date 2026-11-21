@@ -132,6 +132,19 @@ REASONS: "dict[str, str]" = {
         "cannot be continued with single scans, or the other way round: "
         "the readings would not belong together. Continue it the way it "
         "was started, or start a new measurement."),
+    # 4.3.54 (issue 217): "mixed" in words true for each case (could_he_tell.txt R1, R2)
+    "mixed_new": (
+        "This run already holds a measurement that was read with one pass per "
+        "strip, and this copy of ChromIQ's reading program cannot start a dual "
+        "scan while that file is there. So this measurement is read with one "
+        "pass per strip, and only M0 is saved. For M1 and M2, untick “Refine / "
+        "resume existing measurement (-r)” and start again: the earlier "
+        "measurement is then moved to the run's “old” folder first."),
+    "mixed_single_continued": (
+        "You are continuing a measurement that was read with one pass per "
+        "strip. A dual scan cannot add to it, because its readings and the "
+        "new ones would not belong together. For M1 and M2, start a new "
+        "measurement: untick “Refine / resume existing measurement (-r)”."),
     "mixed_factor": (
         "This measurement was started with another factor for M1 and M2, or "
         "with another white reference, than the one in use now. Readings "
