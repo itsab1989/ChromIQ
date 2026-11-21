@@ -179,9 +179,17 @@ def test_the_row_speed_field_is_greyed_with_the_i1io_option_and_saved(qapp):
 def test_the_row_speed_help_says_the_risk_and_the_numbers():
     from ui.dialogs.settings_dialog import i1io_row_speed_help
     h = i1io_row_speed_help()
-    for s in ("1.00", "40 and 168 mm/s", "137 to 168 mm/s", "88 mm/s", "1.95",
-              "about 9 dE00", "shorter patches are at greater risk", "profile built from",
-              "nothing will warn", "until you set it back to 1.00", "132 mm/s",
-              "14 mm and longer", "up to one and a half times", "measurement report",
-              "app log", "clean border"):
+    # 4.3.54 release integration: the risk paragraph made true with the row placement check
+    # in place (what it catches, what it cannot, "in our tests"), and the help shorter
+    for s in ("1.00", "40 and 168 mm/s", "137 to 168 mm/s", "88 mm/s", "132 mm/s",
+              "14 mm and longer", "checks every row read as a strip against its own readings",
+              "offers to read it again at 1.00", "In our tests", "about 0.5 dE00",
+              "one good row in five was refused", "a whole patch off",
+              "UV pass of a dual row is placed by timing alone", "one table's recordings",
+              "compare a fast measurement once with one at 1.00",
+              "until you set it back to 1.00", "measurement file and the app log",
+              "Rows read patch by patch are not affected"):
         assert s in h, s
+    for s in ("nothing will warn", "may not notice"):     # no longer true with the check
+        assert s not in h, s
+    assert len(h) < 1500
