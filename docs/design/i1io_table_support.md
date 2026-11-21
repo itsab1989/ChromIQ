@@ -1761,3 +1761,13 @@ Tests: `tests/i1io_table/test_4354_row_placement_check.py`, `test_4354_row_place
   first; the rows already read keep their values). There is no way to aim again in the middle
   of a measurement; the page names the one that exists (end it, start again, Continue). (4) The
   second pass of a dual row (UV, M1 / M2) is not checked by it, as before.
+* **Together with "Row speed" (the 4.3.54 release integration, 2026-11-21).** The order in one
+  strip row: the table's own speed answer first (a row the table ran at another speed than was
+  sent fails before its readings are cut), the placement check second. A row read at a factor
+  other than 1.00 that the check refuses is read again (when the person reads it again) at
+  ChromIQ's own speed, factor 1.00, as after a refused speed answer, so a fast setting cannot be
+  refused again and again at the same speed; a row read at 1.00 and refused is read again at the
+  same speed, as above. The mark `CHROMIQ_ROW_SPEED` counts only the rows the measurement uses: a
+  row read again at 1.00 counts at 1.00, so a sitting whose fast rows were all refused and read
+  again at 1.00 has no mark, and one with any accepted row read at another factor has it. Tests:
+  `tests/i1io_table/test_4354_speed_and_placement_together.py`.

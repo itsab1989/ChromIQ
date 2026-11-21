@@ -4832,7 +4832,14 @@ class TableJob:
 
     def row_speed_mark(self) -> "str | None":
         """The header mark of this sitting, or None when every strip row was read at factor
-        1.00 (4.3.53's own speeds): "factor F: N of M rows faster than the safe border"."""
+        1.00 (4.3.53's own speeds): "factor F: N of M rows faster than the safe border".
+        Counted over the rows whose readings the measurement USES (the accepted strip rows of
+        this sitting, row_speed_marks, written only when a row is read): F = every factor other
+        than 1.00 at which an accepted row was read, M = the accepted strip rows, N = those of
+        them read with a border narrower than the safe one. A row refused at the factor's speed
+        and read again at ChromIQ's own (_own_speed_after) counts at 1.00, because its values
+        come from that reading; so a sitting whose fast rows were all refused and read again at
+        1.00 carries no mark, and one with ANY accepted row read at another factor does."""
         marks = self.row_speed_marks.values()
         factors = sorted({f for f, _fast in marks if abs(f - 1.0) > 1e-9})
         if not factors:
@@ -4855,13 +4862,23 @@ class TableJob:
         """4.3.54 (review M1, S2, "Row speed"): a strip row the table ran at another speed than
         was sent, or refused at a speed other than ChromIQ's own, is read again (when the person
         reads it again) at ChromIQ's own speed for its patches, factor 1.00, never again at the
-        factor's; the detailed table log says so. Anything else: the plan as it was."""
+        factor's; the detailed table log says so. Anything else: the plan as it was.
+        4.3.54 release integration (the two branches together): a row the ROW PLACEMENT CHECK
+        refused (stp.PLACEMENT_REASON) that was read at a factor other than 1.00 takes the same
+        way, so the person's fast setting cannot refuse the same row again and again at the same
+        speed; a row read at 1.00 (or already re-planned at 1.00) and refused by the check keeps
+        the check's own path unchanged (the same plan, read again as the person answers)."""
         if plan.kind != "strip" or self.dual is not None or rec.get("why") not in (
-                "strip_speed_not_as_sent", "strip_move_refused_by_the_table"):
+                "strip_speed_not_as_sent", "strip_move_refused_by_the_table",
+                stp.PLACEMENT_REASON):
             return plan
         note = getattr(getattr(plan, "scan", None), "speed_note", None) or {}
         if rec["why"] == "strip_move_refused_by_the_table" and not note:
             return plan                     # ChromIQ's own speed was refused: nothing to change
+        if rec["why"] == stp.PLACEMENT_REASON and (
+                not note or note.get("refused")
+                or abs(float(note.get("factor", 1.0)) - 1.0) <= 1e-9):
+            return plan                     # read at ChromIQ's own speed: the check's own path
         try:
             own = sp.plan_row(self.sheet, self.page, plan.index, self.alignment,
                               self._table.front_y, cap_y=self._cap(), kind="strip",
