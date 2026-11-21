@@ -136,6 +136,14 @@ def make_gate(table):
     def gate(line: bytes):
         phase = getattr(table, "dual_phase", None)
         cid, motion, label = classify(line) if phase is None else classify(line, phase)
+        # 4.3.54 (review S3): a speed inside the frame that was never recorded only in a sitting
+        # whose person set "Row speed" to something other than 1.00 (the job sets
+        # ``row_speed_frame``); otherwise only the recorded speeds, as up to 4.3.53
+        if cid == "m2" and phase is None and not getattr(table, "row_speed_frame", False):
+            _c2, _x2, _y2, v2 = geo.decode_xyv(line)
+            if v2 not in geo.RECORDED_M2_SPEEDS:
+                raise tbl.ForbiddenLine(f"m2 at speed {v2}: not a recorded scan speed, and "
+                                        "this sitting reads at ChromIQ's own speeds")
         if label in ("computed m0", "scan move"):
             start = table.position_now
             if start is None:

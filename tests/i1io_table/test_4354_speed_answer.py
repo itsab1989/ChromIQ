@@ -119,3 +119,68 @@ def test_a_saved_table_measurement_carries_the_row_speed_mark(qtbot, monkeypatch
         win.close()
     finally:
         settings.set(W.ROW_SPEED_KEY, 1.0)
+
+
+# ---- the review's S3: the frame only in a sitting whose factor is not 1.00 -----------------------
+
+def test_the_gate_takes_unrecorded_speeds_only_when_the_factor_is_not_one():
+    from types import SimpleNamespace
+    from workflow.i1io.table import geometry as geo
+    from workflow.i1io.table import lines as cl
+    from workflow.i1io.table import session_table as tbl
+    line = geo.m2_line(0, 2000, 133)
+    for frame, ok in ((False, False), (True, True)):
+        t = SimpleNamespace(dual_phase=None, position_now=(0, 2000), front_y=None, creep=False,
+                            row_speed_frame=frame)
+        gate = cl.make_gate(t)
+        if ok:
+            try:
+                gate(line)
+            except tbl.ForbiddenLine as exc:
+                assert "recorded scan speed" not in str(exc), exc
+        else:
+            with pytest.raises(tbl.ForbiddenLine, match="ChromIQ's own speeds"):
+                gate(line)
+    # a recorded speed passes this check in both
+    t = SimpleNamespace(dual_phase=None, position_now=(0, 2000), front_y=None, creep=False,
+                        row_speed_frame=False)
+    try:
+        cl.make_gate(t)(geo.m2_line(0, 2000, 88))
+    except tbl.ForbiddenLine as exc:
+        assert "recorded scan speed" not in str(exc), exc
+
+
+def test_the_job_opens_the_frame_only_for_a_factor_not_one():
+    import inspect
+    from workflow.i1io.table import job as J
+    assert "d.row_speed_frame = abs(float(self.row_speed_factor) - 1.0) > 1e-9" in \
+        inspect.getsource(J.TableJob)
+
+
+# ---- the review's S6: two guards that a planted fault did not turn red --------------------------
+
+def test_the_window_writes_the_table_row_speed_line_into_the_app_log(qapp, caplog):
+    import logging
+    from types import SimpleNamespace
+    from ui import i1io_table_window as W
+    fake = SimpleNamespace(_live=None)
+    ev = {"event": "strip_move", "row": 3, "speed": 168, "factor": 1.95, "edge_mm": 1.07,
+          "speed_line": "speed 168 mm/s (factor 1.95 on ChromIQ's own 88 mm/s; wanted 168), "
+                        "border 1.07 mm; read faster than the safe border allows"}
+    with caplog.at_level(logging.INFO):
+        W.TableMeasureWindow._live_event(fake, ev)
+    lines = [r.getMessage() for r in caplog.records if "table row speed" in r.getMessage()]
+    assert len(lines) == 1 and "factor=1.95" in lines[0] and "edge_mm=1.07" in lines[0]
+    assert "read faster than the safe border allows" in lines[0]
+
+
+def test_the_table_start_takes_minus_f_out_when_the_rule_reads_a_single_scan():
+    """Review S6: the predicate is tested in test_4354_dual_mode_on_the_table; this pins that the
+    table's START uses it on the reader's arguments."""
+    import inspect
+    from ui.tabs.tab_measure import TabMeasure
+    src = inspect.getsource(TabMeasure)
+    assert ("if table_dual is not None or self._table_row_is_choice_only():\n"
+            "            # the dual scan records the filter row's choice") in src
+    i = src.index("if table_dual is not None or self._table_row_is_choice_only():")
+    assert "args = self._args_without_filter(args)" in src[i:i + 400]

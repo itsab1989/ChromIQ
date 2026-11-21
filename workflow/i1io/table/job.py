@@ -1907,6 +1907,8 @@ class TableJob:
         d.front_y = None
         d.creep = False
         d.c_gate = cl.make_gate(d)
+        # 4.3.54 (review S3): unrecorded speeds inside the frame only when "Row speed" is not 1.00
+        d.row_speed_frame = abs(float(self.row_speed_factor) - 1.0) > 1e-9
         #: the dual row's phase ("lamp" / "uv") while it reads that pass; None otherwise
         d.dual_phase = None
         d.c_caps = (self.caps.lines, self.caps.moves)
