@@ -5,7 +5,7 @@ selectable in a combobox as part of this option one should be able to choose whe
 use the dual scan when choosing another measurement condition then m0. so choosing m0 would
 only do the regular scan and m1 or m2 would do the 2 pass dual scan and save all conditions."
 
-Pinned here (docs/design/i1pro2_dual_scan.md section 15):
+Pinned here (docs/design/i1pro2_dual_scan.md section 16):
 
 * "always": every strip twice, as 4.3.53 (the plan is 4.3.53's, argument for argument);
 * "m1_m2": M0 chosen = the ordinary single scan (no --dual-*, no -F n), M1 / M2 chosen =

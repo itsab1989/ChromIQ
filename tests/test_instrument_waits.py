@@ -274,7 +274,7 @@ def test_the_helper_says_the_waits_only_when_it_was_given_any():
     assert h.count('"--lamp-off-ms"') == 1 and "i1pro_cq_lamp_off_ms = cq_lamp_off_set_ms;" in h
     s = h.index("i1pro2_cq_lights_blue_quiet_set_ms = cq_lights_blue_quiet_set_ms;")
     assert s < h.index("if (!(cq_lights_gen == 3 ? i1pro3_cq_lights_begin(it)", s)
-    assert '\\"instrument_waits\\"]' in h
+    assert '\\"instrument_waits\\"' in h      # 4.3.54: i1pro2_dual_fresh_start follows it
 
 
 def test_the_bundled_helper_takes_the_waits():
@@ -282,7 +282,7 @@ def test_the_bundled_helper_takes_the_waits():
     if not exe.is_file():
         pytest.skip("no bundled helper in this checkout")
     data = exe.read_bytes()
-    assert b"chromiq-chartread 2026-11-20e " in data and b"+instrument-waits" in data
+    assert b"chromiq-chartread 2026-11-21a " in data and b"+instrument-waits" in data
     for s in (b"--lamp-off-ms", b"--lights-blue-quiet-ms", b"--lights-blue-after-ms",
               b"instrument_waits"):
         assert s in data, s

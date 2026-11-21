@@ -232,12 +232,13 @@ def test_only_the_switch_reaches_the_new_code():
     # 2026-11-18c: and its device side (step 2); 2026-11-19d: conditions_kept
     # (4.3.49, the record outlives an end; nothing for the table); 2026-11-20a:
     # lights_quiet and i1pro2_dual_blue (4.3.52, the lights Beta; nothing for the table);
-    # 2026-11-20d: instrument_waits (4.3.53; the table passes none)
+    # 2026-11-20d: instrument_waits (4.3.53; the table passes none); 2026-11-21a:
+    # i1pro2_dual_fresh_start (4.3.54, issue 217; nothing for the table)
     assert caps and base and caps == [base[0].replace(
         '\\"margin_tolerance\\"]',
         '\\"margin_tolerance\\",\\"i1pro2_dual_conditions\\",\\"i1pro2_dual_scan\\",'
         '\\"i1io_table_dual\\",\\"conditions_kept\\",\\"lights_quiet\\",'
-        '\\"i1pro2_dual_blue\\",\\"instrument_waits\\"]')]
+        '\\"i1pro2_dual_blue\\",\\"instrument_waits\\",\\"i1pro2_dual_fresh_start\\"]')]
 
 
 def test_the_build_string():
@@ -267,13 +268,15 @@ def test_the_build_string():
     # 2026-11-20d = 20c + the waits as values passed by the app (4.3.53; for the table
     # only ArgyllCMS's lamp wait, at its default 1500 ms unless changed);
     # 2026-11-20e = 20d + the dual scan's blue on the side of the second pass (4.3.53, the
-    # tester Nelson; nothing for the table), last
-    assert "chromiq-chartread 2026-11-20e " in h
+    # tester Nelson; nothing for the table);
+    # 2026-11-21a = 20e + a new dual measurement is not refused because of the file it
+    # replaces (4.3.54, issue 217; nothing for the table), last
+    assert "chromiq-chartread 2026-11-21a " in h
     assert ("+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule"
             "+i1pro2-dual-device+i1pro2-dual-safety+i1io-table-dual+i1io-table-dual-fix2"
             "+i1io-table-dual-calreset+i1pro2-dual-gaps+conditions-kept+lights-quiet"
             "+i1pro2-dual-blue+blue-own-quiet+blue-quiet-return-only+instrument-waits"
-            "+blue-side\"") in h
+            "+blue-side+i1pro2-dual-fresh-start\"") in h
 
 
 def _base_tree(tmp: Path) -> Path:

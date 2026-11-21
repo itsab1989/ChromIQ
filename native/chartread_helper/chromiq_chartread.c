@@ -1627,7 +1627,10 @@ static void cq_cond_for_session(inst *it, int rmode, int emis, int trans,
 			why = "filter";
 		else if (n != 2 || cq_sctx.cols == NULL || cq_sctx.npat <= 0)
 			why = "files";
-		else if (cq_dual_main_kind(cq_sctx.outname) == 1)
+		/* 4.3.54 (issue 217): only a session that CONTINUES the main file (-r) may
+		 * be refused because of it. Without -r chartread never reads that file and
+		 * writes a new one over it, so its single scans are not being continued. */
+		else if (cq_resuming && cq_dual_main_kind(cq_sctx.outname) == 1)
 			why = "mixed";		/* readings of single scans in the main file */
 		else if (cq_replay_active()) {
 			if (!cq_replay_dual_ready())
@@ -1636,7 +1639,9 @@ static void cq_cond_for_session(inst *it, int rmode, int emis, int trans,
 			why = cq_dd_start(it);	/* step 2: a real i1Pro 2 */
 		if (why != NULL && strcmp(why, "mode") != 0 && strcmp(why, "filter") != 0
 		 && strcmp(why, "files") != 0 && strcmp(why, "mixed") != 0
-		 && cq_dual_main_kind(cq_sctx.outname) == 2) {
+		 && cq_resuming && cq_dual_main_kind(cq_sctx.outname) == 2) {
+			/* 4.3.54 (issue 217): "continued" means -r; a new measurement over
+			 * an old dual file is a plain refusal */
 			/* 4.3.49: a dual measurement continued where this sitting cannot
 			 * read the UV pass (no UV light, high resolution, ...): its
 			 * record is kept and every strip read now is M0 only. Nothing
@@ -6860,7 +6865,7 @@ int main(int argc, char *argv[]) {
 				 * before it relies on it. One JSON line, then exit 0.
 				 * "legacy_labels": reads sheets ChromIQ's layout engine
 				 * printed with its pre-4.3.3-beta.7 labels as printed. */
-				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"turn\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\",\"lights_signals\",\"lights_during_reading\",\"ruler_check\",\"i1pro3_conditions\",\"margin_tolerance\",\"i1pro2_dual_conditions\",\"i1pro2_dual_scan\",\"i1io_table_dual\",\"conditions_kept\",\"lights_quiet\",\"i1pro2_dual_blue\",\"instrument_waits\"],\"build\":\"%s\"}\n",
+				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"turn\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\",\"lights_signals\",\"lights_during_reading\",\"ruler_check\",\"i1pro3_conditions\",\"margin_tolerance\",\"i1pro2_dual_conditions\",\"i1pro2_dual_scan\",\"i1io_table_dual\",\"conditions_kept\",\"lights_quiet\",\"i1pro2_dual_blue\",\"instrument_waits\",\"i1pro2_dual_fresh_start\"],\"build\":\"%s\"}\n",
 				       cq_helper_build_string());
 				fflush(stdout);
 				return 0;

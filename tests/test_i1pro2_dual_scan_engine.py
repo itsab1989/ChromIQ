@@ -267,6 +267,64 @@ def test_a_dual_session_does_not_continue_single_scan_readings(tmp_path, monkeyp
 
 
 @needs_helper
+def test_a_new_dual_measurement_is_not_refused_by_the_file_it_replaces(tmp_path, monkeypatch):
+    """Issue 217 (4.3.54): a NEW dual measurement (no -r) in a run whose main file holds
+    single-scan readings. chartread does not read that file without -r and writes a new one
+    over it, so nothing single-scan is continued: the dual scan runs and M0, M1 and M2 are
+    written. (The helper said "mixed" here up to 4.3.53, because its check read the file on
+    disk without asking whether the session resumes.)"""
+    monkeypatch.setenv("CHROMIQ_REPLAY_INSTRUMENT", "i1pro2")
+    base, rp, truth, _ = _chart(tmp_path)
+    cdir = tmp_path / "conditions"
+    cdir.mkdir()
+    with ReplaySession(base, rp, extra_args=["-S"]) as s:      # a single-scan session
+        _swipe(s)
+        _done(s, unread=True)
+    main = base.with_suffix(".ti3")
+    assert storage.read_dual_record(main).dual is False and _spectra(main)
+    with ReplaySession(base, rp, extra_args=_dual_args(cdir)) as s:   # NEW: no -r
+        _swipe(s)
+        _swipe(s, reversed=True)
+        _done(s)
+    ev = [e for e in s.events if e.get("event") == "conditions"]
+    assert ev and ev[0]["active"] is True and ev[0]["dual"] is True, ev
+    _check(base, cdir, truth)
+
+
+@needs_helper
+def test_a_fresh_start_over_an_old_dual_file_is_a_plain_refusal(tmp_path, monkeypatch):
+    """Issue 217's other half (chromiq_chartread.c, the "kept" rule of 4.3.49): only a
+    CONTINUED dual measurement keeps its record when the UV pass cannot be read. A new
+    measurement over an old dual file that cannot have the dual scan is a plain refusal: no
+    "kept", nothing of the old file's record carried into the new one."""
+    monkeypatch.setenv("CHROMIQ_REPLAY_INSTRUMENT", "i1pro2")
+    base, rp, truth, _ = _chart(tmp_path, xyz=True)
+    cdir = tmp_path / "conditions"
+    cdir.mkdir()
+    with ReplaySession(base, rp, extra_args=_dual_args(cdir)) as s:
+        _swipe(s)
+        _done(s, unread=True)
+    main = base.with_suffix(".ti3")
+    assert storage.read_dual_record(main).dual is True
+    # the same chart read by an instrument the dual scan cannot use: the replay has no lamp /
+    # UV pass data, only plain readings (the helper's "dual_not_available")
+    plain = tmp_path / "plain.txt"
+    keep = []
+    for ln in rp.read_text(encoding="utf-8").splitlines():
+        if ln.split(" ", 1)[0] in ("DUALCAL", "W", "T", "E", "KA", "KD", "CLOCKS", "UV",
+                                   "LAMP"):
+            continue
+        keep.append(ln)
+    plain.write_text("\n".join(keep) + "\n", encoding="utf-8")
+    with ReplaySession(base, plain, extra_args=_dual_args(cdir)) as s:   # NEW: no -r
+        _swipe(s)
+        _done(s, unread=True)
+    ev = [e for e in s.events if e.get("event") == "conditions"]
+    assert ev and ev[0]["active"] is False and "kept" not in ev[0], ev
+    assert storage.read_dual_record(main).dual is False, "a plain single-scan file now"
+
+
+@needs_helper
 def test_no_uv_tile_in_the_calibration_ends_them_with_the_reason(tmp_path, monkeypatch):
     monkeypatch.setenv("CHROMIQ_REPLAY_INSTRUMENT", "i1pro2")
     base, rp, truth, _ = _chart(tmp_path, uv_tile=False)
