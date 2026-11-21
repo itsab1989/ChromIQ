@@ -109,11 +109,24 @@ def test_nothing_else_is_ever_sent(trace):
         assert forbidden not in src, forbidden
 
 
+#: The most the dark trigger may lag the fire (wall clock, ms). 2026-11-21 (4.3.55 gate): the limit
+#: was 2 ms, and on a fully loaded machine the trigger thread's hand-off alone took 3 to 4 ms
+#: (failed so on 17, 18, 20 and 21 Nov; 0 ms when idle). What this guards is a WAIT in the fire, and
+#: measured with each fault planted in a scratch copy of the harness (2026-11-21_release_4355/
+#: fire_probe), the smallest one costs 12 to 15 ms: the read sync lost, so ArgyllCMS's trigger sleeps
+#: its TRIG_DELAY (10 ms, i1pro_imp.c) first; a fixed lights-off spacing wait costs about 690 ms.
+#: (ArgyllCMS's lamp cooldown taken in the fire costs nothing here, because READY already holds the
+#: spacing; the source check in test_nothing_else_is_ever_sent covers sleeps in the scan code.)
+#: So the limit sits just below the shortest sleep that fault can take: every faulty fire is at
+#: least 10 ms and fails, and scheduler noise has more than twice the margin it ever needed.
+FIRE_DARK_LIMIT_MS = 9
+
+
 def test_the_fire_does_not_wait(trace):
     for ln in trace.splitlines():
         if " FIRE rc=0 " in ln:
             f = dict(kv.split("=") for kv in ln.split()[2:] if "=" in kv)
-            assert int(f["ms_dark"]) <= 2          # the dark goes out at once
+            assert int(f["ms_dark"]) <= FIRE_DARK_LIMIT_MS   # the dark goes out at once
             assert int(f["ms_lit"]) <= 20          # the lamp right after its data
 
 
