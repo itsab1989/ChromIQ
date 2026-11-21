@@ -105,14 +105,15 @@ def test_the_start_up_arm_page_says_the_i1profiler_limit_once(qtbot, monkeypatch
     from tests.i1io_table.window_sim import WindowSim
     from workflow import measurement_messages as M
     monkeypatch.setattr(J, "START_UP_ASKS_ABOUT_THE_ARM", True)
-    assert M.M_I1IO_DRIVE_START_UP_ARM.needs_old_i1profiler
+    # 2026-11-21: the page no longer names i1Profiler ("Not now" instead), so no notice
+    assert not M.M_I1IO_DRIVE_START_UP_ARM.needs_old_i1profiler
     i18n.set_language(code)
     try:
         win, sim, run, p, saved, finished = _unguided(qtbot, monkeypatch, tmp_path, settings,
                                                       sim=WindowSim(cold=True))
         assert p.page() == "start_up_arm"
         notice = M.M_I1IO_DRIVE_I1PROFILER_LIMIT.render()[1]
-        assert win._text.text().count(notice) == 1
+        assert win._text.text().count(notice) == 0 and "i1Profiler 3.8" not in win._text.text()
     finally:
         i18n.set_language("en")
 

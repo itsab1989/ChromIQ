@@ -471,7 +471,9 @@ def test_a_free_arm_outside_the_old_box_is_homed_with_the_same_lines_as_inside()
     from workflow.i1io.table import geometry as geo
     inside, _j, s1 = _home_lines((0, 2000))
     assert geo.AREA_RAW.contains((0, 2000))
-    for where in ((-1700, 3000), (0, 3000), (2400, 2500)):
+    # 2026-11-21: (2400, 2500) is on the far side, where i1Profiler first drives to the home
+    # line (N3): test_4355_table_without_i1profiler.py
+    for where in ((-1700, 3000), (0, 3000)):
         assert not geo.AREA_RAW.contains(where)
         out, job, sim = _home_lines(where)
         assert [ln[:3] for ln in out] == [ln[:3] for ln in inside], (where, out)
@@ -480,14 +482,19 @@ def test_a_free_arm_outside_the_old_box_is_homed_with_the_same_lines_as_inside()
 
 
 def test_a_free_arm_in_the_back_strip_is_still_refused_with_nothing_sent():
+    """2026-11-21: no longer refused: i1Profiler's own way out of the back strip (R1: straight
+    ahead to Y 1202, across to the home line, both at 200), the free arm read twice first."""
     from workflow.i1io.table import geometry as geo
     job, sim, p = _free_arm_job()
     sim.hand_to(1500, geo.AREA_RAW.ymin - 60)
     assert J.in_back_strip(tuple(sim.pos))
     n = len(sim.received)
     r = p.drive(job.home())
-    assert (r.kind, r.reason) == (J.Kind.REFUSED, "arm_in_the_back_strip")
-    assert not any(ln[1:3] in ("m0", "m1", "m2", "i0", "i1") for ln in sim.received[n:])
+    assert r.ok, (r.kind, r.reason)
+    assert sim.detour_moves[-2:] == [((1500.0, 413.0), (1500, 1202)),
+                                     ((1500.0, 1202.0), (1102, 1202))] or \
+        [t for _f, t in sim.detour_moves[-2:]] == [(1500, 1202), (1102, 1202)]
+    assert job.at_rest() and sim.violations == []
 
 
 def test_a_homing_the_table_refuses_ends_on_the_power_switch_page_and_is_in_the_log():
@@ -505,10 +512,10 @@ def test_a_homing_the_table_refuses_ends_on_the_power_switch_page_and_is_in_the_
     sent = sim.received[n:]
     assert sent[-1] == ";i12b" or ";i12b" in sent
     assert sent.index(";i12b") == len(sent) - 1          # nothing more after the refused homing
-    assert r.way_back in (J.WayBack.OPEN_I1PROFILER_ONCE, J.WayBack.SWITCH_OFF_UNFINISHED)
-    body = (M.M_I1IO_DRIVE_STOPPED_END_FIRST if r.way_back == J.WayBack.OPEN_I1PROFILER_ONCE
+    assert r.way_back in (J.WayBack.END_THEN_START_AGAIN, J.WayBack.SWITCH_OFF_UNFINISHED)
+    body = (M.M_I1IO_DRIVE_STOPPED_END_FIRST if r.way_back == J.WayBack.END_THEN_START_AGAIN
             else M.M_I1IO_DRIVE_SWITCH_OFF).body
-    assert body.index("power switch") < body.index("i1Profiler 3.8.6")
+    assert "power switch" in body and "i1Profiler" not in body
     log = "\n".join(job.diag.lines)
     assert "i12b" in log and ("status 3" in log or "i13" in log), log[-1500:]
     assert Wn is not None

@@ -185,17 +185,18 @@ def test_t3_cold_table_arm_out_sends_no_movement(qtbot, monkeypatch, tmp_path, s
     win, sim, run, p, saved, finished = _unguided(
         qtbot, monkeypatch, tmp_path, settings, sim=sim)
     assert p.page() == "start_up_arm"
-    assert p.labels() == [tr("Let i1Profiler start it"), tr("No, the arm is out over the table"),
+    assert p.labels() == [tr("Not now"), tr("No, the arm is out over the table"),
                           tr("Yes. Start the table")] or set(p.labels()) == {
-        tr("Let i1Profiler start it"), tr("No, the arm is out over the table"),
+        tr("Not now"), tr("No, the arm is out over the table"),
         tr("Yes. Start the table")}
+    # 2026-11-21 fix round (review m-1): "No, it is out" starts the table all the same (the
+    # start-up with the arm moved off its rest is recorded: N4); the page says so truthfully
+    assert "starts the table all the same" in win._text.text()
     p.press("No, the arm is out over the table")
-    assert _moves(sim.sim.received) == 0
-    assert p.page() == "stopped"
-    assert W.reason_text("arm_out_start_up_not_recorded") in win._text.text()
+    p.idle()
+    assert ";i02c" in sim.sim.received
     job = sim.jobs[0]
-    assert job.opened_with_arm_out and job.state().sending_closed
-    assert job.start_up().kind == J.Kind.REFUSED and _moves(sim.sim.received) == 0
+    assert job.opened_with_arm_out
 
 
 # ---- T4: Preferences, the first page's tick and the done page share ONE key ---------------------

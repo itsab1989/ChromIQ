@@ -50,11 +50,14 @@ def test_on_at_the_opening_keeps_the_earlier_measurement_sentence(tmp_path):
     job, sim, helper, run, p = job_for(tmp_path, {J.Confirm.READY_TO_OPEN: "arm out"},
                                        real_table=False)
     sim.pos, sim.mode, sim.free_arm = list(OUT_HELD), "01", True
+    # 2026-11-21 fix round (B-1): a0 130000 with f4 01 (the two answers disagree) is no longer a
+    # refusal: f4 decides, the mode is on, the repair is offered
+    sim.a0_aiming = "130000"
     r = p.drive(job.open())
-    assert r.kind == J.Kind.STOPPED and r.reason == "mode_flag_unexpected"
-    assert (r.detail["mode_answer"], r.detail["mode_expected"], r.detail["at_opening"]) == \
-        ("01", "00", True)
-    _only(W.reason_text(r.reason, r.detail), STILL_ON)
+    assert r.ok and r.detail["aiming_mode_left_on"] and job.start_case["a0_f4_disagree"]
+    # the reason sentence for the mode found on at an opening is still the true one
+    _only(W.reason_text("mode_flag_unexpected", {"mode_answer": "01", "mode_expected": "00",
+                                                 "at_opening": True}), STILL_ON)
 
 
 def test_on_where_the_motors_should_hold_says_so_and_not_earlier_measurement(tmp_path):

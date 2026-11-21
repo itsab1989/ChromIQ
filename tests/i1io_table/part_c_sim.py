@@ -51,6 +51,11 @@ C_SPEEDS_DUAL = (132,)
 #: left = 2507 (where the table's m1 stops the arm); the front is physical since 4.3.49
 #: (FRONT_END_Y below; the 3109 is kept for the record only)
 C_TARGET_BOX = (-32768, 2507, 483, 3109)
+#: 2026-11-21, the vendor's way home (the simulator's own copy of R1 and N3): speed 200, the two
+#: points on the home line it drives to, and the line out of the back strip
+C_DETOUR_SPEED = 200
+C_DETOUR_TARGETS = ((1102, 1498), (1102, 1202))
+C_BACK_STRIP_OUT_Y = 1202
 C_SWEEP_BOX = (-1434, 1766, 473, 3114)         # the swept rectangle from where the arm is
 #                                                (the cap plus the 5-unit arrival tolerance)
 #: fix 2, the simulator's own copy of the front-zone rule: in front of the proven zone (targets
@@ -179,6 +184,8 @@ class CSimTable(SimTable):
         self.front_seen = float(max(C_PROVEN_Y[0], motors_have_been_to or 0))
         #: the dual row: this sitting may read dual rows (m2 at 132, d1 210 in its place)
         self.dual = False
+        #: 2026-11-21: every move of the vendor's way home: (from, to)
+        self.detour_moves: "list[tuple]" = []
         self.last_scan_end = None          # where the last scan move ended (the UV pass's start)
         self.zero_m0_at = None             # the received index of the last zero-length m0
 
@@ -236,7 +243,19 @@ class CSimTable(SimTable):
                                    "end of a scan move")
         if cid in ("m0", "m2") and line not in SPOT_XY and line not in (M1498, M2507):
             x, y, v = _s16(args[0:4]), _s16(args[4:8]), int(args[8:12], 16)
-            if cid == "m0" and v != 300:
+            # 2026-11-21, the simulator's own copy of the vendor's way home: m0 at 200 only as
+            # recorded (R1: from the back strip straight ahead to Y 1202, then to (1102, 1202);
+            # N3: to (1102, 1498)), never from the back strip but straight ahead
+            detour = cid == "m0" and v == C_DETOUR_SPEED
+            if detour:
+                in_strip = here[1] < C_SWEEP_BOX[2] and not 1090 <= here[0] <= 1115
+                ok = ((in_strip and abs(x - here[0]) <= 1 and y == C_BACK_STRIP_OUT_Y) or
+                      (not in_strip and (x, y) in C_DETOUR_TARGETS))
+                if not ok:
+                    raise SimViolation(f"a move at 200 from {here} to ({x}, {y}): not the "
+                                       "vendor's way home")
+                self.detour_moves.append((tuple(here), (x, y)))
+            if cid == "m0" and v != 300 and not detour:
                 raise SimViolation(f"m0 at {v}")
             # 4.3.54 ("Row speed"): a single row may run at any whole speed inside the frame of
             # the recorded ones (40..168), never at the dual row's 132
@@ -268,7 +287,7 @@ class CSimTable(SimTable):
             # 4.3.49 (Basti's ruling of 19 Nov 2026): the arm stands where the simulated table
             # has it, so the way from there is not judged against where recordings happened to
             # read it; a computed move from the back strip at the resting place stays a violation
-            if here[1] < C_SWEEP_BOX[2]:
+            if here[1] < C_SWEEP_BOX[2] and not detour:
                 raise SimViolation(f"{cid} from {here} to ({x}, {y}): from the back strip")
             known = max(C_PROVEN_Y[0], self.front_seen)
             # 4.3.49: the front-zone oracle judges the target (the start is where the arm is)

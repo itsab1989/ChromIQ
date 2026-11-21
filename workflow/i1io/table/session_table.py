@@ -186,7 +186,10 @@ RECORDED_AT = {
                 "S1 22.919, R2 361.579 before f0",
     "arm_mode": "R2 34.940-34.985 and 378.539-378.585 (00); R2 424.993/425.006 before the "
                 "way out (00); S2 3.909-3.999 around f3 (00); S2 4.033/4.048 after f1 (01); "
-                "R2 256.592-256.638 before the cancel (01)",
+                "R2 256.592-256.638 before the cancel (01); 2026-11-21: 01 x4 at the opening of a "
+                "table left in its aiming mode (the table owner's recording N1 of 21 Nov 2026, "
+                "1.272-1.330, a0 530000; the owner's start-up capture of 19 Nov 2026, recording "
+                "A 4.883-4.938, a0 511800 after i0)",
     "position": "R2 35.017, 378.617 before the homing; R2 425.026 before the way out; R2 "
                 "427.445 at (1000, 1500); R2 261.628 on the free arm before the cancel",
     "home":     "at rest from Y 14..47 (S1 4.796; R2 35.033, 134.274, 268.653, 378.632, "
@@ -241,7 +244,11 @@ RECORDED_AT = {
                 "4.693-5.036; and once sent by ChromIQ's tester 0.6.0 on the volunteer's table "
                 "(17 Nov 2026, S1 l.58-92): `:!i00C`, `:$i00D9` after 3.088 s, the same nine "
                 "lines after it, p0 (1102, 29), i1 0.288 s; the arm travelled and came back, "
-                "nothing wrong reported",
+                "nothing wrong reported; 2026-11-21: also on a table that answered a0 = 511800 "
+                "(just switched on, aiming mode left on): the owner's start-up capture of 19 Nov "
+                "2026, recording A 1.531 (3.327 s), then the same nine lines with f4 01; and the "
+                "table owner's recording N4 of 21 Nov 2026 (111800, 4.863 s and 5.295 s, the arm "
+                "moved off its rest by hand before: at rest after it)",
 }
 
 #: Every line except the start-up (0.6.0): the start-up passes only through COLD_STEP
@@ -281,6 +288,42 @@ F4_VALUES = ("00", "01")
 MEMORY_A_START = "6801000056312E31"
 A0_COLD = "111800"
 A0_WARM = "130000"
+#: 2026-11-21 (the owner's rule of that day: "driving the table should work without involving
+#: i1profiler"): the answers a0 gives when the table is still in its AIMING MODE (the
+#: hand-alignment mode, f1 sent and no f0): bit 0x40 of its first byte, which survives a power
+#: cycle. Each was seen on a real i1iO 2 with f4 answering 01 where it was read:
+#:   511800  just switched on, mode on: the owner's start-up capture of 19 Nov 2026 (recording A,
+#:           1.531, after a power cycle; i1Profiler then sent i0 and f4 answered 01 four times),
+#:           and the table owner's ChromIQ 4.3.50 log of 20 Nov 09:15 ("switched off and on")
+#:   530000  started, mode on: the table owner's i1Profiler recording of 21 Nov 2026 18:31 (N1,
+#:           1.234, f4 01 four times; i1Profiler homed the arm and ended the mode at its quit),
+#:           and the volunteer's table on 19 Nov 2026 (two openings)
+#:   540000  started, mode on: the table owner's ChromIQ 4.3.50 log of 20 Nov 09:53, the arm left
+#:           held out over the sheet at (-1193, 3253) with the mode on. NEVER seen with
+#:           i1Profiler; its low digit (4 where 530000 has 3) is not understood. Treated as
+#:           530000 (the bit that matters is the same), and logged as itself.
+A0_COLD_AIMING = "511800"
+A0_WARM_AIMING = "530000"
+A0_WARM_AIMING_OUT = "540000"
+#: a0 -> (the table's state, the aiming mode left on). Every other answer is a state no
+#: recording shows: nothing that moves is sent (the table's meaning is not known).
+A0_KNOWN = {A0_COLD: ("cold", False), A0_WARM: ("warm", False),
+            A0_COLD_AIMING: ("cold", True), A0_WARM_AIMING: ("warm", True),
+            A0_WARM_AIMING_OUT: ("warm", True)}
+
+
+#: 2026-11-21, last round (the coordinator, under the owner's rule): an a0 never seen that still
+#: ends in "1800", as both answers of a just-switched-on table do (111800 S1, 511800 recording A),
+#: is treated as just switched on: the recorded start-up is OFFERED (the person's choice, always
+#: asked). Every other unknown a0 stays a refusal: no recorded command goes into an unrecorded
+#: warm state.
+#: Last fixes (review): its first byte must end in 1 (11 and 51: just switched on), never 13 / 54
+#: (a started table): 131800 or 541800 are refused
+_A0_COLD_FAMILY = re.compile(r"[0-9A-F]11800")
+
+
+def a0_just_switched_on_family(a0: str) -> bool:
+    return bool(_A0_COLD_FAMILY.fullmatch(str(a0 or ""))) and str(a0) not in A0_KNOWN
 
 
 def _key_of(line: bytes) -> str:
@@ -364,9 +407,11 @@ def parse_done(line: str, key: str) -> Reply:
         raise ProtocolError(f"the table answered f4 with {data}; recorded are only 00 and 01")
     if key == "memory_a" and not data.startswith(MEMORY_A_START):
         raise ProtocolError("the table's memory block does not start as recorded")
-    if key == "a0" and data not in (A0_COLD, A0_WARM):
+    if key == "a0" and data not in A0_KNOWN and not a0_just_switched_on_family(data):
         raise ProtocolError(f"the table answered a0 with {data}; the recordings only show "
-                            f"{A0_COLD} (just switched on) and {A0_WARM} (started)")
+                            f"{A0_COLD} (just switched on), {A0_WARM} (started), and "
+                            f"{A0_COLD_AIMING} / {A0_WARM_AIMING} / {A0_WARM_AIMING_OUT} (the "
+                            "same with the aiming mode left on)")
     tile = stored_tile_values(data) if key == "memory_a" else None
     ident = None
     if key == "memory_a":
@@ -895,6 +940,29 @@ COLD_STEP = Step(
     "resting place, nothing wrong). In the recording it followed the table's answer at once; "
     "here it follows your typed yes.")
 
+#: 2026-11-21: the same start-up on a table just switched on with its AIMING MODE still on (a0
+#: 511800): the owner's start-up capture of 19 Nov 2026, recording A (decode_full_124449
+#: 1.531-5.274): i0 (3.327 s), s0, f4 x4 answering 01, s0, p0 (1102, 27), i1 (0.288 s), s0. The
+#: same ten lines as COLD_STEP in the same order; only the four mode answers differ (01). The
+#: job then ends the mode with i1Profiler's end-of-job tail (f0 f4 f4, see job.py).
+COLD_STEP_AIMING = Step(
+    COLD_STEP.key, COLD_STEP.title, COLD_STEP.needs, COLD_STEP.leaves,
+    (("start_up",), ("x", "status"), ("f4", "01"), ("f4", "01"), ("f4", "01"), ("f4", "01"))
+    + HOME_FIRST, COLD_STEP.risk, COLD_STEP.explain,
+    "Recorded once from i1Profiler on a table that answered 511800 (19 Nov 2026, recording A).")
+
+
+#: 2026-11-21 fix round (safety review B-1): the start-up as the JOB sends it (part C): the same ten
+#: lines in the same order (S1, recording A); the four mode answers are READ, not expected: they
+#: tell whether the aiming mode is on (01, recording A) or off (00, S1). The vendor never branches
+#: on them; the job then ends the mode with f0 f4 f4 p0 when either answer says it was left on.
+#: Four answers that differ among themselves are a state no recording shows (a doubt).
+COLD_STEP_JOB = Step(
+    COLD_STEP.key, COLD_STEP.title, COLD_STEP.needs, COLD_STEP.leaves,
+    (("start_up",), ("x", "status"), ("f4any",), ("f4any",), ("f4any",), ("f4any",))
+    + HOME_FIRST, COLD_STEP.risk, COLD_STEP.explain,
+    "The start-up of S1 (f4 00) and of recording A (f4 01); the answers are read, not expected.")
+
 
 def near_steps() -> "tuple[Step, ...]":
     return tuple(NEAR_STEP_DEFS[k] for k in OPTIONAL_NEAR_STEPS)
@@ -1132,8 +1200,25 @@ class Table:
         self.read_is_arrival = False
         #: (lines, movements) that homing adds to the caps, once
         self.homing_allowance = (0, 0)
+        # ---- 2026-11-21: the table without i1Profiler ----
+        #: the opening's a0 answer (one of A0_KNOWN), and whether it said that the aiming mode
+        #: was left on by an earlier ending (bit 0x40)
+        self.a0_answer: "str | None" = None
+        self.mode_left_on = False
+        #: 2026-11-21 fix round (B-1): a0's bit 0x40, the four f4 answers, and whether they disagree
+        self.a0_said_aiming = False
+        self.f4_answer: "str | None" = None
+        self.a0_f4_disagree = False
+        #: last round: the four mode answers differed (the repair is offered, asked); an a0 never
+        #: seen in the just-switched-on family (the start-up is offered, asked)
+        self.f4_mixed = False
+        self.a0_unknown = False
+        #: the vendor's way home (geometry.homing_detour): set ONLY while the job sends one of
+        #: its moves at the recorded detour speed ("out" or "back_strip"); None otherwise
+        self.detour_phase: "str | None" = None
 
-    #: 4.3.48: the command ids the homing after a stop sends (s0 p0 i1 s0 f0 f4 f4 p0)
+    #: 4.3.48: the command ids the homing after a stop sends (s0 p0 i1 s0 f0 f4 f4 p0); 2026-11-21:
+    #: plus m0, only while one of the vendor's detour moves is sent (``detour_phase``)
     HOMING_ONLY_CIDS = ("s0", "p0", "i1", "f0", "f4")
 
     def reopen_for_homing(self, expected: str, allowance: "tuple[int, int]") -> None:
@@ -1289,7 +1374,8 @@ class Table:
             max_lines, max_motions = PART_CAPS[self.part]
             is_motion = line in MOTION_LINES
             label = None
-        if self.homing_only and cid not in self.HOMING_ONLY_CIDS:
+        if self.homing_only and cid not in self.HOMING_ONLY_CIDS and not (
+                cid == "m0" and self.detour_phase is not None):
             raise self._doubt(f"{cid} after the homing after a stop was allowed (a bug)")
         max_lines += self.cold_allowance[0] + self.homing_allowance[0]
         max_motions += self.cold_allowance[1] + self.homing_allowance[1]
@@ -1624,21 +1710,101 @@ class Table:
             self.log("DATA", f"the table's model answers: a1 = {got.get('identity')}, "
                              f"k2 = {got.get('k2')}")
             a0 = self.exchange("a0").data
-            if a0 == A0_COLD:
+            self.a0_answer = a0
+            if a0 in A0_KNOWN:
+                state, aiming = A0_KNOWN[a0]
+            elif self.part == "C" and a0_just_switched_on_family(a0):
+                # last round: an a0 never seen in the just-switched-on family (x1800): offered
+                # the recorded start-up, never by itself (the job always asks)
+                self.a0_unknown = True
+                state, aiming = "cold", bool(int(a0[:2], 16) & 0x40)
+                self.log("DATA", f"a0 = {a0}: an answer no recording shows; it ends in 1800 like "
+                                 "a table that was just switched on (111800, 511800), so the "
+                                 "start-up is offered, asked")
+            else:
+                raise self._doubt(f"the table answered a0 with {a0}; not a known answer")
+            #: 2026-11-21 fix round (B-1): what a0 said; the mode answers (f4) decide
+            self.a0_said_aiming = aiming
+            if aiming:
+                # 2026-11-21: the aiming mode was left on by an earlier ending (bit 0x40). The
+                # motors may hold the arm or have let it go: not known until something moves
+                self.mode_left_on = True
+                self.arm_free = None
+            if state == "cold":
                 # 0.6.0: nothing more is sent unless the person chooses the start-up
                 # (run_cold_start); the session closes the table for sending otherwise
                 self.state = "cold"
-                self.log("DATA", "a0 = 111800: the table has just been switched on")
+                self.log("DATA", f"a0 = {a0}: the table has just been switched on"
+                                 + ("; its aiming mode is still on (bit 0x40)" if aiming else ""))
                 return "cold"
             self.exchange("status")
-            for _ in range(4):
-                self._f4("00")
+            if self.part == "C":
+                # 2026-11-21 fix round (B-1): the four answers decide (they must agree)
+                self._f4_answers = []
+                for _ in range(4):
+                    self._f4_take(self.exchange("arm_mode").data)
+            else:
+                for _ in range(4):
+                    self._f4("01" if aiming else "00")
+                self.mode_on = aiming
         finally:
             self.busy -= 1
         self.state = "warm"
-        self.log("DATA", "a0 = 130000: the table is started; f4 00 x4")
+        if self.mode_left_on:
+            self.log("DATA", f"a0 = {a0}, f4 = {getattr(self, 'f4_answer', None)} x4: the table "
+                             "is started and its aiming mode was left on by an earlier ending "
+                             "(or the two answers disagree); ChromIQ ends it with the homing")
+        elif aiming:
+            self.log("DATA", f"a0 = {a0}: the table is started and still in its aiming mode "
+                             "(bit 0x40; f4 01 x4), left on by an earlier ending")
+        else:
+            self.log("DATA", "a0 = 130000: the table is started; f4 00 x4")
         self._stop_if_requested()
         return "warm"
+
+    def _f4_take(self, got: str) -> None:
+        """2026-11-21 fix round (B-1): one of the four mode answers that follow the opening or
+        the start-up. They must agree among themselves (every recording: four equal answers);
+        after the fourth, the answer decides whether the aiming mode is on, whatever a0 said
+        (the vendor never branches on either: N1 mode on, N2 mode off, the same lines)."""
+        seen = getattr(self, "_f4_answers", None)
+        if seen is None:
+            seen = self._f4_answers = []
+        seen.append(got)
+        if len(set(seen)) > 1:
+            # last round: the four answers differ among themselves; the job then OFFERS the
+            # repair as the person's choice (every line of it is recorded with the mode on and
+            # off: N1, N2, R19); the raw answers are in the log (RECV) and here
+            if self.motions_sent == 0 or (self.start_up_sent and self.motions_sent == 1):
+                self.f4_mixed = True
+                self.mode_left_on = True
+                if self.motions_sent == 0:
+                    self.arm_free = None
+            self.log("DATA", f"the mode answers differ among themselves: f4 = {','.join(seen)} "
+                             f"(a0 = {self.a0_answer})")
+            raise self._doubt(f"f4 answered {','.join(seen)} where the recordings show four equal "
+                              "answers here")
+        if len(seen) == 4:
+            self.f4_answer = got
+            # last round: one plain line for the tester's check, whatever the answers are
+            self.log("DATA", f"the mode answers: a0 = {self.a0_answer}, f4 = {got} x4 "
+                             f"({'aiming mode ON' if got == '01' else 'aiming mode OFF'})")
+            on = got == "01"
+            self.mode_on = on
+            self.a0_f4_disagree = bool(self.a0_said_aiming) != on
+            if on:
+                self.mode_left_on = True
+                if self.motions_sent == 0:
+                    # free or held is not known; after the start-up (i0) the motors hold it
+                    self.arm_free = None
+            elif self.a0_said_aiming:
+                # a0 said the mode was left on, f4 says it is off: the job ends it all the same
+                # (f0 with the mode off is recorded: N2 25.676, answer 00)
+                self.mode_left_on = True
+            if self.a0_f4_disagree:
+                self.log("DATA", f"the state answer a0 = {self.a0_answer} and the mode answers "
+                                 f"f4 = {got} x4 disagree: f4 decides that the aiming mode is "
+                                 f"{'on' if on else 'off'}; ChromIQ ends it with the homing")
 
     def _f4(self, want: str) -> None:
         got = self.exchange("arm_mode").data
@@ -1692,7 +1858,9 @@ class Table:
             raise self._doubt("the start-up asked for out of order (a bug)")
         self.cold_allowance = (COLD_MAX_LINES, COLD_MAX_MOTIONS)
         try:
-            self.run_step(COLD_STEP)
+            self._f4_answers = []
+            self.run_step(COLD_STEP_JOB if self.part == "C" else
+                          COLD_STEP_AIMING if self.mode_left_on else COLD_STEP)
         finally:
             if self.start_up_took is None:
                 for k, took in self.timings:
@@ -1852,6 +2020,8 @@ class Table:
                         self.mode_on = False
                 elif kind == "f4":
                     self._f4(op[1])
+                elif kind == "f4any":
+                    self._f4_take(self.exchange("arm_mode").data)
                 elif kind == "p0":
                     self._check(op[1], op[2])
                 elif kind == "home_rest":

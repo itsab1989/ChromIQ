@@ -476,6 +476,95 @@ def m0_line(x: int, y: int, speed: int = 300) -> bytes:
     return _line("m0", x, y, speed)
 
 
+# ---- 2026-11-21: THE VENDOR'S WAY HOME ------------------------------------------------------
+#
+# i1Profiler does not always send its homing (i1) straight from where the arm stands. Twice it
+# was recorded driving the arm to the HOME LINE (X 1102, the line the resting place lies on)
+# first, at speed 200, and homing from there:
+#
+#   R1 (12 Nov 2026, 84.137-87.448), the arm held at (1058, 317), in the back strip beside the
+#      white tile's holder: m0 (1058, 1202) @200 (1.375 s), m0 (1102, 1202) @200 (0.319 s),
+#      i1 (1.599 s), s0.
+#   N3 (the table owner's recording of 21 Nov 2026 18:37, 1.342-5.229), the arm held at
+#      (2134, 1801), "like before the aiming", on the far side: m0 (1102, 1498) @200 (1.487 s),
+#      i1 (2.367 s), s0.
+#
+# and it homed STRAIGHT from (1281, 1423) (N2, 21 Nov 2026 18:34, 2.351 s), from the right-hand
+# end and the front ((-1288, 3236) R19 192.184, 4.175 s; (-1437, 1794) and (-1438, 1868), 18 Nov,
+# 3.903 s), from the middle of the bed and from the home line.
+#
+# THE PHYSICAL REASON (our reading; the recordings show WHAT the vendor does, not why): the table
+# carries out i1 by itself, along a path ChromIQ does not choose. Behind the measuring area, off
+# the home line, lies the back strip, where the head stands beside the holder of the white tile
+# (the reason the back strip already had, ``job.in_back_strip``). From the back strip, and from
+# the far (+X) side of the home line, the table's own way home may pass beside that holder; the
+# vendor first brings the arm onto the home line inside the measuring area, from where the way
+# home is the home line itself (driven under motor in every recorded session: to_1498, to_250).
+# From the right-hand (-X) side, the front and the middle no detour is recorded.
+#
+# THE REGION, from those cases. Two recordings cannot draw the far side's edge, so the SAFE
+# SUPERSET is taken: every place with X beyond the largest X the vendor homed straight from on
+# that side (DIRECT_HOMING_X_MAX = 1281, N2) gets N3's detour, whatever its Y; every place in the
+# back strip gets R1's. The detour is harmless where it is not needed: it is a motor move, at a
+# recorded speed, from where the arm stands (a fresh reading) to a point on the home line inside
+# the measuring area that the vendor drives the arm to in every session (to_1498 at 300; the
+# detours at 200), over ground between two places the arm stands on; the homing then starts on
+# the home line, where i1 is recorded from many places. Its only cost is about 1.5 s.
+DETOUR_SPEED = 200
+HOME_LINE_X = 1102
+#: N3's target: the home line at the vendor's own approach point (to_1498's target too)
+DETOUR_HOME_LINE = (HOME_LINE_X, 1498)
+#: R1's line out of the back strip: straight ahead along Y to Y 1202, then across to the home line
+BACK_STRIP_OUT_Y = 1202
+#: the largest X on the far (+X) side i1Profiler homed straight from (N2, 21 Nov 2026)
+DIRECT_HOMING_X_MAX = 1281
+#: the home line's band (session_table.START_GUARD's X), where the back strip is not a strip
+HOME_LINE_BAND = (1090, 1115)
+
+
+def in_back_strip(p) -> bool:
+    """The strip behind the measuring area (Y below AREA_RAW's back edge) away from the home line."""
+    return p is not None and p[1] < AREA_RAW.ymin and not (
+        HOME_LINE_BAND[0] <= p[0] <= HOME_LINE_BAND[1])
+
+
+def homing_detour(p) -> "tuple[tuple[int, int], ...] | None":
+    """The vendor's way home from the reading *p*: the targets of the detour moves (each an m0 at
+    DETOUR_SPEED) to send before the homing, in order; () for a straight homing; None when no way
+    home can be sent from *p* (only a reading outside the protocol's number range; since the fix
+    round a back-strip place beyond the left end goes to that end first)."""
+    if p is None:
+        return None
+    x, y = int(p[0]), int(p[1])
+    if in_back_strip((x, y)):
+        # 2026-11-21 fix round (review m-2): straight ahead along Y from where the arm stands; a
+        # reading a little beyond the left end of the target area (a freed arm settles by a few
+        # units there) goes to that end instead, a few units inwards: never "no way home"
+        legs = ((min(x, TARGET_X_LEFT), BACK_STRIP_OUT_Y), (HOME_LINE_X, BACK_STRIP_OUT_Y))
+    elif x > DIRECT_HOMING_X_MAX:
+        legs = (DETOUR_HOME_LINE,)
+    else:
+        return ()
+    if not all(CAP_AREA.contains(t) for t in legs):
+        return None
+    return legs
+
+
+def detour_target_ok(x: int, y: int) -> bool:
+    """A target a detour move may have: N3's point on the home line, R1's point on the home line,
+    or R1's first move straight out of the back strip to Y 1202 (any X inside the target area)."""
+    return CAP_AREA.contains((x, y)) and (
+        (x, y) == DETOUR_HOME_LINE or y == BACK_STRIP_OUT_Y)
+
+
+def detour_line(x: int, y: int) -> bytes:
+    """The ONLY builder of a detour move: m0 at DETOUR_SPEED, the recorded form (R1 84.153
+    ``;m0042204b200c86d``, 85.529 ``;m0044e04b200c838``; N3 1.358 ``;m0044e05da00c806``)."""
+    if not detour_target_ok(x, y):
+        raise AreaRefused(f"a detour move to X {x}, Y {y}: not one of the vendor's detour targets")
+    return _line("m0", x, y, DETOUR_SPEED)
+
+
 def m2_line(x: int, y: int, speed: int, dual: bool = False) -> bytes:
     """The ONLY builder of a computed scan move (m2): the recorded form apart from X, Y and a
     recorded speed. *dual*: a pass of the dual row, whose only recorded speed is

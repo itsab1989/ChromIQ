@@ -395,6 +395,19 @@ class SimTable:
     #: where the scripted hand puts the free arm at each placement try (the last one repeats)
     hand_script = ((-1290.0, 2660.0),)
 
+    def power_cycle(self, bit_survives: bool = True, mode_after: "str | None" = None) -> None:
+        """2026-11-21 fix round: the person switches the table off and on (the simulator's own,
+        switchable assumptions): it is just switched on again (a0 x1 1800, i0 once more); the
+        aiming mode's bit in a0 survives (recording A, the owner's 09:15 log) unless
+        *bit_survives* is False; the mode the f4 answers show after it is *mode_after* (default:
+        unchanged, as recording A's 01 after i0); the motors hold nothing until the start-up."""
+        on = self.mode == "01"
+        self.cold, self.started, self.i0_sent = True, False, False
+        self.free_arm = False
+        if mode_after is not None:
+            self.mode = mode_after
+        self.a0_override = "511800" if (on and bit_survives) else "111800"
+
     def hand(self, n: int) -> None:
         """The scripted hand of a simulated run: placement try *n* (1 = the first)."""
         x, y = self.hand_script[min(n, len(self.hand_script)) - 1]
@@ -553,7 +566,20 @@ class SimTable:
                 # the volunteer's real table, 19 Nov 2026 (two openings, 12:37 and 12:38):
                 # `:$a00530000B9` after the arm had been moved by hand and put back
                 return 0, "530000", 0.0
-            return 0, ("111800" if self.cold else "130000"), 0.0
+            if getattr(self, "a0_override", None):
+                # 2026-11-21 fix round (B-1): THE SIMULATOR'S ASSUMPTION, SWITCHABLE: what a0
+                # answers, decoupled from the mode the f4 answers show (``mode``). No recording
+                # shows a0 and f4 disagreeing, and nobody has read f4 on a 540000 table
+                return 0, self.a0_override, 0.0
+            if self.mode == "01":
+                # 2026-11-21: the aiming mode left on by an earlier ending (bit 0x40): 511800 on
+                # a table just switched on (recording A, 19 Nov 2026), 530000 started (N1, 21
+                # Nov 2026), 540000 as the table owner's table answered with the arm left held
+                # out (his ChromIQ 4.3.50 log, 20 Nov 09:53): ``a0_aiming`` picks it
+                if self.cold and not self.started:
+                    return 0, "511800", 0.0
+                return 0, getattr(self, "a0_aiming", "530000"), 0.0
+            return 0, ("111800" if self.cold and not self.started else "130000"), 0.0
         if cid == "f4":
             if kind == "free":
                 return 0, ("01" if self.mode == "00" else "00"), 0.0
@@ -581,6 +607,8 @@ class SimTable:
             # the simulator's own model of the start-up (what the arm does is not recorded): it
             # ends at i0_after, and the table is started from then on
             self.started = True
+            if getattr(self, "a0_override", None) in ("111800", "511800"):
+                self.a0_override = None          # started now: a0 follows the mode again
             self.pos = [float(self.i0_after[0]), float(self.i0_after[1])]
             self.free_arm = False
             t = self.i0_s

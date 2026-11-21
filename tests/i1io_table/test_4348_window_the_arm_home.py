@@ -24,6 +24,9 @@ from tests.i1io_table.window_sim import WindowSim
 
 OUT_HELD = [0.0, 1600.0]
 BACK_STRIP = [1058.0, 317.0]
+#: 2026-11-21: the back strip itself has i1Profiler's way out (R1); a place in it beyond the
+#: left end of the target area has none (the pages below)
+FAR_BACK = [2600.0, 300.0]
 #: the START rule's homing (i1Profiler's start homing + the reading at rest)
 HOMING = [";s022", ";p025", ";i12b", ";s022", ";p025"]
 MOVES = ("m0", "m1", "m2", "i1", "i0")
@@ -80,11 +83,16 @@ def test_start_with_the_arm_out_brings_it_home_and_goes_on(qtbot, monkeypatch, t
 
 def test_start_with_the_arm_out_in_the_back_strip_says_why(qtbot, monkeypatch, tmp_path,
                                                            settings):
-    win, sim, p = _ready_page(qtbot, monkeypatch, tmp_path, settings, BACK_STRIP)
+    from tests.i1io_table import job_harness as _H
+    _H.plant_no_way_home(monkeypatch)       # fix round: no such place is left
+    win, sim, p = _ready_page(qtbot, monkeypatch, tmp_path, settings, FAR_BACK)
     _press_arm_out(win, p)
     text = win._text.text()
-    assert "beside the holder of the white tile" in text
-    assert "i1Profiler 3.8.6 or older" in text and "power switch" in text
+    assert "cannot work out a way home" in text
+    assert "i1Profiler" not in text and "power switch" in text
+    # fix round (review M-2): there a START would refuse again: the power switch FIRST
+    assert text.index("Switch the table off at its power switch") < text.index(
+        "Press START MEASUREMENT")
     assert p.labels() == ["End measurement"]
     assert not [ln for ln in sim.sim.received if ln[1:3] in MOVES]
 
@@ -139,8 +147,10 @@ def test_the_stopped_page_offers_the_homing_after_a_place_check(qtbot, monkeypat
 
 def test_the_stopped_page_in_the_back_strip_has_no_homing(qtbot, monkeypatch, tmp_path,
                                                           settings):
-    win, sim, p = _stopped_at_the_homing(qtbot, monkeypatch, tmp_path, settings, BACK_STRIP)
+    from tests.i1io_table import job_harness as _H
+    _H.plant_no_way_home(monkeypatch)       # fix round: no such place is left
+    win, sim, p = _stopped_at_the_homing(qtbot, monkeypatch, tmp_path, settings, FAR_BACK)
     assert "Bring the arm home" not in p.labels()
     text = win._text.text()
-    assert "beside the holder of the white tile" in text
-    assert "open i1Profiler once" in text
+    assert "cannot work out a way home" in text
+    assert "i1Profiler" not in text and "START MEASUREMENT" in text

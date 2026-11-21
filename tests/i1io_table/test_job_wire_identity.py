@@ -75,6 +75,9 @@ def test_every_captured_sitting_has_a_job_case():
     assert len(CASES) == 285
 
 
+_without_detours = M1.without_detours
+
+
 @pytest.mark.parametrize("asking", [True, False], ids=["asking mode", "not asking"])
 @pytest.mark.parametrize("name", sorted(CASES))
 def test_the_job_sends_what_tester_060_sends(name, asking):
@@ -91,6 +94,18 @@ def test_the_job_sends_what_tester_060_sends(name, asking):
         for i, (old, new) in CHANGED_IN_4349[name].items():
             assert want[i] == old
             want[i] = new
+    if sim.job.detours:
+        # 2026-11-21, THE VENDOR'S WAY HOME (geometry.homing_detour): from the far side and the
+        # back strip i1Profiler drives to the home line first (N3, R1); tester 0.6.0 homed
+        # straight (or, from the back strip, refused). The homing otherwise is the tester's
+        got, tail = _without_detours(got)
+        assert all(ln[11:15] == "00c8" for ln in tail if ln.startswith(";m0")), tail
+        if isinstance(want, list) and len(want) < len(got):
+            # the tester refused the homing from there (after its s0 p0); the job homes
+            assert got[:len(want)] == want
+            assert got[len(want):] == [";i12b", ";s022", ";f02f", ";f42b", ";f42b", ";p025"]
+            assert sim.violations == []
+            return
     if isinstance(want, list):
         assert got == want
     else:

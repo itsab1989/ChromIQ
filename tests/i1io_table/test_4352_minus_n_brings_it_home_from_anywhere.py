@@ -45,6 +45,11 @@ def test_brought_home_and_the_alignment_goes_on(tmp_path, pos):
     sent = sim.received[n:]
     # the alignment's own check (s0 p0, the arm out), the START homing, then its own homing again
     assert sent[:2] == [";s022", ";p025"]
+    # 2026-11-21: from the far side (X beyond 1281) the vendor's detour to the home line first
+    from workflow.i1io.table import geometry as geo
+    if geo.homing_detour(pos):
+        sent = sent[:4] + sent[6:]
+        assert sim.received[n:][4:6] == [";m0044e05da00c806", ";p025"], sim.received[n:n + 8]
     assert sent[2:7] == F1_PLUS, sent[:12]
     assert sent[7:11] == [";s022", ";p025", ";i12b", ";s022"]
     gos = [a for a in p.asked if a[1] == J.Confirm.GO and a[2].get("step") == "home_at_start"]

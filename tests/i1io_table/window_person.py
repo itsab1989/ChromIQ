@@ -29,6 +29,8 @@ DEFAULT = {
     "home_offered": "Bring the arm home",
     # 4.3.50: the homing that is part of the ending (its hands-off GO)
     "home_at_end": "Bring the arm home, my hands are away",
+    # 2026-11-21: the table found in its aiming mode at a START
+    "repair_at_start": "Bring the arm home, my hands are away",
     # 4.3.50 fix round: the homing's question, still open after "Not now"
     "home_not_now": "Bring the arm home, my hands are away",
     "done": "Close",

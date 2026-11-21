@@ -202,3 +202,17 @@ def run_steps(steps, script=None, on_ask=None, **kw):
             break
     results.append(job.close())
     return results, job, sim, person
+
+
+def plant_no_way_home(monkeypatch):
+    """2026-11-21 fix round (review M-1 / m-2): since the fix round every place a table can report
+    has the vendor's way home (geometry.homing_detour returns None only without a reading). The
+    page and the refusal for "no way home" stay in the code; a test reaches them by planting a
+    reading with none: a back-strip place beyond the left end of the target area (X > 2507)."""
+    real = geo.homing_detour
+
+    def planted(p):
+        if p is not None and p[0] > geo.TARGET_X_LEFT and p[1] < geo.AREA_RAW.ymin:
+            return None
+        return real(p)
+    monkeypatch.setattr(geo, "homing_detour", planted)

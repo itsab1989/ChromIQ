@@ -91,6 +91,17 @@ def _modes(name):
     return [True, False] if not name.startswith(("F ", "G ")) else [True]
 
 
+@pytest.fixture(autouse=True)
+def _homing_as_the_tester_sent_it(monkeypatch):
+    """2026-11-21: the vendor's way home (geometry.homing_detour: a detour to the home line from
+    the far side and the back strip, i1Profiler's recordings N3 and R1) inserts lines that tester
+    0.6.0 never sent, and these cases plant faults at absolute line numbers. Here the homing is
+    the tester's, straight; the way home itself is pinned in test_4355_table_without_i1profiler
+    and test_job_wire_identity (where the detour lines are taken out and checked)."""
+    from workflow.i1io.table import geometry as geo
+    monkeypatch.setattr(geo, "homing_detour", lambda p: () if p is not None else None)
+
+
 @pytest.mark.parametrize("name,asking", [(n, a) for n in sorted(CASES) for a in _modes(n)],
                          ids=lambda v: v if isinstance(v, str) else ("asking" if v else "quiet"))
 def test_the_job_reads_as_tester_060_reads(name, asking, tmp_path):

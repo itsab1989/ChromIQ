@@ -772,3 +772,20 @@ Proposed rules new to this document:
    sessions are marked discarded, both folders stay, nothing is deleted, and the
    result names every session that was set to discarded. Save and stop marks
    both as saved, so neither is offered as interrupted again.
+
+### ⏳ Awaiting confirmation: every table ending leaves a table the next START can take (2026-11-21)
+
+**Confirmed by:** *nobody yet.* The owner, 2026-11-21: *"remember that driving the table should
+work without involving i1profiler"*. Detail in `i1io_table_support.md`, section "the table
+without i1Profiler".
+
+| Ending of a table sitting | Sent at the end | The table left | The next START |
+|---|---|---|---|
+| Save / Discard / nothing read, then "Bring the arm home" | s0 p0 [way home] i1 s0 f0 f4 f4 p0 | arm home, mode off | nothing to do |
+| the same, "Not now" then Close; "Leave it there" after a Stop | nothing | arm where it was, aiming mode on | hands-off question, then the arm home and the mode ended |
+| the window's close or the app's quit while the table is open | the ending is asked first (unchanged); then as the answers above | as above | as above |
+| the app killed, a crash, a power cut | nothing | as it was; the in-use marker asks "switched off and on" | the start-up (511800 or 111800), then the mode ended |
+| a fault: status, refusal, no answer, a move outside its time | nothing | not known | the power switch if a move may wait, then the start-up brings the arm home |
+| the USB link lost | nothing | not known | the power switch, then START (the same) |
+
+No ending asks for i1Profiler. f0 is never sent with the arm out (not recorded).

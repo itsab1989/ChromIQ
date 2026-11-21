@@ -101,12 +101,28 @@ def _start(tmp_path, path, pos, guided=True, cold=False, **kw):
 
 
 def _homing_lines(sim, after: int):
-    """The lines from the first s0 after *after* that starts the START homing (s0 p0 i1 ...)."""
+    """The lines from the first s0 after *after* that starts the START homing (s0 p0 i1 ...;
+    2026-11-21: or s0 p0, the vendor's detour to the home line with its arrival, i1 ...)."""
     rec = sim.received
     for k in range(after, len(rec) - 2):
         if rec[k] == ";s022" and rec[k + 1] == ";p025" and rec[k + 2] == ";i12b":
             return rec[k:k + 5]
+        if rec[k] == ";s022" and rec[k + 1] == ";p025" and rec[k + 2] == N3_LINE:
+            return rec[k:k + 7]
     return None
+
+
+#: 2026-11-21: N3's detour line (the table owner's recording of 21 Nov 2026: from the far side
+#: i1Profiler drives the arm to (1102, 1498) at speed 200 before its homing)
+N3_LINE = ";m0044e05da00c806"
+
+
+def _expected(pos):
+    """F1_PLUS, or (the far side beyond X 1281) F1_PLUS with N3's detour and its arrival."""
+    from workflow.i1io.table import geometry as geo
+    if geo.homing_detour(pos) == ():
+        return F1_PLUS
+    return [";s022", ";p025", N3_LINE, ";p025", ";i12b", ";s022", ";p025"]
 
 
 CASES = [(path, *pl) for pl in PLACES for path in ("cal", "out", "N")
@@ -125,8 +141,9 @@ def test_from_anywhere_one_question_the_recorded_homing_and_it_goes_on(tmp_path,
     assert detail.get("at_start") is True
     assert not _moves(sim.received[:lines_at_ask]), "nothing moved before the question"
     got = _homing_lines(sim, lines_at_ask)
-    # THE WIRE: from every place the same five lines, i1Profiler's start homing + the reading
-    assert got == F1_PLUS, (name, sim.received[lines_at_ask:])
+    # THE WIRE: from every place the same five lines, i1Profiler's start homing + the reading;
+    # 2026-11-21: from the far side with the vendor's detour first (N3)
+    assert got == _expected(pos), (name, sim.received[lines_at_ask:])
     assert ";f02f" not in sim.received[lines_at_ask:lines_at_ask + 6]
     assert sim.violations == [] and J.HANDS_OFF_BREACHES == []
     assert job.brought_home_at_start == 1 and not job.start_homing_failed
@@ -141,15 +158,12 @@ def test_from_anywhere_one_question_the_recorded_homing_and_it_goes_on(tmp_path,
 
 @pytest.mark.parametrize("path", ["cal", "out", "N"])
 def test_the_place_is_never_what_decides_except_the_back_strip(tmp_path, path):
+    """2026-11-21: the back strip has i1Profiler's own way out (R1, 12 Nov 2026: m0 to
+    (1058, 1202) and to (1102, 1202) at speed 200, then the homing): no longer a refusal."""
     job, sim, p, r = _start(tmp_path, path, BACK_STRIP)
-    assert not r.ok
-    assert not _moves(sim.received), "nothing moves from the back strip"
-    assert r.reason in ("arm_not_at_rest", "arm_in_the_back_strip", "arm_not_where_expected"), \
-        r.reason
-    assert job._home_after_stop_why() == "arm_in_the_back_strip"
-    assert job.way_back() != J.WayBack.HOME_AFTER_STOP
-    assert job.home_after_stop().reason == "arm_in_the_back_strip"
-    assert not _moves(sim.received)
+    assert r.ok, (r.reason, r.detail)
+    assert ";m0042204b200c86d" in sim.received and ";m0044e04b200c838" in sim.received
+    assert sim.violations == []
 
 
 def test_the_back_strip_is_the_one_physical_place():
@@ -161,7 +175,8 @@ def test_the_back_strip_is_the_one_physical_place():
         assert not J.in_back_strip(p), p
     for p, _n in [(pl[1], pl[0]) for pl in PLACES]:
         assert J.homing_starts_here(p, False), p
-    assert not J.homing_starts_here((1058, 317), False)
+    # 2026-11-21: from the back strip by the vendor's own way out (R1)
+    assert J.homing_starts_here((1058, 317), False)
 
 
 # ---- 2. the question, the decline, the arm moved meanwhile, once per sitting --------------------
@@ -245,7 +260,7 @@ def test_with_the_guidance_off_a_countdown_and_it_goes_on(tmp_path, path, pos):
     assert job.turned_guided is None, "an arm found away from rest is not a fault"
     assert job._fault_seen is None
     assert job.brought_home_at_start == 1
-    assert _homing_lines(sim, 11) == F1_PLUS
+    assert _homing_lines(sim, 11) == _expected(pos)      # 2026-11-21: N3's detour far left
     assert J.HANDS_OFF_BREACHES == [] and sim.violations == []
 
 
@@ -310,17 +325,22 @@ def test_the_constant_brings_the_arm_question_back(tmp_path, monkeypatch):
     job, sim, helper, run, p = job_for(tmp_path, {C.READY_TO_OPEN: "arm out"}, real_table=False,
                                        cold=True)
     assert p.drive(job.open()).ok
-    assert job.start_up().reason == "arm_out_start_up_not_recorded"
-    assert len(sim.received) == 6
+    # 2026-11-21 fix round (review m-1): the start-up runs (recorded with the arm out, N4)
+    r = p.drive(job.start_up())
+    assert r.ok and sim.received[6] == ";i02c"
 
 
 # ---- 6. the states that keep their own handling -------------------------------------------------
 @pytest.mark.parametrize("answer", ["yes", "arm out"])
 def test_aiming_mode_still_on_nothing_is_sent(tmp_path, answer):
+    """2026-11-21: a table left in its aiming mode is no longer refused: the opening moves
+    nothing and reads nothing, and the repair (its own question first) is what is offered
+    (tests/i1io_table/test_4355_table_without_i1profiler.py); the START rule's homing is not."""
     job, sim, helper, run, p = job_for(tmp_path, {C.READY_TO_OPEN: answer}, real_table=False)
     sim.pos, sim.mode, sim.free_arm = [800.0, 800.0], "01", True
     r = p.drive(job.open())
-    assert r.kind == J.Kind.STOPPED and r.reason == "mode_flag_unexpected"
+    assert r.ok and r.detail["aiming_mode_left_on"] is True
+    assert r.way_back == J.WayBack.REPAIR_AT_START
     assert job.home_after_stop().kind == J.Kind.REFUSED
     assert not _moves(sim.received) and ";p025" not in sim.received
 
@@ -329,7 +349,7 @@ def test_aiming_mode_still_on_nothing_is_sent(tmp_path, answer):
 def test_an_unknown_status_answer_nothing_is_sent(tmp_path, answer):
     job, sim, helper, run, p = job_for(tmp_path, {C.READY_TO_OPEN: answer}, real_table=False)
     sim.pos = [800.0, 800.0]
-    sim.inject("a0_after_hand", "a0")
+    sim.inject("a0_other", "a0")
     r = p.drive(job.open())
     assert r.kind == J.Kind.STOPPED and r.reason == "table_state_unknown"
     assert job.home_after_stop().kind == J.Kind.REFUSED
@@ -367,10 +387,11 @@ def test_the_start_case_is_recorded(tmp_path, path):
 
 
 def test_the_start_case_says_why_nothing_is_offered_in_the_back_strip(tmp_path):
+    """2026-11-21: the back strip is offered the homing too (with R1's way out first)."""
     job, sim, p, r = _start(tmp_path, "cal", BACK_STRIP)
     case = job.start_case
     assert case["where"] == "back_strip"
-    assert case["offered"] == "nothing" and case["why"] == "arm_in_the_back_strip"
+    assert case["offered"] == "homing_at_start"
 
 
 # ---- 8. the window: one short page, the failure page, the back strip -----------------------------
@@ -414,13 +435,27 @@ def test_the_window_shows_the_failure_page(qtbot, monkeypatch, tmp_path, setting
     p.drive_until(("stopped", "refused"))
     assert win._title.text() == "The arm did not get home"
     text = win._text.text()
-    assert text.index("power switch") < text.index("i1Profiler 3.8.6")
+    # 2026-11-21 (the owner: "driving the table should work without involving i1profiler"):
+    # the way on is the power switch and START, never i1Profiler
+    assert "power switch" in text and "START MEASUREMENT" in text
+    assert "i1Profiler" not in text
     assert sim.jobs[0].guided_now
 
 
 def test_the_window_says_the_back_strip(qtbot, monkeypatch, tmp_path, settings):  # noqa: F811
+    """2026-11-21: from the back strip the arm is brought home by i1Profiler's own way out (R1);
+    only a place in the back strip beyond the left end of the target area has none."""
     win, sim, p = _window(qtbot, monkeypatch, tmp_path, settings, (1058.0, 317.0))
-    p.drive_until(("refused", "stopped"))
-    assert p.page() == "refused" and p.labels() == ["End measurement"]
-    assert "beside the holder of the white tile" in win._text.text()
-    assert not _moves(sim.sim.received)
+    p.drive_until(("home_at_start",))
+    p.press("Bring the arm home, my hands are away")
+    p.idle()
+    assert ";m0042204b200c86d" in sim.sim.received and ";m0044e04b200c838" in sim.sim.received
+    assert tbl.REST_GUARD.contains(sim.jobs[0]._table.position_now)
+    from tests.i1io_table import job_harness as _H
+    _H.plant_no_way_home(monkeypatch)       # fix round: no such place is left
+    win2, sim2, p2 = _window(qtbot, monkeypatch, tmp_path / "far", settings, (2600.0, 300.0))
+    p2.drive_until(("refused", "stopped"))
+    assert p2.page() == "refused" and p2.labels() == ["End measurement"]
+    assert "cannot work out a way home" in win2._text.text()
+    assert "i1Profiler" not in win2._text.text()
+    assert not _moves(sim2.sim.received)

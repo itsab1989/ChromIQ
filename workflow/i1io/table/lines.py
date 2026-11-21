@@ -23,6 +23,12 @@ Three kinds, nothing else:
    rows on the volunteer's table, and allowed ONLY while the job's dual row reads the pass they
    belong to (``Table.dual_phase``); with no dual phase the list above is unchanged.
 
+5. THE VENDOR'S WAY HOME (2026-11-21): m0 at speed 200, only to the three recorded detour
+   targets (geometry.homing_detour: R1 84.153 ``;m0042204b200c86d`` / 85.529
+   ``;m0044e04b200c838``, N3 1.358 ``;m0044e05da00c806``), and in the job's gate only while it
+   sends the way home before a homing (``Table.detour_phase``), out of the back strip only
+   straight ahead along Y.
+
 Never: any memory or configuration write, i0, any other u8 than the two reads, any line form not
 seen in a recording, any other speed, any target outside the area.
 """
@@ -116,6 +122,13 @@ def classify(line: bytes, dual_phase: "str | None" = None) -> "tuple[str, bool, 
     if not m or not tbl.checksum_ok(line.decode("ascii").rstrip("\r")):
         raise tbl.ForbiddenLine(f"not one of part C's lines: {line!r}")
     cid, x, y, v = geo.decode_xyv(line)
+    if cid == "m0" and v == geo.DETOUR_SPEED:
+        # 2026-11-21, THE VENDOR'S WAY HOME: m0 at 200 only to one of the recorded detour
+        # targets (R1 84.153 / 85.529, N3 1.358; geometry.homing_detour)
+        if not geo.detour_target_ok(x, y):
+            raise tbl.ForbiddenLine(f"m0 at speed {v} to ({x}, {y}): not one of the vendor's "
+                                    "detour targets")
+        return cid, True, "detour m0"
     if cid == "m0" and v not in geo.RECORDED_M0_SPEEDS:
         raise tbl.ForbiddenLine(f"m0 at speed {v}: not recorded on a chart")
     if cid == "m2" and dual_phase is not None and v not in geo.DUAL_M2_SPEEDS:
@@ -144,6 +157,28 @@ def make_gate(table):
             if v2 not in geo.RECORDED_M2_SPEEDS:
                 raise tbl.ForbiddenLine(f"m2 at speed {v2}: not a recorded scan speed, and "
                                         "this sitting reads at ChromIQ's own speeds")
+        if label == "detour m0":
+            # 2026-11-21: only while the job sends the vendor's way home, from a fresh reading;
+            # out of the back strip only straight ahead along Y (R1's first move); every other
+            # detour move to the home line, never from the back strip
+            phase = getattr(table, "detour_phase", None)
+            start = table.position_now
+            if phase not in ("out", "back_strip"):
+                raise tbl.ForbiddenLine("a detour move outside the way home (a bug)")
+            if start is None:
+                raise tbl.ForbiddenLine("a detour move without a fresh position reading")
+            _c, x, y, _v = geo.decode_xyv(line)
+            if start[1] < geo.AREA_RAW.ymin and not (
+                    geo.HOME_LINE_BAND[0] <= start[0] <= geo.HOME_LINE_BAND[1]):
+                if phase != "back_strip" or x != min(int(start[0]), geo.TARGET_X_LEFT) \
+                        or y != geo.BACK_STRIP_OUT_Y:
+                    raise tbl.ForbiddenLine(f"a detour move from {start} in the back strip that "
+                                            "is not the recorded one straight ahead")
+            elif (x, y) != (geo.HOME_LINE_X, geo.BACK_STRIP_OUT_Y) and \
+                    (x, y) != geo.DETOUR_HOME_LINE:
+                raise tbl.ForbiddenLine(f"a detour move from {start} to ({x}, {y}): only to the "
+                                        "home line")
+            return cid, motion, label
         if label in ("computed m0", "scan move"):
             start = table.position_now
             if start is None:
@@ -189,10 +224,14 @@ def wire_gate(line: bytes) -> str:
 
 
 def make_wire_gate(table):
-    """The second check at the USB write for a session that may read DUAL rows: the same
-    classify, with the table's dual phase at the moment of the write. A session without the
-    dual scan uses :func:`wire_gate` itself (the job sets exactly that object)."""
+    """The second check at the USB write: the same classify, with the table's dual phase at the
+    moment of the write. 2026-11-21 fix round (review m-5): and a detour move only while the job
+    sends the way home (``Table.detour_phase``), at the wire too. Every job session uses it."""
     def gate(line: bytes) -> str:
         phase = getattr(table, "dual_phase", None)
-        return (classify(line) if phase is None else classify(line, phase))[0]
+        cid, _motion, label = classify(line) if phase is None else classify(line, phase)
+        if label == "detour m0" and getattr(table, "detour_phase", None) not in ("out",
+                                                                                "back_strip"):
+            raise tbl.ForbiddenLine("a detour move outside the way home (at the wire)")
+        return cid
     return gate

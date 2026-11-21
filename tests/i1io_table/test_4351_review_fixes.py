@@ -42,7 +42,7 @@ def test_a_homing_that_stops_short_is_a_doubt_and_nothing_more_moves(tmp_path, p
     assert not tbl.REST_GUARD.contains(job._table.position_now)
     assert job.start_homing_failed
     # nothing more moves: no second homing, no usual homing, no step that moves
-    assert job.way_back() == J.WayBack.OPEN_I1PROFILER_ONCE
+    assert job.way_back() == J.WayBack.END_THEN_START_AGAIN
     m = len(sim.received)
     assert job.home_after_stop().kind == J.Kind.REFUSED
     assert job.home().kind == J.Kind.REFUSED
@@ -99,7 +99,8 @@ def test_the_window_says_the_truth_after_a_homing_that_stops_short(
 # ---- the back strip is checked again right before the homing ------------------------------------
 def test_the_back_strip_is_checked_again_right_before_the_homing(tmp_path):
     """Found on the home line at (1091, 400); the reading right before i1 says (1087, 400):
-    within the 5-unit "arm moved" compare, but in the back strip. Refused; nothing after s0 p0."""
+    within the 5-unit "arm moved" compare, but in the back strip. 2026-11-21: no longer refused:
+    from the back strip i1Profiler's own way out (R1) from where the arm reads RIGHT BEFORE it."""
     job, sim, helper, run, p = job_for(tmp_path, {J.Confirm.GO: "back"}, real_table=False)
     sim.pos = [1091.0, 400.0]
     assert p.drive(job.open()).ok
@@ -109,8 +110,11 @@ def test_the_back_strip_is_checked_again_right_before_the_homing(tmp_path):
     p.script[J.Confirm.GO] = "yes"
     n = len(sim.received)
     res = p.drive(job.home_after_stop())
-    assert not res.ok and res.reason == "arm_in_the_back_strip", (res.kind, res.reason)
-    assert sim.received[n:] == [";s022", ";p025"]
+    assert res.ok, (res.kind, res.reason)
+    sent = sim.received[n:]
+    assert sent[:2] == [";s022", ";p025"]
+    assert sent[2] == ";m0043f04b200c8" + sent[2][-2:] and ";m0044e04b200c838" in sent, sent
+    assert sim.violations == []
 
 
 # ---- the review's other planted faults that stayed green (P12, P14) -----------------------------

@@ -65,7 +65,8 @@ def test_not_now_then_close_moves_nothing_and_the_done_page_says_how_the_arm_com
     assert p.page() == "home_not_now" and _moves(sim) == n
     p.press("Close")
     assert p.page() == "done" and _moves(sim) == n
-    assert "The arm stayed extended over the table" in win._text.text()
+    assert "The arm stayed out over the table" in win._text.text()
+    assert "next time you press START MEASUREMENT" in win._text.text()
 
 
 def test_his_page_ends_with_the_arm_brought_home_from_in_front_of_every_homing_start(
@@ -108,20 +109,24 @@ def test_a_start_with_the_arm_left_out_in_front_is_brought_home(tmp_path):
 
 
 def test_a_start_after_leave_it_there_in_the_aiming_mode_moves_nothing(tmp_path):
-    """After "Leave it there" the table is still in its aiming mode (no f0 was sent): the next
-    START meets f4 = 01 at the opening and sends nothing that moves (STILL-AIMING), wherever the
-    arm is."""
+    """After "Leave it there" the table is still in its aiming mode (no f0 was sent). 2026-11-21:
+    the next START meets a0 530000 / f4 01: nothing moves before its question, every other step
+    is refused, and the repair (i1Profiler's end of a job) brings the arm home and ends the mode."""
     sim = csim.CSimTable(part_c=True, aims=H.demo_aims())
     sim.pos, sim.mode, sim.free_arm = [-1284.0, 3275.0], "01", True
     job, sim, _t = H.make_job(sim=sim)
     p = H.Person(job, sim, {J.Confirm.READY_TO_OPEN: "arm out"})
     r = p.drive(job.open())
-    assert r.kind == J.Kind.STOPPED and r.reason == "mode_flag_unexpected"
+    assert r.ok and r.detail["aiming_mode_left_on"] is True
     assert job.home_after_stop().kind == J.Kind.REFUSED
     for step in ("park", "align", "creep", "home"):
         assert getattr(job, step)().kind != J.Kind.OK
     assert not [ln for ln in sim.received if ln[1:3] in MOVES]
-    assert sim.violations == []
+    n = len(sim.received)
+    assert p.drive(job.repair_at_start()).ok
+    assert [ln[1:3] for ln in sim.received[n:]] == ["s0", "p0", "i1", "s0", "f0", "f4", "f4",
+                                                     "p0"]
+    assert job.at_rest() and sim.violations == []
 
 
 def test_the_end_page_says_the_arm_is_brought_home():
