@@ -238,7 +238,8 @@ def test_only_the_switch_reaches_the_new_code():
         '\\"margin_tolerance\\"]',
         '\\"margin_tolerance\\",\\"i1pro2_dual_conditions\\",\\"i1pro2_dual_scan\\",'
         '\\"i1io_table_dual\\",\\"conditions_kept\\",\\"lights_quiet\\",'
-        '\\"i1pro2_dual_blue\\",\\"instrument_waits\\",\\"i1pro2_dual_fresh_start\\"]')]
+        '\\"i1pro2_dual_blue\\",\\"instrument_waits\\",\\"i1pro2_dual_fresh_start\\",'
+        '\\"lamp_off_i1pro2\\"]')]
 
 
 def test_the_build_string():
@@ -274,13 +275,15 @@ def test_the_build_string():
     # 2026-11-21b = 21a + the hand dual scan's UV pass counted over the whole clean middle
     # of each patch and its pace in dual_pass_result (after 4.3.54; nothing for the table);
     # 2026-11-21c = 21b + the alignment gate over the averaging window (fix round; nothing
-    # for the table), last
-    assert "chromiq-chartread 2026-11-21c " in h
+    # for the table);
+    # 2026-11-21d = 21c + the i1Pro 2's own lamp wait (--lamp-off-ms-i1pro2; the table
+    # passes no waits), last
+    assert "chromiq-chartread 2026-11-21d " in h
     assert ("+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule"
             "+i1pro2-dual-device+i1pro2-dual-safety+i1io-table-dual+i1io-table-dual-fix2"
             "+i1io-table-dual-calreset+i1pro2-dual-gaps+conditions-kept+lights-quiet"
             "+i1pro2-dual-blue+blue-own-quiet+blue-quiet-return-only+instrument-waits"
-            "+blue-side+i1pro2-dual-fresh-start+uv-whole-middle+i1pro2-dual-pace+uv-window-gate\"") in h
+            "+blue-side+i1pro2-dual-fresh-start+uv-whole-middle+i1pro2-dual-pace+uv-window-gate+lamp-off-i1pro2\"") in h
 
 
 def _base_tree(tmp: Path) -> Path:

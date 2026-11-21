@@ -12,7 +12,8 @@ copy of ArgyllCMS's driver. Now the app passes each one at Start (the helper's
 argument, in ms), so changing one is:
 
 * for a developer: the ``default_s`` below (one number, nothing native);
-* for a user: Preferences > Beta (the four fields under the i1Pro 2 lights);
+* for a user: Preferences > Beta (the fields under the i1Pro 2 lights, and the
+  two lamp waits, i1Pro and i1Pro 2, after 4.3.54);
 * for a tester without the window: one line in the settings file, the key
   below in seconds (``i1pro_lamp_off_s=1.06``).
 
@@ -42,10 +43,24 @@ LIGHTS_QUIET = Wait("lights_quiet", "i1pro2_lights_quiet_s", "--lights-quiet-ms"
 BLUE_QUIET = Wait("blue_quiet", "i1pro2_blue_quiet_s", "--lights-blue-quiet-ms", 0.37, 10.0)
 #: from the end of a dual scan's first pass to the blue light (4.3.52)
 BLUE_AFTER = Wait("blue_after", "i1pro2_blue_after_s", "--lights-blue-after-ms", 0.55, 5.0)
-#: ArgyllCMS's lamp wait before every dark reading of an i1Pro / i1Pro 2
+#: ArgyllCMS's lamp wait before every dark reading of an ORIGINAL i1Pro (rev A
+#: to D and rebadged ones); until 4.3.54 also of the i1Pro 2. ArgyllCMS's value:
+#: no vendor recording of this instrument has been evaluated for it
 LAMP_OFF = Wait("lamp_off", "i1pro_lamp_off_s", "--lamp-off-ms", 1.5, 5.0)
+#: the same for an i1Pro 2 (also the ES-2000 and the i1Basic Pro 2), after 4.3.54
+#: (the owner's decision of 2026-11-21): i1Profiler was recorded at 1.059 s from
+#: lamp off to the next dark reading of an i1Pro 2 (RECORDED_LAMP_OFF_S), rounded
+#: UP on the fields' 0.05 s grid. A tester's i1Pro 2 dual scans with real gaps of
+#: 1.03 to 2.24 s showed no effect (work folder 2026-11-21_nelson_bluelight_confirm,
+#: analysis sections 7 to 9). The helper's compiled fallback is the same number
+#: (i1pro_imp.c CQ_LAMP_OFF_TIME_I1PRO2 1100; tests/test_lamp_wait_per_model.py)
+I1PRO2_LAMP_OFF = Wait("lamp_off_i1pro2", "i1pro2_lamp_off_s", "--lamp-off-ms-i1pro2", 1.10, 5.0)
 
-WAITS: "tuple[Wait, ...]" = (LIGHTS_QUIET, BLUE_QUIET, BLUE_AFTER, LAMP_OFF)
+WAITS: "tuple[Wait, ...]" = (LIGHTS_QUIET, BLUE_QUIET, BLUE_AFTER, LAMP_OFF, I1PRO2_LAMP_OFF)
+
+#: the helper's caps word for --lamp-off-ms-i1pro2 (helper 2026-11-21d). A helper
+#: without it gets --lamp-off-ms alone, which then applies to the i1Pro 2 too (4.3.54)
+CAP_I1PRO2 = "lamp_off_i1pro2"
 
 MIN_S = 0.0
 #: the Preferences fields: two decimals, steps of 0.05 s (as 4.3.52's)
@@ -111,14 +126,17 @@ def from_settings(get) -> "dict[str, int]":
     return {w.name: to_ms(w, get(w.key, w.default_s)) for w in WAITS}
 
 
-def helper_args(ms: "dict[str, int]", *, lights: bool) -> "list[str]":
+def helper_args(ms: "dict[str, int]", *, lights: bool, i1pro2: bool = False) -> "list[str]":
     """The helper's arguments for a helper whose caps name
     "instrument_waits": every wait that applies, ALWAYS, also at its
     default, so that the number in this file is the one in use (a wait left
     out would fall back to the helper's compiled one). ArgyllCMS's lamp wait
     applies to every reading; the three lights waits only with the lights
-    option."""
+    option. *i1pro2*: the helper takes the i1Pro 2's own lamp wait
+    (CAP_I1PRO2); without it the i1Pro 2 waits ``--lamp-off-ms`` as before."""
     out = ["--lamp-off-ms", str(ms[LAMP_OFF.name])]
+    if i1pro2:
+        out += ["--lamp-off-ms-i1pro2", str(ms[I1PRO2_LAMP_OFF.name])]
     if lights:
         out += ["--lights-quiet-ms", str(ms[LIGHTS_QUIET.name]),
                 "--lights-blue-quiet-ms", str(ms[BLUE_QUIET.name]),
@@ -137,3 +155,19 @@ def log_fields(ms: "dict[str, int]") -> "dict[str, str]":
             text += "(changed)"
         out[f"{w.name}_s"] = text
     return out
+
+
+def lamp_wait_for(model: str, ms: "dict[str, int]", *, i1pro2_taken: bool) -> "tuple[str, int] | None":
+    """Which lamp wait applies to the instrument the helper reported (its
+    ``instrument`` event's model), for the app log: ("i1pro2" | "i1pro",
+    ms), or None for any other instrument (it has no such wait). An i1Pro 2
+    with a helper that did not take the i1Pro 2's own value waits the
+    i1Pro value, as up to 4.3.54."""
+    m = str(model or "").lower().replace(" ", "")
+    if not m.startswith("i1pro") or m.startswith("i1pro3"):
+        return None
+    if m.startswith("i1pro2"):
+        if i1pro2_taken:
+            return "i1pro2", ms.get(I1PRO2_LAMP_OFF.name, int(round(I1PRO2_LAMP_OFF.default_s * 1000)))
+        return "i1pro2(i1pro_value)", ms.get(LAMP_OFF.name, int(round(LAMP_OFF.default_s * 1000)))
+    return "i1pro", ms.get(LAMP_OFF.name, int(round(LAMP_OFF.default_s * 1000)))

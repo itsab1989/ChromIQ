@@ -2627,11 +2627,15 @@ static unsigned int cq_lights_blue_due = 0;	/* msec_time() the blue is due; 0 = 
  *                           i1pro2_cq_lights_blue_quiet_set_ms)
  *   --lamp-off-ms           ArgyllCMS's lamp wait before a dark reading
  *                           (driver, i1pro_cq_lamp_off_ms)
+ *   --lamp-off-ms-i1pro2    the same for an i1Pro 2 only (after 4.3.54; driver,
+ *                           i1pro2_cq_lamp_off_ms; without it an i1Pro 2 takes
+ *                           --lamp-off-ms, with neither 1100 ms)
  * A value that is not a whole number in range is not taken (said once in the
  * "waits" event) and the compiled value stays. */
 static int cq_lights_blue_after_ms = -1;
 static int cq_lights_blue_quiet_set_ms = -1;
 static int cq_lamp_off_set_ms = -1;
+static int cq_lamp_off_i1pro2_set_ms = -1;	/* after 4.3.54 */
 static int cq_waits_given = 0;			/* any of the three on the command line */
 static char cq_waits_ignored[160] = "";	/* the flags whose value was not taken */
 
@@ -6817,6 +6821,10 @@ int main(int argc, char *argv[]) {
 			} else if (strcmp(argv[ai], "--lights-blue-quiet-ms") == 0 && ai + 1 < argc) {
 				cq_lights_blue_quiet_set_ms = cq_wait_arg(argv[ai], argv[ai + 1], 10000);
 				eat = 2;
+			} else if (strcmp(argv[ai], "--lamp-off-ms-i1pro2") == 0 && ai + 1 < argc) {
+				cq_lamp_off_i1pro2_set_ms = cq_wait_arg(argv[ai], argv[ai + 1], 5000);
+				i1pro2_cq_lamp_off_ms = cq_lamp_off_i1pro2_set_ms;	/* the driver's, i1Pro 2 only */
+				eat = 2;
 			} else if (strcmp(argv[ai], "--lamp-off-ms") == 0 && ai + 1 < argc) {
 				cq_lamp_off_set_ms = cq_wait_arg(argv[ai], argv[ai + 1], 5000);
 				i1pro_cq_lamp_off_ms = cq_lamp_off_set_ms;	/* the driver's; -1 = 1500 ms */
@@ -6865,7 +6873,7 @@ int main(int argc, char *argv[]) {
 				 * before it relies on it. One JSON line, then exit 0.
 				 * "legacy_labels": reads sheets ChromIQ's layout engine
 				 * printed with its pre-4.3.3-beta.7 labels as printed. */
-				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"turn\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\",\"lights_signals\",\"lights_during_reading\",\"ruler_check\",\"i1pro3_conditions\",\"margin_tolerance\",\"i1pro2_dual_conditions\",\"i1pro2_dual_scan\",\"i1io_table_dual\",\"conditions_kept\",\"lights_quiet\",\"i1pro2_dual_blue\",\"instrument_waits\",\"i1pro2_dual_fresh_start\"],\"build\":\"%s\"}\n",
+				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"turn\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\",\"lights_signals\",\"lights_during_reading\",\"ruler_check\",\"i1pro3_conditions\",\"margin_tolerance\",\"i1pro2_dual_conditions\",\"i1pro2_dual_scan\",\"i1io_table_dual\",\"conditions_kept\",\"lights_quiet\",\"i1pro2_dual_blue\",\"instrument_waits\",\"i1pro2_dual_fresh_start\",\"lamp_off_i1pro2\"],\"build\":\"%s\"}\n",
 				       cq_helper_build_string());
 				fflush(stdout);
 				return 0;
@@ -6929,9 +6937,9 @@ int main(int argc, char *argv[]) {
 		/* 4.3.53: the waits in use, said once, only when ChromIQ passed any
 		 * (without them nothing is printed, as before) */
 		if (cq_json && cq_waits_given)
-			cq_emit_raw("{\"event\":\"waits\",\"lamp_off_ms\":%d,"
+			cq_emit_raw("{\"event\":\"waits\",\"lamp_off_ms\":%d,\"lamp_off_i1pro2_ms\":%d,"
 			            "\"blue_quiet_ms\":%d,\"blue_after_ms\":%d,\"ignored\":\"%s\"}",
-			            cq_lamp_off_set_ms, cq_lights_blue_quiet_set_ms,
+			            cq_lamp_off_set_ms, cq_lamp_off_i1pro2_set_ms, cq_lights_blue_quiet_set_ms,
 			            cq_lights_blue_after_now(), cq_waits_ignored);
 		if (cq_replay_path != NULL && cq_replay_load(cq_replay_path))
 			error("Failed to load replay script '%s'", cq_replay_path);

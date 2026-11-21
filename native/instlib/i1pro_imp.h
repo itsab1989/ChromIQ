@@ -1554,6 +1554,7 @@ extern int i1pro2_cq_lights_blue_known;		/* 4.3.53: 1 = pass 1's direction was k
 extern int i1pro2_cq_lights_held_after_blue;	/* the last hold counted from the BLUE (4.3.52) */
 extern int i1pro2_cq_lights_blue_quiet_set_ms;	/* the BLUE's quiet time from the helper, ms (4.3.53); -1 = CQ_LIGHTS_BLUE_QUIET_MS */
 extern int i1pro_cq_lamp_off_ms;	/* the lamp wait from the helper, ms (4.3.53); -1 = LAMP_OFF_TIME */
+extern int i1pro2_cq_lamp_off_ms;	/* the i1Pro 2's lamp wait from the helper, ms (after 4.3.54); -1 = see CQ_LAMP_OFF_TIME */
 extern void (*i1pro2_cq_lights_hold_poll)(void);	/* asked during a hold (4.3.37) */
 
 #ifdef __cplusplus

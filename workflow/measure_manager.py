@@ -1293,10 +1293,15 @@ class MeasureManager(QObject):
                     log.info("i1Pro 2 lights: this helper does not know "
                              "--i1pro2-lights; not passed")
             if "instrument_waits" in _hcaps(params.engine_helper):
-                eargs += _iw.helper_args(waits_ms, lights=waits_lights)
-                self._waits_ms = waits_ms if waits_lights else {
-                    k: v for k, v in waits_ms.items()
-                    if k == _iw.LAMP_OFF.name}
+                # after 4.3.54: the i1Pro 2's own lamp wait, to a helper that takes it
+                _i1p2 = _iw.CAP_I1PRO2 in _hcaps(params.engine_helper)
+                self._lamp_i1pro2_taken = _i1p2
+                eargs += _iw.helper_args(waits_ms, lights=waits_lights, i1pro2=_i1p2)
+                _lamps = {_iw.LAMP_OFF.name} | ({_iw.I1PRO2_LAMP_OFF.name} if _i1p2 else set())
+                self._waits_ms = {k: v for k, v in waits_ms.items()
+                                  if waits_lights or k in _lamps}
+                if not _i1p2:
+                    self._waits_ms.pop(_iw.I1PRO2_LAMP_OFF.name, None)
             else:
                 log.info("instrument waits: this helper does not take them; "
                          "its own compiled waits are used")
@@ -4710,6 +4715,7 @@ class MeasureManager(QObject):
             try:
                 from core.app_log import line as _al_line
                 _al_line("helper waits", lamp_off_ms=ev.get("lamp_off_ms"),
+                         lamp_off_i1pro2_ms=ev.get("lamp_off_i1pro2_ms"),
                          blue_quiet_ms=ev.get("blue_quiet_ms"),
                          blue_after_ms=ev.get("blue_after_ms"),
                          ignored=ev.get("ignored") or None)
@@ -5158,6 +5164,18 @@ class MeasureManager(QObject):
                 from core.app_log import flat, line
                 line("measure instrument",
                      **flat({k: v for k, v in ev.items() if k != "event"}))
+            except Exception:      # noqa: BLE001
+                pass
+            try:   # after 4.3.54: which lamp wait this instrument gets
+                from core import instrument_waits as _iw
+                from core.app_log import line
+                _w = getattr(self, "_waits_ms", None)
+                if _w:
+                    _a = _iw.lamp_wait_for(str(ev.get("model") or ""), _w,
+                                           i1pro2_taken=bool(getattr(self, "_lamp_i1pro2_taken", False)))
+                    if _a is not None:
+                        line("lamp wait", instrument=str(ev.get("model") or ""),
+                             applied=_a[0], lamp_off_s=_a[1] / 1000.0)
             except Exception:      # noqa: BLE001
                 pass
 

@@ -450,7 +450,7 @@ def test_the_helper_names_the_new_abilities_and_build():
     assert '\\"lights_quiet\\",\\"i1pro2_dual_blue\\"' in h
     ext = (HELPER_SRC / "chromiq_ext.h").read_text(encoding="utf-8")
     # 4.3.53: 2026-11-20d = 20c + the waits as values (tests/test_instrument_waits.py)
-    assert '"chromiq-chartread 2026-11-21c ' in ext
+    assert '"chromiq-chartread 2026-11-21d ' in ext
     assert "+conditions-kept+lights-quiet+i1pro2-dual-blue+blue-own-quiet+blue-quiet-return-only" in ext
 
 
@@ -470,7 +470,7 @@ def test_the_bundled_helper_is_this_build():
     if not exe.is_file():
         pytest.skip("no bundled helper in this checkout")
     data = exe.read_bytes()
-    assert b"chromiq-chartread 2026-11-21c " in data
+    assert b"chromiq-chartread 2026-11-21d " in data
     assert b'"why\\":\\"early\\"' in data or b'"why":"early"' in data
     assert b"blue_quiet_ms" in data and b'"after":"blue"' in data
 
@@ -909,6 +909,13 @@ def test_4352_every_life_of_4_3_52_is_the_same_wire_and_the_same_waits(traces):
         for what in ("GAPMS", "LAMPGAP"):
             a, b = _timed(new, scn, what), _timed(old, scn, what)
             assert len(a) == len(b), (scn, what)
+            if what == "LAMPGAP":
+                # after 4.3.54 (the owner's decision of 2026-11-21): with nothing passed an
+                # i1Pro 2 waits its own 1100 ms (i1Profiler's 1.059 s rounded up) where 4.3.52
+                # waited ArgyllCMS's 1500; every other wait as before
+                assert all((_same_wait(x, y) if y < 1490 else 1100 <= x < 1300)
+                           for x, y in zip(a, b)), (scn, what, a, b)
+                continue
             assert all(_same_wait(x, y) for x, y in zip(a, b)), (scn, what, a, b)
         assert [h[1] for h in _held(new, scn)] == [h[1] for h in _held(old, scn)], scn
 
@@ -936,9 +943,11 @@ def test_4353_the_blue_wait_passed_changes_only_that_wait(traces, scn, low, high
 @pytest.mark.parametrize("scn,low,high", [
     ("lamp_300", 300, 1500),          # passed: 300 ms
     ("lamp_0", 0, 300),               # passed: no wait
-    ("lamp_bad", 1500, 10 ** 6),      # out of range: ArgyllCMS's 1500 ms
-    ("lamp_1500", 1500, 10 ** 6),     # passed at the default
-    ("lamp_default", 1500, 10 ** 6),  # nothing passed: ArgyllCMS's 1500 ms
+    # after 4.3.54: what this harness passes is --lamp-off-ms (one value for both, as an app
+    # of 4.3.53 / 4.3.54 does); with nothing usable an i1Pro 2 now waits its own 1100 ms
+    ("lamp_bad", 1100, 1300),         # out of range: the i1Pro 2's compiled 1100 ms
+    ("lamp_1500", 1500, 10 ** 6),     # passed: 1500
+    ("lamp_default", 1100, 1300),     # nothing passed: the i1Pro 2's 1100 ms
 ])
 def test_4353_the_lamp_wait_passed_changes_only_that_wait(traces, scn, low, high):
     t = traces["i1pro2_dual_lights_test"]
@@ -1053,13 +1062,14 @@ def _s3(t: str, scn: str) -> dict:
 def test_at_the_defaults_argylls_lamp_wait_decides_when_the_second_pass_starts(traces):
     """At the defaults the person presses at the blue (0.55 s after pass 1); the blue's own
     0.37 s would let the return pass start at about 0.93 s, but its dark reading waits until
-    ArgyllCMS's lamp has been off 1.5 s: the trigger goes out about 1.5 s after pass 1 either
-    way, so the blue's wait alone changes nothing."""
+    the lamp has been off the i1Pro 2's 1.1 s (after 4.3.54; ArgyllCMS's 1.5 s before): the
+    trigger goes out about 1.1 s after pass 1 either way, so the blue's wait alone changes
+    nothing."""
     t = traces["i1pro2_dual_lights_test"]
     d, b0 = _s3(t, "s3_defaults"), _s3(t, "s3_blue_0")
     for r in (d, b0):
         assert 500 <= r["blue"] <= 700 and r["press"] - r["blue"] < 50
-        assert 1490 <= r["trig"] <= 1700 and r["lampgap"] >= 1490
+        assert 1090 <= r["trig"] <= 1300 and r["lampgap"] >= 1090
     assert abs(d["trig"] - b0["trig"]) < 100
 
 

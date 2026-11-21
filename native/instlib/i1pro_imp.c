@@ -190,8 +190,24 @@
  * (--lamp-off-ms, 0 to 5000). -1, always without that argument, and any value
  * out of range = LAMP_OFF_TIME, ArgyllCMS's own: the same wait as before. */
 int i1pro_cq_lamp_off_ms = -1;
-#define CQ_LAMP_OFF_TIME ((i1pro_cq_lamp_off_ms >= 0 && i1pro_cq_lamp_off_ms <= 5000) \
-                          ? (unsigned int)i1pro_cq_lamp_off_ms : (unsigned int)LAMP_OFF_TIME)
+#define CQ_LAMP_OFF_I1PRO ((i1pro_cq_lamp_off_ms >= 0 && i1pro_cq_lamp_off_ms <= 5000) \
+                           ? (unsigned int)i1pro_cq_lamp_off_ms : (unsigned int)LAMP_OFF_TIME)
+/* CHROMIQ PATCH (after 4.3.54, the owner's decision of 2026-11-21): the i1Pro 2
+ * (Rev E: also the ES-2000 and the i1Basic Pro 2) has a wait of its own,
+ * --lamp-off-ms-i1pro2; without it the i1Pro 2 takes --lamp-off-ms when that is
+ * given (an app of 4.3.53 / 4.3.54 passes one value for both, as before), and
+ * with neither CQ_LAMP_OFF_TIME_I1PRO2: i1Profiler was recorded waiting 1.059 s
+ * from lamp off to the next dark reading of an i1Pro 2, rounded UP on the
+ * fields' 0.05 s grid (core/instrument_waits.py I1PRO2_LAMP_OFF, the same
+ * number). The original i1Pro keeps ArgyllCMS's LAMP_OFF_TIME. *p* is the
+ * i1pro of the function that uses it. */
+#define CQ_LAMP_OFF_TIME_I1PRO2 1100
+int i1pro2_cq_lamp_off_ms = -1;
+#define CQ_LAMP_OFF_TIME ((p)->dtype != instI1Pro2 ? CQ_LAMP_OFF_I1PRO \
+                          : (i1pro2_cq_lamp_off_ms >= 0 && i1pro2_cq_lamp_off_ms <= 5000) \
+                          ? (unsigned int)i1pro2_cq_lamp_off_ms \
+                          : (i1pro_cq_lamp_off_ms >= 0 && i1pro_cq_lamp_off_ms <= 5000) \
+                          ? (unsigned int)i1pro_cq_lamp_off_ms : (unsigned int)CQ_LAMP_OFF_TIME_I1PRO2)
 #define PATCH_CONS_THR 0.1		/* Dark measurement consistency threshold */
 
 #define USE_RD_SYNC				/* Use mutex syncronisation, else depend on TRIG_DELAY */
