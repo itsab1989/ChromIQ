@@ -59,7 +59,7 @@ def test_the_known_issues_say_what_is_not_proven():
     assert "The right blue light alone has not been seen in a recording of i1Profiler" in k
     assert "All 23 recorded first passes ran from left to right" in k
     assert "Any wait shorter than its default has not been tried with ChromIQ on a real" in k
-    assert "at least 3, before 5" in k
+    assert "at least 3, before 5" in k and "border that grows with the speed" in k
     assert "Where the table's arm really ends its travel is not known" in k
 
 
@@ -94,3 +94,12 @@ def test_readme_and_site_say_what_4353_changes_and_that_it_ran_only_simulated():
     assert "the blue light blinks on the side the second pass moves towards" in readme
     assert "New in 4.3.53: rows are read as rows wherever the chart lies" in site
     assert "not run on a real table yet" in site
+
+
+def test_the_entry_says_the_speeds_the_border_allows_and_what_changes_with_the_betas_off():
+    text = "\n".join(_entry("v4.3.53"))
+    assert "ChromIQ's own charts are read at 168 mm/s" not in text
+    assert "ChromIQ's own charts with 10 mm patches are read at 88 mm/s" in text
+    assert "168 mm/s is used for patches of about 14 mm and longer" in text
+    assert "except for one fix for every strip instrument" in text
+    assert "An arm left free (after aiming) is brought home from wherever it is" in text

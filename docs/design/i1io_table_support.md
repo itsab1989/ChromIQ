@@ -1635,9 +1635,13 @@ i1profiler anymore so we should not rely on it"*.
 
 What 4.3.53 does after its fix round (driven on the simulated table only; never on a real table):
 
-* **The speed of a row is i1Profiler's first-pass speed for that patch pitch** (110 / 118 / 137 /
-  138 / 168 mm/s from the recordings; the rule ~25.3 / s x (pitch - 4.1 mm)); only a recorded
-  speed is sent. ChromIQ's own cut needs at least 3 readings in each patch's window (was 5).
+* **The speed of a row starts from i1Profiler's first-pass speed for that patch pitch** (110 / 118 /
+  137 / 138 / 168 mm/s from the recordings; the rule ~25.3 / s x (pitch - 4.1 mm)); only a recorded
+  speed is sent. ChromIQ's own cut needs at least 3 readings in each patch's window (was 5),
+  inside a clean border of max(0.5 mm, speed x 18 ms) at each patch edge (fix round 2, the
+  re-review: the motion start's measured spread); the fastest recorded speed whose border leaves
+  them is used (10 mm patches 88 mm/s, 168 from about 14 mm).
+* **A free arm is homed from anywhere but the back strip** (fix round 2), as a held arm.
 * **A person's answer brings the countdown back** (guidance off): after any answer in the middle of
   a page the next movement has its countdown with Stop; movements that follow each other with
   nobody asked have none.

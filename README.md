@@ -692,11 +692,13 @@ ways:
 >   short countdown with a large Stop button comes before the first movement
 >   instead of a question. Neither the homing from far out nor a measurement
 >   without the guidance has run on a real table yet.
-> - New in 4.3.53: rows are read as rows wherever the chart lies, at the
->   speed i1Profiler uses for the same patch size, and ChromIQ remembers each
->   table, so after the first careful time it asks fewer questions and moves
->   without extra steps. A reading that fails with the arm on its patch is
->   read once more by itself. None of this has run on a real table yet.
+> - New in 4.3.53: rows are read as rows wherever the chart lies, faster, at
+>   speeds i1Profiler uses (88 mm/s for 10 mm patches: each patch keeps a clean
+>   border that grows with the speed), and ChromIQ remembers each table, so
+>   after the first careful time it asks fewer questions and moves without
+>   extra steps. A reading that fails with the arm on its patch is read once
+>   more by itself, and a free arm is brought home from wherever it is. None
+>   of this has run on a real table yet.
 > - The option is off by default, and with it off nothing changes.
 
 Why it may be worth it all the same: X-Rite has ended support for these
