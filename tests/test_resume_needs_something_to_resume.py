@@ -128,7 +128,9 @@ def test_both_modules_resolve_resume_through_the_same_helper():
     from ui.tabs.tab_measure import TabMeasure
     for fn in (TabMeasure._collect_guided, TabMeasure._collect_manual):
         src = inspect.getsource(fn)
-        assert "_resume_has_anything_to_resume" in src, fn.__name__
+        # 4.3.54 (review S5): through the one decision, which asks this helper
+        assert "_will_resume(" in src, fn.__name__
+        assert "_resume_has_anything_to_resume" in inspect.getsource(TabMeasure._will_resume)
         assert "resume              = self._resume_cb.isChecked()" not in src
         assert "resume              = self._m_resume_cb.isChecked()" not in src
 

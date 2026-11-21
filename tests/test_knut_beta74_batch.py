@@ -350,16 +350,21 @@ class _Measure(__import__("PyQt6.QtWidgets", fromlist=["QWidget"]).QWidget):
 
     def _existing_ti3_for_chart(self):  return self._ti3
     def _current_mode(self):            return "manual"
+    # 4.3.54 (review S5): the one decision is "-r is sent"; here the file stands for a
+    # measurement that can be resumed, so a ticked resume box sends -r
+    def _will_resume(self, mode=None):  return self._resume_cb.isChecked()
 
 
 def test_no_measurement_means_no_question(qapp):
     assert _Measure(None)._confirm_replacing_measurement() is True
 
 
-@pytest.mark.parametrize("resume,refine", [(True, False), (False, True)])
+@pytest.mark.parametrize("resume,refine", [(True, False), (True, True)])
 def test_refining_or_resuming_is_not_replacing(qapp, tmp_path, resume, refine):
     """Both add to the readings instead of overwriting them, so neither is a
-    reason to interrupt the user."""
+    reason to interrupt the user. 4.3.54 (review S5): refinement rides on
+    "Refine / resume" (-r); a refine box ticked without it resumes nothing
+    (test_4354_one_resume_decision)."""
     ti3 = tmp_path / "chart.ti3"
     ti3.write_text("x", encoding="utf-8")
     m = _Measure(ti3, resume=resume, refine=refine)

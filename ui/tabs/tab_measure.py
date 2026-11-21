@@ -9247,7 +9247,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 return None
             if not ctl.target.verification_id or self._ti1_path is None:
                 return None
-            if not self._read_builds_on_existing():
+            # the box itself (4.3.54: not `_read_builds_on_existing`, which is now the whole
+            # decision and asks this method in turn)
+            _m = self._current_mode()
+            _cb = self._resume_cb if _m == "guided" else self._m_resume_cb
+            if _cb is None or _cb.isHidden() or not _cb.isChecked():
                 return None
             dated = self._selected_measurement_ti3()
             if dated is None or not dated.is_file() \
@@ -9598,9 +9602,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         else:
             # Asked before the parameters are collected, by the same rule
             # they are (`_collect_guided` / `_collect_manual`).
-            cb = (self._resume_cb if self._current_mode() == "guided"
-                  else self._m_resume_cb)
-            resumes = self._resume_has_anything_to_resume(cb.isChecked())
+            resumes = self._will_resume()       # 4.3.54 (review S5): the one decision
         ti3 = Path(ti1).with_suffix(".ti3")
         staged = self._verification_to_stage()
         if staged is not None:
@@ -9666,10 +9668,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return Path(staged)
         # Whether chartread is given -r, by the rule the parameters use
         # (`_collect_guided` / `_collect_manual`), as the layout check asks.
-        cb = (self._resume_cb if self._current_mode() == "guided"
-              else self._m_resume_cb)
-        if cb is None or not self._resume_has_anything_to_resume(
-                cb.isChecked()):
+        if not self._will_resume():           # 4.3.54 (review S5): the one decision
             return None
         ti3 = Path(ti1).with_suffix(".ti3")
         if not ti3.is_file() or _cgats_has_no_readings(ti3):
@@ -23942,12 +23941,28 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         """
         if _fd9_ask(self, "_is_fd9_target"):           # FD-9 (Beta): its own Resume box
             return self._fd9_resumes()
-        guided = self._current_mode() == "guided"
-        resume = (self._resume_cb if guided else self._m_resume_cb)
-        refine = (self._refine_cb if guided else self._m_refine_cb)
-        return bool(
-            (resume is not None and resume.isVisible() and resume.isChecked())
-            or (refine is not None and refine.isEnabled() and refine.isChecked()))
+        # 4.3.54 (the review's S5, the root of issue 217's case): ONE decision. Whether the
+        # existing measurement is built on (no replace window, no move to old/) is now exactly
+        # whether -r is sent (`_will_resume`, which `_collect_guided` / `_collect_manual` use
+        # too). Before, a ticked box over a file with nothing to resume (or a ticked refine box
+        # with -r not sent) skipped the window and the move, and the read replaced the file.
+        return self._will_resume()
+
+    def _will_resume(self, mode: "str | None" = None) -> bool:
+        """THE decision whether this read continues the run's measurement (-r): the module's
+        "Refine / resume existing measurement (-r)" box offered and ticked, and a measurement
+        behind it that can be resumed (`_resume_has_anything_to_resume`; a dated verification
+        about to be staged beside the chart counts). Refinement always rides on it."""
+        mode = mode or self._current_mode()
+        cb = self._resume_cb if mode == "guided" else self._m_resume_cb
+        if cb is None or cb.isHidden() or not cb.isChecked():
+            return False
+        if self._resume_has_anything_to_resume(True):
+            return True
+        try:
+            return self._verification_to_stage() is not None
+        except Exception:      # noqa: BLE001
+            return False
 
     def _replace_message(self, facts, ti3) -> "tuple[str, str]":
         """One of §5's messages, chosen by what the measurement file holds.
@@ -26423,8 +26438,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             # not use it.
             disable_initial_cal = False,
             patch_by_patch      = self._resolve_patch_by_patch("guided"),
-            resume              = self._resume_has_anything_to_resume(
-                self._resume_cb.isChecked()),
+            resume              = self._will_resume("guided"),
             # `shlex.join`, not `" ".join`: `measure_manager` re-splits
             # this with `shlex.split`, so a value containing a space is
             # torn in two on the way back. No option row carries one
@@ -26448,8 +26462,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             suppress_warnings   = self._m_suppress_cb.isChecked(),
             disable_initial_cal = self._m_nocal_cb.isChecked(),
             patch_by_patch      = self._resolve_patch_by_patch("manual"),
-            resume              = self._resume_has_anything_to_resume(
-                self._m_resume_cb.isChecked()),
+            resume              = self._will_resume("manual"),
             # `shlex.join`, not `" ".join`: `measure_manager` re-splits
             # this with `shlex.split`, so a value containing a space is
             # torn in two on the way back. No option row carries one
