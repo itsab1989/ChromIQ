@@ -848,11 +848,14 @@ instrument or table. Tests: `tests/test_4354_dual_scan_mode.py`, `tests/test_435
   exactly the one with the dual scan off); M1 or M2 chosen = the dual scan of "always", every
   condition saved. Checked first, in both modes, as before: the switches, the engine, an
   instrument known to be another model, the polariser / D65.
-* **Guided** has no condition row (`GUIDED_CHARTREAD_KEYS`), so under "only for M1 or M2" the
-  rule has nothing to go by there and the dual scan runs as with "always" (profile from M0; Build
-  Profile can still build from M1 or M2). Why: no choice is not a choice of M0, and the dual scan
-  is never taken away from a module that has it (the coordinator's brief). The i1iO table uses
-  the filter row of the module it is started from (Manual), and Guided likewise runs as "always".
+* **Guided** has no condition row (`GUIDED_CHARTREAD_KEYS`). The owner's decision of 2026-11-21
+  (replacing the builder's first choice, which ran the dual scan there as with "always"): *"i would
+  have leaned to make it single pass in guided only and leave the condition choice and in turn the
+  dual scan to manual module"*. So under "only for M1 or M2" GUIDED reads a single pass (no choice =
+  M0; `why_not` "guided") and its note says that M1 and M2 are read from MANUAL by choosing M1 or M2
+  there (M-DUAL-GUIDED-SINGLE, dismissible like the others); under "always" GUIDED keeps the dual
+  scan (always means always; testers who have the option on today keep it). The i1iO table uses
+  the filter row of the module it is started from, so the same rule holds there.
 * **A continued measurement keeps the kind it was started with** (`session.started_as`, the
   run's own record: the main file's dual record, or its pass record): under "only for M1 or M2"
   a dual measurement continues as a dual scan whatever is chosen now; a single-scan measurement
@@ -866,11 +869,15 @@ instrument or table. Tests: `tests/test_4354_dual_scan_mode.py`, `tests/test_435
   (settings schema 35, `_migrate_dual_scan_mode_keep_4353`), so nothing changes silently for the
   testers who use it. Decided once (the schema step), never again at a later start.
 * **The note before START** (status line under the log, one line, the whole note on hover and
-  once in the log; texts §M-PROPOSED M-DUAL-M0-CHOSEN, -SINGLE-CONTINUES, -NOT-I1PRO2,
+  once in the log; texts §M-PROPOSED M-DUAL-GUIDED-SINGLE, M-DUAL-OLD-FILE, M-DUAL-M0-CHOSEN, -SINGLE-CONTINUES, -NOT-I1PRO2,
   -NOT-THIS-CHART, -NO-ENGINE, -HIGHRES-NOTE, -NOCAL-NOTE, -FILTER-NOTE, -CANNOT-CONTINUE,
   -LAST-CANNOT, -BEFORE-START-TABLE beside the existing M-DUAL-BEFORE-START and
   M-DUAL-CONTINUE-M0). Every reason the code has for not running the dual scan has its sentence:
-  M0 chosen; a single-scan measurement continued; the instrument not an i1Pro 2; a calibration
+  M0 chosen; GUIDED under "only for M1 or M2"; a single-scan measurement continued (its own
+  sentence: "You are continuing a measurement that was read with one pass per strip ...",
+  `mixed_single_continued`, also in the START refusal and the session's end line); a reading
+  program older than 4.3.54 with the run's one-pass file beside the chart (`mixed_new`, issue
+  217's R1); the instrument not an i1Pro 2; a calibration
   chart, or a chart for another instrument (FD-9, CR30); the chart-reading engine off, or one
   without the dual scan; "-H"; "-N"; the polariser / D65; a measurement that cannot be continued
   with it (another factor, or single under "always"); and what the LAST measurement found about

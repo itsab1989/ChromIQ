@@ -121,6 +121,8 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 # similar-patch rule for both tests (#182 6196599132); its card texts are ours.
 AWAITING_APPROVAL: "set[str]" = {
     # 2026-11-20, 4.3.54: the dual scan's notes before START (when it runs)
+    "M-DUAL-GUIDED-SINGLE",
+    "M-DUAL-OLD-FILE",
     "M-DUAL-BEFORE-START-TABLE",
     "M-DUAL-M0-CHOSEN",
     "M-DUAL-SINGLE-CONTINUES",

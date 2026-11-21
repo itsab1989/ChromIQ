@@ -12326,6 +12326,21 @@ M_DUAL_LAST_CANNOT = _m(
     ' keeps M0 only.',
     approved=False)
 
+M_DUAL_GUIDED_SINGLE = _m(
+    'M-DUAL-GUIDED-SINGLE',
+    'Dual scan: not used in GUIDED',
+    'GUIDED has no choice of measurement condition, so each strip is read '
+    'once and only M0 is saved. To read M1 and M2 as well, switch to MANUAL '
+    'and choose M1 or M2 in “{row}”.',
+    approved=False)
+
+M_DUAL_OLD_FILE = _m(
+    'M-DUAL-OLD-FILE',
+    'Dual scan: the earlier measurement in this run is in the way',
+    '{reason} This happens only with a ChromIQ reading program older than '
+    '4.3.54.',
+    approved=False)
+
 #: Before START: "Skip initial calibration (-N)" with the dual scan (review
 #: of 2026-11-18, S-5): a calibration kept from before has no reading of the
 #: white tile with the UV light, so M1 and M2 would end at the first strip.
@@ -14217,7 +14232,7 @@ CATALOGUE = {m.id: m for m in (
     M_COND_FILL_OFFER,
     M_DUAL_MODEL_ASK, M_DUAL_MODEL_CORRECTED,
     M_DUAL_MODEL_NOTED,
-    M_DUAL_BEFORE_START_TABLE, M_DUAL_M0_CHOSEN, M_DUAL_SINGLE_CONTINUES, M_DUAL_NOT_I1PRO2, M_DUAL_NOT_THIS_CHART, M_DUAL_NO_ENGINE, M_DUAL_HIGHRES_NOTE, M_DUAL_NOCAL_NOTE, M_DUAL_FILTER_NOTE, M_DUAL_CANNOT_CONTINUE, M_DUAL_LAST_CANNOT,
+    M_DUAL_BEFORE_START_TABLE, M_DUAL_M0_CHOSEN, M_DUAL_SINGLE_CONTINUES, M_DUAL_NOT_I1PRO2, M_DUAL_NOT_THIS_CHART, M_DUAL_NO_ENGINE, M_DUAL_HIGHRES_NOTE, M_DUAL_NOCAL_NOTE, M_DUAL_FILTER_NOTE, M_DUAL_CANNOT_CONTINUE, M_DUAL_LAST_CANNOT, M_DUAL_GUIDED_SINGLE, M_DUAL_OLD_FILE,
     M_STRIP_FAILED_COMS_DETAIL,
     M_RESUME_RESOLUTION,
     M_RESUME_RESOLUTION_INSTRUMENT,

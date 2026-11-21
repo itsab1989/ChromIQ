@@ -12973,8 +12973,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 start=self._start_button_name(), option=D.switch_label(),
                 where=D.where_label())
         else:
+            _why = getattr(self, "_dual_refusal_reason", None)
             title, body = M.M_DUAL_START_REFUSED.render(
-                reason=D.reason_sentence(refusal))
+                reason=D.reason_sentence(_why(refusal) if callable(_why) else refusal))
         log.warning("dual scan: START refused (%s)", refusal)
         self._log.appendPlainText(f"[{title}]\n{body}")
         self._log.ensureCursorVisible()
@@ -13158,7 +13159,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 start=start)
         if plan.refusal:
             return ("cannot:" + plan.refusal,) + M.M_DUAL_CANNOT_CONTINUE.render(
-                reason=D.reason_sentence(plan.refusal), start=start)
+                reason=D.reason_sentence(self._dual_refusal_reason(plan.refusal)),
+                start=start)
         if not plan.dual:
             if plan.why_not == "helper":
                 return ("cannot:helper",) + M.M_DUAL_NO_ENGINE.render(why=tr(
@@ -13168,6 +13170,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 return ("cannot:other_instrument",) + M.M_DUAL_NOT_I1PRO2.render(
                     known=self._dual_known_as(), model_row=tr("Instrument for the dual scan:").rstrip(": "),
                     where=D.where_label())
+            if plan.why_not == "guided":
+                return ("guided_single",) + M.M_DUAL_GUIDED_SINGLE.render(row=row)
             if plan.why_not == "m0_chosen":
                 return ("m0_chosen",) + M.M_DUAL_M0_CHOSEN.render(
                     row=row, start=start, always=tr("always"), option=D.switch_label(),
@@ -13191,12 +13195,47 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if self._dual_highres_now():
             return ("cannot:highres",) + M.M_DUAL_HIGHRES_NOTE.render(
                 highres=tr("High resolution spectral mode (-H)"), start=start, more=more)
+        if not table and self._dual_old_file_in_the_way():
+            return ("cannot:old_helper_file",) + M.M_DUAL_OLD_FILE.render(
+                reason=D.reason_sentence("mixed_new"))
         last = str(self._settings.get(self._DUAL_LAST_KEY, "") or "")
         if last in self._DUAL_LAST_REASONS:
             return ("cannot:last_" + last,) + M.M_DUAL_LAST_CANNOT.render(
                 reason=D.reason_sentence(last))
         msg = M.M_DUAL_BEFORE_START_TABLE if table else M.M_DUAL_BEFORE_START
         return ("will_run",) + msg.render(chosen=condition_name(plan.chosen))
+
+    def _dual_refusal_reason(self, refusal: str) -> str:
+        """4.3.54 (issue 217, R2): "mixed_scan_kind" in words true for the case: a one-pass
+        measurement being continued gets its own sentence ("started as a dual scan" would be
+        false there)."""
+        if refusal != "mixed_scan_kind":
+            return refusal
+        try:
+            from workflow.dual_scan import session as D
+            if D.started_as(self._measurement_to_continue()) == "single":
+                return "mixed_single_continued"
+        except Exception:      # noqa: BLE001
+            pass
+        return refusal
+
+    def _dual_old_file_in_the_way(self) -> bool:
+        """4.3.54 (issue 217, R1): a chart-reading program older than 4.3.54's refuses a NEW
+        dual measurement ("mixed") while the run's one-pass measurement stays beside the chart,
+        which happens when "Refine / resume" counts as building on it but nothing is continued
+        (-r not sent). The bundled program does not (caps "i1pro2_dual_fresh_start")."""
+        try:
+            from workflow.dual_scan import session as D
+            if "i1pro2_dual_fresh_start" in self._dual_caps():
+                return False
+            if self._measurement_to_continue() is not None:
+                return False
+            if not self._read_builds_on_existing():
+                return False                       # the old file is moved to old/ first
+            ti1 = getattr(self, "_ti1_path", None)
+            return ti1 is not None and D.started_as(Path(ti1).with_suffix(".ti3")) == "single"
+        except Exception:      # noqa: BLE001
+            return False
 
     def _dual_known_as(self) -> str:
         """How the instrument known before the read is known, for M-DUAL-NOT-I1PRO2."""
@@ -13228,6 +13267,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
     _DUAL_LOG_WORDS = {
         "will_run": "the dual scan runs: each strip is read twice, M0, M1 and M2 are saved",
         "m0_chosen": "not used: M0 is chosen and the mode is 'only for M1 or M2', so each strip is read once and only M0 is saved",
+        "guided_single": "not used: GUIDED has no condition choice and the mode is 'only for M1 or M2', so each strip is read once and only M0 is saved",
+        "cannot:old_helper_file": "not used: an older chart-reading program and the run's one-pass measurement beside the chart (the program would say 'mixed')",
         "cannot:single_record": "not used: the measurement continued was started with one pass per strip, so it continues that way (M0 only)",
         "cannot:engine": "not used: ChromIQ's chart-reading engine is switched off",
         "cannot:helper": "not used: this chart-reading engine does not offer the dual scan",
@@ -13518,6 +13559,15 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             # a Continue after M1 / M2 ended: the engine says "resume", or
             # "mixed" when it had rewritten the header on an earlier one
             why = "resume"
+        elif why == "mixed":
+            # 4.3.54 (issue 217): "mixed" on a NEW measurement (an older reading program,
+            # the run's one-pass file beside the chart) is not "started as a dual scan"
+            if not getattr(self, "_dual_resume", False):
+                why = "mixed_new"
+            else:
+                _why = getattr(self, "_dual_refusal_reason", None)
+                if callable(_why):
+                    why = _why("mixed_scan_kind")
         self._dual_end_reason = D.reason_id(why)
         _keep = getattr(self, "_dual_remember_last", None)
         if callable(_keep):

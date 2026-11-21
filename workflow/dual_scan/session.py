@@ -67,6 +67,7 @@ SHOWN_REASONS = (
     "dual_needs_ruler", "uv_spot_failed", "no_ruler",
     "calibration_mode_changed", "bad_values", "bad_scale",
     "mixed_scan_kind", "mixed_factor", "dual_high_resolution",
+    "mixed_new", "mixed_single_continued",
     # the session-level ends the engine can give besides those (review of
     # 2026-11-18, S-4: none of them may reach the person as its raw id)
     "not_available", "record", "memory", "conversion", "write", "resume",
@@ -178,7 +179,7 @@ class Plan:
     #: and reads them again with both passes
     m0_only: "tuple[str, ...]" = ()
     #: 4.3.54: the dual scan is on but this read is an ordinary single scan
-    #: of an i1Pro 2 by the "m1_m2" rule (*why_not* "m0_chosen" or
+    #: of an i1Pro 2 by the "m1_m2" rule (*why_not* "m0_chosen", "guided" or
     #: "single_record"): the filter row is the condition choice, so it is not
     #: sent as -F (an i1Pro 2 refuses every -F)
     single_i1pro2: bool = False
@@ -197,9 +198,10 @@ def plan_for(settings: Any, caps: Iterable[str], reported_model: "str | None",
     *main_ti3*: the measurement this read continues (None: a new one);
     *choice*: the factor (default: the standard one); *condition_offered*:
     the module shows a condition choice (Manual's filter row). Guided has
-    none, so the "m1_m2" rule has nothing to go by there and the dual scan
-    runs as with "always" (4.3.54: no choice is not a choice of M0, and the
-    dual scan is never taken away from a module that has it)."""
+    none: under "m1_m2" it reads a single pass (no choice = M0; the owner,
+    2026-11-21: "make it single pass in guided only and leave the condition
+    choice and in turn the dual scan to manual module"); under "always" it
+    keeps the dual scan."""
     if not switched_on(settings):
         return Plan(False, why_not="off")
     if not helper_can(caps):
@@ -218,7 +220,9 @@ def plan_for(settings: Any, caps: Iterable[str], reported_model: "str | None",
         if kind == "single":
             return Plan(False, chosen, why_not="single_record",
                         single_i1pro2=True)
-        if not kind and condition_offered and chosen == "M0":
+        if not kind and not condition_offered:
+            return Plan(False, "M0", why_not="guided", single_i1pro2=True)
+        if not kind and chosen == "M0":
             return Plan(False, chosen, why_not="m0_chosen",
                         single_i1pro2=True)
     choice = choice or ScaleChoice.standard()

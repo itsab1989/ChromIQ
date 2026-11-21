@@ -103,10 +103,24 @@ def test_m1_m2_with_m1_or_m2_chosen_is_the_dual_scan_of_always(code, chosen):
     assert b.args() == a.args()
 
 
-@pytest.mark.parametrize("mode", D.MODES)
 @pytest.mark.parametrize("code", [None, "n", "5", "u"])
-def test_guided_has_no_choice_so_the_dual_scan_runs_as_always(mode, code):
-    plan = D.plan_for(_on(mode), CAPS, None, code, condition_offered=False)
+def test_guided_reads_one_pass_under_only_for_m1_or_m2(code):
+    """The owner, 2026-11-21: "make it single pass in guided only and leave the condition
+    choice and in turn the dual scan to manual module"."""
+    plan = D.plan_for(_on(D.MODE_M1_M2), CAPS, None, code, condition_offered=False)
+    assert plan.dual is False and plan.why_not == "guided" and plan.single_i1pro2
+    assert plan.chosen == "M0" and plan.args() == []
+
+
+@pytest.mark.parametrize("code", [None, "n", "5", "u"])
+def test_guided_keeps_the_dual_scan_under_always(code):
+    plan = D.plan_for(_on(D.MODE_ALWAYS), CAPS, None, code, condition_offered=False)
+    assert plan.dual is True
+
+
+def test_guided_continues_a_dual_measurement_as_one(tmp_path):
+    main = _main(tmp_path, dual=True)
+    plan = D.plan_for(_on(D.MODE_M1_M2), CAPS, None, None, main, condition_offered=False)
     assert plan.dual is True
 
 

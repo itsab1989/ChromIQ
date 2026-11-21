@@ -88,8 +88,10 @@ daylight (with UV)" or "M2: UV cut (no UV)". With an i1Pro 2 it is not sent to t
 (an i1Pro 2 has no filter ArgyllCMS could switch); ChromIQ records your choice. With the row
 switched off, the profile is made from M0. With **"only for M1 or M2"** (step 1), this row also
 decides whether the dual scan runs: M0 = one pass per strip, M1 or M2 = two passes. GUIDED has no
-such row: there the dual scan always runs, and the profile is made from M0 (Build Profile can
-still build from M1 or M2).
+such row: with "only for M1 or M2" it reads one pass per strip and keeps M0 only (the line under
+the log says so: **"Dual scan: not used in GUIDED"**), so measure in MANUAL for M1 and M2; with
+"always" GUIDED reads both passes too, and the profile is made from M0 (Build Profile can still
+build from M1 or M2).
 
 **You measure the chart once**, not once for each condition: each strip is read twice, right
 after each other, and all three conditions come from that one measurement.

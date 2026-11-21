@@ -10871,13 +10871,14 @@ def i1pro2_dual_scan_help() -> str:
            "them. Without the ruler only M0 is measured."),
         tr("**When the dual scan runs.** The list beside this option "
            "chooses it. “{always}”: every strip is read twice, and M0, M1 "
-           "and M2 are saved, whatever condition you choose. “{m1m2}”: in "
-           "the Measure tab's MANUAL, “Spectral filter type (-F)” decides. "
-           "With M0 chosen (or the row switched off), each strip is read "
-           "once, as without this option, and only M0 is saved. With M1 or "
-           "M2 chosen, each strip is read twice, and M0, M1 and M2 are all "
-           "saved. GUIDED has no such row, so there the dual scan always "
-           "runs.").format(always=tr("always"), m1m2=tr("only for M1 or M2")),
+           "and M2 are saved, whatever condition you choose, in MANUAL and in "
+           "GUIDED. “{m1m2}”: in the Measure tab's MANUAL, “Spectral filter "
+           "type (-F)” decides. With M0 chosen (or the row switched off), each "
+           "strip is read once, as without this option, and only M0 is saved. "
+           "With M1 or M2 chosen, each strip is read twice, and M0, M1 and M2 "
+           "are all saved. GUIDED has no such row, so there each strip is read "
+           "once and only M0 is saved: for M1 and M2, measure in MANUAL."
+           ).format(always=tr("always"), m1m2=tr("only for M1 or M2")),
         tr("**What “{m1m2}” costs.** A chart you measure with M0 chosen has "
            "no M1 or M2. You cannot add them later without measuring the "
            "chart again as a new measurement. A measurement you continue "

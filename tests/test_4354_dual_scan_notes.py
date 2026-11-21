@@ -87,9 +87,67 @@ def test_m0_chosen_under_always_still_runs(qapp, tmp_path):
     tab.close()
 
 
-def test_guided_runs_whatever_the_mode(qapp, tmp_path):
+def test_guided_under_only_for_m1_or_m2_reads_one_pass_and_says_where_m1_m2_are(
+        qapp, tmp_path):
     tab = _tab(tmp_path)
     tab._stack.setCurrentIndex(0)
+    kind, title, body = tab._dual_note_now()
+    assert kind == "guided_single" and title == M.M_DUAL_GUIDED_SINGLE.render(row="")[0]
+    assert "MANUAL" in body and "Spectral filter type (-F)" in body
+    tab._refresh_dual_note()
+    assert 'href="dual-hide:guided_single"' in tab._status_bar_lbl.text()
+    tab.close()
+
+
+def test_guided_under_always_runs_the_dual_scan(qapp, tmp_path):
+    tab = _tab(tmp_path, mode=D.MODE_ALWAYS)
+    tab._stack.setCurrentIndex(0)
+    assert tab._dual_note_now()[0] == "will_run"
+    tab.close()
+
+
+def test_a_continued_one_pass_measurement_gets_its_own_sentence(qapp, tmp_path):
+    """could_he_tell.txt R2: under "always" a one-pass measurement continued with the dual
+    scan on is refused, and the sentence says what is true ("You are continuing a measurement
+    that was read with one pass per strip"), never "started as a dual scan"."""
+    from tests.test_4354_dual_scan_mode import _main
+    from workflow.dual_scan.reasons import REASONS
+    tab = _tab(tmp_path, mode=D.MODE_ALWAYS)
+    main = _main(tmp_path, dual=False)
+    tab._measurement_to_continue = lambda: main
+    _choose(tab, "5")
+    kind, _t, body = tab._dual_note_now()
+    assert kind == "cannot:mixed_scan_kind"
+    assert REASONS["mixed_single_continued"] in body and "started as a dual scan" not in body
+    tab.close()
+
+
+def test_mixed_on_a_new_measurement_is_said_truly(qapp, tmp_path):
+    """could_he_tell.txt R1: an older reading program says "mixed" on a NEW measurement; the
+    line must not say "started as a dual scan"."""
+    from workflow.dual_scan.reasons import REASONS
+    tab = _tab(tmp_path)
+    tab._dual_resume = False
+    tab._session_live = True
+    tab._on_dual_ended("mixed")
+    assert REASONS["mixed_new"] in tab._dual_ended_text
+    assert "started as a dual scan" not in tab._dual_ended_text
+    tab.close()
+
+
+def test_an_older_reading_program_with_the_one_pass_file_in_the_way_is_said(qapp, tmp_path):
+    from tests.test_4354_dual_scan_mode import _main
+    tab = _tab(tmp_path)
+    _choose(tab, "5")
+    main = Path(tab._ti1_path).with_suffix(".ti3")
+    main.write_text(_main(tmp_path, dual=False).read_text(encoding="latin-1"),
+                    encoding="latin-1")
+    tab._read_builds_on_existing = lambda: True           # the box ticked, nothing to continue
+    tab._measurement_to_continue = lambda: None
+    tab._dual_caps = lambda: CAPS                         # an older program: no fresh_start
+    assert tab._dual_note_now()[0] == "cannot:old_helper_file"
+    # the bundled program (4.3.54, issue 217 fixed): it runs
+    tab._dual_caps = lambda: CAPS | {"i1pro2_dual_fresh_start"}
     assert tab._dual_note_now()[0] == "will_run"
     tab.close()
 
