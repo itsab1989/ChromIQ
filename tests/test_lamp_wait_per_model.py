@@ -62,7 +62,7 @@ def test_the_driver_picks_the_wait_by_model(tmp_path):
     subprocess.run([cc, "-o", str(exe), str(src)], check=True, capture_output=True, timeout=120)
     got = {}
     for ln in subprocess.run([str(exe)], check=True, capture_output=True, text=True,
-                             timeout=60).stdout.splitlines():
+                             encoding="utf-8", timeout=60).stdout.splitlines():
         x, y, w1, w2 = (int(v) for v in ln.split())
         got[(x, y)] = (w1, w2)
     assert got[(-1, -1)] == (1500, 1100)          # neither given: ArgyllCMS's / the i1Pro 2's own

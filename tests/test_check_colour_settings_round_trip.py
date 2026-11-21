@@ -70,7 +70,8 @@ def _build(run, ti3, **colour):
     params = ProfileParams(ti3_path=ti3, quality="l", verbose=True, **colour)
     args = ProfileBuilder(None)._build_args(params)
     out = subprocess.run([_bin("colprof"), *args], cwd=ti3.parent,
-                         capture_output=True, text=True, timeout=300)
+                         capture_output=True, text=True, encoding="utf-8", errors="replace",
+                         timeout=300)
     assert out.returncode == 0, out.stdout + out.stderr
     m = _FIT.search(out.stdout + out.stderr)
     assert m, out.stdout[-2000:]
@@ -93,7 +94,8 @@ def _check(ti3, icc, *, follow: bool):
         params = cc.apply_to_check(params, built.colorimetry)
     args = ProfcheckRunner(None)._build_args(params)
     out = subprocess.run([_bin("profcheck"), *args], cwd=ti3.parent,
-                         capture_output=True, text=True, timeout=120)
+                         capture_output=True, text=True, encoding="utf-8", errors="replace",
+                         timeout=120)
     m = _CHECK.search(out.stdout + out.stderr)
     assert m, out.stdout[-2000:] + out.stderr[-2000:]
     return (float(m.group(2)), float(m.group(1))), args

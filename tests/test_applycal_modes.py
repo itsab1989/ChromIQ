@@ -93,7 +93,7 @@ def _output_cal(path: Path) -> Path:
 
 def _run(args, cwd) -> "tuple[int, str]":
     out = subprocess.run([_applycal(), *args], cwd=cwd, capture_output=True,
-                         text=True, timeout=60)
+                         text=True, encoding="utf-8", errors="replace", timeout=60)
     return out.returncode, out.stdout + out.stderr
 
 

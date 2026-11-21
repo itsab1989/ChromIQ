@@ -113,7 +113,7 @@ def _cases():
 
 
 def _write(path: Path, cases) -> None:
-    with path.open("w") as f:
+    with path.open("w", encoding="utf-8") as f:
         for name, cells, lp, up, uv in cases:
             f.write(f"cut {name} {len(cells)} {lp.size} {up.size}\n")
             f.write("C " + " ".join(f"{a} {b}" for a, b in cells) + "\n")
@@ -319,7 +319,7 @@ def _align_cases():
 def c_align(tmp_path_factory):
     from tests.test_i1pro3_lights_modes import _build_and_run
     p = tmp_path_factory.mktemp("aligncases") / "cases.txt"
-    with p.open("w") as f:
+    with p.open("w", encoding="utf-8") as f:
         for name, lp, ls, up, us, lo, hi in _align_cases():
             f.write(f"align {name} {lp.size} {up.size} {lo:.17g} {hi:.17g}\n")
             for tag, v in (("P", lp), ("S", ls), ("Q", up), ("V", us)):
