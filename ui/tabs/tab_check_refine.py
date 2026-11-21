@@ -1990,17 +1990,33 @@ class TabCheckRefine(QWidget):
                     choice="Cancel (the check did not run)"))
                 return None
             if choice == "profile":
-                self._show_colorimetry_on_controls(built.colorimetry)
+                unshown = self._show_colorimetry_on_controls(
+                    built.colorimetry)
                 params = cc.apply_to_check(params, built.colorimetry)
                 # the FWA gate still has the last word
                 from workflow.fwa_gate import drop_fwa
                 refusal = self._fwa_refused()
                 if refusal is not None:
                     drop_fwa(params)
-                notes.append(tr(
-                    "This check uses the colour settings the profile was "
-                    "built with: {settings}.").format(
-                        settings=cc.describe(built.colorimetry)))
+                # what profcheck will really get (the runner's FWA gate)
+                really = cc.from_check_params(cc.as_run(params))
+                if cc.differences(built.colorimetry, really):
+                    notes.append(tr(
+                        "This profile was built with {settings}. The check "
+                        "uses {used}: FWA compensation is left out, because "
+                        "this measurement cannot use it.").format(
+                            settings=cc.describe(built.colorimetry),
+                            used=cc.describe(really)))
+                else:
+                    notes.append(tr(
+                        "This check uses the colour settings the profile was "
+                        "built with: {settings}.").format(
+                            settings=cc.describe(built.colorimetry)))
+                if unshown:
+                    notes.append(tr(
+                        "The controls on this tab cannot show {values}, so "
+                        "they do not show everything this check used.").format(
+                            values=", ".join(unshown)))
             else:
                 self._colour_insisted = {"built": built.colorimetry,
                                          "check": check}
@@ -2014,16 +2030,10 @@ class TabCheckRefine(QWidget):
                 "the same settings.").format(
                     settings=cc.describe(built.colorimetry)))
         elif spectral and not built.known:
-            notes.append(tr(
-                "ChromIQ does not know which colour settings (observer, "
-                "illuminant, FWA compensation) this profile was built with: "
-                "it was built by an earlier version of ChromIQ, or somewhere "
-                "else. The check uses the settings on this tab: {settings}. "
-                "If the profile was built with other settings, the numbers "
-                "make it look worse than it really is. Building the profile "
-                "again records its settings, and the check then uses them."
-            ).format(settings=cc.describe(check)))
-        used = cc.from_check_params(params)
+            notes.append(self._unknown_colour_note(built, check))
+        # the log names what profcheck really gets (the runner's FWA gate
+        # runs again on these params and says so in the tab log itself)
+        used = cc.from_check_params(cc.as_run(params))
         chosen = {"profile": "Use the profile's settings",
                   "mine": "Check with my settings"}.get(choice, "")
         line = cc.check_log_line(built, used, spectral=spectral,
@@ -2031,6 +2041,41 @@ class TabCheckRefine(QWidget):
         log.info("%s", line)
         self._colour_record = line
         return params, notes
+
+    @staticmethod
+    def _unknown_colour_note(built, check) -> str:
+        """The tab-log line for a profile whose colour settings are not
+        known, worded by WHY (`check_colorimetry.Built.reason`), once per
+        check, never a window (review m1)."""
+        from workflow import check_colorimetry as cc
+        if built.reason == cc.UNKNOWN_OLD:
+            why = tr("This profile was built before ChromIQ recorded the "
+                     "colour settings (observer, illuminant, FWA "
+                     "compensation) of a build. Building it again records "
+                     "them, and the check then uses them.")
+        elif built.reason == cc.UNKNOWN_OTHER_FILE:
+            why = tr("The run's record of colour settings is about its last "
+                     "build ({other}), not about this profile, so the check "
+                     "cannot compare them with its own.").format(
+                         other=built.other or "?")
+        elif built.reason == cc.UNKNOWN_CHANGED:
+            why = tr("This profile file is not the one its build recorded "
+                     "(it was replaced or changed since), so ChromIQ does not "
+                     "know which colour settings it was built with.")
+        elif built.reason == cc.UNKNOWN_FILES:
+            why = tr("This profile was built with a spectral file for its "
+                     "colour settings ({files}), which the controls on this "
+                     "tab cannot select, so the check cannot use the same "
+                     "settings.").format(files=", ".join(built.files))
+        else:
+            why = tr("ChromIQ has no record of the colour settings "
+                     "(observer, illuminant, FWA compensation) this profile "
+                     "was built with: it was built by an earlier version of "
+                     "ChromIQ, or somewhere else.")
+        return why + " " + tr(
+            "The check uses the settings on this tab: {settings}. If the "
+            "profile was built with other settings, the numbers make it look "
+            "worse than it really is.").format(settings=cc.describe(check))
 
     def _colorimetry_box(self, built, check):
         """``(window, {"profile": button, "mine": button, "cancel":
@@ -2068,11 +2113,15 @@ class TabCheckRefine(QWidget):
                 return key
         return "cancel"
 
-    def _show_colorimetry_on_controls(self, c) -> None:
+    def _show_colorimetry_on_controls(self, c) -> "list[str]":
         """Put *c* on the observer, illuminant and FWA controls of the mode
         the check runs in, so the tab shows what the check uses. Not saved
-        as defaults; logged with the window as its source."""
+        as defaults; logged with the window as its source. Returns the
+        values the controls hold no entry for (e.g. an FWA illuminant M1
+        typed in Build Profile's extra arguments), which the tab log then
+        names (review m4)."""
         from ui.setting_change_log import setting_source
+        from workflow.check_colorimetry import _OBSERVER_NAMES
         n = c.normalised()
         if self._current_mode() == "guided":
             obs, ill, fwa, fwa_ill = (self._obs_combo, self._illum_combo,
@@ -2080,16 +2129,22 @@ class TabCheckRefine(QWidget):
         else:
             obs, ill, fwa, fwa_ill = (self._m_obs_combo, self._m_illum_combo,
                                       self._m_fwa_cb, self._m_fwa_combo)
+        unshown: "list[str]" = []
+        pairs = [(obs, n.observer), (ill, n.illuminant)]
+        if n.fwa:
+            pairs.append((fwa_ill, n.fwa_illum))
         with setting_source("the warning window: the user chose \"Use the "
                             "profile's settings\" (the profile's build "
                             "settings)"):
-            for combo, value in ((obs, n.observer), (ill, n.illuminant),
-                                 (fwa_ill, n.fwa_illum)):
+            for combo, value in pairs:
                 i = combo.findData(value)
                 if i >= 0:
                     combo.setCurrentIndex(i)
+                else:
+                    unshown.append(_OBSERVER_NAMES.get(value, value))
             fwa.setChecked(n.fwa)
             self._apply_fwa_gate()
+        return unshown
 
     def _warn_calibrated_twice(self) -> bool:
         """C1 (#182 5959070209), the Check & Refine half: a run's
@@ -2244,7 +2299,8 @@ class TabCheckRefine(QWidget):
                     strips_file = write_refine_strips(
                         folder, stem, plan.chosen(),
                         patches=plan.chosen_patches(),
-                        chart=chart_for_measurement(self._ti3_path))
+                        chart=chart_for_measurement(self._ti3_path),
+                        colour_note=self._colour_strips_note())
                     self._log.appendPlainText(
                         f"[OK] Refinement strips file saved: {folder.name}/{strips_file.name}")
             except Exception as exc:
@@ -2303,6 +2359,15 @@ class TabCheckRefine(QWidget):
                 "(counted, in no strip)",
                 plan.n_total, plan.shared_locations, plan.no_location)
         return plan
+
+    def _colour_strips_note(self) -> str:
+        """The English line a Refine_Strips file carries after "Check with
+        my settings" (review m5), else ""."""
+        ci = getattr(self, "_colour_insisted", None)
+        if not ci:
+            return ""
+        return (f"this check used {ci['check'].for_log()}; the profile was "
+                f"built with {ci['built'].for_log()}")
 
     def _colour_insisted_text(self) -> str:
         """M-CR-COLOUR-SETTINGS-INSISTED as one paragraph (title, then
@@ -2678,7 +2743,8 @@ class TabCheckRefine(QWidget):
                             strips_file.parent, ti3.stem,
                             plan.chosen(first_only=False), target=strips_file,
                             patches=plan.chosen_patches(first_only=False),
-                            chart=chart_for_measurement(ti3))
+                            chart=chart_for_measurement(ti3),
+                            colour_note=self._colour_strips_note())
                     except OSError as exc:
                         log.warning("could not rewrite %s: %s", strips_file, exc)
                 dlg.accept()

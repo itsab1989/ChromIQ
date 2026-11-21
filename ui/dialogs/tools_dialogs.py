@@ -2803,10 +2803,14 @@ class VerifyProfileDialog(_ToolDialogBase):
         )
         # Issue 217: a profile is checked with the observer, illuminant and
         # FWA compensation it was built with, when its run records them.
-        from workflow.check_colorimetry import follow_profile
+        from workflow.check_colorimetry import (as_run, describe,
+                                                follow_profile,
+                                                from_check_params)
         params, _colour_note = follow_profile(params, "Verify profile")
         if _colour_note:
             self._log.appendPlainText(_colour_note)
+        # what the saved report records (review m2)
+        _colour_used = describe(from_check_params(as_run(params)))
 
         def _on_line(line: str) -> None:
             self._log.appendPlainText(line.rstrip())
@@ -2842,6 +2846,9 @@ class VerifyProfileDialog(_ToolDialogBase):
                         tr("ΔE formula: {f}   Intent: {i}").format(
                             f=self._formula.currentText(),
                             i=self._intent.currentText()),
+                        tr("Colour settings: {settings}").format(
+                            settings=_colour_used),
+                        *([_colour_note] if _colour_note else []),
                         "",
                         tr("Verdict: {grade}").format(grade=grade),
                         "",
@@ -2850,7 +2857,10 @@ class VerifyProfileDialog(_ToolDialogBase):
                     rp = write_named_report(
                         ensure_subdir(reports_dir_for(self._measured)),
                         "Verify_Profile", self._measured.stem,
-                        summary, result.raw_log,
+                        summary,
+                        "\n".join(x for x in (getattr(self._checker,
+                                                      "last_command", ""),
+                                              result.raw_log) if x),
                         log_title="Full profcheck output")
                     self._log.appendPlainText(
                         _report_saved_line(rp, self._measured))

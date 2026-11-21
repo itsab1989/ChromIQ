@@ -14,12 +14,26 @@ five good strips three times. Nothing said so.
 So:
 
 * every build records the three, as they reached colprof or the engine
-  (``RunMeta.profile_build["colorimetry"]``, `record_for_build`);
+  (``RunMeta.profile_build["colorimetry"]``, `record_for_build`), with the
+  profile file's size and SHA-256, so the record is only ever read for the
+  very file it was written for (`fingerprint`); a calibrated copy
+  (applycal) and colprof's comparison profile are recorded beside it under
+  ``"derived"`` (`record_derived`);
 * a check of that profile reads them back (`built_colorimetry`) and compares
   them with its own (`differences`), only for a measurement with spectral
   readings: without them none of the three changes a number;
 * a profile that records nothing (built before this, imported, a loose
   file) is UNKNOWN, and the check behaves exactly as before.
+
+FWA: a plain ``-f`` simulates the ``-i`` illuminant, not D50. Measured with
+ArgyllCMS 3.5.0 colprof on the repo's spectral test file (issue 217 review,
+and again for this module): "-i D65 -f" fits exactly like "-i D65 -fD65"
+and not like "-i D65 -fD50"; "-i A -f -i D65" like "-i D65 -f" (the -f
+illuminant is settled after every argument is read); "-fD65 -f" like
+"-fD65" (a later plain -f keeps the name); "-f D65" (two arguments) like
+"-fD65"; "-o 1964_10 -o 2015_2" like "-o 2015_2" (the last one wins). The
+Build tab's "Same as illuminant (-i)" says the same; so does the engine
+(`profile_engine/spectral.py`: ``fwa_illum or illuminant``).
 
 These four values are the whole list. colprof's other options shape the
 fit (quality, smoothing, gamut, intents, black generation) or the tags, not
@@ -31,7 +45,6 @@ from __future__ import annotations
 import re
 import shlex
 from dataclasses import dataclass, replace
-from datetime import datetime
 from pathlib import Path
 
 from core.logger import get_logger
@@ -42,16 +55,41 @@ log = get_logger(__name__)
 RECORD_KEY = "colorimetry"
 
 #: ArgyllCMS's own defaults, the same for colprof and profcheck (their usage
-#: texts, 3.5.0): observer 1931 2 degree, illuminant D50, and "-f" without a
-#: name simulates D50 ("D50 (def.)").
+#: texts, 3.5.0): observer 1931 2 degree, illuminant D50. "-f" without a name
+#: simulates the -i illuminant (see the module text).
 DEFAULT_OBSERVER = "1931_2"
 DEFAULT_ILLUMINANT = "D50"
-DEFAULT_FWA_ILLUMINANT = "D50"
 
-#: A profile file may be written a little after the record's clock is read;
-#: one modified later than this after its record was replaced by something
-#: else (a copy, an import), and its record no longer describes it.
-_RECORD_SLACK_S = 120.0
+#: The record's key for colour-settings records of profiles made FROM the
+#: run's profile (calibrated.icc) or beside it (the colprof comparison).
+DERIVED_KEY = "derived"
+
+
+def is_file_value(value) -> bool:
+    """A value that names a file (a ``.sp`` illuminant, a ``.cmf`` observer)
+    rather than one of ArgyllCMS's names. The check's controls cannot carry
+    one, and its path is never written anywhere (privacy rule)."""
+    v = str(value or "").strip()
+    return bool(v) and ("/" in v or "\\" in v
+                        or v.lower().endswith((".sp", ".cmf")))
+
+
+def _shown(value) -> str:
+    """A value as it may be written down: a file by its name only."""
+    v = str(value or "").strip()
+    return Path(v.replace("\\", "/")).name if is_file_value(v) else v
+
+
+def fingerprint(path) -> dict:
+    """``{"profile_size", "profile_sha256"}`` of a profile file, {} when it
+    cannot be read. As the confirmed-patches file pins its .ti3."""
+    import hashlib
+    try:
+        data = Path(path).read_bytes()
+    except OSError:
+        return {}
+    return {"profile_size": len(data),
+            "profile_sha256": hashlib.sha256(data).hexdigest()}
 
 
 @dataclass(frozen=True)
@@ -60,24 +98,38 @@ class Colorimetry:
     observer: str = DEFAULT_OBSERVER
     illuminant: str = DEFAULT_ILLUMINANT
     fwa: bool = False
-    fwa_illum: str = DEFAULT_FWA_ILLUMINANT
+    #: "" = simulate the -i illuminant, as ArgyllCMS reads a plain -f
+    fwa_illum: str = ""
 
     def normalised(self) -> "Colorimetry":
         obs = str(self.observer or "").strip() or DEFAULT_OBSERVER
         ill = str(self.illuminant or "").strip() or DEFAULT_ILLUMINANT
         fwa = bool(self.fwa)
-        fi = (str(self.fwa_illum or "").strip() or DEFAULT_FWA_ILLUMINANT
-              ) if fwa else DEFAULT_FWA_ILLUMINANT
+        fi = (str(self.fwa_illum or "").strip() or ill) if fwa else ""
         return Colorimetry(obs, ill, fwa, fi)
+
+    @property
+    def files(self) -> "tuple[str, ...]":
+        """The values that name a file, by file name."""
+        n = self.normalised()
+        vals = [n.observer, n.illuminant] + ([n.fwa_illum] if n.fwa else [])
+        return tuple(dict.fromkeys(_shown(v) for v in vals
+                                   if is_file_value(v)))
 
     @property
     def is_default(self) -> bool:
         return self.normalised() == Colorimetry()
 
     def as_record(self) -> dict:
+        """File values by their NAME only (privacy rule), marked
+        ``"files"``: such a record can be described, not reproduced."""
         n = self.normalised()
-        return {"observer": n.observer, "illuminant": n.illuminant,
-                "fwa": n.fwa, "fwa_illum": n.fwa_illum if n.fwa else ""}
+        rec = {"observer": _shown(n.observer),
+               "illuminant": _shown(n.illuminant),
+               "fwa": n.fwa, "fwa_illum": _shown(n.fwa_illum)}
+        if self.files:
+            rec["files"] = list(self.files)
+        return rec
 
     @classmethod
     def from_record(cls, rec) -> "Colorimetry | None":
@@ -94,9 +146,9 @@ class Colorimetry:
     def for_log(self) -> str:
         """One English line for the app log."""
         n = self.normalised()
-        fwa = f"on ({n.fwa_illum})" if n.fwa else "off"
-        return (f"observer {n.observer}, illuminant {n.illuminant}, "
-                f"FWA compensation {fwa}")
+        fwa = f"on, simulating {_shown(n.fwa_illum)}" if n.fwa else "off"
+        return (f"observer {_shown(n.observer)}, illuminant "
+                f"{_shown(n.illuminant)}, FWA compensation {fwa}")
 
 
 # ---------------------------------------------------------------------------
@@ -105,8 +157,11 @@ class Colorimetry:
 
 def _overlay_extra_args(c: Colorimetry, extra: str) -> Colorimetry:
     """The hand-typed extra arguments win, as they do on colprof's command
-    line (they come after the tab's own) and in the engine
-    (`engine_builder._apply_extra_args`)."""
+    line (they come after the tab's own; the base name follows them, so a
+    value after the last flag is still that flag's). As colprof reads them
+    (measured, see the module text): ``-i X`` / ``-iX`` and ``-o X`` /
+    ``-oX``, the last one wins; ``-f`` switches FWA on and keeps any name
+    given before; ``-fX`` / ``-f X`` names the simulated illuminant."""
     try:
         toks = shlex.split(extra or "")
     except ValueError:
@@ -116,20 +171,24 @@ def _overlay_extra_args(c: Colorimetry, extra: str) -> Colorimetry:
     while i < len(toks):
         t = toks[i]
         nxt = toks[i + 1] if i + 1 < len(toks) else None
-        if t in ("-i", "-o") and nxt is not None and not nxt.startswith("-"):
+        value_next = nxt is not None and not nxt.startswith("-")
+        if t in ("-i", "-o", "-f") and value_next:
             if t == "-i":
                 ill = nxt
-            else:
+            elif t == "-o":
                 obs = nxt
+            else:
+                fwa, fi = True, nxt
             i += 2
             continue
         if t.startswith("-i") and len(t) > 2:
             ill = t[2:]
         elif t.startswith("-o") and len(t) > 2:
             obs = t[2:]
-        elif t.startswith("-f"):
+        elif t == "-f":
             fwa = True
-            fi = t[2:]
+        elif t.startswith("-f"):
+            fwa, fi = True, t[2:]
         i += 1
     return Colorimetry(obs, ill, fwa, fi)
 
@@ -156,6 +215,39 @@ def record_for_build(params) -> dict:
     return {RECORD_KEY: from_profile_params(params).as_record()}
 
 
+def record_derived(out_icc, colorimetry: "Colorimetry | None",
+                   source: str = "") -> bool:
+    """Record the colour settings of a profile made from or beside the run's
+    own (applycal's calibrated.icc keeps its source's settings; colprof's
+    comparison profile is built with the same ones), with its fingerprint,
+    under ``profile_build["derived"][<name>]``. Only inside a run, never
+    raises; a later build replaces the whole record and drops these."""
+    if colorimetry is None:
+        return False
+    try:
+        from core.file_manager import Run
+        out = Path(out_icc)
+        run = Run.for_dir(out.parent)
+        if not run.meta_path.is_file():
+            return False
+        fp = fingerprint(out)
+        if not fp:
+            return False
+        meta = run.load_meta()
+        rec = dict(getattr(meta, "profile_build", None) or {})
+        derived = dict(rec.get(DERIVED_KEY) or {})
+        derived[out.name] = {RECORD_KEY: colorimetry.as_record(),
+                             "from": _shown(source), **fp}
+        rec[DERIVED_KEY] = derived
+        meta.profile_build = rec
+        run.save_meta(meta)
+        return True
+    except Exception:      # noqa: BLE001 - a record never fails its tool
+        log.warning("could not record the colour settings of %s", out_icc,
+                    exc_info=True)
+        return False
+
+
 def from_check_params(params) -> Colorimetry:
     """What a check passes to profcheck (`ProfcheckParams`)."""
     return Colorimetry(params.observer or "", params.illum or "",
@@ -166,12 +258,25 @@ def from_check_params(params) -> Colorimetry:
 # What a profile was built with
 # ---------------------------------------------------------------------------
 
+#: Why a profile's colour settings are not known (`Built.reason`).
+UNKNOWN_NO_RECORD = "no_record"        # no run, or the run records no build
+UNKNOWN_OLD = "old"                    # recorded before the settings were
+UNKNOWN_OTHER_FILE = "other_file"      # the record is about another file
+UNKNOWN_CHANGED = "changed"            # this file is not the one recorded
+UNKNOWN_FILES = "files"                # built with a .sp / .cmf file
+
+
 @dataclass(frozen=True)
 class Built:
     """The answer of `built_colorimetry`: *colorimetry* None = unknown, and
-    *why* then says why in English for the app log."""
+    *why* then says why in English for the app log, *reason* is one of the
+    ``UNKNOWN_*`` codes, *other* the file the record is about
+    (`UNKNOWN_OTHER_FILE`) and *files* the file names (`UNKNOWN_FILES`)."""
     colorimetry: "Colorimetry | None"
     why: str = ""
+    reason: str = ""
+    other: str = ""
+    files: "tuple[str, ...]" = ()
 
     @property
     def known(self) -> bool:
@@ -182,44 +287,55 @@ class Built:
                 else f"unknown ({self.why})")
 
 
-def _parse_at(text) -> "float | None":
-    try:
-        return datetime.fromisoformat(str(text).strip()).timestamp()
-    except (TypeError, ValueError):
-        return None
-
-
 def built_colorimetry(icc_path) -> Built:
     """The colour settings *icc_path* was built with, read from the record of
-    the run it lies in. Unknown unless that run's last build record names
-    this very file, carries the settings, and is not older than the file."""
+    the run it lies in: the last build's (``profile`` names this file) or a
+    derived profile's (``derived``). Unknown unless that record carries the
+    settings and this file has exactly the size and SHA-256 recorded for it
+    (no time window: a file put back from old/ or copied in is not the one
+    the record describes)."""
     if not icc_path:
-        return Built(None, "no profile")
+        return Built(None, "no profile", UNKNOWN_NO_RECORD)
     icc = Path(icc_path)
     try:
         from core.file_manager import Run
         run = Run.for_dir(icc.parent)
         if not run.meta_path.is_file():
-            return Built(None, "the profile is not in a ChromIQ run folder")
+            return Built(None, "the profile is not in a ChromIQ run folder",
+                         UNKNOWN_NO_RECORD)
         rec = dict(getattr(run.load_meta(), "profile_build", None) or {})
     except Exception as exc:      # noqa: BLE001 - not knowing is an answer
-        return Built(None, f"the run's record could not be read: {exc}")
+        return Built(None, f"the run's record could not be read: {exc}",
+                     UNKNOWN_NO_RECORD)
     if not rec:
-        return Built(None, "the run records no profile build")
-    if str(rec.get("profile") or "") != icc.name:
-        return Built(None, f"the run's last build made {rec.get('profile')!r}, "
-                           f"not this file")
-    col = Colorimetry.from_record(rec.get(RECORD_KEY))
+        return Built(None, "the run records no profile build",
+                     UNKNOWN_NO_RECORD)
+    entry = None
+    if str(rec.get("profile") or "") == icc.name:
+        entry = rec
+    else:
+        d = (rec.get(DERIVED_KEY) or {}).get(icc.name)
+        if isinstance(d, dict):
+            entry = d
+    if entry is None:
+        other = _shown(rec.get("profile") or "")
+        return Built(None, f"the run's record is about {other!r}, not this "
+                           f"file", UNKNOWN_OTHER_FILE, other=other)
+    raw = entry.get(RECORD_KEY)
+    col = Colorimetry.from_record(raw)
     if col is None:
-        return Built(None, "built before ChromIQ recorded the colour settings")
-    at = _parse_at(rec.get("at"))
-    try:
-        mtime = icc.stat().st_mtime
-    except OSError:
-        return Built(None, "the profile cannot be read")
-    if at is not None and mtime > at + _RECORD_SLACK_S:
-        return Built(None, "the profile was changed after its build was "
-                           "recorded")
+        return Built(None, "built before ChromIQ recorded the colour settings",
+                     UNKNOWN_OLD)
+    fp = fingerprint(icc)
+    if (not fp or entry.get("profile_sha256") != fp["profile_sha256"]
+            or entry.get("profile_size") != fp["profile_size"]):
+        return Built(None, "this file is not the one its build recorded "
+                           "(size or SHA-256 differ)", UNKNOWN_CHANGED)
+    files = tuple((raw or {}).get("files") or ())
+    if files:
+        return Built(None, "built with a spectral file the check cannot "
+                           f"select ({', '.join(files)})", UNKNOWN_FILES,
+                     files=files)
     return Built(col)
 
 
@@ -250,10 +366,23 @@ def differences(built: Colorimetry, check: Colorimetry) -> "list[str]":
 
 
 def apply_to_check(params, built: Colorimetry):
-    """*params* (`ProfcheckParams`) with the profile's own colour settings."""
+    """*params* (`ProfcheckParams`) with the profile's own colour settings.
+    The FWA illuminant is passed by name (``-fD65`` for a build's plain
+    ``-f`` with ``-i D65``), which profcheck reads exactly alike."""
     n = built.normalised()
     return replace(params, observer=n.observer, illum=n.illuminant,
-                   fwa_enabled=n.fwa, fwa_illum=n.fwa_illum)
+                   fwa_enabled=n.fwa, fwa_illum=n.fwa_illum or n.illuminant)
+
+
+def as_run(params):
+    """*params* as profcheck will really receive them: after the FWA gate
+    (`workflow.fwa_gate.without_refused_fwa`, which `ProfcheckRunner.run`
+    applies too), so a log line never names an -f that is left out."""
+    try:
+        from workflow.fwa_gate import without_refused_fwa
+        return without_refused_fwa(params)[0]
+    except Exception:      # noqa: BLE001
+        return params
 
 
 # ---------------------------------------------------------------------------
@@ -274,12 +403,12 @@ def describe(c: Colorimetry) -> str:
     compensation off"."""
     from core.i18n import tr
     n = c.normalised()
-    fwa = (tr("on, simulating {illuminant}").format(illuminant=n.fwa_illum)
-           if n.fwa else tr("off"))
+    fwa = (tr("on, simulating {illuminant}").format(
+               illuminant=_shown(n.fwa_illum)) if n.fwa else tr("off"))
     return tr("observer {observer}, illuminant {illuminant}, FWA "
               "compensation {fwa}").format(
-        observer=_OBSERVER_NAMES.get(n.observer, n.observer),
-        illuminant=n.illuminant, fwa=fwa)
+        observer=_OBSERVER_NAMES.get(n.observer, _shown(n.observer)),
+        illuminant=_shown(n.illuminant), fwa=fwa)
 
 
 def check_log_line(built: Built, check: Colorimetry, *, spectral: bool,
@@ -320,9 +449,19 @@ def follow_profile(params, where: str):
             and differences(built.colorimetry, from_check_params(params))):
         params = apply_to_check(params, built.colorimetry)
         from core.i18n import tr
-        note = tr("This profile was built with {settings}, so the check uses "
-                  "the same settings.").format(
-                      settings=describe(built.colorimetry))
+        used = from_check_params(as_run(params))
+        if differences(built.colorimetry, used):
+            # the FWA gate leaves -f out for this measurement
+            note = tr("This profile was built with {settings}. The check "
+                      "uses {used}: FWA compensation is left out, because "
+                      "this measurement cannot use it.").format(
+                          settings=describe(built.colorimetry),
+                          used=describe(used))
+        else:
+            note = tr("This profile was built with {settings}, so the check "
+                      "uses the same settings.").format(
+                          settings=describe(built.colorimetry))
     log.info("%s: %s", where, check_log_line(
-        built, from_check_params(params), spectral=spectral, mismatch=False))
+        built, from_check_params(as_run(params)), spectral=spectral,
+        mismatch=False))
     return params, note

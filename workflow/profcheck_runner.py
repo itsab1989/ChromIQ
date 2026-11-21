@@ -200,8 +200,10 @@ class ProfcheckRunner:
         # >4-ink profiles: stock profcheck refuses the colourspace, so run the
         # Python N-channel check (icclu forward lookup + ΔE) — same output
         # format, so all downstream parsing / grading / refine-strip flagging
-        # works unchanged. Spectral options (FWA / custom illuminant / observer)
-        # aren't recomputed; the file's CIE values are used.
+        # works unchanged. Spectral options (FWA / illuminant / observer) are
+        # honoured: `profcheck_nchannel.run_check` recomputes the patch
+        # colours from the spectra with spec2cie when they are not the
+        # defaults.
         if _ti3_device_channels(params.ti3_path) > 4:
             bin_dir = Path(self._runner._settings.get(
                 "argyll_bin_path", "/Applications/Argyll/bin"))
@@ -589,6 +591,7 @@ def write_refine_strips(
     target: "Path | None" = None,
     patches: "list[tuple[str, float]] | None" = None,
     chart: "Path | None" = None,
+    colour_note: str = "",
 ) -> Path:
     """Write Refine_Strips_<n>_<stem>.txt, incrementing n until the name is free.
 
@@ -619,6 +622,11 @@ def write_refine_strips(
     _fp = chart_fingerprint(chart) if chart is not None else None
     if _fp:
         lines.append(f"{CHART_LINE_PREFIX}{_fp}")
+    # Issue 217 (review m5): a list from a check run with other colour
+    # settings than the profile was built with says so, as a comment line
+    # every ChromIQ reads past (`refine_strips_colour_note`).
+    if colour_note:
+        lines.append(COLOUR_NOTE_PREFIX + " ".join(colour_note.split()))
     lines.append("# Strip\tMaxDE")
     for letter, avg_de in strips:
         lines.append(f"{letter}\t{avg_de:.2f}")
@@ -632,6 +640,22 @@ def write_refine_strips(
     target.write_text("\n".join(lines) + "\n", encoding="utf-8")
     log.info("Refine strips file written to %s", target)
     return target
+
+
+#: The comment line a Refine_Strips file carries when its check used other
+#: colour settings than the profile was built with (issue 217, review m5).
+COLOUR_NOTE_PREFIX = "# Checked with other colour settings than the profile: "
+
+
+def refine_strips_colour_note(path: "Path | None") -> str:
+    """The text after `COLOUR_NOTE_PREFIX` in a Refine_Strips file, or ""."""
+    try:
+        for line in Path(path).read_text(encoding="utf-8").splitlines():
+            if line.startswith(COLOUR_NOTE_PREFIX):
+                return line[len(COLOUR_NOTE_PREFIX):].strip()
+    except (OSError, TypeError, ValueError):
+        pass
+    return ""
 
 
 def parse_refine_patches(path: Path) -> "list[str]":

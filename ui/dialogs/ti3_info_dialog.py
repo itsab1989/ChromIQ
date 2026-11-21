@@ -161,6 +161,7 @@ class Ti3InfoDialog(QDialog):
         self._basis = "media"           # "media" | "absolute"
         self._accuracy: AccuracyResult | None = None
         self._accuracy_msg = ""         # status/error shown in place of accuracy rows
+        self._accuracy_colour_note = ""  # issue 217: settings the score followed
         self._pc_runner = None          # lazily-created ProfcheckRunner
         self._report: list[str] = []    # plain-text lines mirroring the shown rows
         # other readings of the same chart (4.3.32)
@@ -1713,6 +1714,7 @@ class Ti3InfoDialog(QDialog):
         pure Python; profile defers to ArgyllCMS profcheck (async)."""
         self._accuracy = None
         self._accuracy_msg = ""
+        self._accuracy_colour_note = ""
         if (self._analysis is None or self._compare_kind == "none"
                 or self._compare_path is None):
             return
@@ -1749,6 +1751,8 @@ class Ti3InfoDialog(QDialog):
         # compensation the profile was built with, when its run records them.
         from workflow.check_colorimetry import follow_profile
         params, _note = follow_profile(params, "Inspect a measurement")
+        # said in the window, beside the score (review m2)
+        self._accuracy_colour_note = _note
         self._pc_runner = ProfcheckRunner(self._runner)
 
         def _finish(code: int) -> None:
@@ -1932,6 +1936,15 @@ class Ti3InfoDialog(QDialog):
             tr("Compared"), tr("{n} patches  ·  {src}").format(n=acc.n, src=src),
             tr("How many patches were matched (by patch ID) and what they were "
                "compared against."))
+        _cn = (getattr(self, "_accuracy_colour_note", "")
+               if acc.source == "profile" else "")
+        if _cn:
+            self._row_kv(
+                tr("Colour settings"), _cn,
+                tr("The colours of this measurement were worked out again "
+                   "from its spectral readings with the colour settings the "
+                   "profile was built with, so the score compares like with "
+                   "like."))
         self._row_kv(
             tr("Average ΔE₀₀"), tr("{de:.2f}").format(de=acc.mean_de),
             tr("The typical colour error across all matched patches. As a rough "

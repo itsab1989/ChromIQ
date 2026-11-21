@@ -2564,6 +2564,18 @@ class TabProfile(QWidget):
             else:
                 self._ac_log.appendPlainText(f"\n[OK] Done. Output: {result}")
                 self._ac_log.ensureCursorVisible()
+                # Issue 217: applycal does not change the colour settings the
+                # profile was fitted with, so the calibrated copy keeps its
+                # source's record (when the source has one).
+                try:
+                    from workflow.check_colorimetry import (
+                        built_colorimetry, record_derived)
+                    src = built_colorimetry(in_icc)
+                    if src.known:
+                        record_derived(result, src.colorimetry,
+                                       source=Path(in_icc).name)
+                except Exception:      # noqa: BLE001
+                    log.debug("calibrated copy not recorded", exc_info=True)
                 if mode == "apply":
                     self._show_applycal_result_dialog(result)
 
@@ -7428,8 +7440,11 @@ class TabProfile(QWidget):
             # the same (`workflow.check_colorimetry`).
             active = getattr(self, "_active_params", None)
             if active is not None:
-                from workflow.check_colorimetry import record_for_build
+                from workflow.check_colorimetry import (fingerprint,
+                                                        record_for_build)
                 info.update(record_for_build(active))
+                # ...for THIS file only: its size and SHA-256 (review M1)
+                info.update(fingerprint(icc))
             run.record_profile_build(info)
         except Exception:      # noqa: BLE001 - a record never fails a build
             log.warning("could not record the profile build", exc_info=True)
@@ -7573,6 +7588,14 @@ class TabProfile(QWidget):
         self._runner.last_failed_to_start = None
         self._drop_comparison_work()
         if kept is not None:
+            # Issue 217: built with the same colour settings as the profile
+            try:
+                from workflow.check_colorimetry import (from_profile_params,
+                                                        record_derived)
+                record_derived(kept, from_profile_params(cparams),
+                               source="colprof comparison")
+            except Exception:      # noqa: BLE001
+                log.debug("comparison profile not recorded", exc_info=True)
             self._log.appendPlainText(tr(
                 "ArgyllCMS colprof's profile from the same measurement was "
                 "saved beside the new one for comparison: {path}").format(

@@ -22,7 +22,8 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timedelta
+import time
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -89,6 +90,7 @@ def _record(run, icc, *, at=None, **colour):
             "at": (at or datetime.now()).isoformat(timespec="seconds")}
     info.update(cc.record_for_build(ProfileParams(
         ti3_path=run.dir / f"{STEM}.ti3", **colour)))
+    info.update(cc.fingerprint(icc))
     run.record_profile_build(info)
 
 
@@ -127,16 +129,66 @@ def _obs(tab, mode):
 # ---------------------------------------------------------------------------
 
 def test_a_build_records_what_it_passed_on():
+    """Review B1: a plain -f ("Same as illuminant (-i)") simulates the -i
+    illuminant, as colprof 3.5.0 computes it (measured: "-i D65 -f" fits
+    like "-i D65 -fD65", not like "-i D65 -fD50")."""
     from workflow.profile_builder import ProfileParams
     p = ProfileParams(ti3_path=Path("x.ti3"), observer="2015_2",
                       illuminant="D65", fwa_enabled=True, fwa_illum="")
     assert cc.record_for_build(p) == {"colorimetry": {
         "observer": "2015_2", "illuminant": "D65", "fwa": True,
-        "fwa_illum": "D50"}}
+        "fwa_illum": "D65"}}
+    a = ProfileParams(ti3_path=Path("x.ti3"), illuminant="A",
+                      fwa_enabled=True, fwa_illum="")
+    assert cc.record_for_build(a)["colorimetry"]["fwa_illum"] == "A"
+    # ...and the check gets that illuminant by name, which profcheck reads
+    # exactly like the build's plain -f
+    from workflow.profcheck_runner import ProfcheckParams, ProfcheckRunner
+    built = cc.Colorimetry.from_record(cc.record_for_build(p)["colorimetry"])
+    args = ProfcheckRunner(None)._build_args(cc.apply_to_check(
+        ProfcheckParams(ti3_path=Path("x.ti3"), icc_path=Path("x.icc")),
+        built))
+    assert "-fD65" in args and args[args.index("-i") + 1] == "D65"
+    assert "-fD50" not in args
+    # the tab set correctly (D65, FWA on, D65) is NOT a mismatch
+    assert cc.differences(built, cc.Colorimetry("2015_2", "D65", True,
+                                                "D65")) == []
+    assert cc.describe(built).endswith("FWA compensation on, simulating D65")
     # the defaults are written out as ArgyllCMS's defaults
     assert cc.record_for_build(ProfileParams(ti3_path=Path("x.ti3"))) == {
         "colorimetry": {"observer": "1931_2", "illuminant": "D50",
                         "fwa": False, "fwa_illum": ""}}
+
+
+@pytest.mark.parametrize("extra,want", [
+    # each measured with colprof 3.5.0 on the spectral test file
+    ("-f D65", ("1931_2", "D50", True, "D65")),        # == -fD65
+    ("-fD65", ("1931_2", "D50", True, "D65")),
+    ("-fD65 -f", ("1931_2", "D50", True, "D65")),      # == -fD65
+    ("-i A -f", ("1931_2", "A", True, "A")),
+    ("-i A -f -i D65", ("1931_2", "D65", True, "D65")),  # == -i D65 -f
+    ("-o 1964_10 -o 2015_2", ("2015_2", "D50", False, "")),  # last wins
+    ("-i D65 -iA", ("1931_2", "A", False, "")),
+])
+def test_every_form_of_the_extra_arguments(extra, want):
+    from workflow.profile_builder import ProfileParams
+    c = cc.from_profile_params(ProfileParams(ti3_path=Path("x.ti3"),
+                                             extra_args=extra)).normalised()
+    assert (c.observer, c.illuminant, c.fwa, c.fwa_illum) == want
+
+
+def test_a_spectral_file_is_named_never_with_its_path():
+    """Review m4: a .sp illuminant typed in the extra arguments is recorded
+    and logged by its file name only, and a check cannot reproduce it, so
+    the profile counts as one whose settings the check cannot use."""
+    from workflow.profile_builder import ProfileParams
+    p = ProfileParams(ti3_path=Path("x.ti3"),
+                      extra_args="-i /Users/someone/lights/my-lamp.sp")
+    rec = cc.record_for_build(p)["colorimetry"]
+    assert rec["illuminant"] == "my-lamp.sp" and rec["files"] == ["my-lamp.sp"]
+    assert "/Users" not in repr(rec)
+    c = cc.from_profile_params(p)
+    assert "/Users" not in c.for_log() and "/Users" not in cc.describe(c)
 
 
 def test_the_extra_arguments_win_as_they_do_on_the_command_line():
@@ -179,14 +231,75 @@ def test_the_record_is_read_only_for_the_file_it_names(tmp_path):
     other.write_bytes(b"x")
     assert not cc.built_colorimetry(other).known
     # a profile replaced after its record was written is not described by it
-    _record(run, icc, at=datetime.now() - timedelta(hours=2),
-            observer="2015_2")
-    assert not cc.built_colorimetry(icc).known
+    icc.write_bytes(b"another profile" * 10)
+    gone = cc.built_colorimetry(icc)
+    assert not gone.known and gone.reason == cc.UNKNOWN_CHANGED
     # a record from before this change has no colour settings
     run.record_profile_build({"builder": "colprof", "profile": icc.name,
                               "at": datetime.now().isoformat()})
     assert not cc.built_colorimetry(icc).known
     assert "before ChromIQ recorded" in cc.built_colorimetry(icc).why
+    assert cc.built_colorimetry(icc).reason == cc.UNKNOWN_OLD
+
+
+def test_an_older_file_put_back_is_not_the_recorded_one(tmp_path):
+    """Review M1: a profile restored from old/ (its older date kept) after a
+    rebuild with other settings is not described by the new record."""
+    import os
+    _s, work = _settings(tmp_path)
+    run, _ti3, icc = _run(work)
+    old_bytes = b"the first build" * 20
+    icc.write_bytes(old_bytes)
+    _record(run, icc, observer="1964_10")
+    icc.write_bytes(b"the second build" * 20)          # rebuilt, 2015 2°
+    _record(run, icc, observer="2015_2")
+    assert cc.built_colorimetry(icc).colorimetry.observer == "2015_2"
+    icc.write_bytes(old_bytes)                          # put back by hand
+    past = time.time() - 3600
+    os.utime(icc, (past, past))                         # with its old date
+    got = cc.built_colorimetry(icc)
+    assert not got.known and got.reason == cc.UNKNOWN_CHANGED
+
+
+def test_a_replacement_within_two_minutes_is_not_the_recorded_one(tmp_path):
+    """Review M1: no time window. A file replaced seconds after its record
+    (a quick -qf build elsewhere, a copy) is unknown."""
+    _s, work = _settings(tmp_path)
+    run, _ti3, icc = _run(work)
+    _record(run, icc, observer="2015_2")
+    icc.write_bytes(b"replaced at once" * 10)
+    assert not cc.built_colorimetry(icc).known
+
+
+def test_a_calibrated_copy_keeps_its_sources_settings(tmp_path):
+    """Review m1: calibrated.icc is made by applycal from a recorded
+    profile and keeps its colour settings (`record_derived`); a later build
+    drops the derived record."""
+    _s, work = _settings(tmp_path)
+    run, _ti3, icc = _run(work)
+    _record(run, icc, observer="2015_2")
+    cal = run.dir / "calibrated.icc"
+    cal.write_bytes(b"calibrated copy" * 10)
+    assert cc.built_colorimetry(cal).reason == cc.UNKNOWN_OTHER_FILE
+    src = cc.built_colorimetry(icc)
+    assert cc.record_derived(cal, src.colorimetry, source=icc.name)
+    got = cc.built_colorimetry(cal)
+    assert got.known and got.colorimetry.observer == "2015_2"
+    assert cc.built_colorimetry(icc).known            # the main record stays
+    _record(run, icc, observer="1964_10")             # rebuilt
+    assert not cc.built_colorimetry(cal).known
+
+
+def test_apply_calibration_records_the_copy(tmp_path, qtbot):
+    """The Build Profile tab's Apply Calibration success path calls
+    `record_derived` with the source's settings."""
+    import inspect
+
+    from ui.tabs.tab_profile import TabProfile
+    src = inspect.getsource(TabProfile._on_applycal_run)
+    assert "record_derived(result, src.colorimetry" in src
+    assert "record_derived(kept, from_profile_params(cparams)" in \
+        inspect.getsource(TabProfile._on_comparison_done)
 
 
 def test_spectral_readings_are_told_from_the_header(tmp_path):
@@ -307,7 +420,7 @@ def test_the_common_case_is_exactly_as_before(qapp, tmp_path, monkeypatch,
     after, tab = _plain_args(s, ti3, icc, monkeypatch, mode)
     assert after == before
     assert "-o" not in after and "-i" not in after
-    assert "ChromIQ does not know" not in tab._log.toPlainText()
+    assert "ChromIQ has no record" not in tab._log.toPlainText()
 
 
 def test_unknown_build_settings_keep_todays_check_and_say_so(
@@ -316,7 +429,7 @@ def test_unknown_build_settings_keep_todays_check_and_say_so(
     _run_, ti3, icc = _run(work)
     args, tab = _plain_args(s, ti3, icc, monkeypatch, "guided")
     assert "-o" not in args
-    assert "ChromIQ does not know which colour settings" in \
+    assert "ChromIQ has no record of the colour settings" in \
         tab._log.toPlainText()
     assert tab._colour_insisted is None
 
@@ -549,3 +662,158 @@ def test_the_tools_call_it():
         tools_dialogs)
     assert 'follow_profile(params, "Inspect a measurement")' in \
         inspect.getsource(ti3_info_dialog)
+
+
+# ---------------------------------------------------------------------------
+# fix round (review of 2026-11-21): m1 to m5
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("case,expect", [
+    ("old", "built before ChromIQ recorded the colour settings"),
+    ("other", "is about its last build (Obs-Check.icc)"),
+    ("changed", "not the one its build recorded"),
+    ("none", "ChromIQ has no record of the colour settings"),
+])
+def test_the_unknown_note_says_why(qapp, tmp_path, monkeypatch, case, expect):
+    s, work = _settings(tmp_path)
+    run, ti3, icc = _run(work)
+    target = icc
+    if case == "old":
+        run.record_profile_build({"builder": "colprof", "profile": icc.name})
+    elif case == "other":
+        _record(run, icc, observer="2015_2")
+        target = run.dir / "calibrated.icc"
+        target.write_bytes(b"made elsewhere" * 5)
+    elif case == "changed":
+        _record(run, icc, observer="2015_2")
+        icc.write_bytes(b"replaced" * 9)
+    tab = _check_tab(s, ti3, target)
+    runs, asked = _capture(monkeypatch, tab)
+    tab._on_run()
+    text = tab._log.toPlainText()
+    assert not asked and expect in text, text
+    assert text.count("The check uses the settings on this tab") == 1
+    assert "earlier version" not in text or case == "none"
+
+
+def test_the_fwa_gate_is_named_and_logged_as_it_runs(qapp, tmp_path,
+                                                     monkeypatch, caplog):
+    """Review m3: the synthetic measurement names no instrument, so the FWA
+    gate leaves -f out; the note and the log say what profcheck gets."""
+    from workflow.profile_builder import ProfileParams
+    s, work = _settings(tmp_path)
+    run, ti3, icc = _run(work)
+    # built (with -f) from a measurement the gate lets through; checked
+    # against one it refuses -f for
+    info = {"builder": "colprof", "profile": icc.name}
+    info.update(cc.record_for_build(ProfileParams(
+        ti3_path=Path("elsewhere.ti3"), illuminant="D65", fwa_enabled=True)))
+    info.update(cc.fingerprint(icc))
+    run.record_profile_build(info)
+    assert info["colorimetry"]["fwa"] is True
+    tab = _check_tab(s, ti3, icc)
+    runs, asked = _capture(monkeypatch, tab, answer="profile")
+    with caplog.at_level(logging.INFO):
+        tab._on_run()
+    assert asked
+    assert "FWA compensation is left out" in tab._log.toPlainText()
+    assert "check uses: observer 1931_2, illuminant D65, FWA compensation " \
+        "off" in tab._colour_record
+
+
+def test_a_value_the_controls_cannot_show_is_named(qapp, tmp_path,
+                                                   monkeypatch):
+    """Review m4: an FWA illuminant the tab's list has no entry for."""
+    from workflow.profile_builder import ProfileParams
+    s, work = _settings(tmp_path)
+    run, ti3, icc = _run(work)
+    info = {"builder": "colprof", "profile": icc.name}
+    info.update(cc.record_for_build(ProfileParams(
+        ti3_path=Path("elsewhere.ti3"), extra_args="-fM1")))
+    info.update(cc.fingerprint(icc))
+    run.record_profile_build(info)
+    tab = _check_tab(s, ti3, icc)
+    assert tab._show_colorimetry_on_controls(
+        cc.Colorimetry.from_record(info["colorimetry"])) == ["M1"]
+
+
+def test_a_spectral_file_build_keeps_todays_check(qapp, tmp_path,
+                                                  monkeypatch):
+    from workflow.profile_builder import ProfileParams
+    s, work = _settings(tmp_path)
+    run, ti3, icc = _run(work)
+    info = {"builder": "colprof", "profile": icc.name}
+    info.update(cc.record_for_build(ProfileParams(
+        ti3_path=ti3, extra_args="-i /private/lamp/x.sp")))
+    info.update(cc.fingerprint(icc))
+    run.record_profile_build(info)
+    assert "/private" not in run.meta_path.read_text(encoding="utf-8")
+    tab = _check_tab(s, ti3, icc)
+    runs, asked = _capture(monkeypatch, tab)
+    tab._on_run()
+    assert not asked and "-i" not in runs[0][1]
+    assert "a spectral file for its colour settings (x.sp)" in \
+        tab._log.toPlainText()
+    assert "/private" not in tab._colour_record
+
+
+def test_the_strips_file_and_the_guide_carry_the_mark(qapp, tmp_path):
+    """Review m5: after "Check with my settings" the Refine_Strips file says
+    so in a comment line (read past by every ChromIQ), and the Measure tab
+    says so when Guided refinement starts from it."""
+    from workflow.profcheck_runner import (parse_refine_strips,
+                                           refine_strips_colour_note,
+                                           write_refine_strips)
+    s, work = _settings(tmp_path)
+    _run_, ti3, icc = _run(work)
+    tab = _check_tab(s, ti3, icc)
+    tab._colour_insisted = {"built": cc.Colorimetry("2015_2"),
+                            "check": cc.Colorimetry()}
+    f = write_refine_strips(tmp_path, "x", [("A", 3.0), ("B", 2.5)],
+                            colour_note=tab._colour_strips_note())
+    assert parse_refine_strips(f) == ["A", "B"]
+    note = refine_strips_colour_note(f)
+    assert "observer 1931_2" in note and "observer 2015_2" in note
+    plain = write_refine_strips(tmp_path, "y", [("A", 3.0)])
+    assert refine_strips_colour_note(plain) == ""
+    import inspect
+
+    from ui.tabs.tab_measure import TabMeasure
+    src = inspect.getsource(TabMeasure.start_guided_refinement)
+    assert "refine_strips_colour_note(strips_file)" in src
+    assert "These strips come from a check with other colour settings" in src
+
+
+def test_verify_profile_records_its_colour_settings(qapp, tmp_path):
+    """Review m2: the saved Verify_Profile report names the settings."""
+    from types import SimpleNamespace
+
+    from core.settings import AppSettings
+    from tests.test_verify_profile_dialog import _PROFCHECK_LOG, _FakeChecker
+    from ui.dialogs.tools_dialogs import VerifyProfileDialog
+    _s, work = _settings(tmp_path)
+    run, ti3, icc = _run(work)
+    _record(run, icc, observer="2015_2")
+    dlg = VerifyProfileDialog(runner=SimpleNamespace(is_running=False),
+                              settings=AppSettings())
+    dlg._profile, dlg._measured = icc, ti3
+    fake = _FakeChecker(_PROFCHECK_LOG)
+    dlg._checker = fake
+    dlg._execute()
+    assert fake.captured.observer == "2015_2"
+    reports = list(run.dir.rglob("Verify_Profile_*"))
+    assert reports, list(run.dir.rglob("*"))
+    text = reports[0].read_text(encoding="utf-8")
+    assert "Colour settings: observer CIE 2015 2°" in text
+    assert "so the check uses the same settings" in text
+    dlg.deleteLater()
+
+
+def test_inspect_shows_the_settings_beside_its_score():
+    import inspect
+
+    from ui.dialogs.ti3_info_dialog import Ti3InfoDialog
+    assert "self._accuracy_colour_note = _note" in inspect.getsource(
+        Ti3InfoDialog._run_profcheck)
+    assert 'tr("Colour settings"), _cn' in inspect.getsource(
+        Ti3InfoDialog._accuracy_section)

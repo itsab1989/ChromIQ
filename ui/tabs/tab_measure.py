@@ -6749,6 +6749,17 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._resume_cb.setChecked(True)
         self._refine_strips_path = strips_file
         self._load_refine_strips(strips_file)
+        # Issue 217 (review m5): strips from a check with other colour
+        # settings than the profile's say so here too.
+        from workflow.profcheck_runner import refine_strips_colour_note
+        _cn = refine_strips_colour_note(strips_file)
+        if _cn:
+            log.info("Guided refinement from a check with other colour "
+                     "settings: %s", _cn)
+            self._log.appendPlainText(tr(
+                "These strips come from a check with other colour settings "
+                "than the profile was built with, so some of them may not "
+                "need re-reading."))
         self._refine_cb.setEnabled(True)
         self._refine_cb.setChecked(True)
         # REMEMBER WHY THESE ARE TICKED, so a settings load cannot untick them.
