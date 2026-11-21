@@ -12326,6 +12326,16 @@ M_DUAL_LAST_CANNOT = _m(
     ' keeps M0 only.',
     approved=False)
 
+#: 4.3.54 (review M2, "Row speed"): at the end of a table measurement read at a factor other
+#: than 1.00 ({mark}: the file's own CHROMIQ_ROW_SPEED value)
+M_I1IO_ROW_SPEED_END = _m(
+    'M-I1IO-ROW-SPEED-END',
+    'Read at a row speed other than 1.00',
+    'This measurement was read at a row speed other than 1.00 ({mark}). Patches can be wrong '
+    'without any warning. Compare it with a measurement at 1.00 before you build a profile '
+    'from it.',
+    approved=False)
+
 M_DUAL_GUIDED_SINGLE = _m(
     'M-DUAL-GUIDED-SINGLE',
     'Dual scan: not used in GUIDED',
@@ -14232,7 +14242,7 @@ CATALOGUE = {m.id: m for m in (
     M_COND_FILL_OFFER,
     M_DUAL_MODEL_ASK, M_DUAL_MODEL_CORRECTED,
     M_DUAL_MODEL_NOTED,
-    M_DUAL_BEFORE_START_TABLE, M_DUAL_M0_CHOSEN, M_DUAL_SINGLE_CONTINUES, M_DUAL_NOT_I1PRO2, M_DUAL_NOT_THIS_CHART, M_DUAL_NO_ENGINE, M_DUAL_HIGHRES_NOTE, M_DUAL_NOCAL_NOTE, M_DUAL_FILTER_NOTE, M_DUAL_CANNOT_CONTINUE, M_DUAL_LAST_CANNOT, M_DUAL_GUIDED_SINGLE, M_DUAL_OLD_FILE,
+    M_DUAL_BEFORE_START_TABLE, M_DUAL_M0_CHOSEN, M_DUAL_SINGLE_CONTINUES, M_DUAL_NOT_I1PRO2, M_DUAL_NOT_THIS_CHART, M_DUAL_NO_ENGINE, M_DUAL_HIGHRES_NOTE, M_DUAL_NOCAL_NOTE, M_DUAL_FILTER_NOTE, M_DUAL_CANNOT_CONTINUE, M_DUAL_LAST_CANNOT, M_DUAL_GUIDED_SINGLE, M_DUAL_OLD_FILE, M_I1IO_ROW_SPEED_END,
     M_STRIP_FAILED_COMS_DETAIL,
     M_RESUME_RESOLUTION,
     M_RESUME_RESOLUTION_INSTRUMENT,

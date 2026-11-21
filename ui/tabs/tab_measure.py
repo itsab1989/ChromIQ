@@ -8109,12 +8109,33 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         x0, y0, x1, y1 = px(cx - fhalf), px(cy - fhalf), px(cx + fhalf), px(cy + fhalf)
         return QRect(x0, y0, x1 - x0, y1 - y0)
 
+    def _say_row_speed_at_end(self, ti3) -> None:
+        """4.3.54 (review M2, "Row speed"): one line at the end of a table measurement read at a
+        row speed factor other than 1.00 (the file's own mark, CHROMIQ_ROW_SPEED): in the
+        Measure log and under the chart (M-I1IO-ROW-SPEED-END). Nothing at 1.00. Never raises."""
+        try:
+            from workflow import measurement_messages as M
+            from workflow.ti3_provenance import read_row_speed
+            mark = read_row_speed(ti3)
+            if not mark:
+                return
+            title, body = M.M_I1IO_ROW_SPEED_END.render(mark=mark)
+            self._log.appendPlainText(f"[{title}]\n{body}")
+            self._log.ensureCursorVisible()
+            try:
+                self._preview.set_notice(body, warn=True)
+            except Exception:      # noqa: BLE001
+                pass
+        except Exception:      # noqa: BLE001 - a note never breaks the end of a measurement
+            log.debug("row speed: no end line", exc_info=True)
+
     def _on_table_measurement_saved(self, path, detail: dict) -> None:
         """The table window saved into the run: announced as after a hand
         measurement (STEP8_NOTES §2)."""
         ti3 = Path(path)
         self._table_saved = True
         self._displaced_measurement = None
+        self._say_row_speed_at_end(ti3)          # 4.3.54 (review M2)
         rtype = getattr(self, "_table_run_type", "profile")
         if rtype == "verification":
             # A VERIFICATION IS FILED ON ITS DATE BY THE HAND PATH'S OWN CODE
@@ -24873,6 +24894,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 return
             build = getattr(self._manager, "applog_helper_build", None)
             tp.stamp(ti3, build)
+            # 4.3.54 (review M2): a continued measurement keeps the row-speed mark of the
+            # file it continued (the session guard's copy taken at START)
+            guard = getattr(self, "_session_guard", None)
+            if getattr(self, "_session_resumes", False) and guard is not None \
+                    and getattr(guard, "archive", None):
+                tp.stamp_row_speed(ti3, sources=[guard.archive])
             # the condition files only with the M0/M1/M2 Beta on (off, its
             # code is never reached: test_i1pro3_conditions_off_...)
             if not bool(self._settings.get("i1pro3_conditions_beta", False)):

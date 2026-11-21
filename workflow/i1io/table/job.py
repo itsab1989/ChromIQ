@@ -781,6 +781,9 @@ class TableJob:
         #: 4.3.54 ("Row speed", Preferences > Beta): the person's factor on a strip row's speed,
         #: set by the window before the job opens (1.0 = ChromIQ's own choice, line for line)
         self.row_speed_factor = 1.0
+        #: 4.3.54 (review M2): per (page, row) read as a strip, (the factor its speed came from,
+        #: whether it was read faster than the safe border): the measurement's header mark
+        self.row_speed_marks: "dict[tuple[int, int], tuple[float, bool]]" = {}
         #: THE i1Pro 2 DUAL SCAN ON THE TABLE (2026-11-18, a first try): what START decided
         #: (dual_rows.DualSetup), set by the window before the job opens; None = the released
         #: job, line for line (no dual argument, no dual line, no dual file)
@@ -4472,6 +4475,7 @@ class TableJob:
                 rec = yield from self._row_attempt(plan, attempt)
             if rec["status"] == "read":
                 self.row_status.setdefault(self.page, {})[plan.index] = "read"
+                self._note_row_speed(plan)
                 break
             self.row_status.setdefault(self.page, {})[plan.index] = "failed"
             # 4.3.52: a row that could not be read keeps the detailed lines before it
@@ -4778,6 +4782,37 @@ class TableJob:
                 return None
             out[cond] = Path(f).relative_to(Path(folder)).as_posix()
         return out
+
+    def _note_row_speed(self, plan) -> None:
+        """4.3.54 (review M2): what this read row contributes to the measurement's mark."""
+        if plan.kind != "strip" or self.dual is not None or getattr(plan, "scan", None) is None:
+            return
+        note = getattr(plan.scan, "speed_note", None) or {}
+        factor = float(note.get("factor", 1.0)) if not note.get("refused") else 1.0
+        fast = bool(note.get("edge_mm") is not None and note.get("rule_edge_mm") is not None
+                    and note["edge_mm"] < note["rule_edge_mm"] - 1e-9 and not note.get("refused"))
+        self.row_speed_marks[(self.page, plan.index)] = (factor, fast)
+
+    def row_speed_mark(self) -> "str | None":
+        """The header mark of this sitting, or None when every strip row was read at factor
+        1.00 (4.3.53's own speeds): "factor F: N of M rows faster than the safe border"."""
+        marks = self.row_speed_marks.values()
+        factors = sorted({f for f, _fast in marks if abs(f - 1.0) > 1e-9})
+        if not factors:
+            return None
+        fast = sum(1 for _f, is_fast in marks if is_fast)
+        return (f"factor {', '.join(f'{f:.2f}' for f in factors)}: {fast} of {len(marks)} "
+                "rows faster than the safe border")
+
+    def _stamp_row_speed(self, path) -> None:
+        """4.3.54 (review M2): the row-speed mark into a file the job writes, together with the
+        marks of the measurement it continues (never dropped). Never raises."""
+        try:
+            from workflow.ti3_provenance import stamp_row_speed
+            base = self._base()
+            stamp_row_speed(path, self.row_speed_mark(), [base] if base else [])
+        except Exception:      # noqa: BLE001
+            pass
 
     def _own_speed_after(self, plan, rec):
         """4.3.54 (review M1, S2, "Row speed"): a strip row the table ran at another speed than
@@ -5447,6 +5482,7 @@ class TableJob:
                 record_condition(dest, cond)
                 ic._set_condition_of(dest, key)
                 _stamp_provenance(dest)     # A10 (4.3.50); its pairing key is header-blind
+                self._stamp_row_speed(dest)
                 self._dual_files[cond] = dest
             self._dual_pair = "partial" if partial else "complete"
         else:
@@ -5731,6 +5767,7 @@ class TableJob:
             # A10 (4.3.50): who wrote it, into the assembled file's header, BEFORE the note
             # takes its checksum (the run's .ti3 is a copy of these very bytes)
             _stamp_provenance(self._assembly.path)
+            self._stamp_row_speed(self._assembly.path)     # 4.3.54 (review M2)
             note = se.filing_note(self._assembly.path, self.stamp)
             for sdir in self._session_dirs():
                 se.write_json_now(Path(sdir) / ms.FILING, note)

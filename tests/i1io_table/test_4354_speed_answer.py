@@ -12,6 +12,7 @@ from __future__ import annotations
 import pytest
 
 from tests.i1io_table import job_harness as H
+from tests.i1io_table.test_window import settings  # noqa: F401 (fixture)
 from tests.i1io_table import reader_sim as RS
 from workflow.i1io.table import job as J
 from workflow.i1io.table import reach as rc
@@ -90,3 +91,31 @@ def test_a_refusal_at_the_factors_speed_is_read_again_at_chromiqs_own(tmp_path):
     results, m2, fails, sim, _ = _run(tmp_path, 1.5, rows=1, inject_m2_refusal=True)
     assert [f[2]["why"] for f in fails] == ["strip_move_refused_by_the_table"]
     assert m2 == [133, 88] and results[0].ok
+
+
+# ---- the review's M2: the saved measurement carries the mark ------------------------------------
+
+@pytest.mark.parametrize("factor, marked", [(1.0, False), (1.95, True)])
+def test_a_saved_table_measurement_carries_the_row_speed_mark(qtbot, monkeypatch, tmp_path,
+                                                             settings, factor, marked):
+    from tests.i1io_table.test_dual_table import long_sheet
+    from tests.i1io_table.test_window import open_window
+    from ui import i1io_table_window as W
+    from workflow import ti3_provenance as tp
+    settings.set(W.ROW_SPEED_KEY, factor)
+    try:
+        win, sim, run, p, saved, finished = open_window(
+            qtbot, monkeypatch, tmp_path, settings, asking=False, sheet=long_sheet(),
+            args=["-v", "-c", "1", "chart"])
+        assert p.drive_until("end_of_session") == "end_of_session"
+        p.press("Save and stop")
+        assert saved
+        mark = tp.read_row_speed(saved[0][0])
+        if marked:
+            assert mark and mark.startswith("factor 1.95: ") and "faster than the safe border" in mark
+        else:
+            assert mark is None
+        assert sim.sim.violations == []
+        win.close()
+    finally:
+        settings.set(W.ROW_SPEED_KEY, 1.0)

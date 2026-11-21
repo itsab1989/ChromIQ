@@ -492,8 +492,10 @@ def settle_combined_xyz_method(result: Path, inputs) -> None:
         log.debug("XYZ method of %s not settled", result, exc_info=True)
     # A10 (4.3.50): the ChromIQ that wrote the combined file (the helper's
     # build, copied by `average` from the first input's header, stays)
-    from workflow.ti3_provenance import stamp
+    from workflow.ti3_provenance import stamp, stamp_row_speed
     stamp(result)
+    # 4.3.54 (review M2): a row-speed mark of any input stays on the combined file
+    stamp_row_speed(result, sources=[Path(p) for p in inputs])
 
 
 def settle_combined_condition(result: Path, check: ConditionCheck, *,
