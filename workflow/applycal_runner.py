@@ -58,12 +58,27 @@ _APPLYCAL_WARNING_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
 ]
 
 
+#: What "-v -c" prints (ArgyllCMS 3.5.0 applycal.c, measured 2026-11-21):
+#: exit 0 with the NOT line, exit 1 with the other. Exit 1 is the answer
+#: "applied" here, not a failure.
+_CHECK_NOT_APPLIED = "Profile has NOT had calibration applied"
+_CHECK_APPLIED = "Profile has had calibration applied"
+
+#: `ApplycalRunner.check_state` values after a "check" run.
+CHECK_APPLIED = "applied"
+CHECK_NOT_APPLIED = "not_applied"
+
+
 class ApplycalRunner:
     def __init__(self, runner: "ArgyllRunner", settings: "AppSettings") -> None:
         self._runner = runner
         self._settings = settings
         self._matched_errors: list[tuple[str, str]] = []
         self._matched_warnings: list[tuple[str, str]] = []
+        self._lines: list[str] = []
+        #: After a "check" run: CHECK_APPLIED, CHECK_NOT_APPLIED, or None
+        #: when applycal did not answer.
+        self.check_state: "str | None" = None
 
     def run(
         self,
@@ -81,8 +96,11 @@ class ApplycalRunner:
         log.info("applycal args: %s", args)
         self._matched_errors = []
         self._matched_warnings = []
+        self._lines = []
+        self.check_state = None
 
         def _scan(line: str) -> None:
+            self._lines.append(line)
             self._scan_line(line)
             on_line(line)
 
@@ -118,8 +136,19 @@ class ApplycalRunner:
         on_finish: Callable[[Path | None], None],
     ) -> None:
         if mode == "check":
-            # Check mode doesn't write a file; success = exit 0
-            on_finish(out_icc if code == 0 else None)
+            # Check mode writes no file. Its answer is the exit code and the
+            # verbose line: 0 "has NOT had calibration applied", 1 "has had
+            # calibration applied". Anything else (2 = usage) is a failure.
+            text = "\n".join(self._lines)
+            if code == 0 and _CHECK_NOT_APPLIED in text:
+                self.check_state = CHECK_NOT_APPLIED
+            elif code == 1 and _CHECK_APPLIED in text:
+                self.check_state = CHECK_APPLIED
+            elif code == 0:
+                self.check_state = CHECK_NOT_APPLIED     # applycal's own rule
+            log.info("applycal check: exit %d, state %s", code,
+                     self.check_state)
+            on_finish(out_icc if self.check_state is not None else None)
         else:
             success = (code == 0) and out_icc.exists()
             if success:
@@ -137,15 +166,28 @@ class ApplycalRunner:
         mode: str,
         verbose: bool,
     ) -> list[str]:
+        """As applycal's usage says (ArgyllCMS 3.5.0):
+        ``applycal [-options] [calfile.cal] inprof.icc [outprof.icc]``,
+        where only applying takes the .cal file:
+
+        * apply:  ``[-v] cal in out``
+        * remove: ``[-v] -u in out``
+        * check:  ``-v -c in`` (always verbose: its answer is that line)
+
+        Until 2026-11-21 remove and check passed the .cal too, and applycal
+        refused both with "Extra argument" (exit 2): neither mode ever
+        worked (issue 217 verification, P1)."""
         args: list[str] = []
-        if verbose:
+        if verbose or mode == "check":
             args.append("-v")
         if mode == "remove":
             args.append("-u")
         elif mode == "check":
             args.append("-c")
-        # "apply" is the default (-a), no flag needed
-        args.append(str(cal_path))
+        # "apply" is the default (-a), no flag needed, and the only mode
+        # that takes the calibration file
+        if mode not in ("remove", "check"):
+            args.append(str(cal_path))
         args.append(str(in_icc))
         if mode != "check":
             args.append(str(out_icc))

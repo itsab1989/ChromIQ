@@ -2528,14 +2528,17 @@ class TabProfile(QWidget):
             return
         cal = self._ac_cal_edit.text().strip()
         in_icc = self._ac_in_edit.text().strip()
-        if not cal or not in_icc:
+        mode = self._ac_mode_combo.currentData() or "apply"
+        # Only applying takes the .cal file (applycal's usage); removing and
+        # checking need the profile alone (issue 217 verification, P1).
+        if not in_icc or (mode == "apply" and not cal):
             self._ac_log.setPlainText(
                 tr("[ERROR] Please select a .cal file and an input ICC "
-                   "profile."))
+                   "profile.") if mode == "apply" else
+                tr("[ERROR] Please select an input ICC profile."))
             return
         out_icc = self._applycal_output(in_icc)
 
-        mode = self._ac_mode_combo.currentData() or "apply"
         if mode == "apply" and not self._confirm_not_calibrated_twice(in_icc):
             return
         # Issue 217 (verification V1): what the output file looked like
@@ -2566,6 +2569,18 @@ class TabProfile(QWidget):
                     self._show_tool_failure_dialog(
                         "Apply Calibration Failed", failure[1]
                     )
+            elif mode == "check":
+                # no file is written: say what applycal found
+                from workflow.applycal_runner import CHECK_APPLIED
+                applied = (self._applycal_runner.check_state
+                           == CHECK_APPLIED)
+                self._ac_log.appendPlainText("\n" + (
+                    tr("[OK] This profile has calibration curves applied: "
+                       "{name}").format(name=Path(in_icc).name) if applied
+                    else tr("[OK] This profile has no calibration curves "
+                            "applied: {name}").format(
+                                name=Path(in_icc).name)))
+                self._ac_log.ensureCursorVisible()
             else:
                 self._ac_log.appendPlainText(f"\n[OK] Done. Output: {result}")
                 self._ac_log.ensureCursorVisible()
