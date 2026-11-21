@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-4.3.55-7c5cff">
+  <img alt="Version" src="https://img.shields.io/badge/version-4.3.56-7c5cff">
   <img alt="Downloads" src="https://img.shields.io/endpoint?url=https://itsab1989.github.io/github-traffic-downloads-dashboard/assets/badges/itsab1989_ChromIQ-downloads.json">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2a9d8f">
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-blue">
@@ -670,8 +670,8 @@ ways:
 >   and stop, ChromIQ brings the arm home as part of the ending, after it asks
 >   you to take your hands away. "Not now" moves nothing; please do not move
 >   the arm then, because ChromIQ brings it home only from the place where it
->   left it. If the arm is left out, the table stays in its aiming mode, and
->   ChromIQ cannot start a new measurement on it until the arm is home. The
+>   left it. If the arm is left out, the table stays in its aiming mode
+>   (since 4.3.56 the next START puts that right by itself). The
 >   check at the third mark is gone, one plain question comes before the arm
 >   goes forward, and with the dual scan the table keeps M1 and M2 for every
 >   row that has them. Bringing the arm home from the front of the table, and
@@ -704,6 +704,12 @@ ways:
 >   patch is not used and is offered again. A new "Row speed" factor in
 >   Preferences > Beta can make rows faster, with a risk its (i) explains.
 >   None of this has run on a real table yet.
+> - New in 4.3.56: a measurement that replaced an earlier one now also ends
+>   with the arm brought home, and a table left in its aiming mode (after a
+>   stop, a closed window, an error or a lost connection) is put right at the
+>   next START: ChromIQ asks you to take your hands away, brings the arm home
+>   the way X-Rite's software does and ends that mode. You should not need
+>   i1Profiler to free the table. This has run only on a simulated table.
 > - The option is off by default, and with it off nothing changes.
 
 Why it may be worth it all the same: X-Rite has ended support for these

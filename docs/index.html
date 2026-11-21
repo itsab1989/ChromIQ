@@ -28,7 +28,7 @@
   "operatingSystem": "macOS, Windows, Linux",
   "applicationCategory": "DesignApplication",
   "applicationSubCategory": "Colour management / printer profiling",
-  "softwareVersion": "4.3.55",
+  "softwareVersion": "4.3.56",
   "license": "https://www.gnu.org/licenses/gpl-3.0.html",
   "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"},
   "url": "https://itsab1989.github.io/ChromIQ/",
@@ -470,7 +470,10 @@ footer .sp{flex:1}
           (each patch keeps a clean border that grows with the speed), and ChromIQ remembers each table
           after the first careful time; this has not run on a real table yet. New in 4.3.54: every row
           read in one move is checked against its own readings, and a new &ldquo;Row speed&rdquo; factor can
-          make rows faster, with a risk its (i) explains; this has not run on a real table yet. Off until you turn it on in
+          make rows faster, with a risk its (i) explains; this has not run on a real table yet. New in 4.3.56: a table left
+          in its aiming mode is put right at the next START (the arm is brought home and the mode ended, the way
+          X-Rite&rsquo;s software does), and a measurement that replaced an earlier one now ends with the homing too;
+          this has run only on a simulated table. Off until you turn it on in
           <b>Preferences &rsaquo; Beta</b>; with it off, nothing changes. Your report is welcome on
           <a href="https://github.com/itsab1989/ChromIQ/issues/129">GitHub issue 129</a>.</p>
         <p><b class="mono" style="color:var(--amb)">IN BETA &middot; X-RITE i1PRO 2 DUAL SCAN</b><br>

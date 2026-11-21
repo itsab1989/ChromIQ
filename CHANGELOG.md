@@ -1,5 +1,37 @@
 # Changelog
 
+## v4.3.56
+
+**For owners of an X-Rite i1iO 2 table who try the beta option “X-Rite i1iO support”: a measurement that replaced an earlier one left the arm over the sheet and the table in its aiming mode, and after that ChromIQ refused the table at every START. This is fixed, and START now puts such a table right by itself: it brings the arm home and ends the aiming mode, the way X-Rite's own software does. The aim is that you never need X-Rite's software to finish a measurement, bring the arm home or free the table. This was built from recordings of X-Rite's software and tested on a simulated table only, not yet on a real one: please read the known issues at the end. Nothing else changes in this version: measuring by hand, profiles and the i1Pro 2 dual scan are as in 4.3.55.**
+
+### New
+
+Only with the beta option “X-Rite i1iO support” on:
+
+- **Two careful offers for table states ChromIQ has never seen.** When the table's four answers about its aiming mode do not agree with each other, ChromIQ says so, and the page offers “Try to bring the arm home” besides End measurement. When a table that was just switched on gives a first answer ChromIQ has not seen before, but one that looks like a just-switched-on table, ChromIQ says so and offers the usual start-up. In both cases the page says what is not known, and the arm moves only if you choose it there, after you take your hands away. “Not now” moves nothing.
+- **The app log says more about the table.** Every START writes what the table answered about its state and what ChromIQ did about it. Every ending writes how the measurement ended and in which state it left the table.
+
+### Changed
+
+Only with the beta option “X-Rite i1iO support” on:
+
+- **The way home is the one recorded from X-Rite's software.** From the far side of the table and from the strip at the back, the arm first moves towards the middle of the table and then goes home. From everywhere else it goes straight home. The arm at the back of the table is no longer a place ChromIQ cannot bring it home from.
+- **No text sends you to X-Rite's software any more** to finish a measurement, bring the arm home or free the table. Measuring in i1Profiler and bringing the measurement back with IMPORT works as before.
+
+### Fixed
+
+Only with the beta option “X-Rite i1iO support” on:
+
+- **A measurement that replaced an earlier one in the same run did not bring the arm home** (found on a real table). The page was saved, but the arm stayed over the sheet and the table stayed in its aiming mode, and the next START refused the table. Now every way of saving or ending a page ends with the homing, as the normal end of a page already did.
+- **A table left in its aiming mode was refused at every later START.** This could happen after Stop with “Leave it there”, a closed window, quitting ChromIQ, an error or a lost connection, and switching the table off and on again did not help. Now START puts it right: it asks you to take your hands away, brings the arm home the way X-Rite's software does, ends the aiming mode and then goes on with the measurement. “Not now” moves nothing, and the next START offers the same again.
+
+### Known issues
+
+- **Nothing of this version has run on a real table yet.** It was built from recordings of X-Rite's software and tested on a simulated table. A real table still has to show what it answers about its aiming mode in the state a tester's table was found in, that the homing of a free arm in the aiming mode works at START, whether that mode survives every switching off and on, and how long the way home through the middle of the table takes.
+- **Two cases remain that ChromIQ cannot solve by itself.** If bringing the arm home at START fails every time, or the table gives an answer about its state that ChromIQ has never seen and that does not look like a just-switched-on table, ChromIQ moves nothing more. Its page says to switch the table off at its power switch, to press START MEASUREMENT again, and, if it happens again, to send us the log of that measurement. Please do not force the arm by hand.
+- **Reading rows as strips has still not run on a real table.** A row read wrong in a tester's 4.3.54 measurement (rows as strips) is not explained yet, because its log has not reached us.
+- The new and changed texts of this version are shown as proposed texts and may still be reworded.
+
 ## v4.3.55
 
 **For everyone who uses Check & Refine: “Analyse Profile Quality” now checks a profile with the colour settings it was built with (observer, illuminant and FWA compensation). Before, it used the settings on its own tab, and a profile built with other settings looked much worse than it is. Apply Calibration's “Remove” and “Check” work now; they never did with ArgyllCMS 3.5.0. For owners of an X-Rite i1Pro 2: the lamp wait before a dark reading is now 1.10 s instead of 1.5 s, and in the dual scan (beta) the second pass with the UV light is no longer refused as “too fast” at a pace the first pass accepts. The dual scan changes were tested by replaying recorded passes of a real instrument, not yet on a real instrument in this form: please read the known issues at the end.**
