@@ -531,13 +531,16 @@ def in_back_strip(p) -> bool:
 def homing_detour(p) -> "tuple[tuple[int, int], ...] | None":
     """The vendor's way home from the reading *p*: the targets of the detour moves (each an m0 at
     DETOUR_SPEED) to send before the homing, in order; () for a straight homing; None when no way
-    home can be sent from *p* (only: a back strip place beyond the left end of the targets, where
-    R1's first move would leave the target area)."""
+    home can be sent from *p* (only a reading outside the protocol's number range; since the fix
+    round a back-strip place beyond the left end goes to that end first)."""
     if p is None:
         return None
     x, y = int(p[0]), int(p[1])
     if in_back_strip((x, y)):
-        legs = ((x, BACK_STRIP_OUT_Y), (HOME_LINE_X, BACK_STRIP_OUT_Y))
+        # 2026-11-21 fix round (review m-2): straight ahead along Y from where the arm stands; a
+        # reading a little beyond the left end of the target area (a freed arm settles by a few
+        # units there) goes to that end instead, a few units inwards: never "no way home"
+        legs = ((min(x, TARGET_X_LEFT), BACK_STRIP_OUT_Y), (HOME_LINE_X, BACK_STRIP_OUT_Y))
     elif x > DIRECT_HOMING_X_MAX:
         legs = (DETOUR_HOME_LINE,)
     else:

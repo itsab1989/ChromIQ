@@ -325,8 +325,9 @@ def test_the_constant_brings_the_arm_question_back(tmp_path, monkeypatch):
     job, sim, helper, run, p = job_for(tmp_path, {C.READY_TO_OPEN: "arm out"}, real_table=False,
                                        cold=True)
     assert p.drive(job.open()).ok
-    assert job.start_up().reason == "arm_out_start_up_not_recorded"
-    assert len(sim.received) == 6
+    # 2026-11-21 fix round (review m-1): the start-up runs (recorded with the arm out, N4)
+    r = p.drive(job.start_up())
+    assert r.ok and sim.received[6] == ";i02c"
 
 
 # ---- 6. the states that keep their own handling -------------------------------------------------
@@ -450,9 +451,11 @@ def test_the_window_says_the_back_strip(qtbot, monkeypatch, tmp_path, settings):
     p.idle()
     assert ";m0042204b200c86d" in sim.sim.received and ";m0044e04b200c838" in sim.sim.received
     assert tbl.REST_GUARD.contains(sim.jobs[0]._table.position_now)
+    from tests.i1io_table import job_harness as _H
+    _H.plant_no_way_home(monkeypatch)       # fix round: no such place is left
     win2, sim2, p2 = _window(qtbot, monkeypatch, tmp_path / "far", settings, (2600.0, 300.0))
     p2.drive_until(("refused", "stopped"))
     assert p2.page() == "refused" and p2.labels() == ["End measurement"]
-    assert "beside the holder of the white tile" in win2._text.text()
+    assert "cannot work out a way home" in win2._text.text()
     assert "i1Profiler" not in win2._text.text()
     assert not _moves(sim2.sim.received)

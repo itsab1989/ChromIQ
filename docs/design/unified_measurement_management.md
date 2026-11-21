@@ -11001,12 +11001,14 @@ With {n} = 1: "The arm moves in 1 second. Please keep your hands away from the t
 
 *Revised 2026-11-21 (the owner: "driving the table should work without involving i1profiler"): no way out through i1Profiler any more; START MEASUREMENT brings the arm home and ends an aiming mode left on (ChromIQ's own repair, as i1Profiler does with such a table), and the table's start-up after the power switch brings the arm home.*
 
+*Revised 2026-11-21, fix round after the safety review (B-1, M-2, m-1, m-3): the mode answers decide, a disagreement is repaired; a page that says what Not now does; the arm-out answer runs the recorded start-up (N4); the power switch first where there is no way home.*
+
 > **The table has just been switched on**
 >
 > The table was just switched on. Is the arm at its resting place, over the small white tile?
 >
 > •  Yes: ChromIQ starts the table the way i1Profiler does. The arm moves during the start-up and ends at its resting place. {countdown}Please keep your hands away from the table and the arm.
-> •  No: ChromIQ sends nothing to the table. The start-up of a table that was just switched on has never been recorded with the arm out over the table.
+> •  No, it is out: ChromIQ starts the table all the same. The start-up brings the arm home: the table has done that with an arm moved away from its resting place by hand. Please keep your hands away from the table and the arm.
 > •  Not now: ChromIQ lets go of the table, and nothing moves. You can start again later with START MEASUREMENT.
 >
 > To stop the arm at once, switch the table off at its power switch.
@@ -11378,11 +11380,15 @@ With {n} = 1: "The arm moves in 1 second. Please keep your hands away from the t
 
 *New 2026-11-21. The owner, Basti, 2026-11-21: "remember that driving the table should work without involving i1profiler". i1Profiler, recorded meeting a table left in its aiming mode (the table owner's recording of 21 Nov 2026; the owner's start-up capture of 19 Nov 2026, recording A), sends its usual opening and homing and ends the mode; ChromIQ now does the same (`workflow/i1io/table/job.py`, `repair_at_start`). Buttons: Not now, Bring the arm home, my hands are away.*
 
+*Revised 2026-11-21, fix round after the safety review (B-1, M-2, m-1, m-3): the mode answers decide, a disagreement is repaired; a page that says what Not now does; the arm-out answer runs the recorded start-up (N4); the power switch first where there is no way home.*
+
 > **The table is still in its aiming mode**
 >
 > An earlier measurement ended before the arm went back to its resting place, so the table is still in its aiming mode, the mode in which you aim at the marks by hand. That is nothing to worry about. ChromIQ now brings the arm to its resting place and ends that mode. Then this measurement goes on as usual.
 >
 > Please take your hands away from the table and the arm. From some places the arm first moves towards the middle of the table. To stop the arm at once, switch the table off at its power switch.
+>
+> If you press Not now, nothing moves. ChromIQ offers the same again here, and at your next START MEASUREMENT.
 
 ### M-I1IO-DRIVE-START-UP-AIMING · PROPOSED · added below M-I1IO-DRIVE-START-UP when the table just switched on is still in its aiming mode (a0 511800), Measure (the i1iO table window)
 
@@ -11397,9 +11403,11 @@ With {n} = 1: "The arm moves in 1 second. Please keep your hands away from the t
 
 *Revised 2026-11-21 (the owner: "driving the table should work without involving i1profiler"): no way out through i1Profiler any more; START MEASUREMENT brings the arm home and ends an aiming mode left on (ChromIQ's own repair, as i1Profiler does with such a table), and the table's start-up after the power switch brings the arm home.*
 
+*Revised 2026-11-21, fix round after the safety review (B-1, M-2, m-1, m-3): the mode answers decide, a disagreement is repaired; a page that says what Not now does; the arm-out answer runs the recorded start-up (N4); the power switch first where there is no way home.*
+
 > **The arm is not at its resting place**
 >
-> The arm is not at its resting place. It is at the back of the table, at its far left end, beside the holder of the white tile. ChromIQ has no way to bring it home from there.
+> The arm is not at its resting place, and ChromIQ cannot work out a way home from where the table reports it.
 >
 > {way}
 
@@ -11537,16 +11545,17 @@ With {n} = 1: "The arm moves in 1 second. Please keep your hands away from the t
 
 *Revised 2026-11-21 (the owner: "driving the table should work without involving i1profiler"): no way out through i1Profiler any more; START MEASUREMENT brings the arm home and ends an aiming mode left on (ChromIQ's own repair, as i1Profiler does with such a table), and the table's start-up after the power switch brings the arm home.*
 
-> **The table is still in its aiming mode**
+*Revised 2026-11-21, fix round after the safety review (B-1, M-2, m-1, m-3): the mode answers decide, a disagreement is repaired; a page that says what Not now does; the arm-out answer runs the recorded start-up (N4); the power switch first where there is no way home.*
+
+> **The table's answers about its aiming mode do not agree**
 >
-> The table gave two answers about its aiming mode, the mode in which you aim at the marks by hand, that do not agree with each other. ChromIQ cannot tell which one is true, so it has sent nothing that could move the arm. Nothing was read.
+> The table answered the question about its aiming mode (the mode in which you aim at the marks by hand) four times, and not the same way each time. ChromIQ does not know this state, so it has sent nothing that could move the arm. Nothing was read.
 >
 > What you can do:
 > 1. Press End measurement. Until you do, ChromIQ still holds the table's USB connection.
 > 2. Switch the table off at its power switch, leave it off for ten seconds and switch it on again.
-> 3. Press START MEASUREMENT. The table's start-up brings the arm home, and ChromIQ ends the aiming mode if the table reports it.
->
-> Please send us the diagnostics file of this measurement: {log}.
+> 3. Press START MEASUREMENT. ChromIQ starts the table; its start-up brings the arm home, and ChromIQ ends the aiming mode if the table reports it.
+> 4. If the table answers the same way again, ChromIQ cannot drive it in this state. Please do not force the arm by hand, and send us the diagnostics file of this measurement: {log}.
 
 ### M-I1IO-DRIVE-HOME-ARM-MOVED · PROPOSED · the homing of the ending found the held arm moved from where ChromIQ left it, Measure (the i1iO table window)
 

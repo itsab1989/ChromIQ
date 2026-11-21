@@ -124,9 +124,11 @@ def test_the_job_refuses_the_start_up_after_arm_out(tmp_path, monkeypatch):
     sim.cold = True
     assert p.drive(job.open()).ok
     n = len(sim.received)
-    res = job.start_up()
-    assert (res.kind, res.reason) == (J.Kind.REFUSED, "arm_out_start_up_not_recorded")
-    assert sim.received[n:] == []
+    # 2026-11-21 fix round (review m-1): the start-up with the arm moved off its rest IS recorded
+    # now (the table owner's N4): "the arm is out" no longer refuses it; it runs as recorded
+    res = p.drive(job.start_up())
+    assert res.ok, (res.kind, res.reason)
+    assert sim.received[n] == ";i02c" and job.opened_with_arm_out
 
 
 # ---- item 2 --------------------------------------------------------------------------------------

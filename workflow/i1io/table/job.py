@@ -486,7 +486,7 @@ def doubt_id(reason: str) -> str:
     return "table_answer_unexpected"
 
 
-_MODE_FLAG_RE = re.compile(r"f4 answered (\S*) where the recordings show (\S+) here")
+_MODE_FLAG_RE = re.compile(r"f4 answered (\S*) where the recordings show (.+?) here")
 
 
 _A0_RE = re.compile(r"the table answered a0 with ([0-9A-Fa-f]+)")
@@ -1345,7 +1345,7 @@ class TableJob:
             return WayBack.LINK_LOST_SWITCH_OFF_FIRST if lost else WayBack.SWITCH_OFF_UNFINISHED
         if lost:
             return WayBack.LINK_LOST_REPLUG
-        if getattr(d, "mode_left_on", False) and d.mode_on:
+        if getattr(d, "mode_left_on", False):
             # 2026-11-21: the aiming mode found left on at this START, not ended yet
             return (WayBack.REPAIR_AT_START if self._repair_why() is None
                     else WayBack.END_THEN_START_AGAIN)
@@ -1434,12 +1434,14 @@ class TableJob:
                     d.closed_reason is None:
                 # 2026-11-21: started, the aiming mode left on by an earlier ending
                 p = d.last_read
+                case.update(f4=getattr(d, "f4_answer", None),
+                            a0_f4_disagree=bool(getattr(d, "a0_f4_disagree", False)))
                 case.update(table="aiming_mode_left_on", place=None if p is None else
                             [int(p[0]), int(p[1])], where=start_place(p),
                             offered="repair_at_start" if wb == WayBack.REPAIR_AT_START
                             else "nothing", why=self._repair_why())
             elif d.state == "cold" and not d.start_up_sent:
-                refused = self.opened_with_arm_out and START_UP_ASKS_ABOUT_THE_ARM
+                refused = False         # 2026-11-21 fix round: never refused for the arm
                 case.update(table="cold_aiming_mode_left_on" if getattr(d, "mode_left_on", False)
                             else "cold", place=None, where=None,
                             offered="nothing" if refused else "start_up",
@@ -1975,7 +1977,9 @@ class TableJob:
         d.motion_guard = self._motion_guard
         if hasattr(self.transport, "gate"):
             # the dual scan: the same classify, with the table's dual phase at the write
-            self.transport.gate = cl.wire_gate if self.dual is None else cl.make_wire_gate(d)
+            # 2026-11-21 fix round (review m-5): the table-aware wire gate in every session (a
+            # detour move only while the way home is sent, at the wire too)
+            self.transport.gate = cl.make_wire_gate(d)
         d._touch_out = lambda: "asked after the step"
         state = d.opening()
         self._load_reach(d)
@@ -2002,10 +2006,6 @@ class TableJob:
             return self._result("start_up", Kind.REFUSED, "instrument_not_in_the_arm")
         if self.stopped_by_person:
             return self._result("start_up", Kind.REFUSED, "stopped_by_person")
-        if self.opened_with_arm_out and START_UP_ASKS_ABOUT_THE_ARM:
-            # safety review 448, SHOULD-1 (4.3.48-4.3.51; 4.3.52: only with the constant on):
-            # the person said the arm is out, so the job itself refuses the start-up
-            return self._result("start_up", Kind.REFUSED, "arm_out_start_up_not_recorded")
         if self._gen is None and self._stale_stop("start_up"):
             return self._result("start_up", Kind.REFUSED, STOPPED_BEFORE_THE_NEXT_MOVE,
                                 by_person=True)
@@ -2017,24 +2017,19 @@ class TableJob:
                                            "asks_about_the_arm": START_UP_ASKS_ABOUT_THE_ARM,
                                            "aiming_left_on": bool(getattr(d, "mode_left_on",
                                                                           False))})
-        if ans == "arm out" and START_UP_ASKS_ABOUT_THE_ARM:
-            # 4.3.52 (the owner, W9: "if the question is important we have to ask it"): the
-            # unguided page asks whether the arm is at its resting place; "out" is the 4.3.48
-            # refusal (the start-up is recorded only with the arm at rest): nothing is sent
+        if ans == "arm out":
+            # 2026-11-21 fix round (review m-1): the start-up of a just-switched-on table with the
+            # arm moved off its resting place IS recorded now (the table owner's N4: i0 4.86 /
+            # 5.30 s, the arm at rest after it), so "the arm is out" no longer refuses it (the
+            # page asked with job.START_UP_ASKS_ABOUT_THE_ARM on)
             self.opened_with_arm_out = True
-            d.close_for_sending("the table has just been switched on and you said the arm is "
-                                "out over the table; its start-up is recorded only with the arm "
-                                "at its resting place")
-            raise PersonStopped("arm_out_start_up_not_recorded")
+            ans = "yes"
+            self.diag.log("ANSWER", "start_up: the arm is out, said by the person: the start-up "
+                                    "is sent as recorded (N4), the arm is read afterwards")
         if ans != "yes":
             d.close_for_sending("the table has just been switched on; you chose i1Profiler for "
                                 "the start-up")
             raise PersonStopped("start_up_left_to_i1profiler")
-        if ans == "arm out":
-            # 4.3.52: the answer changes nothing that is sent (the start-up is the table's own,
-            # wherever the arm is); only a page with the constant on offers it
-            self.diag.log("ANSWER", "start_up: the arm is out, said by the person: the start-up "
-                                    "is sent as recorded, the arm is read afterwards")
         self._check_other_program()
         yield from self._hands_off("start_up")
         found = None
@@ -2112,7 +2107,7 @@ class TableJob:
         d = self._table
         if d.state == "cold":
             return "table_not_started"
-        if getattr(d, "mode_left_on", False) and d.mode_on:
+        if getattr(d, "mode_left_on", False):
             # 2026-11-21: the aiming mode found left on is ended first (repair_at_start)
             return "aiming_mode_left_on"
         key = self.STAGE_KEY[step]
@@ -2244,7 +2239,7 @@ class TableJob:
             return self._result(step, Kind.REFUSED, why)
         if self._table.state == "cold":
             return self._result(step, Kind.REFUSED, "table_not_started")
-        if getattr(self._table, "mode_left_on", False) and self._table.mode_on:
+        if getattr(self._table, "mode_left_on", False):
             return self._result(step, Kind.REFUSED, "aiming_mode_left_on")
         return self._begin(step, self._where_is_the_arm())
 
@@ -3640,7 +3635,7 @@ class TableJob:
         d = self._table
         if d is None or self.phase != "open":
             return "table_not_open"
-        if not (getattr(d, "mode_left_on", False) and d.mode_on):
+        if not getattr(d, "mode_left_on", False):
             return "aiming_mode_not_left_on"
         if self._repair_tried:
             return "tried_already"

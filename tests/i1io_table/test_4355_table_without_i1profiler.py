@@ -187,14 +187,98 @@ def test_an_unknown_state_answer_still_moves_nothing():
     assert not _moves(sim.received)
 
 
-def test_a0_and_f4_that_disagree_move_nothing():
-    """a0 says the mode is on, f4 says it is off: a state no recording shows."""
+# ---- 1b. fix round (safety review B-1): the mode answers decide; a disagreement never refuses ----
+# THE SIMULATOR'S ASSUMPTIONS ARE SWITCHED HERE (session_sim.SimTable.a0_override / mode): what a0
+# answers and what f4 answers are set independently, because no recording shows them disagreeing
+# and nobody has read f4 on a 540000 table. Every combination must end with the arm at rest and the
+# mode off (f4 00 after f0), never in a refusal: the vendor sends the same lines whether the mode
+# is on (N1) or off (N2), f0 included (R19 job end; N2 quit 25.676, answer 00).
+WARM = [("530000", "01"), ("540000", "01"), ("530000", "00"), ("540000", "00"), ("130000", "01")]
+
+
+@pytest.mark.parametrize("a0,f4", WARM, ids=[f"{a}-f4_{f}" for a, f in WARM])
+@pytest.mark.parametrize("pos", [(1104, 43), (0, 1600), (-1317, 3185), (2134, 1801)],
+                         ids=["at rest", "mid-bed", "front right", "far side"])
+def test_every_warm_combination_ends_with_the_arm_at_rest(a0, f4, pos):
     job, sim, _t = H.make_job(real_table=False)
-    sim.a0_aiming = "530000"
-    sim.inject("a0_after_hand", "a0")          # 530000 with the mode off (f4 00)
+    sim.a0_override, sim.mode = a0, f4
+    sim.pos = [float(pos[0]), float(pos[1])]
+    p, r = _open(job, sim)
+    assert sim.received == OPEN_AIMING and r.detail["aiming_mode_left_on"] is True
+    assert job.start_case["a0_f4_disagree"] is ((a0 != "130000") != (f4 == "01"))
+    assert job.start_case["f4"] == f4 and job.start_case["a0"] == a0
+    n = len(sim.received)
+    r = p.drive(job.repair_at_start())
+    assert r.ok, (r.kind, r.reason, r.detail)
+    sent = sim.received[n:]
+    assert sent[-6:] == [";i12b", ";s022", ";f02f", ";f42b", ";f42b", ";p025"], sent
+    assert job.at_rest() and sim.mode == "00" and not job._table.mode_on
+    assert sim.violations == []
+    assert p.drive(job.park()).ok
+
+
+COLD = [("511800", "01"), ("511800", "00"), ("111800", "01")]
+
+
+@pytest.mark.parametrize("a0,f4", COLD, ids=[f"{a}-f4_{f}" for a, f in COLD])
+def test_every_cold_combination_starts_up_and_ends_the_mode(a0, f4):
+    job, sim, _t = H.make_job(cold=True, real_table=False)
+    sim.a0_override, sim.mode = a0, f4
+    sim.i0_after = (1102.0, 27.0)
+    p, r = _open(job, sim)
+    assert r.ok and r.detail["table"] == "cold"
+    n = len(sim.received)
+    r = p.drive(job.start_up())
+    assert r.ok, (r.kind, r.reason, r.detail)
+    assert sim.received[n:] == [";i02c", ";s022", ";f42b", ";f42b", ";f42b", ";f42b", ";s022",
+                                ";p025", ";i12b", ";s022", ";f02f", ";f42b", ";f42b", ";p025"]
+    assert job.at_rest() and sim.mode == "00" and sim.violations == []
+    assert p.drive(job.park()).ok
+
+
+def test_a_plain_cold_table_sends_no_tail():
+    """111800 with f4 00 (S1): the start-up as before, no f0."""
+    job, sim, _t = H.make_job(cold=True, real_table=False)
+    sim.i0_after = (1102.0, 27.0)
+    p, _r = _open(job, sim)
+    n = len(sim.received)
+    assert p.drive(job.start_up()).ok
+    assert sim.received[n:] == [";i02c", ";s022", ";f42b", ";f42b", ";f42b", ";f42b", ";s022",
+                                ";p025", ";i12b", ";s022"]
+
+
+def test_four_mode_answers_that_differ_move_nothing():
+    """The one disagreement that still refuses: the four f4 answers differ among THEMSELVES
+    (every recording shows four equal answers). Nothing moves; the page says it plainly."""
+    job, sim, _t = H.make_job(real_table=False)
+    sim.inject_at(8, "free")                   # the second f4 answers the other way
     r = H.Person(job, sim).drive(job.open())
     assert r.kind == J.Kind.STOPPED and r.reason == "mode_flag_unexpected"
     assert not _moves(sim.received)
+
+
+@pytest.mark.parametrize("bit_survives,mode_after", [(True, "01"), (True, "00"), (False, "01"),
+                                                     (False, "00")])
+def test_a_power_cycle_in_the_trap_never_loops(bit_survives, mode_after):
+    """The trap, then the power switch, under every assumption about what survives it."""
+    sim = _leave_it_there()
+    sim.power_cycle(bit_survives=bit_survives, mode_after=mode_after)
+    sim.i0_after = (1102.0, 27.0)
+    job2, sim2, _t = H.make_job(sim=sim)
+    p2 = H.Person(job2, sim2)
+    r = p2.drive(job2.open())
+    assert r.ok and r.detail["table"] == "cold"
+    r = p2.drive(job2.start_up())
+    assert r.ok, (r.kind, r.reason, r.detail)
+    # (a plain start-up ends with i1 s0, no reading: the job's "unread rest")
+    assert (job2.at_rest() or job2.unread_rest()) and sim.mode == "00" and sim.violations == []
+    job2.close()
+    # and the next START is an ordinary one
+    job3, sim3, _t = H.make_job(sim=sim)
+    p3 = H.Person(job3, sim3)
+    r = p3.drive(job3.open())
+    assert r.ok and not r.detail.get("aiming_mode_left_on") and r.detail["table"] == "warm"
+    assert p3.drive(job3.park()).ok
 
 
 # ---- 2. the chain: an ending that sends nothing, then the next START repairs -------------------
@@ -267,11 +351,28 @@ def test_the_same_after_a_power_cycle():
     ((1116, 0), ((1116, 1202), (1102, 1202))),
     ((1500, 472), ((1500, 1202), (1102, 1202))),          # the strip on the far side: R1's form
     ((1500, 473), ((1102, 1498),)),                       # just in front of the strip: N3's
-    ((2600, 300), None),                                  # beyond the left end, in the strip
+    # fix round (review m-2): beyond the left end of the target area, in the strip: straight
+    # ahead at that end (a few units inwards), never "no way home"
+    ((2600, 300), ((2507, 1202), (1102, 1202))),
+    ((2507, 300), ((2507, 1202), (1102, 1202))),
 ])
 def test_the_detour_region(p, legs):
     assert geo.homing_detour(p) == legs
     assert J.homing_starts_here(p, False) is (legs is not None)
+    assert geo.homing_detour(None) is None
+
+
+def test_the_no_way_home_page_only_where_there_is_none(monkeypatch):
+    """Review M-1: the window's "no way home" page is chosen by homing_detour() is None, never by
+    the back strip: (1058, 317) has R1's way out; since the fix round nothing a table reports
+    lacks one (a planted reading shows the page's condition still works)."""
+    from ui import i1io_table_window as W
+    assert not W._J_no_way_home((1058, 317)) and not W._J_no_way_home((2600, 300))
+    assert not W._J_no_way_home(None)
+    H.plant_no_way_home(monkeypatch)
+    assert W._J_no_way_home((2600, 300)) and not W._J_no_way_home((1058, 317))
+    way = W.no_way_home_way()
+    assert way.index("power switch") < way.index("START MEASUREMENT") and "i1Profiler" not in way
 
 
 def test_the_detour_lines_are_the_recorded_bytes():
@@ -308,9 +409,49 @@ def test_the_gate_lets_a_detour_move_through_only_on_the_way_home():
     assert gate((R1_OUT + "\r").encode())[0] == "m0"
     with pytest.raises(tbl.ForbiddenLine):
         gate(geo._line("m0", 1000, 1202, 200))
+    T.position_now = (2600, 300)                           # beyond the left end: to 2507
+    assert gate(geo._line("m0", 2507, 1202, 200))[0] == "m0"
+    with pytest.raises(tbl.ForbiddenLine):
+        gate(geo._line("m0", 2600, 1202, 200))             # outside the target area
     T.position_now = None
     with pytest.raises(tbl.ForbiddenLine):
         gate((R1_OUT + "\r").encode())
+
+
+def test_the_wire_gate_refuses_a_detour_move_outside_the_way_home():
+    """Review m-5: the second check at the USB write holds the table too."""
+    class T:
+        dual_phase = None
+        detour_phase = None
+    wire = cl.make_wire_gate(T)
+    for line in (N3_LINE, R1_OUT, R1_ACROSS):
+        with pytest.raises(tbl.ForbiddenLine):
+            wire((line + "\r").encode())
+    T.detour_phase = "out"
+    assert wire((N3_LINE + "\r").encode()) == "m0"
+
+
+def test_no_other_code_path_sends_a_detour_move(monkeypatch):
+    """Review G-3: a whole page (computed moves, rows, homing) with the way home switched off
+    sends no m0 at speed 200; every detour line goes out only inside _way_home."""
+    seen = []
+    real = J.TableJob._way_home
+
+    def spy(self, got):
+        seen.append(len(self._table.t.table.received) if hasattr(self._table.t, "table")
+                    else None)
+        return real(self, got)
+    monkeypatch.setattr(J.TableJob, "_way_home", spy)
+    monkeypatch.setattr(geo, "homing_detour", lambda p: () if p is not None else None)
+    from tests.i1io_table.test_job_reading import job_for, read_page, ready_to_read
+    import tempfile
+    from pathlib import Path
+    with tempfile.TemporaryDirectory() as t:
+        job, sim, helper, run, p = job_for(Path(t), real_table=False)
+        ready_to_read(job, p)
+        read_page(job, p)
+        assert p.drive(job.home()).ok
+        assert not [ln for ln in sim.received if ln.startswith(";m0") and ln[11:15] == "00c8"]
 
 
 def test_the_start_rule_homing_from_the_far_side_takes_the_detour():
@@ -370,6 +511,6 @@ def test_the_windows_own_way_out_texts_name_no_i1profiler(qapp):
     for text in (W.table_state_text("120000"), W.table_state_text("")):
         assert "i1Profiler" not in text
     import inspect
-    for fn in (W.TableMeasureWindow._arm_out_text, W.TableMeasureWindow._show_arm_out_cold,
+    for fn in (W.TableMeasureWindow._arm_out_text, W.no_way_home_way,
                W.TableMeasureWindow._front_stop_way):
         assert "i1Profiler 3.8" not in inspect.getsource(fn)

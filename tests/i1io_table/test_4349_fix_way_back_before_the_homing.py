@@ -74,13 +74,13 @@ def test_the_homing_is_never_sent_from_the_back_strip_and_a_free_arm_keeps_its_r
     # 2026-11-21: from the back strip by i1Profiler's own way out (R1); only beyond the left end
     # of the target area (X above 2507) there is none
     assert J.homing_starts_here((1058, 317), False)
-    assert not J.homing_starts_here((2600, 300), False)
+    assert J.homing_starts_here((2600, 300), False)        # fix round: to X 2507 first
     # 4.3.53 fix round 2: a free arm too, from anywhere but the back strip (the homing is one
     # line the table carries out by itself; the one recorded refusal was inside the old box)
     assert J.homing_starts_here((0, 3000), True)
     assert J.homing_starts_here((0, 2700), True)
     assert J.homing_starts_here((1058, 317), True)
-    assert not J.homing_starts_here((2600, 300), True)
+    assert J.homing_starts_here((2600, 300), True)
 
 
 def test_a_homing_from_the_front_that_fails_sends_nothing_more(tmp_path):

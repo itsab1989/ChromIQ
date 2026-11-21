@@ -13394,8 +13394,9 @@ M_I1IO_DRIVE_START_UP_ARM = _m(
     "•  Yes: ChromIQ starts the table the way i1Profiler does. The arm moves during the "
     "start-up and ends at its resting place. {countdown}Please keep your hands away from the "
     "table and the arm.\n"
-    "•  No: ChromIQ sends nothing to the table. The start-up of a table that was just switched "
-    "on has never been recorded with the arm out over the table.\n"
+    "•  No, it is out: ChromIQ starts the table all the same. The start-up brings the arm "
+    "home: the table has done that with an arm moved away from its resting place by hand. "
+    "Please keep your hands away from the table and the arm.\n"
     "•  Not now: ChromIQ lets go of the table, and nothing moves. You can start again later "
     "with START MEASUREMENT.\n"
     "\n"
@@ -13801,7 +13802,10 @@ M_I1IO_DRIVE_REPAIR_AT_START = _m(
     "\n"
     "Please take your hands away from the table and the arm. From some places the arm first "
     "moves towards the middle of the table. To stop the arm at once, switch the table off at "
-    "its power switch.",
+    "its power switch.\n"
+    "\n"
+    "If you press Not now, nothing moves. ChromIQ offers the same again here, and at your next "
+    "START MEASUREMENT.",
     approved=False)
 
 #: 2026-11-21 (the owner: "driving the table should work without involving i1profiler"):
@@ -13833,8 +13837,8 @@ M_I1IO_DRIVE_HOME_AT_START = _m(
 M_I1IO_DRIVE_ARM_OUT_BACK = _m(
     "M-I1IO-DRIVE-ARM-OUT-BACK",
     "The arm is not at its resting place",
-    "The arm is not at its resting place. It is at the back of the table, at its far left end, "
-    "beside the holder of the white tile. ChromIQ has no way to bring it home from there.\n"
+    "The arm is not at its resting place, and ChromIQ cannot work out a way home from where "
+    "the table reports it.\n"
     "\n"
     "{way}",
     approved=False)
@@ -13978,19 +13982,19 @@ M_I1IO_DRIVE_LEFT_OUT = _m(
 #: is still in its aiming mode; ChromIQ sent nothing that moves and read nothing.
 M_I1IO_DRIVE_STILL_AIMING = _m(
     "M-I1IO-DRIVE-STILL-AIMING",
-    "The table is still in its aiming mode",
-    "The table gave two answers about its aiming mode, the mode in which you aim at the marks "
-    "by hand, that do not agree with each other. ChromIQ cannot tell which one is true, so it "
-    "has sent nothing that could move the arm. Nothing was read.\n"
+    "The table's answers about its aiming mode do not agree",
+    "The table answered the question about its aiming mode (the mode in which you aim at the "
+    "marks by hand) four times, and not the same way each time. ChromIQ does not know this "
+    "state, so it has sent nothing that could move the arm. Nothing was read.\n"
     "\n"
     "What you can do:\n"
     "1. Press End measurement. Until you do, ChromIQ still holds the table's USB connection.\n"
     "2. Switch the table off at its power switch, leave it off for ten seconds and switch it "
     "on again.\n"
-    "3. Press START MEASUREMENT. The table's start-up brings the arm home, and ChromIQ ends "
-    "the aiming mode if the table reports it.\n"
-    "\n"
-    "Please send us the diagnostics file of this measurement: {log}.",
+    "3. Press START MEASUREMENT. ChromIQ starts the table; its start-up brings the arm home, "
+    "and ChromIQ ends the aiming mode if the table reports it.\n"
+    "4. If the table answers the same way again, ChromIQ cannot drive it in this state. Please "
+    "do not force the arm by hand, and send us the diagnostics file of this measurement: {log}.",
     approved=False,
     needs_old_i1profiler=False)
 

@@ -118,6 +118,8 @@ def test_the_back_strip_page_says_the_power_switch_first_and_the_limit(qtbot, mo
     """2026-11-21: the one place nothing is offered is a back-strip place beyond the left end of
     the target area (the back strip itself has i1Profiler's own way out); its page names the
     power switch and START, never i1Profiler."""
+    from tests.i1io_table import job_harness as _H
+    _H.plant_no_way_home(monkeypatch)       # fix round: no such place is left
     win, sim, p = _window_at(qtbot, monkeypatch, tmp_path, settings, (2600, 300))
     assert p.page() == "refused" and p.labels() == ["End measurement"]
     text = win._text.text()

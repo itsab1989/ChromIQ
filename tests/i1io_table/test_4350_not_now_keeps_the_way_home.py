@@ -186,16 +186,17 @@ def test_the_same_with_the_answer_that_the_arm_is_at_rest(
 
 def test_a_stop_at_the_opening_never_offers_readings_that_do_not_exist(
         qtbot, monkeypatch, tmp_path, settings):  # noqa: F811
-    """a0 530000 (the aiming mode left on) but the mode answers say 00: the two answers
-    disagree. Nothing was read, nothing moves; the way on is inside ChromIQ."""
-    sim = WindowSim(table_faults=[("a0_after_hand", "a0")])
+    """2026-11-21 fix round (B-1): four mode answers that differ among themselves (a0 and f4
+    that disagree are put right at START). Nothing was read, nothing moves; the way on is inside
+    ChromIQ, and the page says plainly that ChromIQ does not know this state."""
+    sim = WindowSim(table_faults=[("free", "f4")])
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
                                                     sim=sim, asking=False)
     page = p.drive_until(("stopped", "refused", "done"))
     assert page == "stopped"
     text = win._text.text()
     assert "Nothing was read" in text and "you can still save them" not in text
-    assert "do not agree" in text and "i1Profiler" not in text
+    assert "does not know this state" in text and "i1Profiler" not in text
     assert not [c for c in _cids(sim) if c in MOVES]
 
 

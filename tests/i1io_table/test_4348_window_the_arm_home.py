@@ -83,11 +83,16 @@ def test_start_with_the_arm_out_brings_it_home_and_goes_on(qtbot, monkeypatch, t
 
 def test_start_with_the_arm_out_in_the_back_strip_says_why(qtbot, monkeypatch, tmp_path,
                                                            settings):
+    from tests.i1io_table import job_harness as _H
+    _H.plant_no_way_home(monkeypatch)       # fix round: no such place is left
     win, sim, p = _ready_page(qtbot, monkeypatch, tmp_path, settings, FAR_BACK)
     _press_arm_out(win, p)
     text = win._text.text()
-    assert "beside the holder of the white tile" in text
+    assert "cannot work out a way home" in text
     assert "i1Profiler" not in text and "power switch" in text
+    # fix round (review M-2): there a START would refuse again: the power switch FIRST
+    assert text.index("Switch the table off at its power switch") < text.index(
+        "Press START MEASUREMENT")
     assert p.labels() == ["End measurement"]
     assert not [ln for ln in sim.sim.received if ln[1:3] in MOVES]
 
@@ -142,8 +147,10 @@ def test_the_stopped_page_offers_the_homing_after_a_place_check(qtbot, monkeypat
 
 def test_the_stopped_page_in_the_back_strip_has_no_homing(qtbot, monkeypatch, tmp_path,
                                                           settings):
+    from tests.i1io_table import job_harness as _H
+    _H.plant_no_way_home(monkeypatch)       # fix round: no such place is left
     win, sim, p = _stopped_at_the_homing(qtbot, monkeypatch, tmp_path, settings, FAR_BACK)
     assert "Bring the arm home" not in p.labels()
     text = win._text.text()
-    assert "beside the holder of the white tile" in text
+    assert "cannot work out a way home" in text
     assert "i1Profiler" not in text and "START MEASUREMENT" in text

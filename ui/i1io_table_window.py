@@ -917,8 +917,9 @@ def table_state_text(a0) -> str:
         "2. Switch the table off at its power switch, wait ten seconds and switch it on again.\n"
         "3. Press START MEASUREMENT. When the table then reports that it was just switched on, "
         "ChromIQ offers its start-up, which brings the arm home.\n"
-        "4. If the table gives the same answer again, please send us the diagnostics file of this "
-        "measurement, and do not force the arm by hand.")
+        "4. If the table gives the same answer again, ChromIQ cannot drive it in this state: "
+        "please do not force the arm by hand, and send us the diagnostics file of this "
+        "measurement.")
 
 
 def reason_text(rid: str, detail: "dict | None" = None) -> str:
@@ -3591,12 +3592,6 @@ class TableMeasureWindow(QFrame):
 
     def _after_ok(self, res) -> None:
         step = res.step
-        if step == "open" and res.detail.get("arm_out") and res.detail.get("table") == "cold" \
-                and _start_up_asks_about_the_arm():
-            # 4.3.48-4.3.52 (4.3.52: only with job.START_UP_ASKS_ABOUT_THE_ARM on): with the arm
-            # out ChromIQ sent nothing to a just-switched-on table
-            self._show_arm_out_cold()
-            return
         if step == "open" and res.detail.get("table") == "cold":
             self._call(self.job.start_up)
             return
@@ -4349,10 +4344,9 @@ class TableMeasureWindow(QFrame):
                         (tr("End measurement"), self._on_end_pressed)])
             return
         if res.reason in ("arm_not_at_rest", "arm_in_the_back_strip") and after is None and \
-                j is not None and j.ended is None and _J_in_back_strip(j.state().position_now):
+                j is not None and j.ended is None and _J_no_way_home(j.state().position_now):
             # 4.3.52: the one place ChromIQ does not bring a held arm home from (physical)
-            title, body = M.M_I1IO_DRIVE_ARM_OUT_BACK.render(
-                way=M.M_I1IO_DRIVE_ARM_WAY_OUT.render()[1])
+            title, body = M.M_I1IO_DRIVE_ARM_OUT_BACK.render(way=no_way_home_way())
             self._show("refused", title, body, [(tr("End measurement"), self._on_end_pressed)])
             return
         if res.reason == "arm_not_at_rest" and after is None:
@@ -4465,10 +4459,9 @@ class TableMeasureWindow(QFrame):
         jb = self.job
         if wb == "end_then_start_again" and jb is not None and jb.ended is None and \
                 jb.phase == "open" and jb.state().arm_free is False and \
-                _J_in_back_strip(jb.state().position_now):
+                _J_no_way_home(jb.state().position_now):
             # 4.3.52: the one place ChromIQ does not bring a held arm home from (physical)
-            title, body = M.M_I1IO_DRIVE_ARM_OUT_BACK.render(
-                way=M.M_I1IO_DRIVE_ARM_WAY_OUT.render()[1])
+            title, body = M.M_I1IO_DRIVE_ARM_OUT_BACK.render(way=no_way_home_way())
             self._show("stopped", title, body, self._way_on_buttons())
             self._after_stop_controls()
             self._show_note()
@@ -4849,15 +4842,6 @@ class TableMeasureWindow(QFrame):
                   "first. If the table does not answer then, switch it off at its power switch, "
                   "wait ten seconds, switch it on and press START MEASUREMENT again: its start-up "
                   "brings the arm home.").format(where=self._where())
-
-    def _show_arm_out_cold(self) -> None:
-        from workflow import measurement_messages as M
-        title, body = _refused(M, tr(
-            "The table has just been switched on, and you said that the arm is out over the "
-            "table. ChromIQ sends nothing now. When you are ready, press Close and then START "
-            "MEASUREMENT again, and answer that the arm is at its resting place: the table's "
-            "start-up then brings the arm home."))
-        self._show("refused", title, body, [(tr("Close"), self._close_job)])
 
     # ---- endings --------------------------------------------------------------------------
     def _on_end_pressed(self) -> None:
@@ -5486,6 +5470,36 @@ def _start_up_asks_about_the_arm() -> bool:
     power-on and its refusal)."""
     from workflow.i1io.table import job as _J
     return bool(getattr(_J, "START_UP_ASKS_ABOUT_THE_ARM", False))
+
+
+def _J_no_way_home(p) -> bool:
+    """2026-11-21 fix round (review M-1): ONLY a reading from which geometry.homing_detour gives
+    no way home (since the fix round: none a table can report); every other place, the back
+    strip included, has the vendor's way home and gets the ordinary pages. Never raises."""
+    try:
+        from workflow.i1io.table import geometry as _G
+        return p is not None and _G.homing_detour(p) is None
+    except Exception:      # noqa: BLE001
+        return False
+
+
+def no_way_home_way() -> str:
+    """2026-11-21 fix round (review M-2): the way on where ChromIQ has no way home, the power
+    switch FIRST (a START would only refuse again while the table answers). What is known: the
+    table's start-up after the power switch brought an arm home that had been moved off its
+    resting place by hand (the table owner's recording N4); no recording shows it from such a
+    place."""
+    return tr("What you can do:\n"
+              "1. Press End measurement. Until you do, ChromIQ still holds the table's USB "
+              "connection.\n"
+              "2. Switch the table off at its power switch, leave it off for ten seconds and "
+              "switch it on again.\n"
+              "3. Press START MEASUREMENT. ChromIQ starts the table, and the table's start-up "
+              "brings the arm home. It has done that with an arm moved away from its resting "
+              "place by hand; no recording shows it from exactly where the arm is now, so please "
+              "stay beside the table with the power switch in reach.\n"
+              "4. If the arm still does not get home, please do not force it by hand, and send us "
+              "the diagnostics file of this measurement.")
 
 
 def _J_in_back_strip(p) -> bool:

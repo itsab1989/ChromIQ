@@ -120,11 +120,12 @@ def test_after_save_or_discard_the_ending_offers_it(tmp_path):
 
 
 # ---- not offered ------------------------------------------------------------------------------
-def test_not_from_the_back_strip(tmp_path):
+def test_not_from_the_back_strip(tmp_path, monkeypatch):
     """2026-11-21: the back strip has i1Profiler's own way out (R1); only a place in it beyond
     the left end of the target area (X above 2507) has none."""
     job, sim, p, r = _stopped_at_the_homing(tmp_path, BACK_STRIP)
     assert r.way_back == J.WayBack.HOME_AFTER_STOP
+    H.plant_no_way_home(monkeypatch)
     job, sim, p, r = _stopped_at_the_homing(tmp_path / "far", FAR_BACK)
     assert r.way_back == J.WayBack.END_THEN_START_AGAIN
     n = len(sim.received)
@@ -220,11 +221,11 @@ def test_planted_a_wider_offer_is_caught(tmp_path, monkeypatch, plant):
         # still refuses (no reading came with it), which is the second line of defence
         assert job._home_after_stop_why() in ("no_fresh_position_reading", "arm_not_held")
     elif plant == "any place":
+        H.plant_no_way_home(monkeypatch)
         job, sim, p, r = _stopped_at_the_homing(tmp_path, FAR_BACK)
+        assert job._home_after_stop_why() == "arm_in_the_back_strip"
         monkeypatch.setattr(J.geo, "homing_detour", lambda p: ())
         assert job._home_after_stop_why() is None          # the plant shows
-        monkeypatch.undo()
-        assert job._home_after_stop_why() == "arm_in_the_back_strip"
     else:
         job, sim, p, r = _stopped_at_the_homing(tmp_path, OUT_HELD)
         job._table.arm_free = True
@@ -252,7 +253,8 @@ def test_start_with_the_arm_out_reads_it_and_brings_it_home(tmp_path):
     assert sim.violations == []
 
 
-def test_start_with_the_arm_out_in_the_back_strip_offers_nothing(tmp_path):
+def test_start_with_the_arm_out_in_the_back_strip_offers_nothing(tmp_path, monkeypatch):
+    H.plant_no_way_home(monkeypatch)
     job, sim, helper, run, p = job_for(tmp_path, {J.Confirm.READY_TO_OPEN: "arm out"},
                                        real_table=False)
     sim.pos = list(FAR_BACK)
@@ -288,10 +290,11 @@ def test_start_with_the_arm_out_but_at_rest_goes_on_as_usual(tmp_path):
         assert p.drive(H.step(job, s)).ok, s
 
 
-def test_the_held_arm_out_of_the_area_is_never_offered_the_usual_homing(tmp_path):
+def test_the_held_arm_out_of_the_area_is_never_offered_the_usual_homing(tmp_path, monkeypatch):
     """4.3.47 offered HOME_OFFERED for a held arm at the alignment start, and the homing then
     refused after sending s0 p0. Now the offer says what the homing would do (4.3.52: the
     alignment start gets the START homing; the back strip is the place left)."""
+    H.plant_no_way_home(monkeypatch)
     job, sim, helper, run, p = job_for(tmp_path, real_table=False)
     sim.pos = list(FAR_BACK)
     assert p.drive(job.open()).ok

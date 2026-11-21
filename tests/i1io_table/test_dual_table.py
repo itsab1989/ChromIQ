@@ -142,7 +142,14 @@ def test_dual_off_sends_no_dual_line_and_keeps_the_released_wire_gate(tmp_path, 
     job, sim, helper, run, p = _job(tmp_path, dual=False)
     _ready(job, p)
     read_page(job, p)
-    assert job.transport.gate is cl.wire_gate
+    # 2026-11-21 fix round (review m-5): every session's wire gate holds the table (a detour
+    # move only while the way home is sent); with no dual phase it lets through what the released
+    # wire_gate lets through, and refuses a dual line
+    gate = job.transport.gate
+    for raw in (b";d100d23a\r",):
+        with pytest.raises(tbl.ForbiddenLine):
+            gate(raw)
+    assert gate(b";s022\r") == cl.wire_gate(b";s022\r")
     sent = [ln.encode() + b"\r" if not ln.endswith("\r") else ln.encode() for ln in sim.received]
     assert not any(ln.startswith(b";d100d2") for ln in sent)
     assert not any(ln.startswith(b";m2") and geo.decode_xyv(ln)[3] == 132 for ln in sent)

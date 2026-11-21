@@ -107,11 +107,11 @@ def test_the_doubt_before_the_homing_has_its_own_id():
 
 def test_the_a0_530000_page_says_end_measurement_before_i1profiler(
         qtbot, monkeypatch, tmp_path, settings):  # noqa: F811
-    """2026-11-21: a0 530000 is the aiming mode left on, put right at START; here its mode
-    answers say 00 (the two answers disagree): nothing moves, End measurement first, then the
-    power switch and START, never i1Profiler."""
+    """2026-11-21 fix round (B-1): a0 and f4 that disagree are put right at START; the one
+    refusal left is four mode answers that differ among themselves: nothing moves, End
+    measurement first, then the power switch and START, never i1Profiler."""
     from workflow import measurement_messages as M
-    sim = WindowSim(table_faults=[("a0_after_hand", "a0")])
+    sim = WindowSim(table_faults=[("free", "f4")])         # the first f4 answers 01, then 00
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
                                                     sim=sim, asking=False)
     page = p.drive_until(("stopped", "refused", "done"))

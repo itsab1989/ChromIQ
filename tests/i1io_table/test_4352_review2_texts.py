@@ -100,6 +100,8 @@ def test_s1_the_done_page_after_the_back_strip_gives_the_power_switch_first(
     from tests.i1io_table.test_4352_start_rule_by_state import _moves, _window
     i18n.set_language(code)
     try:
+        from tests.i1io_table import job_harness as _H
+        _H.plant_no_way_home(monkeypatch)       # fix round: no such place is left
         win, sim, p = _window(qtbot, monkeypatch, tmp_path, settings, (2600.0, 300.0))
         p.drive_until(("refused", "stopped"))
         p.press("End measurement")
