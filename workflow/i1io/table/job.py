@@ -1144,6 +1144,8 @@ class TableJob:
         if self.guided_now or not isinstance(ask, Ask):
             return None
         kind, d = ask.kind, ask.detail or {}
+        if kind == Confirm.START_UP and d.get("a0_unknown"):
+            return None                 # last round: an a0 never seen: always the person's choice
         if kind == Confirm.START_UP:
             # 4.3.52: the start-up of a just-switched-on table is sent wherever the arm is, so
             # with the guidance off it comes after the countdown, as every first movement (the
@@ -1151,6 +1153,8 @@ class TableJob:
             return None if START_UP_ASKS_ABOUT_THE_ARM else "countdown"
         if kind in COUNTDOWN_INSTEAD:
             step = d.get("step")
+            if step == "repair_at_start" and d.get("f4_mixed"):
+                return None               # last round: after answers that differ: always asked
             if step in ("home_at_start", "repair_at_start"):
                 # 4.3.52: the START rule's homing inside the step that found the arm away from
                 # rest: the countdown, as before every first movement (not a fault); 2026-11-21:
@@ -2016,7 +2020,9 @@ class TableJob:
         ans = yield Ask(Confirm.START_UP, {"guided": self.guided,
                                            "asks_about_the_arm": START_UP_ASKS_ABOUT_THE_ARM,
                                            "aiming_left_on": bool(getattr(d, "mode_left_on",
-                                                                          False))})
+                                                                          False)),
+                                           "a0_unknown": (d.a0_answer if getattr(
+                                               d, "a0_unknown", False) else None)})
         if ans == "arm out":
             # 2026-11-21 fix round (review m-1): the start-up of a just-switched-on table with the
             # arm moved off its resting place IS recorded now (the table owner's N4: i0 4.86 /
@@ -2036,6 +2042,14 @@ class TableJob:
         try:
             d.run_cold_start()
         except Doubt as exc:
+            if getattr(d, "f4_mixed", False) and d.start_up_took is not None and \
+                    d.motions_sent == 1 and not d.motion_unconfirmed and d.link_lost_at is None:
+                # last round: the start-up ran (i0 done in its window); only its four mode
+                # answers differed. The table counts as started; the repair is offered (asked)
+                d.cold_done = True
+                d.cold_motions = d.motions_sent
+                d.state = "warm"
+                raise
             found = self._start_up_found_the_arm_out()
             if found is None:
                 d.cold_failure = _cold_failure_kind(d, exc)
@@ -3646,7 +3660,9 @@ class TableJob:
         if d.state == "cold" or (d.start_up_sent and not d.cold_done):
             return "table_not_started"
         reason = d.closed_reason
-        if reason is not None and not reason.startswith(HOME_AFTER_STOP_REASONS):
+        mixed = bool(getattr(d, "f4_mixed", False)) and reason is not None and \
+            reason.startswith("f4 answered")
+        if reason is not None and not reason.startswith(HOME_AFTER_STOP_REASONS) and not mixed:
             return "stop_not_at_a_place_check"
         if self.stopped_by_person:
             return "stopped_by_person"
@@ -3679,8 +3695,13 @@ class TableJob:
         sending stopped at a place check (the start-up's own reading before its homing), it is
         opened for exactly these lines and, with the arm read at rest, for the measurement."""
         d = self._table
+        mixed = bool(getattr(d, "f4_mixed", False))
+        if mixed:
+            d.log("DATA", f"the repair offered after mode answers that differ (a0 = "
+                          f"{d.a0_answer}); the same lines as always, asked first")
         ans = yield Ask(Confirm.GO, {"step": "repair_at_start", "page": self.page + 1,
                                      "at_start": True, "aiming_left_on": True,
+                                     "f4_mixed": mixed,
                                      "a0": d.a0_answer, "inline": stage != "repair_at_start"})
         self._start_case_answer(ans)
         if ans != "yes":
@@ -3709,7 +3730,13 @@ class TableJob:
         finally:
             d.current_step = None
         d.mode_left_on = False
-        if stopped_because is not None:
+        if stopped_because is not None and mixed:
+            # last round: after mode answers that differed, the arm is home and the mode ended,
+            # but this sitting began in a state ChromIQ does not know: it ends here; the next
+            # START opens the table afresh (its answers are read again)
+            d.close_for_sending("the arm is home after mode answers that differed; START again")
+            d.f4_mixed = False
+        elif stopped_because is not None:
             d.reopen_after_homing()
         self.repaired_at_start += 1
         self.brought_home_at_start += 1

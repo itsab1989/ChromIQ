@@ -13817,6 +13817,36 @@ M_I1IO_DRIVE_START_UP_AIMING = _m(
     "mode right after the start-up, with the arm at its resting place.",
     approved=False)
 
+#: 2026-11-21 (the owner: "driving the table should work without involving i1profiler"):
+#: see workflow/i1io/table/job.py, repair_at_start.
+M_I1IO_DRIVE_REPAIR_MIXED = _m(
+    "M-I1IO-DRIVE-REPAIR-MIXED",
+    "Try to bring the arm home",
+    "ChromIQ now tries to bring the arm to its resting place and to end the aiming mode. It "
+    "sends the same commands it sends at the end of every measurement. X-Rite's software sends "
+    "these commands too, with the aiming mode on and with it off.\n"
+    "\n"
+    "What is not known: no recording shows a table that answers the way yours did, so ChromIQ "
+    "cannot say for sure what the table will do with them.\n"
+    "\n"
+    "What will move: the arm goes to its resting place. From some places it first moves "
+    "towards the middle of the table.\n"
+    "\n"
+    "Please take your hands away from the table and the arm. To stop the arm at once, switch "
+    "the table off at its power switch. If you press Not now, nothing moves.",
+    approved=False)
+
+#: 2026-11-21 (the owner: "driving the table should work without involving i1profiler"):
+#: see workflow/i1io/table/job.py, repair_at_start.
+M_I1IO_DRIVE_START_UP_UNKNOWN = _m(
+    "M-I1IO-DRIVE-START-UP-UNKNOWN",
+    "The table has just been switched on",
+    "The table answered ChromIQ's first question about its state with {a0}. ChromIQ has not "
+    "seen this answer before. It ends the same way as the answers of a table that was just "
+    "switched on, so ChromIQ offers the same start-up. What the table does with it in this "
+    "state is not known. Press Not now if you would rather not try it.",
+    approved=False)
+
 # --- PROPOSED (4.3.52): the arm found away from its resting place at a START ------------------
 #: The project owner, 2026-11-20: "do you really think it matters for i1profiler or the table how
 #: far out the arm is whether the app brings it to home or not? what else should it do if it is
@@ -13985,16 +14015,20 @@ M_I1IO_DRIVE_STILL_AIMING = _m(
     "The table's answers about its aiming mode do not agree",
     "The table answered the question about its aiming mode (the mode in which you aim at the "
     "marks by hand) four times, and not the same way each time. ChromIQ does not know this "
-    "state, so it has sent nothing that could move the arm. Nothing was read.\n"
+    "state. It has sent nothing that could move the arm. Nothing was read.\n"
     "\n"
-    "What you can do:\n"
+    "You can let ChromIQ try to bring the arm home: press “Try to bring the arm home”. ChromIQ "
+    "then sends the same commands it sends at the end of every measurement. It asks you to "
+    "take your hands away first.\n"
+    "\n"
+    "Or:\n"
     "1. Press End measurement. Until you do, ChromIQ still holds the table's USB connection.\n"
     "2. Switch the table off at its power switch, leave it off for ten seconds and switch it "
     "on again.\n"
     "3. Press START MEASUREMENT. ChromIQ starts the table; its start-up brings the arm home, "
     "and ChromIQ ends the aiming mode if the table reports it.\n"
-    "4. If the table answers the same way again, ChromIQ cannot drive it in this state. Please "
-    "do not force the arm by hand, and send us the diagnostics file of this measurement: {log}.",
+    "4. If the table answers the same way again, please do not force the arm by hand, and send "
+    "us the diagnostics file of this measurement: {log}.",
     approved=False,
     needs_old_i1profiler=False)
 
@@ -14388,6 +14422,7 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_HOME_AFTER_STOP, M_I1IO_DRIVE_HOME_AFTER_STOP_DONE,
     M_I1IO_DRIVE_HOME_AT_START, M_I1IO_DRIVE_ARM_OUT_BACK,
     M_I1IO_DRIVE_REPAIR_AT_START, M_I1IO_DRIVE_START_UP_AIMING,
+    M_I1IO_DRIVE_REPAIR_MIXED, M_I1IO_DRIVE_START_UP_UNKNOWN,
     M_I1IO_DRIVE_HOME_AT_START_DONE,
     M_I1IO_DRIVE_ARM_WAY_OUT, M_I1IO_DRIVE_ARM_WAY_OUT_ENDED, M_I1IO_DRIVE_HOME_TRY_FAILED,
     M_I1IO_DRIVE_I1PROFILER_LIMIT,

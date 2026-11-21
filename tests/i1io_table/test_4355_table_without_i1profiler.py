@@ -514,3 +514,160 @@ def test_the_windows_own_way_out_texts_name_no_i1profiler(qapp):
     for fn in (W.TableMeasureWindow._arm_out_text, W.no_way_home_way,
                W.TableMeasureWindow._front_stop_way):
         assert "i1Profiler 3.8" not in inspect.getsource(fn)
+
+
+# ---- last round: the two remaining lockouts become offers (the person's choice) ----------------
+# THE SIMULATOR'S ASSUMPTIONS, LABELLED: the "free" fault makes ONE f4 answer the other way (no
+# recording shows four f4 answers that differ); a0_override gives an a0 no recording shows. What a
+# real table does with the repair or the start-up in those states is NOT known: the pages say so.
+def _mixed_at_opening(**kw):
+    job, sim, _t = H.make_job(real_table=False, **kw)
+    sim.pos = [0.0, 1600.0]
+    sim.inject_at(8, "free")                 # the second f4 of the opening answers 01
+    p = H.Person(job, sim)
+    r = p.drive(job.open())
+    assert r.kind == J.Kind.STOPPED and r.reason == "mode_flag_unexpected"
+    assert not _moves(sim.received) and job._table.f4_mixed
+    assert r.way_back == J.WayBack.REPAIR_AT_START
+    return job, sim, p
+
+
+def test_mixed_answers_do_nothing_sends_nothing():
+    job, sim, p = _mixed_at_opening()
+    n = len(sim.received)
+    p.script[C.GO] = "back"                  # the repair's own question: Not now
+    r = p.drive(job.repair_at_start())
+    assert r.reason == "person_chose_back" and sim.received[n:] == []
+    job.close()                              # End measurement
+    assert sim.received[n:] == []
+
+
+def test_mixed_answers_try_sends_the_recorded_repair_and_ends_the_sitting():
+    job, sim, p = _mixed_at_opening()
+    n = len(sim.received)
+    r = p.drive(job.repair_at_start())
+    assert r.ok, (r.kind, r.reason, r.detail)
+    gos = [a for a in p.asked if a[1] == C.GO]
+    assert len(gos) == 1 and gos[0][2]["f4_mixed"] is True and gos[0][3] == n
+    assert sim.received[n:] == REPAIR
+    assert job.at_rest() and sim.mode == "00"
+    # the sitting began in a state ChromIQ does not know: it ends; nothing else may run
+    assert job.state().sending_closed and job.park().kind != J.Kind.OK
+    job.close()
+    # the next START reads the table afresh and is an ordinary one
+    job2, sim2, _t = H.make_job(sim=sim)
+    p2 = H.Person(job2, sim2)
+    r2 = p2.drive(job2.open())
+    assert r2.ok and not r2.detail.get("aiming_mode_left_on")
+    assert p2.drive(job2.park()).ok and sim.violations == []
+
+
+def test_mixed_answers_with_the_guidance_off_are_still_asked():
+    job, sim, p = _mixed_at_opening()
+    job.guided = False
+    r = p.drive(job.repair_at_start())
+    assert r.ok and [a for a in p.asked if a[1] == C.GO] and job.countdowns == []
+
+
+def test_mixed_answers_a_failed_try_says_so():
+    job, sim, p = _mixed_at_opening()
+    sim.inject("status", "i1", 3)
+    r = p.drive(job.repair_at_start())
+    assert r.kind == J.Kind.STOPPED and job.start_homing_failed
+    assert job.state().sending_closed
+
+
+def test_mixed_answers_after_the_start_up_offer_the_repair():
+    job, sim, _t = H.make_job(cold=True, real_table=False)
+    sim.mode = "01"
+    sim.i0_after = (1102.0, 27.0)
+    p = H.Person(job, sim)
+    assert p.drive(job.open()).ok
+    sim.inject_at(len(sim.received) + 3, "free")     # i0, s0, f4, [f4 differs]
+    r = p.drive(job.start_up())
+    assert r.kind == J.Kind.STOPPED and r.reason == "mode_flag_unexpected"
+    assert _moves(sim.received) == [";i02c"]
+    assert r.way_back == J.WayBack.REPAIR_AT_START
+    n = len(sim.received)
+    r = p.drive(job.repair_at_start())
+    assert r.ok and sim.received[n:] == REPAIR and job.at_rest()
+
+
+@pytest.mark.parametrize("a0", ["121800", "711800", "001800"])
+def test_an_unknown_a0_of_the_switched_on_family_is_offered_the_start_up(a0):
+    job, sim, _t = H.make_job(cold=True, real_table=False)
+    sim.a0_override = a0
+    sim.i0_after = (1102.0, 27.0)
+    job.guided = False                       # asked all the same
+    p = H.Person(job, sim, {C.START_UP: "i1profiler"})       # the page's "Not now"
+    r = p.drive(job.open())
+    assert r.ok and r.detail["table"] == "cold" and job._table.a0_unknown
+    n = len(sim.received)
+    r = p.drive(job.start_up())
+    asks = [a for a in p.asked if a[1] == C.START_UP]
+    assert asks and asks[-1][2]["a0_unknown"] == a0
+    assert r.kind != J.Kind.OK and sim.received[n:] == []      # Not now: nothing sent
+    job2, sim2, _t = H.make_job(sim=sim)
+    p2 = H.Person(job2, sim2)
+    assert p2.drive(job2.open()).ok
+    n = len(sim.received)
+    r = p2.drive(job2.start_up())
+    assert r.ok and sim.received[n] == ";i02c"
+
+
+@pytest.mark.parametrize("a0", ["123456", "130001", "541900"])
+def test_any_other_unknown_a0_stays_a_refusal(a0):
+    job, sim, _t = H.make_job(real_table=False)
+    sim.a0_override = a0
+    r = H.Person(job, sim).drive(job.open())
+    assert r.kind == J.Kind.STOPPED and r.reason == "table_state_unknown"
+    assert len(sim.received) == 6 and not _moves(sim.received)
+
+
+def test_the_window_offers_the_try_after_mixed_answers(qtbot, monkeypatch, tmp_path, settings):
+    from tests.i1io_table.test_window import open_window
+    from tests.i1io_table.window_sim import WindowSim
+    from workflow import measurement_messages as M
+    sim = WindowSim(table_faults=[("free", "f4")])
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
+                                                    sim=sim, asking=False)
+    assert p.drive_until(("stopped", "refused", "done")) == "stopped"
+    assert p.labels() == ["End measurement", "Try to bring the arm home"]
+    assert "does not know this state" in win._text.text()
+    p.press("Try to bring the arm home")
+    assert p.page() == "repair_at_start"
+    assert win._title.text() == M.M_I1IO_DRIVE_REPAIR_MIXED.render()[0]
+    assert p.labels() == ["Not now", "Bring the arm home, my hands are away"]
+    p.press("Not now")
+    assert p.labels() == ["End measurement", "Try to bring the arm home"]
+    assert not _moves(sim.sim.received)
+    p.press("Try to bring the arm home")
+    p.press("Bring the arm home, my hands are away")
+    p.idle()
+    assert p.page() == "home_after_stop_done" and p.labels() == ["End measurement"]
+    assert sim.jobs[-1].at_rest() and sim.sim.violations == []
+
+
+from tests.i1io_table.test_window import settings  # noqa: E402,F401  (the fixture)
+
+
+def test_the_window_says_the_unknown_answer_on_the_start_up_page(qtbot, monkeypatch, tmp_path,
+                                                                settings):  # noqa: F811
+    from tests.i1io_table.test_window import open_window
+    from tests.i1io_table.window_sim import WindowSim
+    from workflow import measurement_messages as M
+
+    class Unknown(WindowSim):
+        def factory(self, *a, **k):
+            job = super().factory(*a, **k)
+            self.sim.a0_override = "121800"
+            return job
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
+                                                    sim=Unknown(cold=True), asking=False)
+    assert p.drive_until(("start_up",)) == "start_up"
+    text = win._text.text()
+    assert M.M_I1IO_DRIVE_START_UP_UNKNOWN.render(a0="121800")[1] in text
+    assert "Not now" in p.labels() and not _moves(sim.sim.received)
+    p.press("Not now")
+    p.idle()
+    assert not _moves(sim.sim.received)

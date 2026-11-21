@@ -312,6 +312,18 @@ A0_KNOWN = {A0_COLD: ("cold", False), A0_WARM: ("warm", False),
             A0_WARM_AIMING_OUT: ("warm", True)}
 
 
+#: 2026-11-21, last round (the coordinator, under the owner's rule): an a0 never seen that still
+#: ends in "1800", as both answers of a just-switched-on table do (111800 S1, 511800 recording A),
+#: is treated as just switched on: the recorded start-up is OFFERED (the person's choice, always
+#: asked). Every other unknown a0 stays a refusal: no recorded command goes into an unrecorded
+#: warm state.
+_A0_COLD_FAMILY = re.compile(r"[0-9A-F]{2}1800")
+
+
+def a0_just_switched_on_family(a0: str) -> bool:
+    return bool(_A0_COLD_FAMILY.fullmatch(str(a0 or ""))) and str(a0) not in A0_KNOWN
+
+
 def _key_of(line: bytes) -> str:
     return next(k for k, v in WIRE.items() if v == bytes(line))
 
@@ -393,7 +405,7 @@ def parse_done(line: str, key: str) -> Reply:
         raise ProtocolError(f"the table answered f4 with {data}; recorded are only 00 and 01")
     if key == "memory_a" and not data.startswith(MEMORY_A_START):
         raise ProtocolError("the table's memory block does not start as recorded")
-    if key == "a0" and data not in A0_KNOWN:
+    if key == "a0" and data not in A0_KNOWN and not a0_just_switched_on_family(data):
         raise ProtocolError(f"the table answered a0 with {data}; the recordings only show "
                             f"{A0_COLD} (just switched on), {A0_WARM} (started), and "
                             f"{A0_COLD_AIMING} / {A0_WARM_AIMING} / {A0_WARM_AIMING_OUT} (the "
@@ -1195,6 +1207,10 @@ class Table:
         self.a0_said_aiming = False
         self.f4_answer: "str | None" = None
         self.a0_f4_disagree = False
+        #: last round: the four mode answers differed (the repair is offered, asked); an a0 never
+        #: seen in the just-switched-on family (the start-up is offered, asked)
+        self.f4_mixed = False
+        self.a0_unknown = False
         #: the vendor's way home (geometry.homing_detour): set ONLY while the job sends one of
         #: its moves at the recorded detour speed ("out" or "back_strip"); None otherwise
         self.detour_phase: "str | None" = None
@@ -1693,7 +1709,18 @@ class Table:
                              f"k2 = {got.get('k2')}")
             a0 = self.exchange("a0").data
             self.a0_answer = a0
-            state, aiming = A0_KNOWN[a0]
+            if a0 in A0_KNOWN:
+                state, aiming = A0_KNOWN[a0]
+            elif self.part == "C" and a0_just_switched_on_family(a0):
+                # last round: an a0 never seen in the just-switched-on family (x1800): offered
+                # the recorded start-up, never by itself (the job always asks)
+                self.a0_unknown = True
+                state, aiming = "cold", bool(int(a0[:2], 16) & 0x40)
+                self.log("DATA", f"a0 = {a0}: an answer no recording shows; it ends in 1800 like "
+                                 "a table that was just switched on (111800, 511800), so the "
+                                 "start-up is offered, asked")
+            else:
+                raise self._doubt(f"the table answered a0 with {a0}; not a known answer")
             #: 2026-11-21 fix round (B-1): what a0 said; the mode answers (f4) decide
             self.a0_said_aiming = aiming
             if aiming:
@@ -1743,10 +1770,23 @@ class Table:
             seen = self._f4_answers = []
         seen.append(got)
         if len(set(seen)) > 1:
+            # last round: the four answers differ among themselves; the job then OFFERS the
+            # repair as the person's choice (every line of it is recorded with the mode on and
+            # off: N1, N2, R19); the raw answers are in the log (RECV) and here
+            if self.motions_sent == 0 or (self.start_up_sent and self.motions_sent == 1):
+                self.f4_mixed = True
+                self.mode_left_on = True
+                if self.motions_sent == 0:
+                    self.arm_free = None
+            self.log("DATA", f"the mode answers differ among themselves: f4 = {','.join(seen)} "
+                             f"(a0 = {self.a0_answer})")
             raise self._doubt(f"f4 answered {','.join(seen)} where the recordings show four equal "
                               "answers here")
         if len(seen) == 4:
             self.f4_answer = got
+            # last round: one plain line for the tester's check, whatever the answers are
+            self.log("DATA", f"the mode answers: a0 = {self.a0_answer}, f4 = {got} x4 "
+                             f"({'aiming mode ON' if got == '01' else 'aiming mode OFF'})")
             on = got == "01"
             self.mode_on = on
             self.a0_f4_disagree = bool(self.a0_said_aiming) != on

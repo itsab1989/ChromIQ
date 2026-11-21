@@ -206,6 +206,7 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-I1IO-DRIVE-HOME-AT-START", "M-I1IO-DRIVE-ARM-OUT-BACK",
     # 2026-11-21: the table found in its aiming mode, put right at START (no i1Profiler)
     "M-I1IO-DRIVE-REPAIR-AT-START", "M-I1IO-DRIVE-START-UP-AIMING",
+    "M-I1IO-DRIVE-REPAIR-MIXED", "M-I1IO-DRIVE-START-UP-UNKNOWN",
     "M-I1IO-DRIVE-HOME-AT-START-DONE",
     # 2026-11-20, 4.3.51, the owner's decision: when it does not work
     "M-I1IO-DRIVE-HOME-TRY-FAILED",

@@ -3601,6 +3601,11 @@ class TableMeasureWindow(QFrame):
             # hands-off question, brings the arm home and ends the mode, as i1Profiler does
             self._call(self.job.repair_at_start, status=tr("Bringing the arm home..."))
             return
+        if step == "repair_at_start" and self.job.state().sending_closed:
+            # last round: the repair after mode answers that differed ends the sitting: the
+            # page says the arm is home and that START opens the table afresh
+            self._show_home_after_stop_done()
+            return
         if step == "repair_at_start":
             if self._guidance_off_now():
                 self._next()
@@ -3835,7 +3840,8 @@ class TableMeasureWindow(QFrame):
         if kind == "go" and d.get("step") == "repair_at_start":
             # 2026-11-21: the table found in its aiming mode at a START: the arm home and the
             # mode ended, after this one question
-            title, body = M.M_I1IO_DRIVE_REPAIR_AT_START.render()
+            title, body = (M.M_I1IO_DRIVE_REPAIR_MIXED if d.get("f4_mixed")
+                           else M.M_I1IO_DRIVE_REPAIR_AT_START).render()
             self._pending_kind = kind
             self._show("repair_at_start", title, body,
                        [(tr("Not now"), self._answer_slot("back")),
@@ -3881,6 +3887,10 @@ class TableMeasureWindow(QFrame):
         }
         if kind in texts:
             title, body = texts[kind]()
+            if kind == "start_up" and d.get("a0_unknown"):
+                # last round: an a0 never seen in the just-switched-on family: said first
+                body = M.M_I1IO_DRIVE_START_UP_UNKNOWN.render(a0=d.get("a0_unknown"))[1] + \
+                    "\n\n" + body
             if kind == "start_up" and d.get("aiming_left_on"):
                 # 2026-11-21: a table just switched on with its aiming mode still on (a0 511800)
                 body += "\n\n" + M.M_I1IO_DRIVE_START_UP_AIMING.render()[1]
@@ -4326,6 +4336,14 @@ class TableMeasureWindow(QFrame):
                 j.way_back() == "repair_at_start":
             # 2026-11-21: "Not now" at the question that ends the aiming mode found at the start:
             # the same page, and the same homing when the person is ready
+            jt = getattr(j, "_table", None)
+            if getattr(jt, "f4_mixed", False):
+                # last round: back to the truthful page and its two answers
+                title, body = M.M_I1IO_DRIVE_STILL_AIMING.render(log=self._log_name)
+                self._show("refused", title, body,
+                           [(tr("End measurement"), self._on_end_pressed),
+                            (tr("Try to bring the arm home"), self._on_repair)])
+                return
             title, body = M.M_I1IO_DRIVE_REPAIR_AT_START.render()
             self._show("refused", title, body,
                        [(tr("End measurement"), self._on_end_pressed),
@@ -4490,6 +4508,19 @@ class TableMeasureWindow(QFrame):
         opening = getattr(res, "step", "") == "open" and (
             self.job is None or self.job.accepted_in_this_session() == 0)
         d = getattr(res, "detail", None) or {}
+        jt = getattr(self.job, "_table", None) if self.job is not None else None
+        if msg is None and res.reason in ("mode_flag_unexpected", "person_chose_back") and \
+                getattr(jt, "f4_mixed", False) and self.job.way_back() == "repair_at_start":
+            # last round (the coordinator, under the owner's rule): the four mode answers
+            # differed (at the opening or after the start-up): the truthful page, End first,
+            # and the repair offered as the person's own choice (it asks hands away first)
+            title, body = M.M_I1IO_DRIVE_STILL_AIMING.render(log=self._log_name)
+            self._show("stopped", title, body,
+                       [(tr("End measurement"), self._on_end_pressed),
+                        (tr("Try to bring the arm home"), self._on_repair)])
+            self._after_stop_controls()
+            self._show_note()
+            return
         if msg is None and opening and res.reason == "mode_flag_unexpected" and d.get(
                 "at_opening"):
             # 2026-11-21: at the opening this means the state answer (a0) and the mode answers
