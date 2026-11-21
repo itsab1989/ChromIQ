@@ -2027,7 +2027,7 @@ class TabCheckRefine(QWidget):
         chosen = {"profile": "Use the profile's settings",
                   "mine": "Check with my settings"}.get(choice, "")
         line = cc.check_log_line(built, used, spectral=spectral,
-                                 mismatch=mismatch, choice=chosen)
+                                 mismatch=mismatch, choice=chosen, tab=check)
         log.info("%s", line)
         self._colour_record = line
         return params, notes

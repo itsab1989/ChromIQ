@@ -283,12 +283,15 @@ def describe(c: Colorimetry) -> str:
 
 
 def check_log_line(built: Built, check: Colorimetry, *, spectral: bool,
-                   mismatch: bool, choice: str = "") -> str:
+                   mismatch: bool, choice: str = "",
+                   tab: "Colorimetry | None" = None) -> str:
     """The app log's line for one check (owner's ask (a), 2026-11-21): what
     the profile was built with, what the check used, and, when they
     differed, that the warning was shown and what was chosen."""
-    parts = [f"profile built with: {built.for_log()}",
-             f"check uses: {check.for_log()}"]
+    parts = [f"profile built with: {built.for_log()}"]
+    if tab is not None and tab.normalised() != check.normalised():
+        parts.append(f"tab set to: {tab.for_log()}")
+    parts.append(f"check uses: {check.for_log()}")
     if not spectral:
         parts.append("the measurement has no spectral readings, so these "
                      "settings change no number")

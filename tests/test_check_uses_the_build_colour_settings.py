@@ -423,6 +423,22 @@ def test_every_check_logs_its_settings_and_the_choice(qapp, tmp_path,
     assert "check uses: observer 1931_2" in line
     assert "warning shown, chosen: Check with my settings" in line
     assert tab._colour_record == line
+    assert "tab set to" not in line          # the tab's own settings were used
+
+
+def test_the_log_names_the_tabs_setting_when_the_profiles_was_used(
+        qapp, tmp_path, monkeypatch, caplog):
+    s, work = _settings(tmp_path)
+    run, ti3, icc = _run(work)
+    _record(run, icc, observer="2015_2")
+    tab = _check_tab(s, ti3, icc)
+    _capture(monkeypatch, tab, answer="profile")
+    with caplog.at_level(logging.INFO):
+        tab._on_run()
+    line = tab._colour_record
+    assert "tab set to: observer 1931_2" in line
+    assert "check uses: observer 2015_2" in line
+    assert "chosen: Use the profile's settings" in line
 
 
 def test_an_unknown_profile_is_logged_as_unknown(qapp, tmp_path,
