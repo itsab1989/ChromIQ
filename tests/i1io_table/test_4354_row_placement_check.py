@@ -76,10 +76,11 @@ def test_the_switch_is_one_constant_and_on():
     # it applies at every speed and factor: strip.cut_row asks it on every row its own checks
     # accept, the dual row's lamp pass the same (dual_rows._placement)
     src = inspect.getsource(stp.cut_row)
-    assert "pl.check_row(plan, rows, info[\"windows\"], wl)" in src
+    assert "pl.check_row(plan, rows, info[\"windows\"], wl, uniform_reference=uniform_row)" \
+        in src
     from workflow.i1io.table import dual_rows as dl
-    assert "pl.check_row(lamp, lamp_rows, windows, wavelengths)" in inspect.getsource(
-        dl._placement)
+    assert ("pl.check_row(lamp, lamp_rows, windows, wavelengths, uniform_reference=uniform_row)"
+            in inspect.getsource(dl._placement))
     assert inspect.getsource(dl.cut_dual).count("_placement(") == 1
     assert inspect.getsource(dl.cut_lamp_only).count("_placement(") == 1
 

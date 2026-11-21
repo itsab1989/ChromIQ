@@ -21,6 +21,8 @@ a row refused by ONE of them alone is not something the generator produces on it
 """
 from __future__ import annotations
 
+import json
+
 import numpy as np
 import pytest
 
@@ -31,6 +33,7 @@ from workflow.i1io.table import job as J
 from workflow.i1io.table import placement as pl
 from workflow.i1io.table import spot as sp
 from workflow.i1io.table import strip as stp
+from tests.i1io_table.test_window import settings  # noqa: E402,F401 (fixture)
 
 
 def _mid3(row, i):
@@ -210,3 +213,160 @@ def test_guard_the_timing_bound(monkeypatch, which):
     _fit_says(monkeypatch, change)
     r = pl.check_row(p, row.readings.tolist(), w)
     assert r["reason"] == "edges_disagree_with_timing" and r["off_mm"] > 0, r
+
+
+# ---- the relaxed window rule (adopted in the fix round, the review's S1) ---------------------------
+
+def test_a_window_may_reach_two_readings_beyond_its_run_when_its_value_agrees():
+    """placement.WINDOW_OUTSIDE_MAX_READINGS = 2 with WINDOW_OUTSIDE_VALUE_DE00 = 0.3: one or two
+    readings beyond the stable run with the window's value within 0.3 dE00 of the run's are
+    tolerated (and said in the record); three, or a value further off, are not."""
+    assert (pl.WINDOW_OUTSIDE_MAX_READINGS, pl.WINDOW_OUTSIDE_VALUE_DE00) == (2, 0.3)
+    p, row, w = _good()
+    rec = pl.check_row(p, row.readings.tolist(), w)["per_patch"][5]
+    ra, rb1 = rec["run"]
+    for extra, ok in ((1, True), (2, True), (3, False)):
+        ww = list(w)
+        ww[5] = (ra - extra, rb1)
+        r = pl.check_row(p, row.readings.tolist(), ww)
+        if ok and r["confirmed"]:
+            got = r["per_patch"][5]
+            assert got["outside_readings"] == extra and got["outside_tolerated"]
+            assert got["value_de00"] <= pl.WINDOW_OUTSIDE_VALUE_DE00
+        else:
+            assert not ok and r["reason"] == "window_outside_the_stable_run", (extra, r)
+    # two readings outside that carry the edge (a short window): its value is off, refused
+    ww = list(w)
+    ww[5] = (ra - 2, ra + 1)
+    r = pl.check_row(p, row.readings.tolist(), ww)
+    assert r["reason"] == "window_outside_the_stable_run" and r["patch"] == "A6", r
+
+
+# ---- no edges in the readings (the review's S3) -------------------------------------------------------
+
+def _windows(p, n, edge):
+    from workflow.i1io.table import scan as sc
+    return sc.windows(p, sc.MOTION_START_AFTER_LAMP_S, n, edge_mm=edge)
+
+
+@pytest.mark.parametrize("what", ["constant", "bare paper"])
+def test_a_stream_without_patch_edges_is_not_confirmed(what):
+    """A constant stream (an arm that did not move, a stuck reading) and bare paper with noise:
+    the readings say nothing about where the patches are, so the check cannot confirm the row
+    (it was "confirmed" before the fix round, review S3)."""
+    p = S.plan(10.0, 88)
+    if what == "constant":
+        rows = [list(S.PALETTE[7])] * p.N
+    else:
+        paper = np.array([S.PAPER] * 24)
+        rows = S.Row(p, seed=2, colours=paper, spacer=S.PAPER).readings.tolist()
+    r = pl.check_row(p, rows, _windows(p, p.N, 1.58))
+    assert (r["confirmed"], r["reason"]) == (False, "no_patch_edges"), r
+    assert "no patch edges" in pl.summary(r)
+
+
+def test_a_row_of_identical_patches_is_used_by_timing_alone_and_says_so():
+    """THE DECISION: a row the CHART says is made of identical patches (and printed without
+    spacers) has no edges either; refusing it would make it unreadable in rows for ever, so it
+    is used as 4.3.53 used it, by timing alone, and the record and the logs say "cannot
+    confirm". Any row whose chart patches differ stays refused (above)."""
+    p = S.plan(10.0, 88, spacer_mm=0.0)
+    same = np.array([S.PALETTE[3]] * 24)
+    rows = S.Row(p, seed=2, colours=same, spacer_mm=0.0).readings.tolist()
+    w = _windows(p, p.N, 1.58)
+    assert pl.check_row(p, rows, w)["reason"] == "no_patch_edges"
+    r = pl.check_row(p, rows, w, uniform_reference=True)
+    assert r["confirmed"] is True and r["timing_only"] is True
+    assert r["reason"] == "uniform_row_timing_only"
+    assert pl.summary(r).startswith("row placement check: cannot confirm: a row of identical "
+                                    "patches cannot be placed from its readings")
+
+
+def test_the_job_knows_a_uniform_row_from_the_chart(tmp_path):
+    from workflow.i1io.table import measurement as ms
+    ti2 = tmp_path / "c.ti2"
+    ti2.write_text('CTI2\n\nNUMBER_OF_FIELDS 5\nBEGIN_DATA_FORMAT\nSAMPLE_ID SAMPLE_LOC RGB_R '
+                   'RGB_G RGB_B\nEND_DATA_FORMAT\n\nNUMBER_OF_SETS 3\nBEGIN_DATA\n'
+                   '1 "A1" 50 50 50\n2 "A2" 50 50 50\n3 "A3" 10 50 50\nEND_DATA\n',
+                   encoding="ascii")
+    dev = ms.device_values_by_loc(ti2)
+    assert dev == {"A1": ("50", "50", "50"), "A2": ("50", "50", "50"),
+                   "A3": ("10", "50", "50")}
+    assert ms.device_values_by_loc(tmp_path / "missing.ti2") == {}
+
+    class Q:
+        def __init__(self, loc):
+            self.loc = loc
+
+    class Plan:
+        def __init__(self, *locs):
+            self.patches = [Q(x) for x in locs]
+    job = type("Job", (), {"_chart_ti2": ti2, "_uniform_row": J.TableJob._uniform_row})()
+    assert job._uniform_row(Plan("A1", "A2")) is True
+    assert job._uniform_row(Plan("A1", "A3")) is False
+    assert job._uniform_row(Plan("A1", "A9")) is False        # unknown: not uniform
+
+
+# ---- the rest of a page patch by patch (the review's S4) ----------------------------------------------
+
+def test_after_the_second_refused_row_the_rest_of_the_page_is_offered_once(tmp_path):
+    """A page whose sheet lies 2 mm off (every row refused by the check): the first refused row
+    is asked as before; the SECOND offers, once, to read the rest of the page patch by patch;
+    chosen, that row and every row after it on the page are read patch by patch (GO first),
+    nobody is asked again, and every finished row is on disk."""
+    from tests.i1io_table import reader_sim as RS
+    from tests.i1io_table.test_job_reading import ready_to_read, small_sheet
+    sheet = small_sheet([4, 4, 4, 4])
+    job, sim, helper, run = RS.make_reading_job(
+        tmp_path, sheet=sheet, aims=H.demo_aims(sheet), ask_after_each_step=False,
+        faults={"scan": {"sheet_offset_mm": 2.0, "aperture_mm": 4.5}})
+    assert job.set_options(["-v", "-c", "1", "chart"]).ok
+    p = H.Person(job, sim)
+    asked, answers = [], iter(["skip", "rest patch by patch"])
+
+    def on_ask(person, res):
+        if res.confirm == J.Confirm.ROW_FAILED_STRIP:
+            asked.append(dict(res.detail))
+            person.script[J.Confirm.ROW_FAILED_STRIP] = next(answers)
+        return None
+    p.on_ask = on_ask
+    ready_to_read(job, p)
+    res = []
+    while job.rows_left():
+        res.append(p.drive(job.read_row()))
+    assert [(a["row"], a["why"], a["offer_rest"]) for a in asked] == [
+        (1, stp.PLACEMENT_REASON, False), (2, stp.PLACEMENT_REASON, True)]
+    assert [r.detail["status"] for r in res] == ["skipped", "read", "read", "read"]
+    assert [r.detail["row_kind"] for r in res[1:]] == ["spot", "spot", "spot"]
+    assert all(r.detail["read_patch_by_patch_because"] == "chosen_by_you" for r in res[1:])
+    assert sum(1 for ln in sim.received if ln.startswith(";m2")) == 2   # rows 1 and 2 only
+    assert job.rest_by_patch == {0} and job.rest_offered == {0}
+    recs = [json.loads(x.read_text(encoding="utf-8"))
+            for x in sorted(job.diag.folder.rglob("*.row.json"))]
+    assert sorted((r["row"], r["status"]) for r in recs if r["status"] == "read") == \
+        [(2, "read"), (3, "read"), (4, "read")]
+    log = "\n".join(x.read_text(encoding="utf-8") for x in job.diag.folder.rglob("*.log"))
+    assert "the rest of the page is offered patch by patch" in log
+    assert "the person chose to read the rest of this page patch by patch" in log
+    job.close()
+
+
+def test_the_panel_shows_the_rest_of_the_page_only_when_offered(qtbot, monkeypatch, tmp_path,
+                                                                settings):  # noqa: F811
+    from tests.i1io_table.test_window import open_window
+    real = stp.cut_row
+    monkeypatch.setattr(stp, "cut_row", lambda plan, outdir, fired, **kw: stp.Cut(
+        False, stp.PLACEMENT_REASON, info=real(plan, outdir, fired, **kw).info))
+    win, sim, run, person, saved, finished = open_window(
+        qtbot, monkeypatch, tmp_path, settings, asking=False, args=["-v", "-c", "1", "chart"])
+    person.drive_until("row_failed_strip")
+    assert "Rest patch by patch" not in person.labels()
+    assert "the readings did not confirm where the patches are" in win._text.text()
+    person.press("Skip it")
+    person.drive_until("row_failed_strip")
+    labels = person.labels()
+    assert "Rest patch by patch" in labels and "Read it patch by patch" not in labels, labels
+    assert len(labels) == 4 + labels.count("End measurement") + labels.count("Report a problem")
+    assert "This is the second row of this page where that happened" in win._text.text()
+    person.press("Rest patch by patch")
+    assert person.page() == "go"                      # hands off first, nothing moved

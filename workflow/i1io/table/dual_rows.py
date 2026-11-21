@@ -141,7 +141,8 @@ def _dual_windows(lamp, uv, nl, nu, edge):
     return wl_, [wu_[k] for k in order]
 
 
-def cut_dual(lamp, uv, lamp_rows, uv_rows, edges=None, wavelengths=None) -> DualCut:
+def cut_dual(lamp, uv, lamp_rows, uv_rows, edges=None, wavelengths=None,
+             uniform_row: bool = False) -> DualCut:
     """Both passes of a dual row cut into the row's patches BY POSITION (the move's own profile,
     each pass's recorded first-reading delay and motion start, the dual row's clean edge: the
     widest of ``scan.DUAL_EDGES_MM`` that leaves every patch ``scan.DUAL_MIN_READINGS`` in both
@@ -175,13 +176,14 @@ def cut_dual(lamp, uv, lamp_rows, uv_rows, edges=None, wavelengths=None) -> Dual
     if not all(math.isfinite(v) for row in L + U for v in row):
         return DualCut(False, "strip_patch_implausible", info=info)
     # 4.3.54: the row placement check on the LAMP pass (a veto only; see _placement)
-    why = _placement(lamp, lamp_rows, wl_, wavelengths, info)
+    why = _placement(lamp, lamp_rows, wl_, wavelengths, info, uniform_row)
     if why:
         return DualCut(False, why, info=info)
     return DualCut(True, "", L, U, info=info)
 
 
-def cut_lamp_only(lamp, lamp_rows, edges=None, wavelengths=None) -> DualCut:
+def cut_lamp_only(lamp, lamp_rows, edges=None, wavelengths=None,
+                  uniform_row: bool = False) -> DualCut:
     """4.3.50 (Basti's rule of 19 Nov 2026, as by hand): the LAMP pass of a dual row alone, cut
     into the row's patches by position, for a row whose second pass (UV) failed or was refused:
     the row then keeps M0 only. The same windows, edges and checks as :func:`cut_dual`'s lamp
@@ -211,13 +213,13 @@ def cut_lamp_only(lamp, lamp_rows, edges=None, wavelengths=None) -> DualCut:
         return DualCut(False, "strip_patch_not_on_one_colour", info=dict(info, patches=bad))
     if not all(math.isfinite(v) for row in L for v in row):
         return DualCut(False, "strip_patch_implausible", info=info)
-    why = _placement(lamp, lamp_rows, wl_, wavelengths, info)
+    why = _placement(lamp, lamp_rows, wl_, wavelengths, info, uniform_row)
     if why:
         return DualCut(False, why, info=info)
     return DualCut(True, "", L, [], info=info)
 
 
-def _placement(lamp, lamp_rows, windows, wavelengths, info) -> str:
+def _placement(lamp, lamp_rows, windows, wavelengths, info, uniform_row=False) -> str:
     """4.3.54: THE ROW PLACEMENT CHECK (placement.py) on a dual row's LAMP pass, the same veto
     as a strip row's: the values stay the cut's own; the row is refused (the strip row's
     reason) when the lamp readings do not confirm every patch's window. The lamp pass is the
@@ -226,7 +228,7 @@ def _placement(lamp, lamp_rows, windows, wavelengths, info) -> str:
     1.23 dE00). The UV pass is NOT checked by it: its readings are the LED light the patch
     reflects, for which the study measured no stable-run threshold; it keeps its own timing
     check against the chart (uv_timing_fit). Returns the reason, or "" when confirmed."""
-    check = pl.check_row(lamp, lamp_rows, windows, wavelengths)
+    check = pl.check_row(lamp, lamp_rows, windows, wavelengths, uniform_reference=uniform_row)
     info["placement"] = check
     if check.get("confirmed"):
         return ""

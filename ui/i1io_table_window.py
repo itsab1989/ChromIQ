@@ -592,6 +592,8 @@ def choice_label(kind: str, value: str) -> str:
         ("row_failed", "stop"): tr("End this step"),
         ("row_failed_strip", "again"): tr("Read it again as a strip"),
         ("row_failed_strip", "patch by patch"): tr("Read it patch by patch"),
+        # 4.3.54: offered once per page, after its second row the row placement check refused
+        ("row_failed_strip", "rest patch by patch"): tr("Rest patch by patch"),
         ("row_failed_strip", "skip"): tr("Skip it"),
         ("row_failed_strip", "stop"): tr("End this step"),
         ("end_of_session", "save"): tr("Save and stop"),
@@ -3901,6 +3903,8 @@ class TableMeasureWindow(QFrame):
         elif kind == "row_failed_strip":
             # 4.3.50: a dual row that keeps its lamp pass as M0 only has its own words
             msg = (M.M_I1IO_DRIVE_ROW_M0_ONLY_STRIP if d.get("m0_kept")
+                   # 4.3.54: the second row of this page the row placement check refused
+                   else M.M_I1IO_DRIVE_ROW_PLACEMENT_REST if d.get("offer_rest")
                    else M.M_I1IO_DRIVE_ROW_FAILED_STRIP)
             title, body = msg.render(
                 row=d.get("row", "?"), page=d.get("page", page),
@@ -3928,12 +3932,17 @@ class TableMeasureWindow(QFrame):
             body = M.M_I1IO_DRIVE_GO.render()[1]
         self._pending_kind = kind
         values = SHOWN_CHOICES.get(kind, res.choices)
+        if kind == "row_failed_strip":
+            # 4.3.54: "Rest patch by patch" takes the place of "Read it patch by patch" on the
+            # one page that offers it (four answers fit in one row in every language)
+            drop = "patch by patch" if d.get("offer_rest") else "rest patch by patch"
+            values = tuple(v for v in values if v != drop)
         buttons = [(choice_label(kind, v), self._answer_slot(v)) for v in values]
         made = self._show(kind, title, body, buttons)
         if kind in ("row_failed", "row_failed_strip") and not d.get("again_allowed", True):
             made[0].setEnabled(False)
             if kind == "row_failed_strip":
-                made[1].setEnabled(False)       # patch by patch is a row read again too
+                made[1].setEnabled(False)       # patch by patch (or the rest) is a row read again
             if self._popups:
                 self._style_popup_buttons()
         self._status.setText(tr("ChromIQ waits for your answer. Nothing moves until you "

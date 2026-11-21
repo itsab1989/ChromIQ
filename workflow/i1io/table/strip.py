@@ -67,8 +67,10 @@ def lab_d50(xyz):
     return (116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz))
 
 
-def cut_row(plan, outdir: str, fired: "dict | None") -> Cut:
-    """The patches of one scanned row, or the reason it cannot be cut (nothing guessed)."""
+def cut_row(plan, outdir: str, fired: "dict | None", uniform_row: bool = False) -> Cut:
+    """The patches of one scanned row, or the reason it cannot be cut (nothing guessed).
+    *uniform_row* (4.3.54): the chart says every patch of this row has the same device values
+    (the row placement check then uses a row without patch edges by timing alone)."""
     if not fired or not fired.get("ok"):
         return Cut(False, "strip_instrument_delivered_nothing")
     spec = os.path.join(outdir, plan.name + ".spec.csv")
@@ -101,7 +103,7 @@ def cut_row(plan, outdir: str, fired: "dict | None") -> Cut:
             return Cut(False, "strip_patch_implausible", info=dict(info, loc=q.loc))
     # 4.3.54: THE ROW PLACEMENT CHECK (placement.py), a veto only: the values above stay the
     # cut's own; the row is accepted only when its readings confirm every patch's window
-    check = pl.check_row(plan, rows, info["windows"], wl)
+    check = pl.check_row(plan, rows, info["windows"], wl, uniform_reference=uniform_row)
     info = dict(info, placement=check)
     if not check.get("confirmed"):
         return Cut(False, PLACEMENT_REASON, info=dict(info, loc=check.get("patch") or ""))

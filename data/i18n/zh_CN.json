@@ -9070,6 +9070,8 @@
  "You can also use the button on the instrument": "你也可以使用仪器上的按钮",
  "a patch came out with values no printed patch can have": "有一个色块得出的数值是任何印刷色块都不可能有的",
  "the readings did not confirm where the patches are in this row, so ChromIQ did not use them": "读数未能确认这一行中各色块的位置，所以 ChromIQ 没有使用它们",
+ "Rest patch by patch": "其余逐块读取",
+ "The arm is held where the strip move ended. Before it moves again, ChromIQ asks you to take your hands away from the table and the arm.\n\nRow {row} of page {page} could not be read as a strip: {why}. This is the second row of this page where that happened: the sheet may lie a little off the marks you aimed at. ChromIQ uses none of this row's values, because it never guesses a value. What would you like to do?\n  •  Read it again as a strip.\n  •  Read the rest patch by patch: this row and every row after it on this page, each patch on its own, so this does not matter. The rows read so far keep their values.\n  •  Skip this row: the measurement is saved without it, and you can read it later.\n  •  End this step. If the sheet may have moved, end the measurement and start it again: you aim again, and Continue Measurement reads only the rows that are still missing.": "机械臂停在条带移动结束的位置。在它再次移动之前，ChromIQ 会请你把手从桌面和机械臂上移开。\n\n第 {page} 页的第 {row} 行无法作为条带读取：{why}。这已经是本页第二行出现这种情况：纸张可能与你对准的标记稍有偏离。ChromIQ 不会使用这一行的任何数值，因为它从不猜测数值。你想怎么做？\n  •  再次作为条带读取。\n  •  其余逐块读取：这一行以及本页之后的每一行，每个色块单独读取，所以这个偏差不再有影响。已经读取的行保留它们的数值。\n  •  跳过这一行：测量会在没有这一行的情况下保存，你可以稍后再读取它。\n  •  结束这一步。如果纸张可能移动过，请结束测量并重新开始：重新对准后，“继续测量”只会读取仍然缺少的行。",
  "a patch got too few readings": "有一个色块得到的读数太少",
  "only some patches of the row are to be read": "只需要读取这一行的部分色块",
  "some patches lie outside the readings the instrument took": "有些色块落在仪器采集的读数范围之外",

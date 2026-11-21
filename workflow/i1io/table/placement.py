@@ -89,13 +89,25 @@ MIN_READINGS = 3
 #: section 6, step 1)
 VALUE_AGREE_DE00 = 0.5
 
+#: THE RELAXED WINDOW RULE (fix round, the review's S1, ADOPTED): a window may reach up to this
+#: many readings beyond its stable run when its value lies within WINDOW_OUTSIDE_VALUE_DE00 of
+#: the run's own (0 would be: the window must lie inside the run). Checked before adoption
+#: (work folder fix_round/relaxed_result.txt): on the 12 recorded rows every cut with a wrong
+#: patch is still refused (8 of 8) and 4 of the 6 right-but-refused cuts are now accepted; on
+#: 2,329 synthetic rows (speeds 40-168 mm/s, patches 8-16 mm, offsets to +-3 mm, starts to
+#: +-40 ms, speeds +-5 %) with 799 that the released cut accepted with a wrong patch, no wrong
+#: patch was accepted, the worst accepted patch 0.29 dE00 above its floor; false refusals about
+#: halved. The 0.5 dE00 value condition stays for every window as the safeguard it is.
+WINDOW_OUTSIDE_MAX_READINGS = 2
+WINDOW_OUTSIDE_VALUE_DE00 = 0.3
+
 #: the reasons (``reason`` of :func:`check_row`); every one means NOT confirmed
 REASONS = ("check_off", "no_readings", "too_few_readings_for_the_check",
            "readings_not_finite", "edges_do_not_place_every_patch", "edges_not_unique",
            "edges_disagree_with_timing", "patch_without_a_stable_run",
            "patch_run_away_from_its_place", "patch_too_few_clean_readings",
            "window_outside_the_stable_run", "value_disagrees_with_the_stable_run",
-           "check_failed")
+           "no_patch_edges", "check_failed")
 
 #: what each reason says, for the detailed table log and the app log (English, a record)
 SAYS = {
@@ -116,6 +128,9 @@ SAYS = {
     "value_disagrees_with_the_stable_run":
         "a patch's value differs from its stable readings' value",
     "check_failed": "the check could not be made",
+    "no_patch_edges": "the readings show no patch edges, so they cannot show where the patches are",
+    "uniform_row_timing_only": "cannot confirm: a row of identical patches cannot be placed from "
+                               "its readings, so it is used by timing alone, as in 4.3.53",
 }
 
 
@@ -337,7 +352,7 @@ def _off(reason, **kv) -> dict:
 def check_row(plan, spec_rows, windows, wavelengths=None,
               first_reading_s: float = sc.FIRST_READING_AFTER_LAMP_S,
               motion_start_s: float = sc.MOTION_START_AFTER_LAMP_S,
-              enabled: "bool | None" = None) -> dict:
+              enabled: "bool | None" = None, uniform_reference: bool = False) -> dict:
     """The row placement check of one lamp pass (see the module's text). *windows*: the
     released cut's per-patch readings [(i0, i1)] in the plan's patch order. Returns a record:
     ``confirmed`` (True only when every step confirmed the row), ``reason`` / ``says`` (why not),
@@ -350,7 +365,8 @@ def check_row(plan, spec_rows, windows, wavelengths=None,
         return {"confirmed": True, "reason": "check_off", "says": "the check is switched off",
                 "on": False, "ms": 0.0}
     try:
-        out = _check(plan, spec_rows, windows, wavelengths, first_reading_s, motion_start_s)
+        out = _check(plan, spec_rows, windows, wavelengths, first_reading_s, motion_start_s,
+                     uniform_reference=bool(uniform_reference))
     except Exception as exc:          # noqa: BLE001 - a doubt is never a confirmation
         out = _off("check_failed", error=f"{type(exc).__name__}: {exc}"[:200])
     out["on"] = True
@@ -358,7 +374,8 @@ def check_row(plan, spec_rows, windows, wavelengths=None,
     return out
 
 
-def _check(plan, spec_rows, windows, wavelengths, first_s, motion_s) -> dict:
+def _check(plan, spec_rows, windows, wavelengths, first_s, motion_s,
+           uniform_reference: bool = False) -> dict:
     import numpy as np
     n = len(spec_rows)
     np_ = len(plan.patches)
@@ -437,22 +454,39 @@ def _check(plan, spec_rows, windows, wavelengths, first_s, motion_s) -> dict:
             worst = worst or ("window_outside_the_stable_run", rec)
             rec["off_mm"] = None
             continue
-        if i0 < ra or i1 - 1 > rb:
-            beyond = max(abs(pos[ra] - pos[min(i0, ra)]), abs(pos[max(i1 - 1, rb)] - pos[rb]))
-            rec["outside_readings"] = int(max(0, ra - i0) + max(0, i1 - 1 - rb))
-            rec["off_mm"] = round(float(beyond), 2)
-            worst = worst or ("window_outside_the_stable_run", rec)
-            continue
         dv = float(_de00(_lab(spec[i0:i1].mean(axis=0, keepdims=True), wavelengths),
                          _lab(spec[core].mean(axis=0, keepdims=True), wavelengths))[0])
         rec["value_de00"] = round(dv, 3)
+        if i0 < ra or i1 - 1 > rb:
+            beyond = max(abs(pos[ra] - pos[min(i0, ra)]), abs(pos[max(i1 - 1, rb)] - pos[rb]))
+            out_n = int(max(0, ra - i0) + max(0, i1 - 1 - rb))
+            rec["outside_readings"] = out_n
+            rec["off_mm"] = round(float(beyond), 2)
+            if out_n <= WINDOW_OUTSIDE_MAX_READINGS and dv <= WINDOW_OUTSIDE_VALUE_DE00:
+                rec["outside_tolerated"] = True       # the relaxed rule (see its constants)
+            else:
+                worst = worst or ("window_outside_the_stable_run", rec)
+                continue
         if dv > VALUE_AGREE_DE00:
             worst = worst or ("value_disagrees_with_the_stable_run", rec)
+    # NO EDGES (review S3): every reading from the first patch's centre to the last one's is
+    # stable (a constant stream, bare paper, or a row of identical patches without spacers):
+    # not one patch edge in the readings, so they say nothing about
+    # where the patches are, so nothing is confirmed. Only a row whose CHART says its patches
+    # are all alike is used, by timing alone as in 4.3.53, and the logs say so
+    span = np.nonzero((pos >= min(q.along_mm for q in plan.patches))
+                      & (pos <= max(q.along_mm for q in plan.patches)))[0]
+    if len(span) and bool(np.all(depth[span] > 0)):
+        if uniform_reference:
+            return {"confirmed": True, "timing_only": True, "reason": "uniform_row_timing_only",
+                    "says": SAYS["uniform_row_timing_only"], "fit": fit, "per_patch": per}
+        return _off("no_patch_edges", fit=fit, per_patch=per)
     # the patch the reason names: the first failing one, or for the veto the one most off
     if worst is not None:
         reason, rec = worst
         if reason == "window_outside_the_stable_run":
-            cands = [r for r in per if r.get("outside_readings")]
+            cands = [r for r in per if r.get("outside_readings")
+                     and not r.get("outside_tolerated")]
             if cands:
                 rec = max(cands, key=lambda r: r.get("off_mm") or 0.0)
         return _off(reason, fit=fit, patch=rec["loc"], off_mm=rec.get("off_mm"),
@@ -465,7 +499,8 @@ def _check(plan, spec_rows, windows, wavelengths, first_s, motion_s) -> dict:
 def _refused_count(per) -> int:
     n = 0
     for r in per:
-        if "run" not in r or r.get("clean", 0) < MIN_READINGS or r.get("outside_readings") \
+        if "run" not in r or r.get("clean", 0) < MIN_READINGS \
+                or (r.get("outside_readings") and not r.get("outside_tolerated")) \
                 or (r.get("value_de00") or 0.0) > VALUE_AGREE_DE00 \
                 or ((r.get("off_mm") or 0.0) > PATCH_TOL_MM and not r.get("merged")):
             n += 1
@@ -485,6 +520,8 @@ def summary(res: "dict | None") -> str:
                 f"({fit.get('dx_mm'):+.2f} mm) and {fit.get('scale_pct'):+.2f} % from the "
                 f"timing (bound {fit.get('bound_ms')} ms)")
     took = f"; {res.get('ms')} ms" if res.get("ms") is not None else ""
+    if res.get("timing_only"):
+        return f"row placement check: {res.get('says')}{tail}{took}"
     if res.get("confirmed"):
         return f"row placement check: confirmed, every patch{tail}{took}"
     what = res.get("says") or res.get("reason")

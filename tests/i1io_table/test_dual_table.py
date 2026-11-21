@@ -482,6 +482,8 @@ def test_the_cut_takes_the_narrower_edge_only_when_the_wider_leaves_too_few():
     uv = sp.uv_pass_of(lamp)
     rows = [[0.5] * 36 for _ in range(lamp.N)]
     wide = dl.cut_dual(lamp, uv, rows, rows, edges=(1.5,))
-    auto = dl.cut_dual(lamp, uv, rows, rows)
+    # 4.3.54: a flat stream has no patch edges; the row placement check uses it only as a row of
+    # identical patches (uniform_row), which this flat row is
+    auto = dl.cut_dual(lamp, uv, rows, rows, uniform_row=True)
     assert not wide.ok and wide.reason == "strip_patch_too_few_readings"
     assert auto.ok and auto.info["edge_mm"] == 1.0
