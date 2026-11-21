@@ -1696,3 +1696,12 @@ synthetic passes; never run on a real table. Tests: `tests/i1io_table/test_4354_
   with a measurement at 1.00 before a fast one is trusted.
 * **Logs.** Every strip row: the factor, the speed and the border, in the detailed table log
   and the app log ("table row speed").
+* **After the review of 2026-11-21 (M1, M2, S2, S3).** The table's own a3 answer is checked: a
+  single row whose answered speed is not the speed sent (in every recorded row it repeated it) is
+  not used ("the table ran another speed than was sent", `strip_speed_not_as_sent`); a read again
+  of such a row, or of one the table refused at the factor's speed, runs at ChromIQ's own speed
+  (factor 1.00). Speeds inside the frame that were never recorded are allowed by the gate only in
+  a sitting whose factor is not 1.00 (`row_speed_frame`). A measurement read at a factor other
+  than 1.00 carries `CHROMIQ_ROW_SPEED` ("factor F: N of M rows faster than the safe border")
+  beside `CHROMIQ_VERSION`, kept through Continue, merge and average; the measurement report
+  names it, and one line says it at the end of the table measurement (M-I1IO-ROW-SPEED-END).
