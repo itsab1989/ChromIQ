@@ -405,3 +405,70 @@ def test_the_window_hands_the_settings_value_to_the_job():
     import inspect
     src = inspect.getsource(W.default_job_factory)
     assert "_iw.to_ms(_iw.LAMP_OFF" in src and "lamp_off_ms=lamp_ms" in src
+
+
+# ---- fix round 2: a FREE arm is homed from anywhere but the back strip ------------------------
+
+def _free_arm_job():
+    job, sim, _t = H.make_job(jitter=False)
+    p = H.Person(job, sim, {J.Confirm.AIMED: "stop"})
+    assert p.drive(job.open()).ok
+    r = p.drive(job.align())                       # stopped by the person at the first aim
+    assert r.reason == "stopped_during_the_aims" and r.state.arm_free is True
+    return job, sim, p
+
+
+def _home_lines(where):
+    job, sim, p = _free_arm_job()
+    sim.hand_to(*where)
+    n = len(sim.received)
+    r = p.drive(job.home())
+    assert r.ok, (where, r.reason, r.detail)
+    return [ln for ln in sim.received[n:]], job, sim
+
+
+def test_a_free_arm_outside_the_old_box_is_homed_with_the_same_lines_as_inside():
+    from workflow.i1io.table import geometry as geo
+    inside, _j, s1 = _home_lines((0, 2000))
+    assert geo.AREA_RAW.contains((0, 2000))
+    for where in ((-1700, 3000), (0, 3000), (2400, 2500)):
+        assert not geo.AREA_RAW.contains(where)
+        out, job, sim = _home_lines(where)
+        assert [ln[:3] for ln in out] == [ln[:3] for ln in inside], (where, out)
+        assert out == inside                     # byte for byte: no coordinate in any of them
+        assert ";i12b" in out and job.at_rest() and sim.violations == []
+
+
+def test_a_free_arm_in_the_back_strip_is_still_refused_with_nothing_sent():
+    from workflow.i1io.table import geometry as geo
+    job, sim, p = _free_arm_job()
+    sim.hand_to(1500, geo.AREA_RAW.ymin - 60)
+    assert J.in_back_strip(tuple(sim.pos))
+    n = len(sim.received)
+    r = p.drive(job.home())
+    assert (r.kind, r.reason) == (J.Kind.REFUSED, "arm_in_the_back_strip")
+    assert not any(ln[1:3] in ("m0", "m1", "m2", "i0", "i1") for ln in sim.received[n:])
+
+
+def test_a_homing_the_table_refuses_ends_on_the_power_switch_page_and_is_in_the_log():
+    """The one recorded failure (R1 272.124): the table answered the homing of a free arm with
+    status 3. Nothing more is sent after it, the way out starts with the power switch, and the
+    detailed table log holds the line and the answer."""
+    from ui import i1io_table_window as Wn
+    from workflow import measurement_messages as M
+    job, sim, p = _free_arm_job()
+    sim.hand_to(-1700, 3000)
+    sim.inject("status", "i1", 3)
+    n = len(sim.received)
+    r = p.drive(job.home())
+    assert r.kind == J.Kind.STOPPED, (r.kind, r.reason)
+    sent = sim.received[n:]
+    assert sent[-1] == ";i12b" or ";i12b" in sent
+    assert sent.index(";i12b") == len(sent) - 1          # nothing more after the refused homing
+    assert r.way_back in (J.WayBack.OPEN_I1PROFILER_ONCE, J.WayBack.SWITCH_OFF_UNFINISHED)
+    body = (M.M_I1IO_DRIVE_STOPPED_END_FIRST if r.way_back == J.WayBack.OPEN_I1PROFILER_ONCE
+            else M.M_I1IO_DRIVE_SWITCH_OFF).body
+    assert body.index("power switch") < body.index("i1Profiler 3.8.6")
+    log = "\n".join(job.diag.lines)
+    assert "i12b" in log and ("status 3" in log or "i13" in log), log[-1500:]
+    assert Wn is not None

@@ -22,6 +22,28 @@ from tests.i1io_table.job_harness import HERE
 
 
 @pytest.fixture(autouse=True)
+def _tester_060s_free_arm_region(monkeypatch):
+    """4.3.53 fix round 2 (the re-review's ruling): the job homes a FREE arm from anywhere but
+    the back strip; tester 0.6.0 homed it only inside the measuring area's raw box. For the
+    comparison with the tester's wire the job holds the tester's region here
+    (tests/i1io_table/test_4353_fix_round.py pins the new rule and its lines)."""
+    from workflow.i1io.table import geometry as _geo
+    from workflow.i1io.table import job as _J
+    from workflow.i1io.table import session_table as _tbl
+    real = _J.homing_starts_here
+
+    def tester_rule(p, arm_free, cap_y=None):
+        import sys as _sys
+        # the tester read the free arm afresh (s0 p0) and THEN refused: only the homing's own
+        # check (_end_of_job) is the tester's; the step's early check stays the job's
+        if p is not None and arm_free is not False and \
+                _sys._getframe(1).f_code.co_name == "_end_of_job":
+            return _geo.AREA_RAW.contains(p) or _tbl.START_GUARD.contains(p)
+        return real(p, arm_free, cap_y)
+    monkeypatch.setattr(_J, "homing_starts_here", tester_rule)
+
+
+@pytest.fixture(autouse=True)
 def _tester_060s_four_f4(monkeypatch):
     """4.3.53 fix round (inventory B15): the job sends two f4 after the aims, as i1Profiler
     does; tester 0.6.0 sent four. For the comparison with the tester's wire the job holds

@@ -62,8 +62,11 @@ def test_the_homing_is_never_sent_from_the_back_strip_and_a_free_arm_keeps_its_r
     for p in [(0, 3114), (0, 3115), (0, 3230), (0, 3400), (2507, 1429), (-1500, 2000)]:
         assert J.homing_starts_here(p, False), p
     assert not J.homing_starts_here((1058, 317), False)
-    assert not J.homing_starts_here((0, 3000), True)               # a free arm: AREA_RAW only
+    # 4.3.53 fix round 2: a free arm too, from anywhere but the back strip (the homing is one
+    # line the table carries out by itself; the one recorded refusal was inside the old box)
+    assert J.homing_starts_here((0, 3000), True)
     assert J.homing_starts_here((0, 2700), True)
+    assert not J.homing_starts_here((1058, 317), True)
 
 
 def test_a_homing_from_the_front_that_fails_sends_nothing_more(tmp_path):

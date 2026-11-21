@@ -287,14 +287,13 @@ class CSimTable(SimTable):
         # 4.3.52 (the owner's ruling of 2026-11-20, the simulator's own copy): a HELD arm is
         # homed from wherever it stands, the ends of travel included; the one place that stays
         # a violation is physical: the back strip beside the white tile's holder (Y below 473,
-        # off the home line X 1090..1115). A FREE arm keeps 4.3.51's region (a state rule: the
-        # one recorded homing that went wrong was a free arm)
+        # off the home line X 1090..1115). 4.3.53 fix round 2 (the re-review's ruling): a FREE
+        # arm the same (the homing is one line the table carries out by itself; the one recorded
+        # refusal, R1 272.124, was inside 4.3.51's region)
         on_line = 1090 <= here[0] <= 1115
-        if line == I1 and not self.free_arm and here[1] < C_SWEEP_BOX[2] and not on_line:
-            raise SimViolation(f"i1 from {here}: from the back strip")
-        if line == I1 and self.free_arm and not (_inside(C_SWEEP_BOX, here) or (
-                on_line and -1 <= here[1] <= 815)):
-            raise SimViolation(f"i1 from {here} with the arm free")
+        if line == I1 and here[1] < C_SWEEP_BOX[2] and not on_line:
+            raise SimViolation(f"i1 from {here}: from the back strip"
+                               + (" with the arm free" if self.free_arm else ""))
         if line == M1L and (self.free_arm or not (_near(here, (2507, 1498))
                                                   or _near(here, (1000, 1500)))):
             raise SimViolation(f"m1 from {here}")

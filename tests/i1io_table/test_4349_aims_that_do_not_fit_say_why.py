@@ -143,23 +143,15 @@ def test_laid_only_back_the_free_arm_beside_the_area_is_moved_from_where_it_stan
     assert sim.violations == []
 
 
-def test_the_homing_of_a_free_arm_at_the_front_says_how_far_to_push_it():
+def test_a_free_arm_at_the_front_is_homed_where_it_stands():
+    """Until 4.3.53 a free arm out at the front was refused ("homing_only_from_inside_the_area")
+    and the page said how far to push it. 4.3.53 fix round 2 (the re-review's ruling): the
+    homing is one line the table carries out by itself, so it is sent from where the arm is."""
     res, job, sim, _p = H.run_steps(["open", "align", "home"], aims=CROSSES_1)
     r = res[2]
-    assert r.reason == "homing_only_from_inside_the_area"
-    assert r.detail["arm_free"] is True and r.detail["push"]["back_mm"] > 0
-    assert _moves_after_aims(sim.received) == []
-    # pushed back by hand as the page says (simulated hand), the homing then runs
-    job, sim, _t = H.make_job(aims=OFF_THE_LEFT)
-    p = H.Person(job, sim)
-    assert p.drive(job.open()).ok
-    p.drive(job.align())
-    r = p.drive(job.home())
-    push = r.detail["push"]
-    sim.hand_to(sim.pos[0] + 10 * push["left_mm"], sim.pos[1] - 10 * push["back_mm"])
-    assert p.drive(job.home()).ok
-    assert sim.violations == []
-    job.close()
+    assert r.ok, (r.reason, r.detail)
+    assert _moves_after_aims(sim.received)[-1:] == [";i12b"]
+    assert r.state.at_rest and sim.violations == []
 
 
 def test_the_table_state_after_a_hand_move_names_its_answer_and_sends_nothing_more():
@@ -247,17 +239,18 @@ def test_the_aim_page_names_the_cross_and_not_the_patch(qtbot, monkeypatch, tmp_
     assert "not on the coloured patch next to it" in text
 
 
-def test_the_homing_refusal_says_where_to_push_the_free_arm(qtbot, monkeypatch, tmp_path,
-                                                             settings):
+def test_the_free_arm_after_refused_aims_is_brought_home(qtbot, monkeypatch, tmp_path,
+                                                         settings):
+    """Until 4.3.53 the page said how far to push the free arm by hand; 4.3.53 fix round 2: the
+    homing is sent from where the free arm stands (the re-review's ruling), no new text."""
     win, sim, p = _to_first_refusal(qtbot, monkeypatch, tmp_path, settings, CROSSES_1)
     p.press("Bring the arm home")
     if p.page() == "go":
         p.press("Go")
-    assert p.page() == "refused", win.pages_shown[-3:]
-    text = win._text.text()
-    assert "ChromIQ could not do this step" not in text
-    assert "please push it gently by hand about" in text
-    assert "towards the back of the table (away from you)" in text
+    assert p.page() != "refused", win.pages_shown[-3:]
+    assert ";i12b" in sim.sim.received[-12:]
+    assert "please push it gently by hand about" not in win._text.text()
+    assert sim.sim.violations == []
 
 
 def test_the_table_state_page_says_what_the_table_answered(qtbot, monkeypatch, tmp_path,

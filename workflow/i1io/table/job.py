@@ -570,14 +570,20 @@ def homing_starts_here(p, arm_free, cap_y=None) -> bool:  # noqa: ARG001 - cap_y
     not the alignment start, and no move back first (the "way back" of 4.3.49 to 4.3.51 was our
     own invention; i1Profiler homes directly).
 
-    A FREE arm (the aiming mode on, the motors let go) keeps its own rule, which is a STATE rule:
-    the one recorded homing that went wrong (R1 272.124, status 3) was a free arm; it is homed
-    only from the measuring area's raw box or near the resting place (START_GUARD), as before."""
+    4.3.53 fix round 2 (the re-review's ruling on next_release item 3; the owner: "if the app only
+    tells the table to move the arm to home position then this should always be safe no matter
+    in which position it is if the table works out the movement itself"): a FREE arm (the aiming
+    mode on, the motors let go) is homed from the same places. The homing is one line (";i12b"),
+    no coordinate, no path: the table finds its own way home, from many recorded places, a free
+    arm at (-1351, 2637) among them (R2 261.644). The one recorded homing that went wrong (R1
+    272.124, status 3 after 0.43 s, the table answering normally at once) started at (-1434,
+    2755), INSIDE the old box AREA_RAW, whose right edge was made from that very reading: the box
+    never kept it out. The STATE stays handled: a free arm is read afresh before its homing
+    (_end_of_job), and a refused or too short homing is a doubt that closes the sending, with
+    the power switch first on the page that follows. The back strip stays out for both."""
     if p is None:
         return False
-    if arm_free is False:
-        return not in_back_strip(p)
-    return geo.AREA_RAW.contains(p) or tbl.START_GUARD.contains(p)
+    return not in_back_strip(p)
 
 
 #: 4.3.52: the time window of the table's homing from wherever a held arm stands: near the
@@ -2059,7 +2065,7 @@ class TableJob:
             # 4.3.51, the START rule: an arm found out at a START is offered only the START's
             # own homing (home_after_stop), never the usual homing's wider region
             return self._home_after_stop_why() or "arm_not_at_rest"
-        if step == "home" and d.arm_free is False and d.position_now is not None and \
+        if step == "home" and d.position_now is not None and \
                 not homing_starts_here(d.position_now, d.arm_free):
             # 4.3.52: a HELD arm is offered the homing from everywhere but the back strip beside
             # the white tile's holder (in_back_strip, a physical reason). A free arm may have
@@ -3423,11 +3429,8 @@ class TableJob:
             raise d._doubt(f"before the homing the held arm reads {got}, not {last}, where "
                            f"ChromIQ left it")
         if not homing_starts_here(got, d.arm_free):
-            raise StageFailed("arm_in_the_back_strip" if d.arm_free is False else
-                              "homing_only_from_inside_the_area", read=got,
-                              arm_free=bool(d.arm_free),
-                              **({"push": geo.free_arm_push_advice(got)} if d.arm_free
-                                 else {}))
+            # 4.3.53 fix round 2: the back strip is the one place, held or free
+            raise StageFailed("arm_in_the_back_strip", read=got, arm_free=bool(d.arm_free))
         # 4.3.47's window (0.8-8.0 s); 4.3.52: a held arm may now start close to the resting
         # place, so from there the lower edge is the START homing's (homing_window)
         window = (0.8, 8.0) if d.arm_free is not False else (

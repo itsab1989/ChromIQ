@@ -346,8 +346,10 @@ def test_the_homing_needs_the_arm_out_and_the_park_needs_it_at_rest():
     assert job.park().reason == "arm_not_at_rest" and len(sim.received) == n
 
 
-def test_the_homing_is_never_sent_from_outside_the_area():
-    """Part C's F: a free arm pushed outside the measuring area is not homed (nothing moves)."""
+def test_a_free_arm_outside_the_old_area_is_homed():
+    """Part C's F refused a free arm pushed outside the measuring area. 4.3.53 fix round 2 (the
+    re-review's ruling): the homing is one line the table carries out by itself; a free arm is
+    homed from anywhere but the back strip."""
     job, sim, _t = H.make_job()
     p = H.Person(job, sim, {J.Confirm.AIMED: "stop"})
     assert p.drive(job.open()).ok
@@ -356,8 +358,8 @@ def test_the_homing_is_never_sent_from_outside_the_area():
     sim.hand_to(geo.AREA_RAW.xmin - 200, 2000)
     n = len(sim.received)
     r = p.drive(job.home())
-    assert (r.kind, r.reason) == (J.Kind.REFUSED, "homing_only_from_inside_the_area")
-    assert moves(sim.received[n:]) == []
+    assert r.ok, (r.reason, r.detail)
+    assert moves(sim.received[n:]) == [";i12b"] and r.state.at_rest
 
 
 def test_a_far_away_arm_is_not_homed_at_the_start_without_its_question():
