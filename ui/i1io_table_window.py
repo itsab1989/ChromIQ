@@ -2992,7 +2992,8 @@ class TableMeasureWindow(QFrame):
             self._live = {}
 
     def _live_event(self, ev: dict) -> None:
-        if ev.get("event") == "strip_move" and ev.get("speed_line"):
+        _kind = ev.get("event")
+        if _kind == "strip_move" and ev.get("speed_line"):
             # 4.3.54 ("Row speed"): the factor, the speed and the border of every strip row
             try:
                 from core.app_log import line
