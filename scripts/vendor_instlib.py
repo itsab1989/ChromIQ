@@ -2155,8 +2155,24 @@ I1PRO_IMP_C_WAITS_453 = [
      " * (--lamp-off-ms, 0 to 5000). -1, always without that argument, and any value\n"
      " * out of range = LAMP_OFF_TIME, ArgyllCMS's own: the same wait as before. */\n"
      "int i1pro_cq_lamp_off_ms = -1;\n"
-     "#define CQ_LAMP_OFF_TIME ((i1pro_cq_lamp_off_ms >= 0 && i1pro_cq_lamp_off_ms <= 5000) \\\n"
-     "                          ? (unsigned int)i1pro_cq_lamp_off_ms : (unsigned int)LAMP_OFF_TIME)\n"),
+     "#define CQ_LAMP_OFF_I1PRO ((i1pro_cq_lamp_off_ms >= 0 && i1pro_cq_lamp_off_ms <= 5000) \\\n"
+     "                           ? (unsigned int)i1pro_cq_lamp_off_ms : (unsigned int)LAMP_OFF_TIME)\n"
+     "/* CHROMIQ PATCH (after 4.3.54, the owner's decision of 2026-11-21): the i1Pro 2\n"
+     " * (Rev E: also the ES-2000 and the i1Basic Pro 2) has a wait of its own,\n"
+     " * --lamp-off-ms-i1pro2; without it the i1Pro 2 takes --lamp-off-ms when that is\n"
+     " * given (an app of 4.3.53 / 4.3.54 passes one value for both, as before), and\n"
+     " * with neither CQ_LAMP_OFF_TIME_I1PRO2: i1Profiler was recorded waiting 1.059 s\n"
+     " * from lamp off to the next dark reading of an i1Pro 2, rounded UP on the\n"
+     " * fields' 0.05 s grid (core/instrument_waits.py I1PRO2_LAMP_OFF, the same\n"
+     " * number). The original i1Pro keeps ArgyllCMS's LAMP_OFF_TIME. *p* is the\n"
+     " * i1pro of the function that uses it. */\n"
+     "#define CQ_LAMP_OFF_TIME_I1PRO2 1100\n"
+     "int i1pro2_cq_lamp_off_ms = -1;\n"
+     "#define CQ_LAMP_OFF_TIME ((p)->dtype != instI1Pro2 ? CQ_LAMP_OFF_I1PRO \\\n"
+     "                          : (i1pro2_cq_lamp_off_ms >= 0 && i1pro2_cq_lamp_off_ms <= 5000) \\\n"
+     "                          ? (unsigned int)i1pro2_cq_lamp_off_ms \\\n"
+     "                          : (i1pro_cq_lamp_off_ms >= 0 && i1pro_cq_lamp_off_ms <= 5000) \\\n"
+     "                          ? (unsigned int)i1pro_cq_lamp_off_ms : (unsigned int)CQ_LAMP_OFF_TIME_I1PRO2)\n"),
     ("\t && (timssinceoff = (msec_time() - m->llamponoff)) < LAMP_OFF_TIME) {\n"
      "\t\ta1logd(p->log,3,\"Sleep %d msec for lamp cooldown\\n\",LAMP_OFF_TIME - timssinceoff);\n"
      "\t\tmsec_sleep(LAMP_OFF_TIME - timssinceoff);\t/* Make sure time adds up to 1.5 seconds */\n",
@@ -2185,7 +2201,8 @@ I1PRO_IMP_H_WAITS_453 = [
     ("extern int i1pro2_cq_lights_held_after_blue;\t/* the last hold counted from the BLUE (4.3.52) */\n",
      "extern int i1pro2_cq_lights_held_after_blue;\t/* the last hold counted from the BLUE (4.3.52) */\n"
      "extern int i1pro2_cq_lights_blue_quiet_set_ms;\t/* the BLUE's quiet time from the helper, ms (4.3.53); -1 = CQ_LIGHTS_BLUE_QUIET_MS */\n"
-     "extern int i1pro_cq_lamp_off_ms;\t/* the lamp wait from the helper, ms (4.3.53); -1 = LAMP_OFF_TIME */\n"),
+     "extern int i1pro_cq_lamp_off_ms;\t/* the lamp wait from the helper, ms (4.3.53); -1 = LAMP_OFF_TIME */\n"
+     "extern int i1pro2_cq_lamp_off_ms;\t/* the i1Pro 2's lamp wait from the helper, ms (after 4.3.54); -1 = see CQ_LAMP_OFF_TIME */\n"),
 ]
 PATCHES["i1pro_imp.c"] = _fold_dual(PATCHES["i1pro_imp.c"], I1PRO_IMP_C_WAITS_453)
 PATCHES["i1pro_imp.h"] = _fold_dual(PATCHES["i1pro_imp.h"], I1PRO_IMP_H_WAITS_453)

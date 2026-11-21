@@ -63,7 +63,7 @@ SHOWN_REASONS = (
     "no_uv_tables", "bad_uv_tables",
     "uv_pass_missing", "uv_pass_count", "uv_pass_short", "uv_pass_too_fast",
     "uv_pass_too_long", "uv_pass_stalled", "uv_pass_wrong_strip",
-    "uv_pass_no_uv_light", "uv_pass_misaligned", "lamp_pass_changed",
+    "uv_pass_no_uv_light", "uv_pass_misaligned", "uv_pass_shifted", "lamp_pass_changed",
     "dual_needs_ruler", "uv_spot_failed", "no_ruler",
     "calibration_mode_changed", "bad_values", "bad_scale",
     "mixed_scan_kind", "mixed_factor", "dual_high_resolution",

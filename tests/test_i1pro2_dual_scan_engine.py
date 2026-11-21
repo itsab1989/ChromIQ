@@ -91,7 +91,8 @@ def test_the_c_arithmetic_is_the_python_module(tmp_path_factory):
     up = (np.arange(72)[::-1] + 0.5) * (70.0 / 6.0)
     pp = np.minimum((up // 70.0).astype(int), 11)
     r = pcut.cut_uv_pass([(k * 10, 10) for k in range(12)], lp, up,
-                         np.repeat((pp + 1.0)[:, None], 36, axis=1))
+                         np.repeat((pp + 1.0)[:, None], 36, axis=1),
+                         edge=pcut.EDGE_STEPS)     # the bare cut, as the C test calls it
     assert list(r.uv[:, 0]) == vals and r.counts == counts
 
 

@@ -1657,7 +1657,11 @@ What 4.3.53 does after its fix round (driven on the simulated table only; never 
 * **What is learned is clamped to what is loaded**, so no reading can void a table's record.
 * **The way out after a move that did not arrive**: the power switch, then ChromIQ's own START,
   i1Profiler 3.8.6 or older last.
-* **The lamp wait of Preferences > Beta reaches the table's patch by patch readers.**
+* **The lamp wait of Preferences > Beta reaches the table's patch by patch readers.** After
+  4.3.54 there are two (the i1Pro's and the i1Pro 2's); both are passed and the instrument's
+  driver takes the one of the model in the arm, so the table's i1Pro 2 waits the i1Pro 2 field
+  (default 1.10 s, i1Profiler's 1.06 s recorded on this table). The table's own scan waits are
+  unchanged.
 
 ### ⏳ Awaiting confirmation: "Row speed", a factor on a strip row's speed (2026-11-21, for 4.3.54)
 

@@ -405,6 +405,46 @@ def test_the_window_hands_the_settings_value_to_the_job():
     import inspect
     src = inspect.getsource(W.default_job_factory)
     assert "_iw.to_ms(_iw.LAMP_OFF" in src and "lamp_off_ms=lamp_ms" in src
+    # after 4.3.54 (second fix round, V2): the i1Pro 2's own field too
+    assert "_iw.to_ms(_iw.I1PRO2_LAMP_OFF" in src and "lamp_off_i1pro2_ms=lamp2_ms" in src
+
+
+@pytest.mark.parametrize("supported", [True, False])
+def test_the_i1pro2_lamp_wait_reaches_every_patch_reader_of_the_table(tmp_path, monkeypatch,
+                                                                       supported):
+    """V2 (second fix round): the table's i1Pro 2 waits the i1Pro 2 field (1.10 s by default,
+    i1Profiler's 1.06 s on this table), passed as --lamp-off-ms-i1pro2 beside the i1Pro field;
+    a helper that does not take it gets --lamp-off-ms alone, as before."""
+    from workflow.i1io.table import reader as rd
+    monkeypatch.setattr(rd, "lamp_off_i1pro2_supported", lambda build=None: supported)
+    sheet = small_sheet()
+    job, sim, helper, run = RS.make_reading_job(tmp_path, sheet=sheet, aims=H.demo_aims(sheet))
+    job.lamp_off_ms = 1500
+    job.lamp_off_i1pro2_ms = 1100
+    job.guided = False
+    job.consent_version = W.CONSENT_VERSION
+    job.calibration_place_preference = "table tile"
+    assert job.set_options(["-v", "-c", "1", "-p", "chart"]).ok
+    p = H.Person(job, sim, {})
+    for st in ("open", "calibrate", "align"):
+        assert p.drive(getattr(job, st)()).ok, st
+    while job.rows_left():
+        assert p.drive(job.read_row()).ok
+    assert helper.started
+    for args in helper.started:
+        assert args[args.index("--lamp-off-ms") + 1] == "1500"
+        if supported:
+            assert args[args.index("--lamp-off-ms-i1pro2") + 1] == "1100"
+        else:
+            assert "--lamp-off-ms-i1pro2" not in args
+    assert sim.violations == []
+
+
+def test_the_bundled_helper_takes_the_i1pro2_lamp_wait():
+    from workflow.i1io.table import reader as rd
+    assert rd.lamp_off_i1pro2_supported("chromiq-chartread 2026-11-21d a+b+lamp-off-i1pro2")
+    assert rd.lamp_off_i1pro2_supported("x+lamp-off-i1pro2+uv-aligned")
+    assert not rd.lamp_off_i1pro2_supported("chromiq-chartread 2026-11-21a a+b+blue-side")
 
 
 # ---- fix round 2: a FREE arm is homed from anywhere but the back strip ------------------------

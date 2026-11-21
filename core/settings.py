@@ -366,6 +366,9 @@ DEFAULTS: dict[str, Any] = {
     _WAITS.BLUE_QUIET.key:       _WAITS.BLUE_QUIET.default_s,
     _WAITS.BLUE_AFTER.key:       _WAITS.BLUE_AFTER.default_s,
     _WAITS.LAMP_OFF.key:         _WAITS.LAMP_OFF.default_s,
+    #: after 4.3.54: the i1Pro 2's own lamp wait (schema 36,
+    #: `_migrate_i1pro2_lamp_wait`)
+    _WAITS.I1PRO2_LAMP_OFF.key:  _WAITS.I1PRO2_LAMP_OFF.default_s,
     #: Beta (Settings -> Beta, 2026-11-14): the i1Pro 2 / i1Pro 3 ruler check
     #: (stage 1, CHECK ONLY; workflow/ruler_check.py). With the ChromIQ
     #: chart-reading engine: after each strip the ruler's travel, direction and
@@ -1308,7 +1311,7 @@ def thresholds_for_combo(
 # Bump when a shipped default changes in a way that must reach users who have
 # the OLD default persisted. Settings → Save writes every key, so a stored
 # value otherwise pins a user to the old behaviour for good.
-SETTINGS_SCHEMA = 35
+SETTINGS_SCHEMA = 36
 
 # key → the old default(s) it must no longer be stuck on. Only a stored value
 # EQUAL to one of the old defaults is dropped (so it falls through to the new
@@ -1573,6 +1576,9 @@ class AppSettings:
         if stored_schema < 35 and self._migrate_dual_scan_mode_keep_4353():
             written.append("i1pro2_dual_scan_mode = always (the dual scan was "
                            "already on: kept as in 4.3.53, every strip twice)")
+        if stored_schema < 36 and self._migrate_i1pro2_lamp_wait():
+            written.append("i1pro2_lamp_off_s = the stored i1pro_lamp_off_s (a value "
+                           "other than the old default 1.5: kept for the i1Pro 2 too)")
         self._qs.setValue("settings_schema", SETTINGS_SCHEMA)
         if dropped:
             log.info("Settings migrated to schema %d; dropped stale defaults: %s",
@@ -1581,6 +1587,29 @@ class AppSettings:
             log.info("Settings migrated to schema %d; written: %s",
                      SETTINGS_SCHEMA, ", ".join(written))
         return dropped
+
+    def _migrate_i1pro2_lamp_wait(self) -> bool:
+        """schema 36 (after 4.3.54, the owner's decision of 2026-11-21): the
+        i1Pro 2 gets its own lamp wait (default 1.10 s); the one field until
+        then served both. A stored value other than 1.5 (the old default) was
+        somebody's choice and is copied to the i1Pro 2's field; a stored 1.5
+        is the old default (Preferences writes every field when it is closed
+        with OK), so the i1Pro 2 then gets its new default. Nothing stored:
+        nothing to do. Runs once (schema step). True when it wrote."""
+        if self._qs.value(_WAITS.I1PRO2_LAMP_OFF.key, None) is not None:
+            return False
+        raw = self._qs.value(_WAITS.LAMP_OFF.key, None)
+        if raw is None:
+            return False
+        try:
+            v = float(raw)
+        except (TypeError, ValueError):
+            return False
+        # the shared field's default (the i1Pro's, which stays) = the old default
+        if abs(v - _WAITS.LAMP_OFF.default_s) < 1e-9:
+            return False
+        self._qs.setValue(_WAITS.I1PRO2_LAMP_OFF.key, v)
+        return True
 
     def _migrate_dual_scan_mode_keep_4353(self) -> bool:
         """schema 35 (4.3.54, 2026-11-20): the i1Pro 2 dual scan gained "when

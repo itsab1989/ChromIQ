@@ -98,6 +98,15 @@ REASONS: "dict[str, str]" = {
         "The second pass (UV light) does not line up with the first pass: "
         "the instrument was probably lifted or moved off the ruler between "
         "the two passes. " + _BOTH_AGAIN),
+    # fix round of 2026-11-21 (review B1): the passes lined up over the
+    # readings that are averaged (cut.py MAX_EDGE_FLATNESS)
+    "uv_pass_shifted": (
+        "The second pass (UV light) did not line up closely enough with the"
+        " first pass at the ends of the patches: on the way back the "
+        "instrument's position along the ruler came out a little different,"
+        " for example because it was lifted slightly, tilted or pressed "
+        "differently. Near the patch edges ChromIQ then cannot be sure "
+        "which patch a reading belongs to, so none of this pass is used. " + _BOTH_AGAIN),
     "lamp_pass_changed": (
         "The first pass of this strip was read again, and the second pass "
         "taken earlier does not fit it any more. Read the second pass "

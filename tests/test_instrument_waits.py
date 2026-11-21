@@ -47,21 +47,25 @@ def test_the_defaults_are_4_3_52s_values_and_the_helpers_fallbacks():
         "blue_quiet": int(re.search(r"^#define CQ_LIGHTS_BLUE_QUIET_MS (\d+)", c, re.M).group(1)),
         "lamp_off": int(re.search(r"^#define LAMP_OFF_TIME (\d+)", c, re.M).group(1)),
         "blue_after": int(re.search(r"^#define CQ_LIGHTS_BLUE_AFTER_MS (\d+)", h, re.M).group(1)),
+        # after 4.3.54 (the owner's decision of 2026-11-21): the i1Pro 2's own, a NEW value
+        # (i1Profiler's 1.059 s rounded up), in step with its Python default
+        "lamp_off_i1pro2": int(re.search(r"^#define CQ_LAMP_OFF_TIME_I1PRO2 (\d+)", c, re.M).group(1)),
     }
     assert compiled == {"lights_quiet": 2100, "blue_quiet": 370, "lamp_off": 1500,
-                        "blue_after": 550}          # 4.3.52's, unchanged
+                        "blue_after": 550, "lamp_off_i1pro2": 1100}   # 4.3.52's + the i1Pro 2's
     for w in iw.WAITS:
         assert int(round(w.default_s * 1000)) == compiled[w.name], w.name
 
 
 def test_every_wait_has_a_key_a_flag_and_a_range():
     iw = _iw()
-    assert [w.name for w in iw.WAITS] == ["lights_quiet", "blue_quiet", "blue_after", "lamp_off"]
-    assert len({w.key for w in iw.WAITS}) == 4 and len({w.flag for w in iw.WAITS}) == 4
+    assert [w.name for w in iw.WAITS] == ["lights_quiet", "blue_quiet", "blue_after", "lamp_off",
+                                          "lamp_off_i1pro2"]
+    assert len({w.key for w in iw.WAITS}) == 5 and len({w.flag for w in iw.WAITS}) == 5
     for w in iw.WAITS:
         assert 0 < w.default_s <= w.max_s
     assert (iw.LIGHTS_QUIET.max_s, iw.BLUE_QUIET.max_s, iw.BLUE_AFTER.max_s,
-            iw.LAMP_OFF.max_s) == (10.0, 10.0, 5.0, 5.0)
+            iw.LAMP_OFF.max_s, iw.I1PRO2_LAMP_OFF.max_s) == (10.0, 10.0, 5.0, 5.0, 5.0)
 
 
 @pytest.mark.parametrize("value,ms", [(0, 0), (0.37, 370), ("1.06", 1060), (5, 5000)])
@@ -80,8 +84,12 @@ def test_an_unusable_value_gives_the_default(bad):
 def test_the_helper_arguments_are_every_wait_that_applies_also_at_the_default():
     iw = _iw()
     ms = iw.from_settings(lambda _k, d: d)
-    assert ms == {"lights_quiet": 2100, "blue_quiet": 370, "blue_after": 550, "lamp_off": 1500}
+    assert ms == {"lights_quiet": 2100, "blue_quiet": 370, "blue_after": 550, "lamp_off": 1500,
+                  "lamp_off_i1pro2": 1100}
     assert iw.helper_args(ms, lights=False) == ["--lamp-off-ms", "1500"]
+    # after 4.3.54: the i1Pro 2's own, only to a helper that takes it
+    assert iw.helper_args(ms, lights=False, i1pro2=True) == [
+        "--lamp-off-ms", "1500", "--lamp-off-ms-i1pro2", "1100"]
     assert iw.helper_args(ms, lights=True) == [
         "--lamp-off-ms", "1500", "--lights-quiet-ms", "2100",
         "--lights-blue-quiet-ms", "370", "--lights-blue-after-ms", "550"]
@@ -152,7 +160,8 @@ def test_no_python_site_holds_a_second_copy_of_a_default():
                      or "lamp" in src[ln - 1].lower()]
         assert found == [], rel
     own = [n for _l, n in _numbers(ROOT / "core" / "instrument_waits.py", wanted)]
-    # the four defaults, then i1Profiler's recorded 0.37 s (RECORDED_BLUE_QUIET_LOW_S)
+    # the four defaults, then i1Profiler's recorded 0.37 s (RECORDED_BLUE_QUIET_LOW_S);
+    # the i1Pro 2's lamp wait (1.10) is not one of the numbers looked for
     assert own == ["2.1", "0.37", "0.55", "1.5", "0.37"], own
     # 4.3.52's module keeps only i1Profiler's recorded 0.37 s (a measurement, not a default)
     lq = (ROOT / "core" / "i1pro2_lights_quiet.py").read_text(encoding="utf-8")
@@ -196,7 +205,9 @@ def test_the_vendor_script_holds_the_same_changes():
     assert "I1PRO_IMP_C_WAITS_453" in script and "I1PRO_IMP_H_WAITS_453" in script
     c = (INSTLIB / "i1pro_imp.c").read_text(encoding="utf-8", errors="surrogateescape")
     for s in ("int i1pro_cq_lamp_off_ms = -1;", "int i1pro2_cq_lights_blue_quiet_set_ms = -1;",
-              "#define CQ_LAMP_OFF_TIME ((i1pro_cq_lamp_off_ms >= 0 && i1pro_cq_lamp_off_ms <= 5000)"):
+              "#define CQ_LAMP_OFF_I1PRO ((i1pro_cq_lamp_off_ms >= 0 && i1pro_cq_lamp_off_ms <= 5000)",
+              "int i1pro2_cq_lamp_off_ms = -1;", "#define CQ_LAMP_OFF_TIME_I1PRO2 1100",
+              "#define CQ_LAMP_OFF_TIME ((p)->dtype != instI1Pro2 ? CQ_LAMP_OFF_I1PRO"):
         assert s in c and s.replace('"', '\\"') in script
 
 
@@ -282,7 +293,7 @@ def test_the_bundled_helper_takes_the_waits():
     if not exe.is_file():
         pytest.skip("no bundled helper in this checkout")
     data = exe.read_bytes()
-    assert b"chromiq-chartread 2026-11-21a " in data and b"+instrument-waits" in data
+    assert b"chromiq-chartread 2026-11-21f " in data and b"+instrument-waits" in data
     for s in (b"--lamp-off-ms", b"--lights-blue-quiet-ms", b"--lights-blue-after-ms",
               b"instrument_waits"):
         assert s in data, s
@@ -489,19 +500,28 @@ def test_the_help_says_purpose_vendor_before_and_risk():
     for need in ("0.53 to 0.68 s", "after 0.55 s", "no reading is lost", "**Default:** 0.55 s",
                  "0 to 5 s"):
         assert need in a, need
+    # after 4.3.54 (the owner's decision of 2026-11-21): two fields. The i1Pro's: ArgyllCMS's
+    # value, no vendor recording evaluated; the i1Pro 2's: i1Profiler's 1.06 s, 4.3.54's 1.5 s,
+    # the tester's gaps from 1.03 s, the dual scan's second pass
     lamp = sd.i1pro_lamp_off_help()
     for need in ("to make sure the lamp is dark for the dark measurement",
-                 "about 1.06 s", "1.5 s, ArgyllCMS's own value",
-                 # 4.3.53 fix round (waits review S2): "may", the size is not measured
-                 "readings may be slightly wrong",
-                 "you cannot see it", "without a warning", "not only with the lights",
+                 "1.5 s, ArgyllCMS's own value", "No recording of X-Rite's software",
+                 "original i1Pro", "EFI ES-1000", "The i1Pro 2 has its own field below",
+                 "readings may be slightly wrong", "you cannot see it", "without a warning",
                  "**Default:** 1.5 s",
-                 # M1: the true scope (hand and the table's patch by patch, not its rows)
-                 "patch by patch readings on the i1iO table",
-                 "It does not reach the table's rows", "1.07 s", "0.17 s",
-                 # S1: the vendor's other numbers; S3: the wait before the second pass
-                 "0.11 to 0.18 s", "this wait also comes before the second pass"):
+                 "i1iO table when an original i1Pro sits in its arm"):
         assert need in lamp, need
+    lamp2 = sd.i1pro2_lamp_off_help()
+    for need in ("i1Pro 2", "EFI ES-2000", "i1Basic Pro 2", "about 1.06 s",
+                 "0.11 to 0.18 s", "up to ChromIQ 4.3.54 the i1Pro 2 waited 1.5 s",
+                 "The default is now 1.1 s", "1.03 s to 2.24 s", "showed no effect",
+                 "never started sooner than about 1 s after the lamp went off",
+                 "a wait below about 1 s does not make a dual scan faster",
+                 "whether or not any Beta option is on",
+                 "It does not reach the table's rows", "1.07 s", "0.17 s",
+                 "readings may be slightly wrong", "**Default:** 1.1 s", "0 to 5 s"):
+        assert need in lamp2, need
+    assert "can be slightly wrong" not in lamp2
     assert "can be slightly wrong" not in lamp and "in every version" not in lamp
     assert "ArgyllCMS's lamp wait below holds it" in b       # S3, in the blue's own help
     q = sd.i1pro2_lights_quiet_help()

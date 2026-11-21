@@ -475,12 +475,17 @@ def default_job_factory(sheet: dict, page: int, run, stamp: str, guided: bool,
     # the table's patch-by-patch readings, as it reaches a hand measurement
     from core import instrument_waits as _iw
     from core.settings import AppSettings
-    lamp_ms = _iw.to_ms(_iw.LAMP_OFF, AppSettings().get(_iw.LAMP_OFF.key,
-                                                        _iw.LAMP_OFF.default_s))
+    _s = AppSettings()
+    lamp_ms = _iw.to_ms(_iw.LAMP_OFF, _s.get(_iw.LAMP_OFF.key, _iw.LAMP_OFF.default_s))
+    # after 4.3.54 (second fix round, V2): the i1Pro 2's own field reaches the table too; the
+    # driver picks by the model it opens (an original i1Pro in the arm keeps the i1Pro field)
+    lamp2_ms = _iw.to_ms(_iw.I1PRO2_LAMP_OFF, _s.get(_iw.I1PRO2_LAMP_OFF.key,
+                                                    _iw.I1PRO2_LAMP_OFF.default_s))
     return J.TableJob(sheet, page, run=run, stamp=stamp, guided=guided,
                       app_marker_place=app_marker_place(), latency_guard=latency_critical,
                       reach_store=table_reach_store(), extra_logging=extra_logging,
-                      consent_version=consent_version, lamp_off_ms=lamp_ms)
+                      consent_version=consent_version, lamp_off_ms=lamp_ms,
+                      lamp_off_i1pro2_ms=lamp2_ms)
 
 
 #: replaced by the on-screen driver (and the tests) with the simulated table

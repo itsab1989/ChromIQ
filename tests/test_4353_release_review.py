@@ -73,6 +73,12 @@ def test_the_entry_names_things_as_the_app_shows_them():
                   "X-Rite i1Pro and i1Pro 2: lamp wait before a reading (beta):",
                   "Guided, step by step measurement", "Ready light and result signals (green / red)"):
         assert label in text, label
+        if label.startswith("X-Rite i1Pro and i1Pro 2: lamp wait"):
+            # after 4.3.54 (the owner's decision of 2026-11-21) that one field became two;
+            # 4.3.53's entry still names the field as 4.3.53 showed it
+            assert "X-Rite i1Pro (not the i1Pro 2): lamp wait before a reading (beta):" in src
+            assert "X-Rite i1Pro 2: lamp wait before a reading (beta):" in src
+            continue
         assert label in src, label
 
 

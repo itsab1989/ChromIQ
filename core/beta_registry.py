@@ -39,6 +39,7 @@ BETA_SUB_OPTIONS: "tuple[str, ...]" = (
     "i1pro2_blue_quiet_s",
     "i1pro2_blue_after_s",
     "i1pro_lamp_off_s",
+    "i1pro2_lamp_off_s",
     "dual_scan_instrument",
     "dual_scan_instrument_source",
     "i1pro2_dual_scan_mode",

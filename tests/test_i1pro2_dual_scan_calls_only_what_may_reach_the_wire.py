@@ -88,6 +88,17 @@ HELPER_MAY_CALL = _LIBC | {
     # by i1pro2_cq_lights_second_pass (i1pro_imp.c), which refuses it outside the UV
     # pass's wait or once the button was pressed (tests/test_i1pro2_dual_blue_and_quiet_time.py)
     "cq_lights_second_pass_due", "cq_lights_second_pass_over",
+    # after 4.3.54 (the pace of a hand dual strip, reviewed in the fix round of 2026-11-21):
+    # i1pro2_cq_dual_times (cq_i1pro2_dual.h) copies the strip's msec_time stamps and reads two
+    # driver fields (llamponoff, intclkp): no request, nothing sent. fabs and snprintf are libc
+    # arithmetic / formatting of the event. cq_dual_flatness and cq_dual_window_flatness are the
+    # cut's own arithmetic (chromiq_dualscan.c, no instrument), called again for the log.
+    "i1pro2_cq_dual_times", "fabs", "snprintf",
+    "cq_dual_flatness", "cq_dual_window_flatness",
+    # second fix round (2026-11-21, V1): i1pro2_cq_dual_take_lamp_readings hands over the copy of
+    # the lamp pass's 380-400 nm readings the read hook kept (cq_i1pro2_dual.h: a pointer
+    # handed over, nothing sent); cq_dual_align is the cut's arithmetic (chromiq_dualscan.c)
+    "i1pro2_cq_dual_take_lamp_readings", "cq_dual_align",
 }
 
 

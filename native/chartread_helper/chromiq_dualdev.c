@@ -152,7 +152,7 @@ static void cq_dd_after_cal(inst *p) {
 static int cq_dd_pass_level(const char *why) {
 	static const char *pass[] = { "lamp", "uv_pass_missing", "uv_pass_short",
 	                              "uv_pass_stalled", "uv_pass_too_fast",
-	                              "uv_pass_misaligned", "uv_pass_count", "no_ruler",
+	                              "uv_pass_misaligned", "uv_pass_shifted", "uv_pass_count", "no_ruler",
 	                              "uv_pass_wrong_strip", "uv_pass_no_uv_light",
 	                              "uv_pass_too_long", "uv_spot_failed", NULL };
 	int i;
@@ -212,23 +212,111 @@ static const char *cq_dd_fits(int scan, int clocks) {
 	return NULL;
 }
 
+/* The window a strip is cut with (third round of 2026-11-21, S1): the
+ * narrow one (the span less CQ_DUAL_EDGE_STEPS) ONLY on positions that were
+ * lined up; every other way here (nothing clear to line up by, no lamp
+ * readings to line up with) gets 4.3.54's central 60 % (edge < 0). */
+static double cq_dd_edge(const char *align_state) {
+	return align_state != NULL && strcmp(align_state, "lined_up") == 0 ? CQ_DUAL_EDGE_STEPS : -1.0;
+}
+
+/* THE PACE OF A HAND DUAL STRIP (after 4.3.54): what the person needs to
+ * learn his pace and what the app log keeps for a tester's report. Every
+ * number is measured: readings x their integration time (the instrument
+ * reads back to back while the button is held), the ruler's travel in
+ * COUNTS (its mm scale is not measured for the i1Pro 2, so no mm/s), the
+ * readings per patch of both passes, and when the steps happened. */
+typedef struct {
+	int have;
+	int n1, n2, clocks;			/* readings of the lamp / UV pass, clocks per reading */
+	double lamp_travel, uv_travel;	/* ruler counts, first to last reading */
+	int lamp_dir, uv_dir;			/* +1 up the ruler, -1 down, 0 not moving */
+	const int *cells;			/* ArgyllCMS's trimmed lamp cells: readings per patch */
+	const int *counts;			/* UV readings per patch (the cut) */
+	int npatch;
+	double flat_c, flat_w;		/* the alignment gates' measures (-1 not judged) */
+	double align_off, align_rise;	/* the UV pass's measured offset and its sharpness */
+	const char *align_state;
+	cq_dual_times t;
+} cq_dd_pace;
+
+static int cq_dd_dir(const double *p, int n) {
+	if (p == NULL || n < 2 || p[n - 1] == p[0])
+		return 0;
+	return p[n - 1] > p[0] ? 1 : -1;
+}
+
+/* "[a,b,c]" of n ints into a malloc'd string (NULL when there is none) */
+static char *cq_dd_list(const int *v, int n) {
+	char *b;
+	size_t at = 0, cap;
+	int i;
+	if (v == NULL || n <= 0)
+		return NULL;
+	cap = (size_t)n * 12 + 4;
+	if ((b = (char *)malloc(cap)) == NULL)
+		return NULL;
+	b[at++] = '[';
+	for (i = 0; i < n; i++)
+		at += (size_t)snprintf(b + at, cap - at, i ? ",%d" : "%d", v[i]);
+	b[at++] = ']';
+	b[at] = '\0';
+	return b;
+}
+
+/* ms of a stamp after the lamp pass's readings were in; -1 when unknown */
+static long cq_dd_after(unsigned int stamp, unsigned int base) {
+	if (stamp == 0 || base == 0)
+		return -1;
+	return (long)(int)(stamp - base);
+}
+
 /* pairing: "checked", "pairing_not_checked" (too dark to judge: the note) or "" */
 static void cq_dd_result(const char *what, const char *strip, const char *why, int nuv,
                          const int *counts, int npatch, const cq_dual_uv *u, const char *pairing,
-                         int calibrate) {
-	char sb[64];
+                         int calibrate, const cq_dd_pace *pc) {
+	char sb[64], pace[1024];
+	char *lc = NULL, *uc = NULL;
 	int i, mn = -1;
 	cq_json_escape(sb, sizeof(sb), strip != NULL ? strip : "");
 	for (i = 0; counts != NULL && i < npatch; i++)
 		if (mn < 0 || counts[i] < mn)
 			mn = counts[i];
+	pace[0] = '\0';
+	if (pc != NULL && pc->have) {
+		double rs = pc->t.clock_s > 0.0 && pc->clocks > 0 ? pc->clocks * pc->t.clock_s : 0.0;
+		unsigned int b = pc->t.lamp_done;
+		lc = cq_dd_list(pc->cells, pc->npatch);
+		uc = cq_dd_list(pc->counts, pc->npatch);
+		snprintf(pace, sizeof(pace),
+		         ",\"pace\":true,\"need\":%d,\"edge_steps\":%.2f,\"reading_ms\":%.3f,"
+		         "\"lamp_readings\":%d,\"lamp_s\":%.2f,\"lamp_travel\":%.0f,\"lamp_dir\":%d,"
+		         "\"uv_s\":%.2f,\"uv_travel\":%.0f,\"uv_dir\":%d,"
+		         "\"lamp_off_ms\":%ld,\"uv_dark_ms\":%ld,\"uv_trigger_ms\":%ld,\"uv_done_ms\":%ld,"
+		         "\"flatness\":%.6g,\"window_flatness\":%.6g,\"max_window_flatness\":%.6g,"
+		         "\"offset_steps\":%.2f,\"offset_rise\":%.3g,\"align\":\"%s\",\"window\":\"%s\"",
+		         CQ_DUAL_MIN_UV, cq_dd_edge(pc->align_state), rs * 1000.0,
+		         pc->n1, pc->n1 * rs, pc->lamp_travel, pc->lamp_dir,
+		         pc->n2 * rs, pc->uv_travel, pc->uv_dir,
+		         cq_dd_after(pc->t.lamp_off, b), cq_dd_after(pc->t.uv_dark, b),
+		         cq_dd_after(pc->t.uv_trigger, b), cq_dd_after(pc->t.uv_done, b),
+		         pc->flat_c == pc->flat_c ? pc->flat_c : -1.0,
+		         pc->flat_w == pc->flat_w ? pc->flat_w : -1.0, (double)CQ_DUAL_MAX_EDGE_FLATNESS,
+		         pc->align_off, pc->align_rise == pc->align_rise && pc->align_rise < 1e6
+		         ? pc->align_rise : -1.0, pc->align_state != NULL ? pc->align_state : "",
+		         cq_dd_edge(pc->align_state) >= 0.0 ? "span_less_edge" : "central_60");
+	}
 	cq_emit_raw("{\"event\":\"dual_pass_result\",\"what\":\"%s\",\"strip\":\"%s\",\"ok\":%s,"
 	            "\"why\":\"%s\",\"uv_readings\":%d,\"fewest_per_patch\":%d,\"uv_triggers\":%d,"
-	            "\"volts\":[%d,%d],\"pairing\":\"%s\",\"calibrate\":%s}",
+	            "\"volts\":[%d,%d],\"pairing\":\"%s\",\"calibrate\":%s%s%s%s%s%s}",
 	            what, sb, why == NULL ? "true" : "false", why != NULL ? why : "", nuv, mn,
 	            u != NULL ? u->uv_triggers : 0,
 	            u != NULL ? u->volts_before : -1, u != NULL ? u->volts_after : -1,
-	            pairing != NULL ? pairing : "", calibrate ? "true" : "false");
+	            pairing != NULL ? pairing : "", calibrate ? "true" : "false", pace,
+	            lc != NULL ? ",\"lamp_cells\":" : "", lc != NULL ? lc : "",
+	            uc != NULL ? ",\"uv_counts\":" : "", uc != NULL ? uc : "");
+	free(lc);
+	free(uc);
 }
 
 /* 4.3.49: the first reading after a calibration that cannot give M1 / M2 is
@@ -275,7 +363,7 @@ static void cq_dd_spot(inst_code *rv) {
 	i1pro2_cq_dual_arm(cq_dd.it, CQ_DUAL_PHASE_OFF);
 	{
 		int again = cq_dd_cal_reason(why) && cq_dd_ask_calibration();
-		cq_dd_result("spot", "", why, u.n, NULL, 0, &u, "", again);
+		cq_dd_result("spot", "", why, u.n, NULL, 0, &u, "", again, NULL);
 		free(l.L);
 		free(u.U);
 		cq_dd.why = why;
@@ -297,6 +385,68 @@ static int cq_dd_positions(const cq_ruler_rec *r, int n1, int n2, double **lp, d
 	                         n1, n2, r->clocks, *lp, *up);
 }
 
+/* SECOND FIX ROUND (2026-11-21): the UV pass lined up with the lamp pass.
+ * The driver kept the lamp pass's own 380-400 nm readings; weighted by the
+ * tile's T / W there they are what the UV pass must read at the same place
+ * (nothing glows below 410 nm). cq_dual_align finds the offset, the UV
+ * positions are corrected by it. Without those readings (cannot happen on
+ * the instrument path, only if memory ran out) the strip is cut uncorrected,
+ * as before the fix round, and the log says so (state "not_measured"). With
+ * nothing clear to line up by (CQ_DUAL_NOT_LINED_UP) it is cut uncorrected
+ * with 4.3.54's central window (state "not_lined_up"). */
+static const char *cq_dd_align(int npatch, const int (*cells)[2], int n1, const double *lp,
+                               int nuv, double *up, const double *U,
+                               double *off, double *rise, const char **state) {
+	double *ls = NULL, *lsig = NULL, *usig = NULL, lo = 0.0, hi = 0.0;
+	int nls = 0, nl, i, k;
+	const char *why = NULL;
+	*state = "not_measured";
+	if (!i1pro2_cq_dual_take_lamp_readings(cq_dd.it, &ls, &nls) || nls <= 1)
+		return NULL;
+	nl = nls < n1 ? nls : n1;
+	lsig = (double *)malloc(sizeof(double) * (size_t)(nl > 0 ? nl : 1));
+	usig = (double *)malloc(sizeof(double) * (size_t)(nuv > 0 ? nuv : 1));
+	if (lsig == NULL || usig == NULL) {
+		free(ls); free(lsig); free(usig);
+		return NULL;
+	}
+	for (i = 0; i < nl; i++) {
+		double a = 0.0;
+		for (k = 0; k < CQ_DUAL_LS_BANDS; k++)
+			a += ls[i * CQ_DUAL_LS_BANDS + k] * cq_dd.cal.T[k] / cq_dd.cal.W[k];
+		lsig[i] = a / (double)CQ_DUAL_LS_BANDS;
+	}
+	for (i = 0; i < nuv; i++) {
+		double a = 0.0;
+		for (k = 0; k < CQ_DUAL_LS_BANDS; k++)
+			a += U[i * CQ_DUAL_NB + k];
+		usig[i] = a / (double)CQ_DUAL_LS_BANDS;
+	}
+	for (k = 0; k < npatch; k++) {
+		int s = cells[k][0], n = cells[k][1];
+		double a, b;
+		if (n < 1 || s < 0 || s + n > n1)
+			continue;
+		a = lp[s];
+		b = lp[s + n - 1];
+		if (k == 0 || (a < b ? a : b) < lo) lo = a < b ? a : b;
+		if (k == 0 || (a < b ? b : a) > hi) hi = a < b ? b : a;
+	}
+	why = cq_dual_align(nl, lp, lsig, nuv, up, usig, lo, hi, off, rise);
+	if (why != NULL && strcmp(why, CQ_DUAL_NOT_LINED_UP) == 0) {
+		*state = "not_lined_up";	/* cut uncorrected with 4.3.54's window (header) */
+		why = NULL;
+		*off = 0.0;
+	} else {
+		*state = why == NULL ? "lined_up" : "refused";
+		if (why == NULL)
+			for (i = 0; i < nuv; i++)
+				up[i] -= *off;
+	}
+	free(ls); free(lsig); free(usig);
+	return why;
+}
+
 /* (c) a hand strip, right after the lamp pass's read_strip. */
 static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, int sguide,
                         double pwid, double gwid, double twid) {
@@ -308,6 +458,9 @@ static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, 
 	int *counts = NULL;
 	inst_code rv2;
 	int lamp_ok, got_r = 0, calibrate = 0;
+	double flat_c = -1.0, flat_w = -1.0;	/* -1: not measured / not judged */
+	double align_off = 0.0, align_rise = -1.0;	/* the UV pass's measured offset */
+	const char *align_state = "not_reached";
 	const char *why = NULL, *pairing = "";
 	char sb[64];
 
@@ -343,7 +496,7 @@ static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, 
 		if (*rv != inst_ok)
 			return;			/* ArgyllCMS's own misread: read again, as always */
 		again = cq_dd_ask_calibration();
-		cq_dd_result("strip", strip, cw, 0, NULL, 0, NULL, "", again);
+		cq_dd_result("strip", strip, cw, 0, NULL, 0, NULL, "", again, NULL);
 		cq_dd.why = cw;
 		cq_dd.n = 0;
 		if (again)
@@ -361,7 +514,7 @@ static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, 
 	if (!i1pro2_cq_dual_uv_pass_ready(it)) {
 		i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_OFF);
 		free(l.L);
-		cq_dd_result("strip", strip, "dual_needs_ruler", 0, NULL, 0, NULL, "", 0);
+		cq_dd_result("strip", strip, "dual_needs_ruler", 0, NULL, 0, NULL, "", 0, NULL);
 		cq_dd.why = "dual_needs_ruler";
 		cq_dd.on = 0;
 		cq_cond_lose("dual_dual_needs_ruler");
@@ -434,9 +587,25 @@ static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, 
 					cells[k][0] = r.cut_ss[k];
 					cells[k][1] = r.cut_no[k];
 				}
+				/* second fix round of 2026-11-21: line the UV pass up with the lamp
+				 * pass by their 380-400 nm readings (cq_dual_align), then cut */
+				why = cq_dd_align(npatch, (const int (*)[2])cells, n1, lp, u.n, up, u.U,
+				                  &align_off, &align_rise, &align_state);
+				if (why == NULL)
 				why = cq_dual_cut(CQ_DUAL_NB, npatch, (const int (*)[2])cells, n1, lp,
-				                  u.n, up, u.U, CQ_DUAL_TRIM, CQ_DUAL_MIN_UV, cutv, counts);
+				                  u.n, up, u.U, CQ_DUAL_TRIM, CQ_DUAL_MIN_UV,
+				                  cq_dd_edge(align_state), cutv, counts);
+				/* fix round of 2026-11-21: both alignment measures for the log */
+				flat_c = cq_dual_flatness(CQ_DUAL_NB, npatch, (const int (*)[2])cells, lp,
+				                          u.n, up, u.U, CQ_DUAL_TRIM);
+				flat_w = cq_dd_edge(align_state) >= 0.0
+				         ? cq_dual_window_flatness(CQ_DUAL_NB, npatch, (const int (*)[2])cells,
+				                                   lp, u.n, up, u.U, CQ_DUAL_EDGE_STEPS) : -1.0;
 				free(cells);
+				if (strcmp(align_state, "refused") == 0) {
+					free(counts);		/* no cut was made: no counts to report */
+					counts = NULL;
+				}
 			}
 		}
 		/* the UV pass belongs to THIS strip (safety review 2026-11-18, M1):
@@ -452,8 +621,33 @@ static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, 
 		if (why == NULL)
 			why = cq_dd_compute(l.L, cutv, npatch, l.clamp);
 	}
-	cq_dd_result("strip", strip, why, u.n, why == NULL || counts != NULL ? counts : NULL,
-	             counts != NULL ? npatch : 0, &u, pairing, calibrate);
+	{	/* after 4.3.54: the pace (readings, times, travel, per patch) */
+		cq_dd_pace pc;
+		memset(&pc, 0, sizeof(pc));
+		pc.n1 = i1pro2_cq_dual_lamp_count(it);
+		pc.n2 = u.n;
+		pc.clocks = u.clocks > 0 ? u.clocks : r.clocks;
+		i1pro2_cq_dual_times(it, &pc.t);
+		if (lp != NULL && up != NULL && pc.n1 > 1 && pc.n2 > 1) {
+			pc.have = 1;
+			pc.lamp_travel = fabs(lp[pc.n1 - 1] - lp[0]);
+			pc.uv_travel = fabs(up[pc.n2 - 1] - up[0]);
+			pc.lamp_dir = cq_dd_dir(lp, pc.n1);
+			pc.uv_dir = cq_dd_dir(up, pc.n2);
+			pc.flat_c = flat_c;
+			pc.flat_w = flat_w;
+			pc.align_off = align_off;
+			pc.align_rise = align_rise;
+			pc.align_state = align_state;
+			if (counts != NULL && got_r && r.ncut == npatch) {
+				pc.cells = r.cut_no;
+				pc.counts = counts;
+				pc.npatch = npatch;
+			}
+		}
+		cq_dd_result("strip", strip, why, u.n, why == NULL || counts != NULL ? counts : NULL,
+		             counts != NULL ? npatch : 0, &u, pairing, calibrate, &pc);
+	}
 	free(l.L);
 	free(u.U);
 	free(lp);

@@ -120,6 +120,14 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 # M-PATCH-SIMILAR joined on 2026-10-15 (4.3.5 beta 8): Knut confirmed the
 # similar-patch rule for both tests (#182 6196599132); its card texts are ours.
 AWAITING_APPROVAL: "set[str]" = {
+    # 2026-11-21, after 4.3.54: the pace of a hand dual strip
+    "M-DUAL-PASS-PACE",
+    "M-DUAL-PASS-PACE-CLOSE",
+    "M-DUAL-PASS-TOO-FAST",
+    "M-DUAL-PASS-TOO-FAST-UNEVEN",
+    "M-DUAL-PASS-TOO-FAST-EVEN",
+    "M-DUAL-PASS-TOO-FAST-LINE",
+    "M-DUAL-PASS-SHIFTED",
     # 2026-11-20, 4.3.54: the dual scan's notes before START (when it runs)
     "M-DUAL-GUIDED-SINGLE",
     "M-I1IO-ROW-SPEED-END",

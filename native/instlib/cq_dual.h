@@ -79,6 +79,28 @@ typedef struct {
 	int clamp;				/* the measure call's clamp, for the same conversion */
 } cq_dual_lamp;
 
+/* When the steps of the last hand strip happened (after 4.3.54, the pace in
+ * the app log): msec_time() stamps, 0 = not seen. Read only; nothing here
+ * is sent to the instrument. clock_s: one integration clock in seconds (a
+ * reading lasts clocks x clock_s). */
+typedef struct {
+	unsigned int lamp_trigger;	/* the lamp pass's trigger ("ruler start") */
+	unsigned int lamp_done;		/* its readings were in */
+	unsigned int lamp_off;		/* ArgyllCMS's last lamp on -> off */
+	unsigned int uv_dark;		/* the last dark trigger before the UV pass */
+	unsigned int uv_trigger;	/* the UV pass's trigger ("ruler end") */
+	unsigned int uv_done;		/* its readings were in */
+	double clock_s;
+} cq_dual_times;
+void i1pro2_cq_dual_times(void *pp, cq_dual_times *out);
+/* The lamp pass's own readings at 380-400 nm, CQ_DUAL_LS_BANDS values per
+ * reading (reflectance in the lamp white's units), kept by the read hook
+ * (second fix round of 2026-11-21) to line the UV pass up with the lamp pass
+ * (chromiq_dualscan.c cq_dual_align). Read only; nothing is sent. 1 = taken
+ * (malloc'd, the caller frees it). */
+#define CQ_DUAL_LS_BANDS 3
+int i1pro2_cq_dual_take_lamp_readings(void *pp, double **ls, int *n);
+
 /* Phases of one hand strip (i1pro2_cq_dual_arm). */
 #define CQ_DUAL_PHASE_OFF   0
 #define CQ_DUAL_PHASE_LAMP  1	/* the lamp pass: ruler START, keep L */

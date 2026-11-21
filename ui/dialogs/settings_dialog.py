@@ -3871,12 +3871,22 @@ class SettingsDialog(QDialog):
         self._wait_fields[_iw.BLUE_AFTER.key][0].setMinimumWidth(_lw)
         self._i1pro2_lights_check.toggled.connect(self._lights_choices_follow)
         self._lights_signals_combo.currentIndexChanged.connect(self._lights_choices_follow)
-        # ArgyllCMS's lamp wait (4.3.53): every i1Pro / i1Pro 2 reading, not
-        # part of the lights, so its own line at the left, never greyed
+        # ArgyllCMS's lamp wait (4.3.53): every i1Pro reading, not part of
+        # the lights, so its own line at the left, never greyed. After 4.3.54
+        # the i1Pro 2 has its own (the owner's decision of 2026-11-21); the
+        # two rows share one label width
         self._add_wait_row(_beta, _iw.LAMP_OFF, 0,
-                           tr("X-Rite i1Pro and i1Pro 2: lamp wait before a reading (beta):"),
-                           tr("i1Pro and i1Pro 2: lamp wait (beta)"),
+                           tr("X-Rite i1Pro (not the i1Pro 2): lamp wait before a reading (beta):"),
+                           tr("i1Pro: lamp wait (beta)"),
                            i1pro_lamp_off_help())
+        self._add_wait_row(_beta, _iw.I1PRO2_LAMP_OFF, 0,
+                           tr("X-Rite i1Pro 2: lamp wait before a reading (beta):"),
+                           tr("i1Pro 2: lamp wait (beta)"),
+                           i1pro2_lamp_off_help())
+        _lw2 = max(self._wait_fields[_iw.LAMP_OFF.key][0].sizeHint().width(),
+                   self._wait_fields[_iw.I1PRO2_LAMP_OFF.key][0].sizeHint().width())
+        self._wait_fields[_iw.LAMP_OFF.key][0].setMinimumWidth(_lw2)
+        self._wait_fields[_iw.I1PRO2_LAMP_OFF.key][0].setMinimumWidth(_lw2)
 
         # THE RULER CHECK (Basti, 2026-11-14: "build the first ruler Beta now
         # ... clearly labeled as a beta option anyway and off by default").
@@ -7115,7 +7125,7 @@ class SettingsDialog(QDialog):
         from core import i1pro2_lights_quiet as _lq
         self._lights_quiet_spin.setValue(_lq.seconds(s.get("i1pro2_lights_quiet_s")))
         from core import instrument_waits as _iw
-        for _w in (_iw.BLUE_QUIET, _iw.BLUE_AFTER, _iw.LAMP_OFF):
+        for _w in (_iw.BLUE_QUIET, _iw.BLUE_AFTER, _iw.LAMP_OFF, _iw.I1PRO2_LAMP_OFF):
             self._wait_fields[_w.key][1].setValue(_iw.seconds(_w, s.get(_w.key)))
         self._lights_choices_follow()
         self._i1p_turned_check.setChecked(
@@ -8904,7 +8914,7 @@ class SettingsDialog(QDialog):
         s.set("i1pro2_lights_quiet_s", _lq.seconds(self._lights_quiet_spin.value()))
         # 4.3.53: the other waits, the same values as their settings-file keys
         from core import instrument_waits as _iw
-        for _w in (_iw.BLUE_QUIET, _iw.BLUE_AFTER, _iw.LAMP_OFF):
+        for _w in (_iw.BLUE_QUIET, _iw.BLUE_AFTER, _iw.LAMP_OFF, _iw.I1PRO2_LAMP_OFF):
             s.set(_w.key, _iw.seconds(_w, self._wait_fields[_w.key][1].value()))
         s.set("i1profiler_turned_export", self._i1p_turned_check.isChecked())
         s.set("fd9_support_beta", self._fd9_support_check.isChecked())
@@ -10166,7 +10176,7 @@ def i1pro2_blue_quiet_help() -> str:
            "is shorter too. **This changes how ChromIQ talks to the instrument:** "
            "the wait is in ChromIQ's copy of ArgyllCMS's instrument code. The "
            "commands sent to the instrument stay the same.").format(
-               lamp=decimal_text(_iw.LAMP_OFF.default_s)),
+               lamp=decimal_text(_iw.I1PRO2_LAMP_OFF.default_s)),
         tr("**What X-Rite's i1Profiler does** (recordings of a tester's "
            "i1Pro 2): it measured the second pass {low} to {high} s after it "
            "began to send the blue light, and every reading came. Counted as "
@@ -10219,47 +10229,27 @@ def i1pro2_blue_after_help() -> str:
 
 
 def i1pro_lamp_off_help() -> str:
-    """The (i) of Preferences > Beta > ArgyllCMS's lamp wait (4.3.53).
+    """The (i) of Preferences > Beta > ArgyllCMS's lamp wait for the ORIGINAL
+    i1Pro (4.3.53; after 4.3.54 the i1Pro 2 has its own, i1pro2_lamp_off_help).
     Checked against native/instlib/i1pro_imp.c (LAMP_OFF_TIME, "msec to make
     sure lamp is dark for dark measurement"; i1pro_dark_measure_2 refuses a
-    dark only when it is inconsistent or above twice the dark threshold) and
-    the table-speed audit of 2026-11-20 (i1Profiler on the i1iO table: lamp
-    off -> next dark trigger 1.059 s, recording R12)."""
+    dark only when it is inconsistent or above twice the dark threshold)."""
     from core import instrument_waits as _iw
     return "\n\n".join((
-        # 4.3.53 fix round (waits review M1, S1, S2, S3)
-        tr("Before every dark reading, ArgyllCMS waits until the lamp of an "
-           "i1Pro or i1Pro 2 has been off this long. Its code says why: to "
-           "make sure the lamp is dark for the dark measurement. This applies "
-           "to measurements by hand (strips, spot readings and calibration) and "
-           "to the patch by patch readings on the i1iO table, not only with the "
-           "lights. It does not reach the table's rows: there ChromIQ keeps the "
-           "table's own waits ({scan} s before a row's dark reading, {dual} s in "
-           "a dual row). **This changes how ChromIQ's copy of ArgyllCMS's "
-           "instrument code works** when you move it off the default. The "
-           "commands sent to the instrument stay the same.").format(
-               scan=decimal_text(_iw.TABLE_SCAN_LAMP_OFF_S),
-               dual=decimal_text(_iw.TABLE_DUAL_DARK_AFTER_LAMP_S)),
-        tr("**In a dual scan by hand, this wait also comes before the second "
-           "pass.** The second pass starts with a dark reading, so it waits "
-           "until the lamp has been off this long since the first pass. At the "
-           "defaults this wait decides when the second pass can start: about "
-           "{default} s after the end of the first pass. A shorter “Dual scan, "
-           "wait after the blue light” alone does not make it start sooner.").format(
-               default=decimal_text(_iw.LAMP_OFF.default_s)),
-        tr("**What X-Rite's i1Profiler does** (recordings of a tester's "
-           "i1Pro 2 on an i1iO table): between the patches of a spot row, the "
-           "next dark reading came about {vendor} s after the lamp went off, at "
-           "the pace of the table. In its dual readings it took a dark reading "
-           "only {low} to {high} s after the lamp. It is not known whether it "
-           "uses that dark reading as ArgyllCMS does. No recording by hand "
-           "exists.").format(
-               vendor=decimal_text(_iw.RECORDED_LAMP_OFF_S),
-               low=decimal_text(_iw.RECORDED_LAMP_DUAL_LOW_S),
-               high=decimal_text(_iw.RECORDED_LAMP_DUAL_HIGH_S)),
-        tr("**What ChromIQ used before:** {default} s, ArgyllCMS's own value, "
-           "for measurements by hand and the table's patch by patch readings. "
-           "The default is the same.").format(
+        tr("Before every dark reading of an original i1Pro (the instruments "
+           "before the i1Pro 2, also when sold under another name, such as the "
+           "EFI ES-1000), ArgyllCMS waits until the lamp has been off this long. "
+           "Its code says why: to make sure the lamp is dark for the dark "
+           "measurement. This applies to measurements by hand (strips, spot "
+           "readings and calibration), and to the patch by patch readings on the "
+           "i1iO table when an original i1Pro sits in its arm. The i1Pro 2 has its "
+           "own field below. **This changes how "
+           "ChromIQ's copy of ArgyllCMS's instrument code works** when you move "
+           "it off the default. The commands sent to the instrument stay the "
+           "same."),
+        tr("**What ChromIQ uses:** {default} s, ArgyllCMS's own value, as "
+           "before. No recording of X-Rite's software with this instrument has "
+           "been evaluated for this wait, so the default stays ArgyllCMS's.").format(
                default=decimal_text(_iw.LAMP_OFF.default_s)),
         tr("**If the wait is too short, readings may be slightly wrong, and "
            "you cannot see it.** The dark reading is taken away from every "
@@ -10271,6 +10261,67 @@ def i1pro_lamp_off_help() -> str:
            "changes the values. Change it only to test it, and compare the "
            "result with a measurement made at the default."),
         _wait_range_text(_iw.LAMP_OFF),
+    ))
+
+
+def i1pro2_lamp_off_help() -> str:
+    """The (i) of Preferences > Beta > the i1Pro 2's lamp wait (after 4.3.54,
+    the owner's decision of 2026-11-21). Numbers: the table-speed audit of
+    2026-11-20 (i1Profiler on the i1iO table, an i1Pro 2: lamp off -> next dark
+    trigger 1.059 s, recording R12; dark 0.11 to 0.18 s after the lamp in its
+    dual readings), the tester's dual scans of 21 Nov (real gaps 1.03 to 2.24 s,
+    no effect: work folder 2026-11-21_nelson_bluelight_confirm, sections 7 to 9),
+    and the blue light's waits (BLUE_AFTER + BLUE_QUIET, 0.92 s)."""
+    from core import instrument_waits as _iw
+    return "\n\n".join((
+        tr("Before every dark reading of an i1Pro 2 (also when sold under "
+           "another name, such as the EFI ES-2000, or as the i1Basic Pro 2), "
+           "ChromIQ's copy of ArgyllCMS's instrument code waits until the lamp "
+           "has been off this long, so that the lamp is dark for the dark "
+           "measurement. This applies to measurements by hand (strips, spot "
+           "readings and calibration, and the second pass of a dual scan) and "
+           "to the patch by patch readings on the i1iO table. It does not reach "
+           "the table's rows: there ChromIQ keeps the table's own waits ({scan} s "
+           "before a row's dark reading, {dual} s in a dual row). It applies "
+           "whether or not any Beta option is on. The commands sent to the "
+           "instrument stay the same.").format(
+               scan=decimal_text(_iw.TABLE_SCAN_LAMP_OFF_S),
+               dual=decimal_text(_iw.TABLE_DUAL_DARK_AFTER_LAMP_S)),
+        tr("**What X-Rite's i1Profiler does** (recordings of a tester's "
+           "i1Pro 2 on an i1iO table): between the patches of a spot row, the "
+           "next dark reading came about {vendor} s after the lamp went off. In "
+           "its dual readings it took a dark reading only {low} to {high} s after "
+           "the lamp. It is not known whether it uses that dark reading as "
+           "ArgyllCMS does.").format(
+               vendor=decimal_text(_iw.RECORDED_LAMP_OFF_S),
+               low=decimal_text(_iw.RECORDED_LAMP_DUAL_LOW_S),
+               high=decimal_text(_iw.RECORDED_LAMP_DUAL_HIGH_S)),
+        tr("**What ChromIQ used before, and why the default changed:** up to "
+           "ChromIQ 4.3.54 the i1Pro 2 waited {old} s, ArgyllCMS's own value. "
+           "The default is now {default} s: i1Profiler's {vendor} s, rounded up "
+           "to the field's steps. On a tester's i1Pro 2, dual scans whose real "
+           "gaps from lamp off to the dark reading ran from 1.03 s to 2.24 s "
+           "showed no effect: the UV effect stayed flat within 1 %, and the "
+           "darkest patches did not change.").format(
+               old=decimal_text(_iw.LAMP_OFF.default_s),
+               default=decimal_text(_iw.I1PRO2_LAMP_OFF.default_s),
+               vendor=decimal_text(_iw.RECORDED_LAMP_OFF_S)),
+        tr("**In a dual scan by hand,** the second pass starts with a dark "
+           "reading, so it waits until the lamp has been off this long since the "
+           "first pass. On a tester's real i1Pro 2 the second pass never started "
+           "sooner than about 1 s after the lamp went off (turning round, the "
+           "button, and with the lights option the blue light and its own wait), "
+           "so a wait below about 1 s does not make a dual scan faster."),
+        tr("**If the wait is too short, readings may be slightly wrong, and "
+           "you cannot see it.** The dark reading is taken away from every "
+           "patch reading. If the lamp still glows a little, the dark reading "
+           "is too high, and patches may read a little too dark, most of all "
+           "dark colours. ArgyllCMS refuses a dark reading only when it is "
+           "clearly too bright or uneven, so such a reading is usually kept "
+           "without a warning. Nobody has measured yet how much a shorter wait "
+           "changes the values. Change it only to test it, and compare the "
+           "result with a measurement made at the default."),
+        _wait_range_text(_iw.I1PRO2_LAMP_OFF),
     ))
 
 

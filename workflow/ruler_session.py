@@ -41,8 +41,13 @@ def _num(x: float, digits: int = 0) -> str:
 class RulerSession:
     def __init__(self, *, ti1_path: "Path | None", helper_build: str = "",
                  verification: bool = False, condition: "str | None" = None,
-                 lights: "bool | None" = None):
+                 lights: "bool | None" = None, dual: bool = False):
         self.ti1_path = Path(ti1_path) if ti1_path else None
+        #: after 4.3.54: the i1Pro 2 dual scan runs in this read, so its strips
+        #: are read twice and lined up by the ruler; the per-strip ruler lines
+        #: below are not made for them (the engine never arms the ruler check
+        #: on a dual strip), the strip's pace line says how it was read instead
+        self.dual = bool(dual)
         self.helper_build = helper_build
         #: 4.3.37: the measurement condition the person chose (the -F of this
         #: read: "M0", "M1", "M2", "M3"), or None without -F (the
@@ -167,13 +172,25 @@ class RulerSession:
                     _written("ruler diagnostics", path)
                 except Exception:      # noqa: BLE001
                     pass
-        lines = [tr("Ruler (beta): the ruler check is on for this {instrument} "
-                    "(firmware {firmware}). After each strip ChromIQ shows how "
-                    "far, which way and how fast the instrument moved along the "
-                    "ruler. Your readings are not changed by this.").format(
-                        instrument=NAMES.get(self.gen, self.gen),
-                        firmware=self.firmware if self.firmware is not None
-                        else "?")]
+        if self.dual:
+            lines = [tr("Ruler (beta): the ruler check is on for this {instrument} "
+                        "(firmware {firmware}), and the dual scan reads every strip "
+                        "twice in this measurement. Here the ruler lines the two "
+                        "passes up, so instead of the distance and speed ChromIQ "
+                        "shows after each strip how long each pass took and how "
+                        "many readings the patches got. Your readings are not "
+                        "changed by this.").format(
+                            instrument=NAMES.get(self.gen, self.gen),
+                            firmware=self.firmware if self.firmware is not None
+                            else "?")]
+        else:
+            lines = [tr("Ruler (beta): the ruler check is on for this {instrument} "
+                        "(firmware {firmware}). After each strip ChromIQ shows how "
+                        "far, which way and how fast the instrument moved along the "
+                        "ruler. Your readings are not changed by this.").format(
+                            instrument=NAMES.get(self.gen, self.gen),
+                            firmware=self.firmware if self.firmware is not None
+                            else "?")]
         if self.diag is not None:
             lines.append(tr("Ruler (beta): the diagnostics for this measurement "
                             "are saved in this file: {path}").format(

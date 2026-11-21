@@ -93,6 +93,103 @@ static void pairing_cases(const char *path) {
 	fclose(f);
 }
 
+/* The cut (after 4.3.54: the whole span less CQ_DUAL_EDGE_STEPS) on cases
+ * from a file named by CQ_DUAL_CUT_CASES (tests/test_uv_pass_rule.py writes
+ * it): per case "cut <name> <ncell> <nlamp> <nuv>", then "C" and 2 x ncell
+ * ints (first reading, count), "P" and nlamp lamp positions, "Q" and nuv UV
+ * positions, then nuv lines "U" of 36 numbers. Prints "cutcase <name>
+ * <ok|reason> <flatness> <window flatness> <counts...> | <the first band of each patch>". */
+static int read_n(FILE *f, const char *tag, double *v, int n) {
+	char t[8];
+	int j;
+	if (fscanf(f, "%7s", t) != 1 || strcmp(t, tag) != 0)
+		return 0;
+	for (j = 0; j < n; j++)
+		if (fscanf(f, "%lf", &v[j]) != 1)
+			return 0;
+	return 1;
+}
+
+static void cut_cases(const char *path) {
+	FILE *f = fopen(path, "r");
+	char kw[16], name[128];
+	int nc, nl, nu, i, k;
+	if (f == NULL) {
+		printf("cut_cases unreadable\n");
+		return;
+	}
+	while (fscanf(f, "%15s %127s %d %d %d", kw, name, &nc, &nl, &nu) == 5 && strcmp(kw, "cut") == 0
+	       && nc > 0 && nl > 0 && nu > 0) {
+		int (*cells)[2] = malloc(sizeof(int) * 2 * (size_t)nc);
+		int *counts = malloc(sizeof(int) * (size_t)nc);
+		double *cv = malloc(sizeof(double) * 2 * (size_t)nc);
+		double *lp = malloc(sizeof(double) * (size_t)nl), *up = malloc(sizeof(double) * (size_t)nu);
+		double *uv = malloc(sizeof(double) * CQ_DUAL_NB * (size_t)nu);
+		double *out = malloc(sizeof(double) * CQ_DUAL_NB * (size_t)nc);
+		const char *why;
+		int ok = cells && counts && cv && lp && up && uv && out;
+		ok = ok && read_n(f, "C", cv, 2 * nc) && read_n(f, "P", lp, nl) && read_n(f, "Q", up, nu);
+		for (i = 0; ok && i < nu; i++)
+			ok = read_vec(f, "U", uv + i * CQ_DUAL_NB);
+		if (!ok) {
+			printf("cutcase %s unreadable\n", name);
+			break;
+		}
+		for (k = 0; k < nc; k++) {
+			cells[k][0] = (int)cv[2 * k];
+			cells[k][1] = (int)cv[2 * k + 1];
+		}
+		for (k = 0; k < nc; k++)
+			counts[k] = -1;
+		why = cq_dual_cut(CQ_DUAL_NB, nc, (const int (*)[2])cells, nl, lp, nu, up, uv,
+		                  CQ_DUAL_TRIM, CQ_DUAL_MIN_UV, CQ_DUAL_EDGE_STEPS, out, counts);
+		printf("cutcase %s %s %.17g %.17g", name, why == NULL ? "ok" : why,
+		       cq_dual_flatness(CQ_DUAL_NB, nc, (const int (*)[2])cells, lp, nu, up, uv, CQ_DUAL_TRIM),
+		       cq_dual_window_flatness(CQ_DUAL_NB, nc, (const int (*)[2])cells, lp, nu, up, uv,
+		                               CQ_DUAL_EDGE_STEPS));
+		for (k = 0; k < nc; k++)
+			printf(" %d", counts[k]);
+		printf(" |");
+		for (k = 0; k < nc; k++)
+			printf(" %.17g", counts[k] > 0 ? out[k * CQ_DUAL_NB] : 0.0);
+		printf("\n");
+		free(cells); free(counts); free(cv); free(lp); free(up); free(uv); free(out);
+	}
+	fclose(f);
+}
+
+/* The alignment (second fix round of 2026-11-21) on cases from a file named by
+ * CQ_DUAL_ALIGN_CASES (tests/test_uv_pass_rule.py writes it): per case "align
+ * <name> <nlamp> <nuv> <lo> <hi>", then "P" nlamp lamp positions, "S" nlamp
+ * lamp signals, "Q" nuv UV positions, "V" nuv UV signals. Prints "aligncase
+ * <name> <ok|reason> <offset> <rise>". */
+static void align_cases(const char *path) {
+	FILE *f = fopen(path, "r");
+	char kw[16], name[128];
+	int nl, nu;
+	double lo, hi;
+	if (f == NULL) {
+		printf("align_cases unreadable\n");
+		return;
+	}
+	while (fscanf(f, "%15s %127s %d %d %lf %lf", kw, name, &nl, &nu, &lo, &hi) == 6
+	       && strcmp(kw, "align") == 0 && nl > 0 && nu > 0) {
+		double *lp = malloc(sizeof(double) * (size_t)nl), *ls = malloc(sizeof(double) * (size_t)nl);
+		double *up = malloc(sizeof(double) * (size_t)nu), *us = malloc(sizeof(double) * (size_t)nu);
+		double off = 0.0, rise = 0.0;
+		const char *why;
+		if (!(lp && ls && up && us && read_n(f, "P", lp, nl) && read_n(f, "S", ls, nl)
+		      && read_n(f, "Q", up, nu) && read_n(f, "V", us, nu))) {
+			printf("aligncase %s unreadable\n", name);
+			break;
+		}
+		why = cq_dual_align(nl, lp, ls, nu, up, us, lo, hi, &off, &rise);
+		printf("aligncase %s %s %.17g %.17g\n", name, why == NULL ? "ok" : why, off, rise);
+		free(lp); free(ls); free(up); free(us);
+	}
+	fclose(f);
+}
+
 int main(void) {
 	cq_dual_cal c;
 	double L[CQ_DUAL_NB], U[CQ_DUAL_NB], m1[CQ_DUAL_NB], m2[CQ_DUAL_NB];
@@ -148,17 +245,17 @@ int main(void) {
 			for (j = 0; j < CQ_DUAL_NB; j++) uv[k * CQ_DUAL_NB + j] = pp + 1.0;
 		}
 		why = cq_dual_cut(CQ_DUAL_NB, 12, (const int (*)[2])cells, nl, lp, nu, up, uv,
-		                  CQ_DUAL_TRIM, CQ_DUAL_MIN_UV, out, counts);
+		                  CQ_DUAL_TRIM, CQ_DUAL_MIN_UV, CQ_DUAL_EDGE_STEPS, out, counts);
 		printf("cut %s", why == NULL ? "ok" : why);
 		for (k = 0; k < 12; k++) printf(" %.17g:%d", out[k * CQ_DUAL_NB], counts[k]);
 		printf("\n");
 		/* the second pass stopped half way */
 		why = cq_dual_cut(CQ_DUAL_NB, 12, (const int (*)[2])cells, nl, lp, 36, up, uv,
-		                  CQ_DUAL_TRIM, CQ_DUAL_MIN_UV, out, counts);
+		                  CQ_DUAL_TRIM, CQ_DUAL_MIN_UV, CQ_DUAL_EDGE_STEPS, out, counts);
 		printf("cut_half %s\n", why == NULL ? "ok" : why);
 		for (k = 0; k < nu; k++) up[k] = 0.0;
 		why = cq_dual_cut(CQ_DUAL_NB, 12, (const int (*)[2])cells, nl, lp, nu, up, uv,
-		                  CQ_DUAL_TRIM, CQ_DUAL_MIN_UV, out, counts);
+		                  CQ_DUAL_TRIM, CQ_DUAL_MIN_UV, CQ_DUAL_EDGE_STEPS, out, counts);
 		printf("cut_no_ruler %s\n", why == NULL ? "ok" : why);
 		/* review 2026-11-18 S3: the alignment measure and its gate. A
 		 * little invented noise inside each cell; then the same pass half a
@@ -174,7 +271,7 @@ int main(void) {
 		printf("flat %.17g\n", cq_dual_flatness(CQ_DUAL_NB, 12, (const int (*)[2])cells, lp, nu, up, uv,
 		                                        CQ_DUAL_TRIM));
 		why = cq_dual_cut(CQ_DUAL_NB, 12, (const int (*)[2])cells, nl, lp, nu, up, uv,
-		                  CQ_DUAL_TRIM, CQ_DUAL_MIN_UV, out, counts);
+		                  CQ_DUAL_TRIM, CQ_DUAL_MIN_UV, CQ_DUAL_EDGE_STEPS, out, counts);
 		printf("cut_aligned %s\n", why == NULL ? "ok" : why);
 		for (k = 0; k < nu; k++) {	/* what is under the aperture is half a pitch on */
 			int pp = (int)((up[k] + 35.0) / 70.0);
@@ -185,11 +282,20 @@ int main(void) {
 		printf("flat_half %.17g\n", cq_dual_flatness(CQ_DUAL_NB, 12, (const int (*)[2])cells, lp, nu, up, uv,
 		                                             CQ_DUAL_TRIM));
 		why = cq_dual_cut(CQ_DUAL_NB, 12, (const int (*)[2])cells, nl, lp, nu, up, uv,
-		                  CQ_DUAL_TRIM, CQ_DUAL_MIN_UV, out, counts);
+		                  CQ_DUAL_TRIM, CQ_DUAL_MIN_UV, CQ_DUAL_EDGE_STEPS, out, counts);
 		printf("cut_half_pitch %s\n", why == NULL ? "ok" : why);
 	}
 	if (getenv("CQ_DUAL_PAIRING_CASES") != NULL)
 		pairing_cases(getenv("CQ_DUAL_PAIRING_CASES"));
+	if (getenv("CQ_DUAL_CUT_CASES") != NULL)
+		cut_cases(getenv("CQ_DUAL_CUT_CASES"));
+	if (getenv("CQ_DUAL_ALIGN_CASES") != NULL)
+		align_cases(getenv("CQ_DUAL_ALIGN_CASES"));
+	printf("align_consts %.17g %.17g %d %.17g %.17g\n", (double)CQ_DUAL_ALIGN_SPAN,
+	       (double)CQ_DUAL_ALIGN_STEP, CQ_DUAL_ALIGN_MIN_READINGS, (double)CQ_DUAL_MAX_OFFSET,
+	       (double)CQ_DUAL_MIN_RISE);
+	printf("edge_steps %.17g trim %.17g min_uv %d max_edge_flatness %.17g\n", (double)CQ_DUAL_EDGE_STEPS,
+	       (double)CQ_DUAL_TRIM, CQ_DUAL_MIN_UV, (double)CQ_DUAL_MAX_EDGE_FLATNESS);
 	printf("ALL DONE\n");
 	return 0;
 }

@@ -186,6 +186,16 @@ def _c_fields(event: str) -> "set[str]":
     raise AssertionError(f"{event} is not emitted by the C sources")
 
 
+def _c_pace_fields() -> "set[str]":
+    """The OPTIONAL pace fields of dual_pass_result (after 4.3.54, helper
+    2026-11-21b): cq_dd_result adds them after the cut, as one block."""
+    text = (ROOT / "native" / "chartread_helper" / "chromiq_dualdev.c").read_text(
+        encoding="utf-8", errors="replace")
+    i = text.index('",\\"pace\\":true')
+    fmt = "".join(re.findall(r'"((?:[^"\\]|\\.)*)"', text[i:text.index(");", i)]))
+    return set(re.findall(r'\\"(\w+)\\":', fmt)) | {"lamp_cells", "uv_counts"}
+
+
 def _sim_events(tmp_path, monkeypatch, script):
     """Run the simulated helper on a real chart; *script(s)* drives it."""
     import tests.helpers.replay_tools as rt
@@ -250,7 +260,12 @@ def test_the_simulation_speaks_the_real_helpers_events(tmp_path, monkeypatch):
         got = [e for e in s.events if e.get("event") == ev]
         assert got, ev
         for e in got:
-            assert set(e) - {"event"} == _c_fields(ev), (ev, e)
+            keys = set(e) - {"event"}
+            if ev == "dual_pass_result" and "pace" in keys:
+                # the pace block comes whole, or not at all
+                assert _c_pace_fields() <= keys, (sorted(_c_pace_fields() - keys), e)
+                keys -= _c_pace_fields()
+            assert keys == _c_fields(ev), (ev, e)
     res = [e for e in s.events if e.get("event") == "dual_pass_result"]
     assert [(r["ok"], r["why"]) for r in res] == [
         (False, "uv_pass_wrong_strip"), (True, ""), (True, "")]

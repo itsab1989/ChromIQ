@@ -12238,6 +12238,138 @@ M_DUAL_PASS_NOTE = _m(
     "{note}",
     approved=False)
 
+#: After each hand dual strip whose two passes were accepted (after 4.3.54,
+#: the pace): in the Measure log and as the reading-speed line under the
+#: chart. {lamp_s} / {uv_s} the passes' seconds of reading (readings x their
+#: integration time; the time under the strip is the same number), {fewest}
+#: the UV readings of the patch that got the fewest, {need} the least ChromIQ
+#: takes (3). Green from {need} + 2; the _CLOSE variant (amber) below that,
+#: where a pass about a quarter faster is refused (review m4).
+M_DUAL_PASS_PACE = _m(
+    "M-DUAL-PASS-PACE",
+    "Strip {strip}: both passes read",
+    "Pass 1 (lamp): {lamp_s} seconds, pass 2 (UV light): {uv_s} seconds of reading. "
+    "Every patch got at least {fewest} readings in pass 2 (ChromIQ needs {need}): "
+    "this pace leaves room.",
+    approved=False)
+
+M_DUAL_PASS_PACE_CLOSE = _m(
+    "M-DUAL-PASS-PACE-CLOSE",
+    "Strip {strip}: both passes read, close to the limit",
+    "Pass 1 (lamp): {lamp_s} seconds, pass 2 (UV light): {uv_s} seconds of reading. "
+    "Its emptiest patch got {fewest} readings, close to the {need} ChromIQ needs. "
+    "A little slower and more even over the next strips keeps them from having "
+    "to be read again.",
+    approved=False)
+
+#: A second pass refused as too fast, when the engine says by how much
+#: (after 4.3.54): the {reason} of M-DUAL-PASS-FAILED and the log. Three
+#: cases (fix round of 2026-11-21, review M3 / m1): the pass was slow enough
+#: as a whole and one stretch was fast (_UNEVEN: half of the patches got
+#: {median} or more, twice what is needed); the time it would need stays well
+#: under the pass's limit (this one: {target_s} = the pass's seconds x
+#: ({need} + 0.5) / {fewest}, rounded up to half a second, the half reading
+#: for the room a count needs above the limit); or it would not (_EVEN, no
+#: time named, {cap_s} the longest pass ChromIQ takes).
+M_DUAL_PASS_TOO_FAST = _m(
+    "M-DUAL-PASS-TOO-FAST",
+    "The second pass (UV light) was too fast",
+    "In the second pass (UV light) one patch got only {fewest} readings, and "
+    "ChromIQ needs at least {need} on every patch. The pass lasted {uv_s} seconds "
+    "of reading: next time take a little longer than {target_s} seconds for it, at "
+    "an even speed. "
+    "Read this strip once more, both passes: the first pass with the lamp "
+    "as usual, then the second pass with the UV light right after it, "
+    "without lifting the instrument. For now ChromIQ always reads the two "
+    "passes of a strip together, so the first pass is read again too.",
+    body_one="In the second pass (UV light) one patch got only 1 reading, and "
+    "ChromIQ needs at least {need} on every patch. The pass lasted {uv_s} seconds "
+    "of reading: next time take a little longer than {target_s} seconds for it, at "
+    "an even speed. "
+    "Read this strip once more, both passes: the first pass with the lamp "
+    "as usual, then the second pass with the UV light right after it, "
+    "without lifting the instrument. For now ChromIQ always reads the two "
+    "passes of a strip together, so the first pass is read again too.",
+    count_key="fewest",
+    approved=False)
+
+M_DUAL_PASS_TOO_FAST_UNEVEN = _m(
+    "M-DUAL-PASS-TOO-FAST-UNEVEN",
+    "One patch got too few readings in the second pass (UV light)",
+    "In the second pass (UV light) one patch got only {fewest} readings, and "
+    "ChromIQ needs at least {need} on every patch. Half of the patches got {median} "
+    "readings or more, so the pass as a whole was not too fast: this one patch got "
+    "fewer readings than the others (a quicker moment there, or a narrower patch). "
+    "Next time keep your pace and move evenly over the whole strip. "
+    "Read this strip once more, both passes: the first pass with the lamp "
+    "as usual, then the second pass with the UV light right after it, "
+    "without lifting the instrument. For now ChromIQ always reads the two "
+    "passes of a strip together, so the first pass is read again too.",
+    body_one="In the second pass (UV light) one patch got only 1 reading, and "
+    "ChromIQ needs at least {need} on every patch. Half of the patches got {median} "
+    "readings or more, so the pass as a whole was not too fast: this one patch got "
+    "fewer readings than the others (a quicker moment there, or a narrower patch). "
+    "Next time keep your pace and move evenly over the whole strip. "
+    "Read this strip once more, both passes: the first pass with the lamp "
+    "as usual, then the second pass with the UV light right after it, "
+    "without lifting the instrument. For now ChromIQ always reads the two "
+    "passes of a strip together, so the first pass is read again too.",
+    count_key="fewest",
+    approved=False)
+
+M_DUAL_PASS_TOO_FAST_EVEN = _m(
+    "M-DUAL-PASS-TOO-FAST-EVEN",
+    "The second pass (UV light) was too fast",
+    "In the second pass (UV light) one patch got only {fewest} readings, and "
+    "ChromIQ needs at least {need} on every patch. Next time move a little slower "
+    "and keep the speed even over the whole strip; a pass may last up to about "
+    "{cap_s} seconds. "
+    "Read this strip once more, both passes: the first pass with the lamp "
+    "as usual, then the second pass with the UV light right after it, "
+    "without lifting the instrument. For now ChromIQ always reads the two "
+    "passes of a strip together, so the first pass is read again too.",
+    body_one="In the second pass (UV light) one patch got only 1 reading, and "
+    "ChromIQ needs at least {need} on every patch. Next time move a little slower "
+    "and keep the speed even over the whole strip; a pass may last up to about "
+    "{cap_s} seconds. "
+    "Read this strip once more, both passes: the first pass with the lamp "
+    "as usual, then the second pass with the UV light right after it, "
+    "without lifting the instrument. For now ChromIQ always reads the two "
+    "passes of a strip together, so the first pass is read again too.",
+    count_key="fewest",
+    approved=False)
+
+#: The reading-speed line under the chart after such a refusal: the numbers
+#: only (review m2: the whole message there was four lines of red).
+M_DUAL_PASS_TOO_FAST_LINE = _m(
+    "M-DUAL-PASS-TOO-FAST-LINE",
+    "The second pass (UV light) was too fast",
+    "One patch got only {fewest} readings ({need} needed) in {uv_s} seconds of "
+    "reading.",
+    body_one="One patch got only 1 reading ({need} needed) in {uv_s} seconds of "
+    "reading.",
+    count_key="fewest",
+    approved=False)
+
+#: A second pass refused because it did not line up with the first over the
+#: readings that are averaged (fix round of 2026-11-21, review B1,
+#: ``uv_pass_shifted``): the {reason} of M-DUAL-PASS-FAILED and the log; the
+#: same sentence as workflow/dual_scan/reasons.py's.
+M_DUAL_PASS_SHIFTED = _m(
+    "M-DUAL-PASS-SHIFTED",
+    "The second pass (UV light) did not line up with the first",
+    "The second pass (UV light) did not line up closely enough with the first pass "
+    "at the ends of the patches: on the way back the instrument's position along "
+    "the ruler came out a little different, for example because it was lifted "
+    "slightly, tilted or pressed differently. Near the patch edges ChromIQ then "
+    "cannot be sure which patch a reading belongs to, so none of this pass is "
+    "used. "
+    "Read this strip once more, both passes: the first pass with the lamp "
+    "as usual, then the second pass with the UV light right after it, "
+    "without lifting the instrument. For now ChromIQ always reads the two "
+    "passes of a strip together, so the first pass is read again too.",
+    approved=False)
+
 #: Before START: a dual measurement continued as a single scan, or the
 #: other way round (`storage.start_guard`).
 M_DUAL_START_REFUSED = _m(
@@ -14293,6 +14425,9 @@ CATALOGUE = {m.id: m for m in (
     M_DUAL_PASS_ONE, M_DUAL_PASS_TWO, M_DUAL_PASS_TWO_UNREAD,
     M_DUAL_PASS_FAILED, M_DUAL_SPOT_FAILED, M_DUAL_ENDED, M_DUAL_ON,
     M_DUAL_PASS_NOTE, M_DUAL_START_REFUSED, M_DUAL_FILTER_OFF_PARENT,
+    M_DUAL_PASS_PACE, M_DUAL_PASS_PACE_CLOSE, M_DUAL_PASS_TOO_FAST,
+    M_DUAL_PASS_TOO_FAST_UNEVEN, M_DUAL_PASS_TOO_FAST_EVEN, M_DUAL_PASS_TOO_FAST_LINE,
+    M_DUAL_PASS_SHIFTED,
     M_DUAL_CONTINUE_M0, M_DUAL_NOCAL_REFUSED, M_DUAL_PASS_ONE_NO_CAL,
     M_DUAL_CAL_AGAIN, M_DUAL_PASS_HELD, M_DUAL_HIGHRES_REFUSED,
     M_DUAL_PASS_ONE_NO_CAL_KEPT,

@@ -132,7 +132,9 @@ mismatch (white at 154 clocks, strip at 139), which `calibration_mismatch` refus
   where it applies).
 * UV pass: valid by (a) the ruler: it covered every patch of the lamp pass (`uv_pass_short`), with
   no gap or stall (`uv_pass_stalled`), with at least 3 readings per patch (`uv_pass_too_fast`;
-  the recordings had 4-5, slow 9-10); either direction, the ruler says which; and (b) it belongs to
+  counted, after 4.3.54, over the lamp cell's whole span less a quarter ruler step at each end
+  after the UV pass has been lined up with the lamp pass, until 4.3.54 over its central 60 %:
+  section 17); either direction, the ruler says which; and (b) it belongs to
   the strip (`uv_pass_wrong_strip`): at 380-400 nm nothing glows, so the UV reading must follow
   (T/W) x the lamp pass across the strip's patches (correlation >= 0.95 and median ratio error
   <= 0.10). DARK PATCHES (review, M2): the ratio's noise grows as the lamp level falls (median
@@ -155,7 +157,13 @@ mismatch (white at 154 clocks, strip at 139), which `calibration_mismatch` refus
   at 400-500 nm) is a gate: above 0.01 the UV pass is refused as `uv_pass_misaligned` (the
   instrument lifted between the passes, the ruler's count lost). Measured: 0.00001-0.00004 in
   place, 0.09-0.35 half a pitch off. Not judged when the strip's patches hardly differ (note
-  `alignment_not_checked`).
+  `alignment_not_checked`). This measure is taken over the central 60 % of each cell. After
+  4.3.54 the UV pass is first lined up with the lamp pass by their 380-400 nm readings: an offset
+  above 3 steps is refused as `uv_pass_shifted`; then the same measure over the averaging window
+  must also stay at or below 0.001 (section 17). A strip that cannot be lined up (no single
+  offset fits clearly, or no lamp readings to line up with) is NOT refused: it is cut uncorrected
+  with 4.3.54's central 60 %, with 4.3.54's limits (section 17). The per-patch claim is section
+  17's and holds for lined-up strips.
 * A lamp pass read again keeps the strip's UV pass only when the UV pass is proved to belong to
   it; otherwise the UV pass is due again (`lamp_pass_changed`).
 * A dual scan by hand needs the ruler: without usable ruler positions the UV pass cannot be
@@ -911,3 +919,125 @@ instrument or table. Tests: `tests/test_4354_dual_scan_mode.py`, `tests/test_435
   measured with M0 chosen has no M1 or M2 later without measuring it again).
 * **Not changed:** what is sent to the instrument or the table in a dual scan or a single scan;
   Build Profile's offer (an M0-only run behaves as any i1Pro 2 run without the dual scan).
+
+### 17. ⏳ Awaiting confirmation: the UV pass counted over the whole clean middle, and the pace after each strip (2026-11-21, after 4.3.54)
+
+**Confirmed by:** *nobody yet.*
+
+Built on the owner's words of 2026-11-21, *"yes do it as suggested 1 and 2"* (the study of the
+refused UV passes, work folder 2026-11-21_uv_pass_refusals: a tester's i1Pro 2 refused 27 of 87
+UV passes as too fast). He approved the change, not the result below. Tested on the replay of
+instrument 1's recorded hand dual sessions (private, numbers only: work folder
+2026-11-21_uv_pass_build, `proof.txt`), against the simulated helper, and driven on screen against
+it; never on a real instrument. Tests: `tests/test_uv_pass_rule.py`, `tests/test_dual_scan_pace.py`.
+Helper 2026-11-21b; lined up from helper 2026-11-21e (second fix round). Changes what section 2a
+says about the UV pass's window.
+
+* **The UV readings of a patch.** The cells are ArgyllCMS's own, already trimmed to the clean
+  middle 66 % of each patch it found in the lamp pass (it accepts a lamp patch from 4 readings
+  there). Until 4.3.54 the UV readings of a patch were those whose ruler position lay in the
+  central 60 % of the cell's span (first to last lamp reading), so the UV pass needed about 1.5
+  times slower movement than the lamp pass. Now, first, the UV pass is LINED UP with the lamp
+  pass (below), and then a patch's UV readings are those in the whole span less a quarter ruler
+  step at each end (`CQ_DUAL_EDGE_STEPS` / `cut.EDGE_STEPS` 0.25); at least 3 readings per patch
+  as before.
+* **Lined up first (second fix round of 2026-11-21, the verification's V1).** The UV pass's
+  ruler positions are off the lamp pass's by an offset that differs per strip: the count labels
+  one stripe edge one count apart in the two directions, and the hand adds to that (13 recorded
+  strips: -1.0 to +1.45 steps). The first version left half a step at each end and relied on an
+  alignment measure averaged over the strip (`uv_pass_shifted` at 0.001); the verification showed,
+  patch by patch, accepted strips with single patch ends up to 0.48 dE00 worse in M2 at an extra
+  1 to 1.5 steps, and already 0.34 at 1.25 times the speed within the recorded offsets. A larger
+  fixed margin does not hold either (1.5 steps: patches up to 0.64 worse at +1.25 to +3 steps, the
+  speed gain gone: first refusal at 1.05 times). So the offset is MEASURED per strip: at 380-400
+  nm nothing glows, so the UV pass reads there (T / W) x the lamp reflectance at the same place;
+  the helper keeps the lamp pass's own 380-400 nm readings, and the offset is the shift (-6.5 to
+  +6.5 steps in 0.05) that best lines the two up, one gain, least squares
+  (`cq_dual_align` / `cut.estimate_offset`). The UV positions are corrected by it, then cut.
+  Refused as `uv_pass_shifted` (M-DUAL-PASS-SHIFTED: both passes again, section 0 (a)) when the
+  offset is above 3 steps (beyond anything recorded: the instrument moved between the passes).
+  The averaging window's measure (0.001) stays as a second check; it is an average over the strip
+  and does not by itself hold a single patch.
+* **When a strip cannot be lined up: 4.3.54's window, not a refusal (third round of 2026-11-21,
+  decided by the coordinator: "we do not block what can be measured today").** Two cases: (1) no
+  single offset fits clearly (the residual one step either side below 1.15 times the best: patches
+  alike at 380-400 nm, or an offset that changes by several steps along the pass); (2) the helper
+  has no lamp readings to line up with (a lamp pass over 4000 readings, a failed allocation). The
+  strip is then cut UNCORRECTED with 4.3.54's central 60 % window and 4.3.54's gate, exactly
+  4.3.54's behaviour and exposure, not a new one: measured on the replay, fine up to about 2 steps
+  of real offset (at most 0.095 dE00 per patch at the recorded offsets), beyond that up to 1.2
+  dE00 for a uniform offset and up to 3.9 dE00 when the offset jumps by 3 steps or more in mid
+  pass (the pairing check does not catch that). On such a strip the speed gain is lost too: the
+  readings are counted in the central 60 %, and the pace line and the "too fast" advice are
+  computed from those counts (the window actually used), so they ask for the slower pace again.
+  The narrow window is used ONLY on lined-up positions (`cq_dd_edge`). The app log says per strip
+  which way was taken: `align=lined_up offset_steps=... offset_rise=... window=span_less_edge`, or
+  `align=not_lined_up` / `not_measured` with `window=central_60` and `edge_steps=-1`.
+* **The tester's own chart (480 patches on Action, an OBA paper).** At 380-400 nm its
+  patch-to-patch contrast is about 0.39 times that of instrument 1's 13 recorded strips (also
+  Action and Moab, both strongly brightened). Simulated with the recordings' geometry and noise
+  and their measured mismatch between the passes (checked against the replay), all 20 of his
+  strips line up (720 of 720 passes, 1x and 1.25x, shifts -1 to +1). The margin to the "not clear"
+  line is smaller than on the recordings; a strip falls back only far below his contrast (about
+  0.15 times the recordings'). Work folder `proof4/`.
+* **Why a quarter step (the physical reason).** After the correction what is left is the
+  estimate's own scatter: replayed at up to 1.5 times the speed and with up to 5 times the noise,
+  median 0.05, at most 0.20 steps; rounded up to the next quarter step. Readings beyond the span
+  stay inside ArgyllCMS's own trimmed-off sixth of the patch.
+* **The claim, per patch (replayed, instrument 1's 13 recorded strips; work folder
+  `proof3/out_final.txt`).** With the UV positions shifted -6 to +6 steps by 0.25 beyond their own
+  offset, at 1, 1.1, 1.25 and 1.5 times the speed: on every strip accepted, EVERY patch within 0.09
+  dE00 in M2 and 0.02 in M1 of the same patch read at the recorded alignment with 4.3.54's window
+  (the largest, +0.087, is one patch whose difference is reading noise, the same at every shift).
+  Shifts that leave an offset above 3 steps are refused. No good pass refused (recorded alignment,
+  2 to 5 times the noise, 234 passes). C and Python give the same offset on all 13 strips. This
+  claim is for strips that were lined up, with an offset that holds along the pass; an offset that
+  changes by up to 1 step in mid pass stays within about 0.14 dE00 per patch; strips that cannot
+  be lined up have 4.3.54's limits (above).
+* **What it changes, replayed (at the recorded alignment).** M1 / M2 against i1Profiler unchanged
+  within noise. The simulated speed of the first refusal rises from about 1.05 to about 1.7 times
+  the recorded i1Profiler pace (median of 13 strips, least 1.25; the lamp pass's own limit is about
+  1.67): of the 13 recorded strips, 4.3.54's rule refused 4 at the recorded pace, the new rule none.
+  The earlier private proofs had cut with the cells before ArgyllCMS's trim and over-counted; with
+  the cells the helper uses, the recorded vendor pace already sat on 4.3.54's limit.
+* **What is not shown:** a real chart that falls back (none of the recorded strips, none of the
+  tester's simulated ones), and a second instrument.
+* **The pace after each strip** (no new window). The helper's `dual_pass_result` of a hand strip
+  carries, after the cut, `pace: true` with each pass's seconds (its readings x their integration
+  time), readings, ruler travel in counts and direction, the readings per patch of both passes
+  (`lamp_cells`, `uv_counts`), `need` (3), `edge_steps`, and when the lamp went out, the dark
+  reading before the UV pass, the UV trigger and its end (`lamp_off_ms`, `uv_dark_ms`,
+  `uv_trigger_ms`, `uv_done_ms`, after the lamp pass's readings). No speed in mm/s: the ruler's mm
+  scale is not measured for the i1Pro 2.
+  * Accepted strip: the Measure log and the reading-speed line under the chart say both passes'
+    seconds of reading and the emptiest patch's readings against the 3 needed (M-DUAL-PASS-PACE,
+    green from 5; M-DUAL-PASS-PACE-CLOSE, amber, at 3 or 4); the time under the strip is the
+    second pass's seconds of reading, the same number.
+  * ONE VERDICT PER DUAL STRIP (fix round, review M2). The reading-speed check of #131 times a
+    strip from the SECOND pass's beep against ArgyllCMS's lamp-pass rule (samples per patch),
+    which decides nothing about the UV pass; at i1Profiler's own normal pace (2.2 to 3.4 s) it said
+    "Too fast" and offered to read again while the readings per patch left room. A hand dual strip
+    whose engine gives the pace is judged by the dual check alone: no #131 line or prompt.
+  * A second pass refused as too fast: "Strip Read Failed" (M-DUAL-PASS-FAILED) gives, as its
+    reason, how many readings the emptiest patch got and how many are needed, and (fix round,
+    review M3 / m1): when half of the patches got twice that or more, that one stretch was fast and
+    to move evenly (M-DUAL-PASS-TOO-FAST-UNEVEN, no time named); otherwise a little longer than its
+    seconds x (3 + 0.5) / readings, rounded up to half a second (M-DUAL-PASS-TOO-FAST); never a
+    time at or above 0.8 x the longest pass taken (4000 readings, about 19.6 s): then only the
+    limit (M-DUAL-PASS-TOO-FAST-EVEN). The reading-speed line says the numbers only, in red
+    (M-DUAL-PASS-TOO-FAST-LINE). A pass refused as not lined up: M-DUAL-PASS-SHIFTED, its headline
+    as the line.
+  * The app log: `dual pass:` per verdict with these numbers (minimum and median per patch, both
+    alignment measures and the window's limit, the advice case, slower factor, target and the
+    pass limit on a refusal), `dual pass patches:` with both lists in full at DEBUG. No serial, no
+    path. The seconds use the driver's integration clock, the i1Pro 2's 36 us once a calibration
+    has run (always before a dual strip): replayed, 5.004 ms per reading at i1Profiler's 139
+    clocks.
+  * "Ruler (beta)": with the ruler check on, the opening line of a dual measurement says that the
+    ruler lines the two passes up and that each strip's pace line is shown instead of the distance
+    and speed (it promised per-strip ruler lines that a dual strip never gets).
+  * An older helper sends none of this; then the texts are 4.3.54's.
+* **Not changed:** what is sent to the instrument (the driver only notes times); the lamp pass's
+  rules; the pairing check; spot readings; the i1iO table's dual rows (their own cut,
+  `dual_rows.py`); a single scan.
+
