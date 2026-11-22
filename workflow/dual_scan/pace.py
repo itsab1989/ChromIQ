@@ -47,6 +47,18 @@ def _num(v) -> "float | None":
     return f if math.isfinite(f) else None
 
 
+def _sci(v) -> "str | float | None":
+    """An alignment measure for the app log: scientific (``2.345e-04``), so
+    a value far below a thousandth is not written as 0; -1 ("not judged")
+    stays -1, and a missing one stays missing."""
+    f = _num(v)
+    if f is None:
+        return None
+    if f < 0:
+        return -1.0 if f == -1 else f
+    return f"{f:.3e}"
+
+
 def has_pace(ev: dict) -> bool:
     """The event carries the pace (a helper from 2026-11-21b, a hand strip
     that got as far as the cut)."""
@@ -220,9 +232,11 @@ def log_result(ev: dict) -> None:
                 "uv_trigger_ms": ev.get("uv_trigger_ms"),
                 "uv_done_ms": ev.get("uv_done_ms"),
                 # the two alignment measures (-1: not judged) and the window's limit
-                "flatness": _num(ev.get("flatness")),
-                "window_flatness": _num(ev.get("window_flatness")),
-                "max_window_flatness": _num(ev.get("max_window_flatness")),
+                # IN SCIENTIFIC FORM (4.3.57, item 14): they are of the order
+                # of 1e-4, and the log's three decimals printed them as 0
+                "flatness": _sci(ev.get("flatness")),
+                "window_flatness": _sci(ev.get("window_flatness")),
+                "max_window_flatness": _sci(ev.get("max_window_flatness")),
                 # second fix round: the UV pass lined up (offset subtracted, how clearly)
                 "align": str(ev.get("align") or "") or None,
                 # the window the readings were counted in: "span_less_edge" (lined up) or

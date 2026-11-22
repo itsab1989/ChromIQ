@@ -170,8 +170,10 @@ def test_the_app_log_has_the_pace_and_the_lists_in_full(caplog):
                 "lamp_readings=756", "lamp_s=3.7", "uv_dir=1", "uv_travel=512", "uv_s=3.8",
                 "uv_readings=840", "uv_count_min=2", "need=3", "edge_steps=0.5",
                 "lamp_off_ms=2", "uv_dark_ms=1150", "uv_trigger_ms=1190", "slower_factor=1.75",
-                "target_s=7", "advice=time", "cap_s=19.584", "flatness=0", "window_flatness=0",
-                "max_window_flatness=0.001", "align=lined_up", "offset_steps=0.85",
+                "target_s=7", "advice=time", "cap_s=19.584",
+                # scientific since 4.3.57 (item 14): "flatness=0" hid the value
+                "flatness=2.000e-05 ", "window_flatness=3.000e-05 ",
+                "max_window_flatness=1.000e-03", "align=lined_up", "offset_steps=0.85",
                 "offset_rise=1.7",
                 "lamp_cell_min=", "lamp_cell_median=", "uv_count_median="):
         assert key in main[0], (key, main[0])
@@ -372,3 +374,14 @@ def test_the_manager_tells_the_ruler_session_about_the_dual_scan():
     i = src.index("self._ruler = RulerSession(")
     assert "dual=bool(params.engine_dual_args)" in src[i:i + 900]
     assert D is not None
+
+
+def test_an_unjudged_alignment_stays_minus_one(caplog):
+    """-1 means "not judged" and must read so, not as -1.000e+00."""
+    caplog.set_level(logging.DEBUG, logger="chromiq.events")
+    ev = _ev(ok=True, fewest=4, uv_s=3.8, why="", n=23)
+    ev["window_flatness"] = -1
+    P.log_result(ev)
+    main = [r.getMessage() for r in caplog.records
+            if r.getMessage().startswith("dual pass: ")][0]
+    assert "window_flatness=-1 " in main or main.endswith("window_flatness=-1"), main
