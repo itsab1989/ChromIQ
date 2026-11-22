@@ -34,6 +34,7 @@ import re
 import shutil
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -76,13 +77,21 @@ def traces(tmp_path_factory) -> "dict[str, str]":
                        capture_output=True, text=True, encoding="utf-8", errors="replace",
                        timeout=1500)
     assert r.returncode == 0, r.stdout[-3000:] + r.stderr[-3000:]
-    out = {}
-    for t in targets:
+    def run(t):
         exe = next(p for p in build.rglob(t + "*")
                    if p.is_file() and os.access(p, os.X_OK) and p.name in (t, t + ".exe"))
         # budgeted for a loaded machine: about 15 s idle
-        rr = subprocess.run([str(exe)], capture_output=True, text=True, encoding="utf-8",
-                            timeout=600)
+        return subprocess.run([str(exe)], capture_output=True, text=True, encoding="utf-8",
+                              timeout=600)
+
+    # SIDE BY SIDE (4.3.57, item 28, as tests/test_usb_failure_detail.py): each life
+    # spends its time in the driver's own real waits (measured: 32 s of CPU in 110 s of
+    # fixture), so the three binaries run as three separate processes at once; each is
+    # still its own run of its own binary, and each is checked on its own.
+    with ThreadPoolExecutor(max_workers=len(targets)) as pool:
+        done = dict(zip(targets, pool.map(run, targets)))
+    out = {}
+    for t, rr in done.items():
         assert rr.returncode == 0 and rr.stdout.rstrip().endswith("ALL DONE"), \
             t + " did not finish\n" + rr.stdout[-2000:] + rr.stderr[-2000:]
         out[t] = rr.stdout
