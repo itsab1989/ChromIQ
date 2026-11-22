@@ -365,6 +365,25 @@ suite once sat on that single call for two and a half hours with no output.
 When a run does appear stuck, `pytest --timeout=300 --timeout-method=thread`
 (pytest-timeout) makes the stack name the test instead of guessing.
 
+**A TEST THAT NEVER ENDS NOW ENDS THE RUN, RED, WITH ITS NAME (2026-11-22).**
+`faulthandler_timeout` dumps ONCE and then lets the test run on: the first
+4.3.56 gate printed one 5-minute dump of
+`test_units_choice.py::test_400_random_pixel_pages[400]` and then sat silent
+until a watchdog killed it at 50 minutes (it takes 269 s alone; the same tree's
+next gate finished in 15:42; the stall did not come back in two loaded runs of
+the table files, one instrumented gate and five loaded runs of that file, so
+its cause is NOT found). `pytest.ini` now sets `timeout = 900` and
+`timeout_method = thread` (pytest-timeout, declared in `requirements-dev.txt`;
+the dev venv already had it, and six table test files already set
+`@pytest.mark.timeout`, which did nothing without it). A stuck test is ended
+after 15 minutes: every thread is dumped, the worker ends, the crash banner
+names it and the run exits non-zero. Proved with a planted `sleep(3600)` at
+`-o timeout=5` under `-n 2`: red after 5 s, the test named. Measured: the
+550-file targeted list takes 530 s with it against 536 and 540 s without, so
+it costs nothing. 900 s is 3.3x the slowest test alone; under heavy load the
+slowest seen was 385 s (`test_mm_in_mm_and_in_mm_in_never_change_the_page[1000]`).
+A test that legitimately needs longer sets its own `@pytest.mark.timeout`.
+
 **…and a timeout that is too TIGHT is a phantom red.** The other half of the
 same rule, learned 2026-09-02. `test_webengine_shutdown` spawned a subprocess
 that builds a real `QWebEngineView` and waited `timeout=60`. Measured idle, that

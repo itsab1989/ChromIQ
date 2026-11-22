@@ -16,5 +16,8 @@ pytest-xdist>=3.8   # parallel runs: -n 8 --dist loadfile. loadfile keeps a
                     # file's tests in one worker — order within a file is
                     # load-bearing in places, and this suite has had a
                     # stylesheet leak travel 400 tests before now.
+pytest-timeout>=2.3  # pytest.ini's `timeout`: a test that never ends ends the run red, named;
+                    # also the @pytest.mark.timeout marks of the table tests (they did nothing
+                    # without it). Already in the dev venv, declared 2026-11-22.
 pypdf>=4.0          # test-only: parses the vector-PDF export for fidelity checks
 pymupdf                # scripts/make_workflow_diagram.py (diagram generation only)
