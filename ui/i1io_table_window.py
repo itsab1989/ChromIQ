@@ -5619,7 +5619,13 @@ def _applog_table_result(win, res) -> None:
     try:
         from core.app_log import flat, line
         if isinstance(res, BaseException):
+            try:
+                from workflow.i1io.table.job import error_words
+                words = error_words(res)
+            except Exception:      # noqa: BLE001
+                words = {"message": None, "at": None}
             line("table result", step=None, kind="error", error=type(res).__name__,
+                 error_message=words["message"] or None, error_at=words["at"] or None,
                  _level=logging.WARNING)
             return
         if not hasattr(res, "step") or not hasattr(res, "kind"):

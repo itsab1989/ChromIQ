@@ -274,3 +274,33 @@ def test_a_method_only_the_simulation_has_is_never_called_by_the_app(pair):
                     for d in ("workflow/i1io", "ui") for p in (ROOT / d).rglob("*.py"))
     called = sorted(n for n in only if f".{n}(" in app)
     assert not called, f"{sim.__name__}: the app calls {called}, which only the simulation has"
+
+
+# ---- 4.3.57 item 36: the generic error line says what the error was ---------------------------
+def test_an_unexpected_error_is_logged_with_its_message_and_code_line(tmp_path):
+    job = J.TableJob(H.demo_sheet(), folder=tmp_path / "session",
+                     open_transport=lambda: None, preflight=lambda: H.OK_PREFLIGHT,
+                     other_program=lambda: False)
+
+    def boom():
+        J._default_scan_reader(tmp_path, print, extra_args=(), nonsense=1)
+    try:
+        boom()
+    except TypeError as exc:
+        res = job._from_exception("read_row", exc)
+    assert res.reason == "unexpected_error"
+    assert res.detail["error"] == "TypeError"
+    assert "unexpected keyword argument 'nonsense'" in res.detail["error_message"]
+    assert res.detail["error_at"].startswith("test_4357_real_factories_take_what_the_job_passes.py:")
+    assert res.detail["error_at"].endswith(" boom")
+    log = "\n".join(job.diag.lines)
+    assert "an unexpected error (TypeError: " in log and "nonsense" in log
+
+
+def test_the_error_words_never_carry_the_home_folder_and_stay_short():
+    home = str(Path.home())
+    w = J.error_words(OSError(f"cannot open {home}/Secret Folder/x.ti3\nsecond line"))
+    assert home not in w["message"] and "~/Secret Folder/x.ti3 second line" in w["message"]
+    long = J.error_words(ValueError("x" * 1000))
+    assert len(long["message"]) == J.ERROR_MESSAGE_MAX + 3
+    assert J.error_words(RuntimeError())["text"] == "RuntimeError"

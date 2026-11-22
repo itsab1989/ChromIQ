@@ -1744,10 +1744,16 @@ class TableJob:
                 d.close_for_sending("stopped by you")
             res = self._result(step, Kind.STOPPED, "cancelled_by_person")
         else:
+            # 4.3.57 (item 36): the message and the code line too, not only the type: the
+            # 22 Nov dual scan stop said "TypeError" and nothing that named the cause
+            words = error_words(exc)
             if d is not None:
-                d.close_for_sending(f"an unexpected error ({type(exc).__name__})")
+                d.close_for_sending(f"an unexpected error ({words['text']})")
+            else:
+                self.diag.log("STOP", f"an unexpected error ({words['text']})")
             res = self._result(step, Kind.STOPPED, "unexpected_error",
-                               error=type(exc).__name__)
+                               error=type(exc).__name__, error_message=words["message"],
+                               error_at=words["at"])
         if res.kind == Kind.REFUSED and d is not None and (d.motion_unconfirmed
                                                            or d.closed_reason):
             res = replace(res, kind=Kind.STOPPED)
@@ -6688,6 +6694,37 @@ class _RowFailed(Exception):
     def __init__(self, reason: str, loc: str):
         super().__init__(reason)
         self.reason, self.loc = reason, loc
+
+
+#: the longest exception message the logs carry (the rest is cut, with "...")
+ERROR_MESSAGE_MAX = 300
+
+
+def error_words(exc: BaseException) -> dict:
+    """An unexpected exception for the logs (4.3.57, item 36): ``message`` (one line, the home
+    folder as ``~`` so no user name is written, at most ERROR_MESSAGE_MAX characters), ``at``
+    (the innermost code line as ``file.py:line function``, the file name only) and ``text``
+    (``Type: message (at)``). Never raises."""
+    try:
+        msg = " ".join(str(exc).split())
+        home = str(Path.home())
+        if home and home != "/":
+            msg = msg.replace(home, "~")
+        if len(msg) > ERROR_MESSAGE_MAX:
+            msg = msg[:ERROR_MESSAGE_MAX] + "..."
+    except Exception:      # noqa: BLE001
+        msg = ""
+    at = ""
+    try:
+        import traceback
+        frames = traceback.extract_tb(exc.__traceback__)
+        if frames:
+            f = frames[-1]
+            at = f"{Path(f.filename).name}:{f.lineno} {f.name}"
+    except Exception:      # noqa: BLE001
+        at = ""
+    text = type(exc).__name__ + (f": {msg}" if msg else "") + (f" ({at})" if at else "")
+    return {"message": msg, "at": at, "text": text}
 
 
 def _default_reader(folder, name, patches, calibrate, extra_args, log):
