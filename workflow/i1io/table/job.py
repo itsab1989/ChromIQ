@@ -6717,9 +6717,13 @@ def _close_quietly(w) -> None:
         pass
 
 
-def _default_scan_reader(folder, log):
-    """ChromIQ's own helper in its table-scan mode (round B, strip rows)."""
-    return rd.ScanReader(rd.helper_path(), folder, log)
+def _default_scan_reader(folder, log, extra_args=()):
+    """ChromIQ's own helper in its table-scan mode (round B, strip rows). *extra_args*: what
+    the job adds to its command line (the dual scan's ``--i1io-table-dual``). 4.3.57 (item
+    34): this wrapper once took no *extra_args*, so a dual scan read in rows stopped with a
+    TypeError on every real table while the simulated factory, which took it, hid the gap
+    (tests/i1io_table/test_4357_real_factories_take_what_the_job_passes.py)."""
+    return rd.ScanReader(rd.helper_path(), folder, log, extra_args=tuple(extra_args))
 
 
 def _is_i1pro2(model) -> bool:
