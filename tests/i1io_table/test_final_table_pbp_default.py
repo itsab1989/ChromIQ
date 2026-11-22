@@ -182,4 +182,4 @@ def test_no_offer_unless_every_row_was_a_clean_strip(qtbot, monkeypatch, tmp_pat
         win, p = _measure(qtbot, monkeypatch, tmp_path, settings, STRIP,
                           sim=WindowSim(faults={"scan": {"not_ready": True}, "scan_at": 2}))
     assert "Reading rows as strips worked" not in win._text.text()
-    assert p.labels() == ["Close"]
+    assert p.labels() == ["Show the table's log", "Close"]       # 4.3.57 (item 22)

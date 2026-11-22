@@ -535,6 +535,17 @@ def _one_path_to_the_fire(table: tbl.Table, inst, plan: RowPlan, outdir: str,
                     d = table.c_read(t + 1.0, 30) or ""
                     if len(d) == 27 and d.startswith(":$a30"):
                         res.a3 = (int(d[5:13], 16), int(d[13:21], 16), int(d[21:25], 16))
+                        # 4.3.57 (item 23): the table's speed answer and its verdict, always
+                        sent = (plan.A, plan.T, plan.speed)
+                        res.notes.append(
+                            f"a3 speed answer: A {res.a3[0]} ms, T {res.a3[1]} ms, speed "
+                            f"{res.a3[2]} mm/s (sent {sent[0]}, {sent[1]}, {sent[2]}): "
+                            + ("as sent" if res.a3 == sent else
+                               "speed as sent, timing differs (logged only)"
+                               if res.a3[2] == plan.speed else
+                               "another speed than was sent"
+                               + (" (dual row: logged only)" if plan.dual else
+                                  ": the row's readings are not used")))
                         if res.a3 != (plan.A, plan.T, plan.speed):
                             res.notes.append(f"a3 {res.a3} differs from the plan "
                                              f"{(plan.A, plan.T, plan.speed)} (logged only)")

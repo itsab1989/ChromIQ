@@ -3809,6 +3809,27 @@ class TableMeasureWindow(QFrame):
         title, note = M.M_I1IO_DRIVE_ARM_MOVED_ASK_AGAIN.render(mm=mm)
         return title, note + "\n\n" + body
 
+    def _session_log_path(self) -> "Path | None":
+        """4.3.57 (item 22): this session's log file, when it exists."""
+        try:
+            p = Path(self._run.i1io_table_log(self._stamp))
+            return p if p.is_file() else None
+        except Exception:      # noqa: BLE001
+            return None
+
+    def _on_show_log(self) -> None:
+        """4.3.57 (item 22): open the session's log with the computer's own viewer for text
+        files. Nothing is sent to the table; the page stays as it is."""
+        p = self._session_log_path()
+        if p is None:
+            return
+        try:
+            from PyQt6.QtCore import QUrl
+            from PyQt6.QtGui import QDesktopServices
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(p)))
+        except Exception:      # noqa: BLE001 - a convenience, never a fault
+            log.debug("the table's log could not be opened", exc_info=True)
+
     def _row_status(self, row: int) -> str:
         return tr("Reading row {row} of {rows} on page {page} of {pages}...").format(
             row=row, rows=self._rows_on_page(), page=self.job.page + 1,
@@ -5128,6 +5149,10 @@ class TableMeasureWindow(QFrame):
                         "other instruments. You can switch the guidance on again in "
                         "Preferences > Beta.")]
         buttons = [(tr("Close"), self._on_done_close)]
+        if self._session_log_path() is not None:
+            # 4.3.57 (item 22): the table's own log (every line sent and answered, the mode
+            # answers) one press away, instead of only its path in the text
+            buttons.insert(0, (tr("Show the table's log"), self._on_show_log))
         if self._strip_default_offer_due():
             # the owner (4.3.45): after a clean strip measurement, the strip choice may become
             # the table's default; offered once, quietly, never as a default button
@@ -5671,6 +5696,13 @@ def _applog_table_result(win, res) -> None:
                   if k not in _TABLE_RESULT_SKIP}
         extra = {}
         job = win.job
+        tbl_ = getattr(job, "_table", None) if job is not None else None
+        if res.step in ("open", "start_up", "repair_at_start") and tbl_ is not None:
+            # 4.3.57 (item 22): the state and mode answers of the opening ("the mode answers:"
+            # of the session log), in the app log too (the app log is the one log)
+            extra["a0"] = getattr(tbl_, "a0_answer", None)
+            extra["f4"] = getattr(tbl_, "f4_answer", None)
+            extra["mode_left_on"] = getattr(tbl_, "mode_left_on", None)
         if res.step == "align" and job is not None and getattr(job, "alignment", None):
             try:
                 extra["aims"] = ";".join(f"{int(p[0])},{int(p[1])}"
@@ -5775,6 +5807,13 @@ def _applog_table_row(win, ev) -> None:
     signal, on the GUI thread; the job thread only emitted it, as before)."""
     try:
         kind = ev.get("event")
+        if kind == "speed_answer":
+            # 4.3.57 (item 23): the table's speed answer for a row read in one move
+            from core.app_log import line
+            line("table speed answer", page=(win.job.page + 1) if win.job is not None
+                 else None, row=ev.get("row"), a3=ev.get("a3"), sent=ev.get("sent"),
+                 verdict=str(ev.get("note") or "").split("): ", 1)[-1] or None)
+            return
         if kind not in ("row_start", "row_end", "strip_fallback"):
             return
         from workflow.measure_log import StripLog

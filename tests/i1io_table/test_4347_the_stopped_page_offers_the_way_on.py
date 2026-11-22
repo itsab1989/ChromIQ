@@ -64,7 +64,7 @@ def test_the_page_button_ends_the_session_cleanly_and_the_last_page_says_the_fre
     text = win._text.text()
     assert M.M_I1IO_DRIVE_FREE_LEFT.render()[1] in text
     assert "The arm stayed extended over the table" not in text
-    assert p.labels() == ["Close"]
+    assert p.labels() == ["Show the table's log", "Close"]       # 4.3.57 (item 22)
     assert win.job.state().arm_free is True
 
 

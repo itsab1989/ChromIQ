@@ -3622,6 +3622,8 @@ class TableJob:
         d.exchange("status")
         last = d.position_now
         got = d.position()
+        #: 4.3.57 (item 20): where the arm stood right before this homing (the logs)
+        self.homed_from = got
         if last is not None and not _near(got, last) and d.arm_free is False:
             if got is None or not _near(got, last, tbl.HELD_ARM_MOVED_UNITS):
                 # 4.3.50 (table re-review, MUST-A): its own id, so the page says what is true
@@ -3840,8 +3842,11 @@ class TableJob:
             d.reopen_after_homing()
         self.repaired_at_start += 1
         self.brought_home_at_start += 1
+        # 4.3.57 (item 20): where the arm stood, as read right before the homing (*found* is
+        # None when nothing had read it before the question)
         d.log("DATA", f"the aiming mode is ended and the arm is at its resting place "
-                      f"{d.position_now} (found {found}); the measurement goes on")
+                      f"{d.position_now} (found {getattr(self, 'homed_from', None) or found}); "
+                      "the measurement goes on")
 
     def _end_mode_at_rest(self) -> None:
         """A just-switched-on table found in its aiming mode: after its recorded start-up (which
@@ -5467,6 +5472,14 @@ class TableJob:
             files = sc.save_row(str(folder), res)
             rec["scan"] = {"kind": res.kind, "why": res.why, "notes": res.notes,
                            "files": files, "c4": res.c4, "a3": res.a3}
+            # 4.3.57 (item 23): the table's speed answer (a3) and its verdict, in the session
+            # log and (through the progress signal) the app log
+            for note in res.notes:
+                if note.startswith("a3 speed answer"):
+                    self.diag.log("DATA", f"{name}: {note}")
+                    self._progress(event="speed_answer", row=plan.index + 1,
+                                   a3=list(res.a3) if res.a3 else None,
+                                   sent=[scan_plan.A, scan_plan.T, scan_plan.speed], note=note)
             if res.kind == "pending":
                 raise Doubt("a scan move may be pending", sc.PENDING_TEXT)
             if res.kind == "after_doubt":
