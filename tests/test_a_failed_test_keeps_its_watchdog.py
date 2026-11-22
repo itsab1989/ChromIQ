@@ -33,8 +33,8 @@ PLANTED = textwrap.dedent("""
 def _project(tmp_path):
     (tmp_path / "pytest.ini").write_text(
         "[pytest]\nfaulthandler_timeout = 60\ntimeout = 3\n"
-        "timeout_method = thread\n")
-    (tmp_path / "test_planted.py").write_text(PLANTED)
+        "timeout_method = thread\n", encoding="utf-8")
+    (tmp_path / "test_planted.py").write_text(PLANTED, encoding="utf-8")
     env = dict(os.environ, PYTHONPATH=str(REPO), QT_QPA_PLATFORM="offscreen")
     env.pop("PYTEST_ADDOPTS", None)
     env.pop("PYTEST_XDIST_WORKER", None)
@@ -52,7 +52,8 @@ def test_a_blocked_teardown_after_a_failure_ends_the_run(tmp_path, xdist):
     t0 = time.monotonic()
     r = subprocess.run(_cmd("-p", "tests.failed_test_watchdog", *xdist),
                        cwd=tmp_path, env=env, capture_output=True,
-                       text=True, timeout=25)
+                       text=True, encoding="utf-8", errors="replace",
+                       timeout=25)
     wall = time.monotonic() - t0
     out = r.stdout + r.stderr
     assert r.returncode != 0, out
