@@ -5,7 +5,19 @@ from __future__ import annotations
 import inspect
 import logging
 
+import pytest
+
 from ui.widgets import TailFollowLog
+
+
+@pytest.fixture(autouse=True)
+def _a_fresh_per_minute_limit(monkeypatch):
+    """core.question_log._PANEL_COUNT is per process: lines another file on the
+    same worker mirrored (gate 2, 2026-11-22) made this file's first line the
+    limiter's 'not_mirrored=186' report. Each test starts with an empty count;
+    monkeypatch puts the worker's own back afterwards."""
+    from core import question_log as ql
+    monkeypatch.setattr(ql, "_PANEL_COUNT", {})
 
 
 def _panel(caplog):
