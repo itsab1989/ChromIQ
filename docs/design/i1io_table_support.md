@@ -1935,3 +1935,36 @@ i1Profiler recordings of 19 and 21 Nov 2026 (R19, N1 to N4), the owner's start-u
   switch, START and the log).
 * The wire gate is unchanged: nothing outside the recorded forms is allowed.
 
+
+### ⏳ Awaiting confirmation: 4.3.57, the table owner's 22 Nov runs (2026-11-23)
+
+**Confirmed by:** *nobody yet.* Built for 4.3.57 (part B) from the table owner's 4.3.56 runs and
+recordings of 22 Nov 2026; every changed command sequence is listed for the independent safety
+review.
+
+* **The held arm's own creep is not a refusal.** A held arm moves by itself, nothing sent: up to
+  13 units (1.3 mm) measured on the owner's table (`session_table.HELD_ARM_CREEP_UNITS`). One
+  limit is drawn from it, `HELD_ARM_MOVED_UNITS` = 30 units (3 mm: more than twice the largest
+  creep, under half the 8 mm row pitch). It replaces the 5 unit "within 5 units" of the START
+  rule above: within it the START homing (and the homing after a stop, and the ending's homing)
+  starts from the new reading; beyond it, before a START homing, nothing moves and the hands-off
+  question is asked again saying how far the arm moved (M-I1IO-DRIVE-ARM-MOVED-ASK-AGAIN), at most
+  twice, then the doubt as before; the rest of the sitting is guided.
+* **A strip row's arrivals take the table's landing error.** Under i1Profiler 3.8.1 the owner's
+  table landed 0 to 4 units from commanded row ends and starts and i1Profiler went on. Row end:
+  within 30 units the row stands; beyond, one more reading 0.3 s later, then the doubt. Row start
+  and the UV pass's start: within 13 units the row is read; up to 30 it fails cleanly (read
+  again); beyond, a doubt.
+* **The dual scan's white** names the tile the calibration is made on: with the dual scan the
+  calibration place is decided before the calibration reader starts.
+* **The instrument's button** is offered for a mark only once the helper answered that it listens
+  (`press_armed`, within 4 s); otherwise the page asks for Aimed (M-I1IO-DRIVE-AIM-BUTTON-NOT-NOW).
+* **Aiming crosses never move a patch** (Create Chart): margins nobody set are the crosses' own,
+  the default alignment is centred both ways, the patch order is the seed's. A page keeps its
+  crosses when a corner patch is near white, when it has one strip, or when its aimed corner
+  patches lie closer than 86 mm (1.5 mm aim error / tan 1 degree: the alignment's angle check,
+  which stays, must pass an ordinary aim at a patch centre; covers the page of two strips, whose
+  8 mm the alignment could never accept). Margins lowered by hand in Manual lay the page out
+  again; a page that then has no room for crosses it would need is warned about (10 to 86 mm) or
+  refused (under 10 mm).
+* **Every countdown** ends with the switch-off line.
