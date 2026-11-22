@@ -565,10 +565,26 @@ class MeasurementTargetController(QObject):
         return result
 
     def set_measuring(self, running: bool) -> None:
-        """Chart-changing controls are unavailable while a measurement runs."""
+        """Chart-changing controls are unavailable while a measurement runs.
+
+        4.3.57 (item 35): the ``changed`` this emits says only that the bar's controls go
+        quiet or come back; the target is the same. While it is delivered,
+        :attr:`only_measuring_changed` is True, so a listener that loads a target's settings
+        (MainWindow's §2 L3/L4 read trigger) leaves the screen alone: a START is not a load
+        event (per_target_settings.md §2). Without this, every START reloaded the Measure
+        tab's stored settings, and a table START, which stored nothing until 4.3.57, put
+        stale values over the person's ticks while the table ran (the table owner's photos
+        of 22 Nov 2026: "Patch-by-patch mode (-p)" and "Spectral filter type (-F)" cleared)."""
         if running != self._measuring:
             self._measuring = running
-            self.changed.emit()
+            self.only_measuring_changed = True
+            try:
+                self.changed.emit()
+            finally:
+                self.only_measuring_changed = False
+
+    #: 4.3.57 (item 35): True only while set_measuring delivers its ``changed``
+    only_measuring_changed = False
 
     def is_measuring(self) -> bool:
         """Whether a measurement is running right now.

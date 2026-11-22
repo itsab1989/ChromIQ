@@ -1838,6 +1838,11 @@ class MainWindow(QMainWindow):
         loader is guarded and idempotent, so the double call is harmless and
         keeping one central path for every tab is what Knut asked for.
         """
+        # 4.3.57 (item 35): a measurement starting or ending changes only whether the bar's
+        # controls are usable, never the target: no load (a START is not a load event,
+        # per_target_settings.md §2; it put stale settings over a table run's ticks)
+        if getattr(getattr(self, "_target_ctl", None), "only_measuring_changed", False):
+            return
         tab = self._tabs.currentWidget()
         if not hasattr(tab, "load_target_settings"):
             return
