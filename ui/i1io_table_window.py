@@ -144,7 +144,10 @@ HANDS_OFF_LABELS = (
 #: REVIEW 14, S-3: the pages after whose answer the arm moves at once; as a pop-up each carries
 #: the one-line switch-off sentence itself (the tab's line stands behind the pop-up)
 MOVES_AT_ONCE_PAGES = ("go", "start_up", "sheet_laid", "first_visit", "report_after_step",
-                       "home_at_end", "home_not_now", "home_at_start", "repair_at_start")
+                       "home_at_end", "home_not_now", "home_at_start", "repair_at_start",
+                       # 4.3.57 (item 10): the countdown with the guidance off (the arm moves
+                       # when it ends) ends with the same line
+                       "countdown")
 #: REVIEW 14, M-1: the ways back that mean a move may still be waiting, or a movement (or the
 #: start-up) was never reported as finished: "Switch the table off now" is the first thing shown,
 #: and no later page hides or contradicts it
@@ -5343,7 +5346,9 @@ class TableMeasureWindow(QFrame):
                         self._say(body)
                         self._show("countdown", title, body)
                     elif getattr(self, "_page_id", "") == "countdown":
-                        self._text.setText(body)
+                        # 4.3.57 (item 10): every tick keeps the switch-off line
+                        self._text.setText(body + "\n\n" + switch_off_line()
+                                           if switch_off_line() not in body else body)
                 else:
                     self._show("countdown", title, body)
                     self._status.setText(tr("Stop below keeps the arm where it is."))

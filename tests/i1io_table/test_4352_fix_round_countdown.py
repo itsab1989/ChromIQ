@@ -41,7 +41,9 @@ def test_s1_the_countdown_is_a_large_pop_up_with_stop_and_a_sound(qtbot, monkeyp
     pop = win.popup()
     assert win.popup_open() and win._page_id == "countdown"
     title, body = M.M_I1IO_DRIVE_COUNTDOWN.render(n=3)
-    assert win._title.text() == title and win._text.text() == body
+    # 4.3.57 (item 10): the countdown ends with the switch-off line, at every tick
+    assert win._title.text() == title
+    assert win._text.text() == body + "\n\n" + W.switch_off_line()
     assert "font-size" in win._title.styleSheet()                 # large
     # ONE button: Stop. No answer, no End measurement (it would be ignored while the job runs)
     assert win._buttons == []
@@ -53,7 +55,8 @@ def test_s1_the_countdown_is_a_large_pop_up_with_stop_and_a_sound(qtbot, monkeyp
     assert notices and notices[-1] == body.split("\n\n")[0]      # the strip too
     # the next seconds: the same page, the number changes, no second sound
     win._relay_progress({"event": "countdown", "left": 2, "seconds": 3.0, "step": "align"})
-    assert win._text.text() == M.M_I1IO_DRIVE_COUNTDOWN.render(n=2)[1]
+    assert win._text.text() == (M.M_I1IO_DRIVE_COUNTDOWN.render(n=2)[1] + "\n\n"
+                                + W.switch_off_line())
     assert cues == ["INSTRUMENT_ERROR"]
     assert win.job is not None and not win.job.stop_pressed
     pop.stop_btn.click()
@@ -112,3 +115,14 @@ def test_s2_the_instructions_are_translated(lang):
     assert M.M_I1IO_DRIVE_COUNTDOWN.body in cat and M.M_I1IO_DRIVE_COUNTDOWN.body_one in cat
     word = {"de": "Höhe des Arms", "ru": "рычага", "uk": "важеля"}[lang]
     assert word in cat[M.M_I1IO_DRIVE_COUNTDOWN.body].split("\n\n")[1]
+
+
+def test_4357_every_tick_of_the_countdown_keeps_the_switch_off_line(qtbot, monkeypatch, tmp_path,
+                                                                   settings):
+    """4.3.57 (item 10)."""
+    win, sim, p = _quiet_unguided(qtbot, monkeypatch, tmp_path, settings)
+    for left in (3, 2, 1):
+        win._relay_progress({"event": "countdown", "left": left, "seconds": 3.0,
+                             "step": "align"})
+        assert win._text.text().endswith(W.switch_off_line())
+        assert win._text.text().count(W.switch_off_line()) == 1
