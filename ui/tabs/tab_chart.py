@@ -26381,6 +26381,16 @@ class TabChart(QWidget):
                     self._current_ti1_path = None
                     # Empty payload → main window drops the chart from Print / Measure.
                     self.chart_finished.emit([], None, False)
+                # …AND "MEASURED FROM PREVIEW" FORGETS IT TOO (4.3.57, item
+                # 37). The preview emptied, but the frame kept the previous
+                # project's TIFFs and went on showing its margins, patch size
+                # and warning under "NO PREVIEW" (seen on screen: Report-A's
+                # report after opening Report-B, which has no chart), and so
+                # did the "on screen" column of the layout information. Not
+                # behind the `_shown_chart_ti2` test above: a chart can be in
+                # the frame without having been shown through this handler.
+                if getattr(self, "_margin_tiffs", None):
+                    self._set_margin_chart([], None)
                 # #130 (Knut beta-6): the empty preview must tell the user WHY it's
                 # empty and how to fill it — this run/type simply has no chart yet.
                 self._preview.set_notice(self._no_chart_guidance())
