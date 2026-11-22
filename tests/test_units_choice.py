@@ -204,10 +204,23 @@ def test_one_pair_of_fields_in_the_unit_chosen(panel):
 @pytest.mark.parametrize("n", [
     100, pytest.param(1000, marks=pytest.mark.slow)])
 def test_mm_in_mm_and_in_mm_in_never_change_the_page(panel, n):
-    """1000 random sizes in the slow tier (about six minutes on one worker:
-    every switch redraws the whole panel), 100 in the everyday tier."""
+    """1000 random sizes in the slow tier (6 s, the clip preview batched;
+    over six minutes when it was drawn on every switch), 100 everyday."""
     p = panel
     rnd = random.Random(215)
+    with _no_clip_preview_in_the_slow_tier(p, n):
+        _mm_in_round_trips(p, rnd, n)
+
+
+def _no_clip_preview_in_the_slow_tier(p, n):
+    """The slow tier asserts only on the page, never on the clip preview,
+    which cost nearly all of its time: the panel's own batching window draws
+    it once at the end instead. The everyday tier still draws it every time."""
+    import contextlib
+    return p._clip_preview_batched() if n > 100 else contextlib.nullcontext()
+
+
+def _mm_in_round_trips(p, rnd, n):
     for _ in range(n):
         dpi = rnd.choice((72, 300, 1200, 2032, 2731, 5461, 6000))
         p.dpi.setValue(dpi)
@@ -376,10 +389,16 @@ def test_his_three_frames_in_every_order(qapp, beta_on, units_store, frame,
 @pytest.mark.parametrize("n", [
     60, pytest.param(400, marks=pytest.mark.slow)])
 def test_400_random_pixel_pages(panel, n):
-    """400 in the slow tier (about four and a half minutes), 60 everyday."""
+    """400 in the slow tier (3 s, the clip preview batched; 280 s drawn on
+    every page), 60 everyday with the preview drawn every time."""
     p = panel
     _choose(p, "px")
     rnd = random.Random(400)
+    with _no_clip_preview_in_the_slow_tier(p, n):
+        _pixel_pages(p, rnd, n)
+
+
+def _pixel_pages(p, rnd, n):
     for _ in range(n):
         ppi = rnd.randint(72, 6000)
         w = rnd.randint(max(1, int(ppi / 25.4) + 1), int(2000 * ppi / 25.4))
