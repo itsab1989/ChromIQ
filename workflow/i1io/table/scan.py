@@ -105,11 +105,21 @@ def shrunk_edge_mm(plan, need: int, step_mm: float = 0.01) -> "float | None":
 #: for +-25 readings, 0.352..0.392 for +-4) and to make the values worse.
 CUT_REFINE_READINGS = 0
 ARRIVAL_UNITS = 5
+#: 4.3.57 (item 21, with the owner's i1Profiler 3.8.1 dual scan recording of 22 Nov 2026): his
+#: table lands 0 to 4 units from commanded row ends and 0 to 2 from row starts, and i1Profiler
+#: goes on every time; ChromIQ's 5 unit arrival passed the worst by 1 unit, and stopped a row
+#: end 6 units off. A held arm also moves up to 13 units by itself (tbl.HELD_ARM_CREEP_UNITS).
+#: So a row START (and a UV pass start) within the creep is where the arm stands, and the row
+#: goes on (noted; the row placement check confirms every patch's place from the readings);
+#: up to tbl.HELD_ARM_MOVED_UNITS it fails cleanly and may be read again (nothing is pending:
+#: no scan move was sent); beyond, a doubt, as before.
+ROW_START_UNITS = tbl.HELD_ARM_CREEP_UNITS
 #: 4.3.57 (item 21): the wait before an arm read at a strip row's end beyond the held arm's
 #: creep is read once more (the computed moves' own ARRIVAL_RECHECK_S, job.py)
 ROW_END_RECHECK_S = 0.3
-#: 4.3.47 fix2: beside the row start by at most 1 mm: a clean failure, not a doubt
-ARRIVAL_BESIDE_UNITS = 10
+#: 4.3.47 fix2: beside the row start by at most 1 mm: a clean failure, not a doubt.
+#: 4.3.57 (item 21): 3 mm (tbl.HELD_ARM_MOVED_UNITS), see ROW_START_UNITS
+ARRIVAL_BESIDE_UNITS = tbl.HELD_ARM_MOVED_UNITS
 ACK_TIMEOUT_S = 0.5
 PENDING_EXTRA_S = 10.0
 HELPER_NMAX = 2000
@@ -387,7 +397,7 @@ def run_row(table: tbl.Table, inst, plan: RowPlan, log, outdir: str,
         except tbl.MoveOutside as exc:
             res.notes.append(str(exc))
             got = table.position()
-            if not _near(got, plan.start):
+            if not _near(got, plan.start, ROW_START_UNITS):
                 raise table._doubt(f"after a slow move the arm reads {got}, not {plan.start}")
             raise CleanFail(f"the move to the row start took {exc.took:.2f} s, outside "
                             f"{exc.lo:.2f}-{exc.hi:.2f} s, although the arm arrived") from None
@@ -396,14 +406,17 @@ def run_row(table: tbl.Table, inst, plan: RowPlan, log, outdir: str,
             raise table._doubt(f"d1 answered {d.data}, not the recorded echo 016D")
         got = table.position()
         res.at_start = got
-        if not _near(got, plan.start):
+        if not _near(got, plan.start, ROW_START_UNITS):
             if _near(got, plan.start, ARRIVAL_BESIDE_UNITS):
-                # 4.3.47 fix2 (safety review, suspect 4): within 1 mm after a move that ended
+                # 4.3.47 fix2 (safety review, suspect 4): beside it after a move that ended
                 # normally and its d1 echo: nothing is pending (no scan move was sent), so the
-                # row fails cleanly and may be read again; beyond 1 mm a doubt, as before
+                # row fails cleanly and may be read again; further off a doubt, as before
                 raise CleanFail(f"the arm stands beside the row start: {got}, not "
                                 f"{plan.start} (within {ARRIVAL_BESIDE_UNITS} units)")
             raise table._doubt(f"the arm arrived at {got}, not at the row start {plan.start}")
+        if not _near(got, plan.start):
+            res.notes.append(f"the arm stands at {got} for the row start {plan.start}: within "
+                             f"{ROW_START_UNITS} units, the held arm's own creep")
         armed = inst.arm(plan.N, 3000)
         res.armed = armed
         if armed.get("event") != "tscan_armed" or armed.get("ready") is not True:
@@ -427,7 +440,9 @@ def _run_uv_pass(table: tbl.Table, inst, plan: RowPlan, log, outdir: str) -> Row
         if at is None or table.motion_unconfirmed:
             at = table.position()
         res.start_read = at
-        if not _near(at, plan.start):
+        # 4.3.57 (item 21): the lamp pass's end is accepted within tbl.HELD_ARM_MOVED_UNITS
+        # (run_row), so its UV pass starts from there too
+        if not _near(at, plan.start, tbl.HELD_ARM_MOVED_UNITS):
             raise CleanFail(f"the arm stands at {at}, not at the end of the lamp pass "
                             f"{plan.start}")
         try:
@@ -455,7 +470,10 @@ def _run_uv_pass(table: tbl.Table, inst, plan: RowPlan, log, outdir: str) -> Row
             raise table._doubt(f"d1 answered {d.data}, not the recorded echo {D1_UV_ECHO}")
         got = table.position()
         res.at_start = got
-        if not _near(got, plan.start):
+        # 4.3.57 (item 21): where the zero-length move went (the lamp end read) within the
+        # held arm's creep, and inside the lamp end's own limit
+        if not (_near(got, at, ROW_START_UNITS)
+                and _near(got, plan.start, tbl.HELD_ARM_MOVED_UNITS)):
             if _near(got, plan.start, ARRIVAL_BESIDE_UNITS):
                 # 4.3.47 fix2, as for the lamp pass's row start (run_row): within 1 mm after the
                 # zero-length move ended normally and d1 echoed: nothing is pending (no scan move

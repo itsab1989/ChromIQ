@@ -64,9 +64,10 @@ def test_a_uv_start_beside_its_target_fails_the_row_cleanly_and_moves_nothing_mo
     def lamp(t, dual_pass=None):
         real(t, dual_pass=dual_pass)
         if dual_pass == "lamp":
-            # the zero-length m0 that follows lands 8 units beside (within 1 mm)
+            # the zero-length m0 that follows lands 20 units beside (4.3.57: beyond the held
+            # arm's 13 units of creep, within 3 mm)
             sim.real_table = False
-            sim.c_faults["arrival_off"] = 8
+            sim.c_faults["arrival_off"] = 20
     monkeypatch.setattr(sim, "lamp", lamp)
     n0 = len(sim.received)
     res = T._until(job, job.read_row(), J.Confirm.ROW_FAILED_STRIP)

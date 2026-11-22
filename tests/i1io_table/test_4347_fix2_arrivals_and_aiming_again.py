@@ -134,10 +134,13 @@ def test_a_patch_arrival_more_than_1_mm_off_still_ends_the_sending(tmp_path, off
 # (offsets [-6, -11] and [-11, -6])
 
 
-@pytest.mark.parametrize("off,closed", [((0, 7), False), ((-9, 0), False), ((0, 12), True)])
+@pytest.mark.parametrize("off,closed", [((0, 7), None), ((-13, 0), None), ((0, 20), False),
+                                        ((-30, 0), False), ((0, 31), True)])
 def test_a_strip_row_start_beside_its_target(tmp_path, off, closed):
-    """The row start of a strip row: within 1 mm the row fails cleanly before any scan move
-    (nothing is pending) and may be read again or patch by patch; beyond, a doubt."""
+    """The row start of a strip row. 4.3.57 (item 21, the owner's table lands 0 to 4 units from
+    i1Profiler's own targets and creeps up to 13 by itself): within 13 units the row is read
+    (None); within 3 mm the row fails cleanly before any scan move (nothing is pending) and may
+    be read again or patch by patch; beyond, a doubt."""
     job, sim, helper, run, p = job_for(tmp_path, {J.Confirm.ROW_FAILED_STRIP: "skip"},
                                        real_table=False)
     assert job.set_options(STRIP_ARGS).ok
@@ -150,6 +153,11 @@ def test_a_strip_row_start_beside_its_target(tmp_path, off, closed):
     _arrive_beside(sim, 1, *off, reads=1)
     n = len(sim.received)
     r = p.drive(job.read_row())
+    if closed is None:
+        assert r.ok and r.detail["row_kind"] == "strip", (r.reason, r.detail)
+        assert any(ln.startswith(";m2") for ln in sim.received[n:])
+        assert sim.violations == []
+        return
     assert not any(ln.startswith(";m2") for ln in sim.received[n:])
     if closed:
         assert job._table.closed_reason is not None
