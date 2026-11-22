@@ -29,6 +29,7 @@ import re
 import shutil
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -64,13 +65,20 @@ def runs(tmp_path_factory) -> "dict[str, str]":
                         "-j", jobs], capture_output=True, text=True,
                        encoding="utf-8", errors="replace", timeout=1200)
     assert r.returncode == 0, r.stdout[-3000:] + r.stderr[-3000:]
-    out = {}
-    for t in TARGETS:
+    def run(t):
         exe = next(p for p in build.rglob(t + "*")
                    if p.is_file() and os.access(p, os.X_OK)
                    and p.name in (t, t + ".exe"))
-        rr = subprocess.run([str(exe)], capture_output=True, text=True,
-                            encoding="utf-8", timeout=300)
+        return subprocess.run([str(exe)], capture_output=True, text=True,
+                              encoding="utf-8", timeout=300)
+
+    # The lives spend their time in the driver's own real waits (about 37 s
+    # of sleeping and 0.02 s of CPU for the i1Pro 2's), so the seven separate
+    # processes run side by side: each is still its own run of its own binary.
+    with ThreadPoolExecutor(max_workers=len(TARGETS)) as pool:
+        done = dict(zip(TARGETS, pool.map(run, TARGETS)))
+    out = {}
+    for t, rr in done.items():
         assert rr.returncode == 0 and rr.stdout.rstrip().endswith("ALL DONE"), \
             t + "\n" + rr.stdout[-2000:] + rr.stderr[-2000:]
         out[t] = rr.stdout
