@@ -1228,12 +1228,33 @@ def text_ink_mm(text: str, size: float, bold: bool = False,
     beyond the cap height, so a box from the cap height alone is not where
     the ink is."""
     s = _MEASURE_DPI / 25.4
-    font = _font(max(6, int(round(size / 0.73 * s))), bold=bold,
-                 family=family, italic=italic)[0]
+    px = max(6, int(round(size / 0.73 * s)))
+    font, path, variation = _font(px, bold=bold, family=family, italic=italic)
     if not text:
         return (0.0, 0.0, 0.0, 0.0)
-    l, t, r, b = font.getbbox(text, anchor="ls")
-    return (l / s, -t / s, r / s, b / s)
+    # Remembered (item 27, 4.3.57): a page measures a few hundred labels
+    # and the same ones again on every re-plan. The key holds everything the
+    # measurement depends on, the face as it was actually resolved included.
+    key = ("ink", text, px, str(path), variation, bold, italic, family,
+           type(font).__name__)
+    hit = _TEXT_MEASURE_CACHE.get(key)
+    if hit is None:
+        l, t, r, b = font.getbbox(text, anchor="ls")
+        hit = (l / s, -t / s, r / s, b / s)
+        _remember_measure(key, hit)
+    return hit
+
+
+#: (what was measured, the text, the pixel size, the resolved face) -> the
+#: measurement, for :func:`text_ink_mm` and :func:`text_width_mm`.
+_TEXT_MEASURE_CACHE: "dict[tuple, object]" = {}
+_TEXT_MEASURE_CACHE_MAX = 8192
+
+
+def _remember_measure(key: tuple, value) -> None:
+    if len(_TEXT_MEASURE_CACHE) >= _TEXT_MEASURE_CACHE_MAX:
+        _TEXT_MEASURE_CACHE.clear()
+    _TEXT_MEASURE_CACHE[key] = value
 
 
 def text_width_mm(text: str, size: float, bold: bool = False,
@@ -1242,10 +1263,16 @@ def text_width_mm(text: str, size: float, bold: bool = False,
     sets it."""
     from PIL import Image, ImageDraw
     s = _MEASURE_DPI / 25.4
-    font = _font(max(6, int(round(size / 0.73 * s))), bold=bold,
-                 family=family)[0]
-    d = ImageDraw.Draw(Image.new("L", (1, 1)))
-    return d.textlength(text, font=font) / s
+    px = max(6, int(round(size / 0.73 * s)))
+    font, path, variation = _font(px, bold=bold, family=family)
+    key = ("width", text, px, str(path), variation, bold, family,
+           type(font).__name__)
+    hit = _TEXT_MEASURE_CACHE.get(key)
+    if hit is None:
+        d = ImageDraw.Draw(Image.new("L", (1, 1)))
+        hit = d.textlength(text, font=font) / s
+        _remember_measure(key, hit)
+    return hit
 
 
 def plan_page(sheet: Sheet, page: int, *, name: str = "",
