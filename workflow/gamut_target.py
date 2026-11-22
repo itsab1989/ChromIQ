@@ -323,12 +323,17 @@ def _neutral_budget(count: int) -> int:
 _ROUND_TRIP_CACHE: "dict[tuple, tuple[list, list]]" = {}
 _ROUND_TRIP_CACHE_MAX = 3
 
+#: (colour-list digest and shape, gamut-grid digest and shape) -> each
+#: colour's distance to the nearest grid point (:func:`_round_trip_near`).
+_NEAR_GRID_CACHE: "dict[tuple, object]" = {}
+
 
 def clear_round_trip_cache() -> None:
     """Forget every remembered round trip. For tests, and for anything that
     wants the profiles re-read from disk."""
     _ROUND_TRIP_CACHE.clear()
     _DENSITY_CACHE.clear()
+    _NEAR_GRID_CACHE.clear()
 
 
 #: One question to xicclu at a time for the REAL runner, so a reach asked in
@@ -461,7 +466,23 @@ def _round_trip_near(labs, profile: Path, bin_dir: "str | Path", letter: str,
         return _round_trip(labs, profile, bin_dir, letter, runner)
     import numpy as np
     grid, cell = density[2], density[3]
-    _idx, dist = _nearest(np.asarray(labs, dtype=float), grid)
+    pts = np.ascontiguousarray(labs, dtype=float)
+    grid_c = np.ascontiguousarray(grid, dtype=float)
+    # The distance from every colour of the list to the gamut's grid is a
+    # third of a second and depends on nothing but the two sets of numbers,
+    # so it is remembered by their CONTENTS (item 27, 4.3.57): changing the
+    # patch count or the margin no longer works it out again.
+    key = (hashlib.blake2b(pts.tobytes(), digest_size=16).hexdigest(),
+           pts.shape,
+           hashlib.blake2b(grid_c.tobytes(), digest_size=16).hexdigest(),
+           grid_c.shape)
+    dist = _NEAR_GRID_CACHE.get(key)
+    if dist is None:
+        _idx, dist = _nearest(pts, grid_c)
+        for old in list(_NEAR_GRID_CACHE)[:max(
+                0, len(_NEAR_GRID_CACHE) - _ROUND_TRIP_CACHE_MAX + 1)]:
+            _NEAR_GRID_CACHE.pop(old, None)
+        _NEAR_GRID_CACHE[key] = dist
     reach = cell + max(MARGIN_THRESHOLD_DE76.values()) + 1.0
     near = np.flatnonzero(dist <= reach)
     device: list = [None] * len(labs)
@@ -611,19 +632,78 @@ def _grey_steps(neutral: "list[int]", back, corners_as_printed,
     return out
 
 
-def _nearest(a, b, chunk: int = 2048):
-    """For each row of *a*: (index of the nearest row of *b*, its distance)."""
+def _nearest(a, b, chunk: int = 2048, block: int = 256):
+    """For each row of *a*: (index of the nearest row of *b*, its distance).
+
+    The squared distance is ``|x|² - 2 x·b + |b|²``, one matrix product per
+    *chunk* rows of *a*. Item 27 (4.3.57) made this faster WITHOUT changing a
+    single bit of the answer, because the chart layout is documented as
+    deterministic and its certificates are compared byte for byte:
+
+    * the matrix product is the same call on the same *chunk* of rows, so
+      its numbers are the BLAS library's own as before;
+    * the rest is done in place on that product, a *block* of rows at a time
+      so it stays in the processor's cache: ``p *= -2; p += |x|²;
+      p += |b|²`` is exactly ``|x|² - 2p + |b|²`` in IEEE arithmetic
+      (doubling is exact, a - b IS a + (-b), and addition commutes);
+    * the nearest index is the FIRST index holding the row's minimum, which
+      is what ``argmin`` returns; a row whose minimum is not finite (NaN,
+      infinity) is handed to ``argmin`` itself, since there the two differ.
+    The equivalence harness that proved it lives in the item 27 work folder.
+    """
     import numpy as np
     idx = np.empty(len(a), dtype=int)
     dist = np.empty(len(a))
     bb = (b * b).sum(1)
     for s0 in range(0, len(a), chunk):
         x = a[s0:s0 + chunk]
-        d2 = (x * x).sum(1)[:, None] - 2.0 * (x @ b.T) + bb[None, :]
-        j = d2.argmin(1)
-        idx[s0:s0 + chunk] = j
-        dist[s0:s0 + chunk] = np.sqrt(np.maximum(d2[np.arange(len(x)), j], 0.0))
+        xx = (x * x).sum(1)
+        prod = x @ b.T
+        if prod.dtype != np.float64:
+            # Not the float rows every caller passes: the original expression.
+            d2 = xx[:, None] - 2.0 * prod + bb[None, :]
+            j = d2.argmin(1)
+            idx[s0:s0 + chunk] = j
+            dist[s0:s0 + chunk] = np.sqrt(
+                np.maximum(d2[np.arange(len(x)), j], 0.0))
+            continue
+        for r0 in range(0, len(x), block):
+            d2 = prod[r0:r0 + block]
+            d2 *= -2.0
+            d2 += xx[r0:r0 + block, None]
+            d2 += bb[None, :]
+            low = d2.min(1) if d2.shape[1] else None
+            if low is not None and np.all(np.isfinite(low)):
+                j = (d2 == low[:, None]).argmax(1)
+            else:
+                j = d2.argmin(1)
+            idx[s0 + r0:s0 + r0 + len(d2)] = j
+            dist[s0 + r0:s0 + r0 + len(d2)] = np.sqrt(
+                np.maximum(d2[np.arange(len(d2)), j], 0.0))
     return idx, dist
+
+
+def _k_smallest_stable(d, k: int):
+    """``np.argsort(d, kind="stable")[:k]`` without sorting all of *d*.
+
+    A stable sort orders by (value, index), so its first *k* are every index
+    whose value is below the k-th smallest value, then the lowest indices
+    holding exactly that value until there are *k*. That set is found with a
+    partition and only those *k* are sorted, stably and in index order, which
+    gives the same indices in the same order. Item 27 (4.3.57)."""
+    import numpy as np
+    n = len(d)
+    if k >= n:
+        return np.argsort(d, kind="stable")[:k]
+    if k <= 0:
+        return np.empty(0, dtype=np.intp)
+    v = np.partition(d, k - 1)[k - 1]
+    if not np.isfinite(v):
+        return np.argsort(d, kind="stable")[:k]
+    below = np.flatnonzero(d < v)
+    at = np.flatnonzero(d == v)[:k - len(below)]
+    sel = np.sort(np.concatenate([below, at]))
+    return sel[np.argsort(d[sel], kind="stable")]
 
 
 def _even_spread(cands, fixed, n: int, samples, weights) -> "list[int]":
@@ -691,7 +771,7 @@ def _even_spread(cands, fixed, n: int, samples, weights) -> "list[int]":
     pairs = []
     for si in range(n):
         d = np.linalg.norm(cands - sites[si], axis=1)
-        for c in np.argsort(d, kind="stable")[:k_near]:
+        for c in _k_smallest_stable(d, k_near):
             pairs.append((float(d[c]), si, int(c)))
     pairs.sort()
     got: "dict[int, int]" = {}
@@ -716,9 +796,26 @@ def _even_spread(cands, fixed, n: int, samples, weights) -> "list[int]":
     dmat = np.linalg.norm(pts[:, None, :] - pts[None, :, :], axis=2)
     np.fill_diagonal(dmat, np.inf)
     c_near, c_dist = _nearest(cands, pts)
+
+    # Each patch's nearest and second-nearest distance. They used to be
+    # worked out over the whole matrix at every step, which made this step
+    # cost the CUBE of the patch count. A move changes one row and one column
+    # of the matrix, so only the rows it can touch are worked out again
+    # (item 27, 4.3.57); both are values picked out of the matrix, never
+    # computed, so they are the same numbers bit for bit.
+    def _two_smallest(rows):
+        part = dmat[f + rows]
+        low = part.min(axis=1)
+        return low, (np.partition(part, 1, axis=1)[:, 1] if total > 2
+                     else low)
+
+    every = np.arange(n)
+    nn, second = _two_smallest(every)
+    # The shortcut needs ordered numbers; a NaN anywhere (never seen from a
+    # real profile) works every row out again, exactly as before.
+    incremental = (total > 2 and bool(np.all(np.isfinite(cands)))
+                   and bool(np.all(np.isfinite(fixed))))
     for _step in range(4 * n):
-        nn = dmat[f:].min(axis=1)
-        second = np.partition(dmat[f:], 1, axis=1)[:, 1] if total > 2 else nn
         moved = False
         for i in map(int, np.lexsort((second, nn))[:8]):
             k = f + i
@@ -738,8 +835,20 @@ def _even_spread(cands, fixed, n: int, samples, weights) -> "list[int]":
             pts[k] = cands[c]
             row = np.linalg.norm(pts - pts[k], axis=1)
             row[k] = np.inf
+            was = dmat[f:, k].copy()
             dmat[k, :] = row
             dmat[:, k] = row
+            # A row's two smallest values stay as they were when the value
+            # that changed was above its second smallest before and is not
+            # below it now; every other row (and the moved patch's own) is
+            # worked out again from the matrix.
+            if incremental:
+                stale = (was <= second) | (row[f:] < second)
+                stale[i] = True
+                redo = np.flatnonzero(stale)
+            else:
+                redo = every
+            nn[redo], second[redo] = _two_smallest(redo)
             if len(hit):
                 c_near[hit] = others[a_idx]
                 c_dist[hit] = a_dist
