@@ -1647,6 +1647,13 @@ def _sweep_stale_temp_dirs() -> "tuple[int, int]":
 # longer be mistaken for a test failure, and can no longer be a pass.
 _CRASHED_WORKERS: list = []
 
+# A FAILED test loses both watchdogs for its teardown (pytest's faulthandler
+# and pytest-timeout cancel them on the failure), so a teardown that blocks
+# then hangs the gate silently: the two stalls of 2026-11-22. These re-arm one
+# that dumps and ends the worker, which the banner below then names.
+from tests.failed_test_watchdog import (      # noqa: E402,F401
+    pytest_exception_interact, pytest_runtest_logfinish)
+
 
 @pytest.hookimpl(optionalhook=True)
 def pytest_testnodedown(node, error):
@@ -1694,9 +1701,12 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     w.write_line("")
     w.write_line("  It is NOT the same thing as a 'Timeout (0:0X:XX)!' dump. "
                  "That one is pytest.ini's")
-    w.write_line("  faulthandler_timeout firing on a slow test, it is "
-                 "harmless, and it never reaches")
-    w.write_line("  this banner.")
+    w.write_line("  faulthandler_timeout firing on a slow test, and alone it "
+                 "is harmless. A 'Timeout' dump")
+    w.write_line("  FOLLOWED BY '[gwN] node down' is a watchdog ending a "
+                 "stuck test or a failed test's")
+    w.write_line("  stuck teardown: the dump just before it names the blocked "
+                 "frame.")
     w.write_line("")
     w.write_line("  The run is reported as FAILED whatever the test counts "
                  "say.", red=True, bold=True)

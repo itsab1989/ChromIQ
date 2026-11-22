@@ -169,7 +169,8 @@ it simply cannot be read as a test failure, and cannot be a pass.
 | what you see | what it is |
 |---|---|
 | `Fatal Python error: …` and `[gwN] node down` | a worker DIED. The banner fires, the run exits non-zero, and any test in the FAILED list is a bystander — re-run it alone before believing it |
-| `Timeout (0:0X:XX)!` then a thread dump | `faulthandler_timeout` on a test that was merely slow. Harmless. No banner, no failure |
+| `Timeout (0:0X:XX)!` then a thread dump, and the run goes on | `faulthandler_timeout` on a test that was merely slow. Harmless. No banner, no failure |
+| `Timeout` then a thread dump, then `[gwN] node down` | a stuck test (or a failed test's stuck teardown) was ENDED by a watchdog. The banner fires and the run is red; the dump names the blocked frame |
 
 A reviewer read the second as the first, in a GREEN run, and reported that "the
 segfault trace appears in green runs too". It does not. `faulthandler_timeout`
@@ -383,6 +384,16 @@ names it and the run exits non-zero. Proved with a planted `sleep(3600)` at
 it costs nothing. 900 s is 3.3x the slowest test alone; under heavy load the
 slowest seen was 385 s (`test_mm_in_mm_and_in_mm_in_never_change_the_page[1000]`).
 A test that legitimately needs longer sets its own `@pytest.mark.timeout`.
+
+**A FAILED TEST USED TO LOSE BOTH WATCHDOGS (the two silent stalls of 2026-11-22,
+`~/Desktop/ChromIQ-work/2026-11-22_gate_stall/findings.txt`).** pytest's faulthandler
+plugin and pytest-timeout both cancel their timer in `pytest_exception_interact`, which
+runs on every failed test before its teardown, so a teardown or module / session finalizer
+that blocked after an `F` hung the gate for ever with no name. `tests/failed_test_watchdog.py`
+(imported by `tests/conftest.py`) re-arms one C-level timer at the `timeout` value (900 s)
+that dumps every thread and ends the worker; the end of the item disarms it. A stuck
+teardown now reads `F`, `Timeout (0:15:00)!`, a dump with the blocked frame, `[gwN] node
+down`, the banner, exit non-zero (`tests/test_a_failed_test_keeps_its_watchdog.py`).
 
 **…and a timeout that is too TIGHT is a phantom red.** The other half of the
 same rule, learned 2026-09-02. `test_webengine_shutdown` spawned a subprocess
