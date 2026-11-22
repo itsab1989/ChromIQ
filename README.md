@@ -1075,6 +1075,9 @@ table, with the one-page
 [`docs/driven_instrument_checklist.md`](docs/driven_instrument_checklist.md)
 and the catalogue of every developer tool,
 [`docs/dev_tools_index.md`](docs/dev_tools_index.md).
+If you own an X-Rite i1iO 3 table,
+[`docs/recording_plan_i1io3.md`](docs/recording_plan_i1io3.md) is a complete
+plan for recording what X-Rite's i1Profiler does with it, in one session.
 The maintainers cannot test hardware they do not own, so your tests on the
 real device are an important part of the pull request.
 

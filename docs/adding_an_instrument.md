@@ -37,6 +37,7 @@ straight to [section 2](#2-you-own-an-instrument-chromiq-does-not-support-yet-th
 
 1. [Who this is for, and what we aim for](#1-who-this-is-for-and-what-we-aim-for)
 2. [You own an instrument ChromIQ does not support yet? This is how you can help](#2-you-own-an-instrument-chromiq-does-not-support-yet-this-is-how-you-can-help)
+   - 2a. [Recording an instrument that moves](#2a-recording-an-instrument-that-moves)
 3. [Talk to us first](#3-talk-to-us-first)
 4. [What kind of instrument is it?](#4-what-kind-of-instrument-is-it)
    - 4a. [Two routes, worked in parallel](#4a-two-routes-worked-in-parallel)
@@ -359,6 +360,109 @@ Any of these helps:
 
 Nothing here is a promise that ChromIQ will support your instrument. It helps
 us understand it, and that is always the first step.
+
+## 2a. Recording an instrument that moves
+
+A measuring table, a strip reader with a motor or an automatic chart reader
+needs more from its owner's recordings than a handheld instrument, because
+ChromIQ will one day move it. **The worked example is the
+[recording plan for the X-Rite i1iO 3](recording_plan_i1io3.md)**: a
+complete plan an owner can follow alone, block by block, with the labels to
+type, what to note and what to send. Copy its shape for another device.
+
+### The principle: everything in the first round
+
+With the first table ChromIQ drove (the i1iO 2), every recording that was
+missing turned into a guess, the guess into a limit that was too careful, and
+the limit into another release and another round with the owner. So, for any
+device that moves, plan the first round to record:
+
+- **Every state and every ending, not only the good path.** How the program
+  starts the device cold and warm; what it does when an earlier session was
+  cancelled, quit in the middle, force-quit, cut off by a pulled cable or by
+  the power switch; how it gets the device back from each of those states.
+  ChromIQ must be able to do all of that itself, without the maker's program.
+- **The whole range of movement.** Sheets, aim points and cancelled runs in
+  every part of the bed, so the way home is seen from everywhere; the largest
+  and smallest positions the program ever commands; a point it refuses.
+- **Every speed and size the program offers**: the smallest and largest
+  patches, every speed setting, a row it cannot read (its retry), several
+  pages, every measurement condition.
+- **Each measurement paired with the file the program saved in that same
+  step**, unchanged.
+
+The maker's program is the design to copy: what it sends, in its order and
+at its speed. A limit in ChromIQ needs a named physical reason or a named
+state of the device; "no recording went there" is never one, which is why
+the recordings should go everywhere.
+
+The normal blocks of such a plan are done in the maker's own program, and
+the device moves only where the program moves it. Blocks that do something
+unusual (switching off or pulling the cable during a run) are marked
+optional, and the power switch is named as the stop before anything moves.
+Anything done by hand on the device that the program does not ask for
+(pushing a powered arm, taking the instrument out) goes into a separate,
+clearly optional section with what is known about it, and the maker's own
+manual wins wherever it disagrees with the plan.
+
+### A checklist to adapt for another device
+
+1. The tool's report, and the program started and quit with the device idle
+   (identity, opening lines).
+2. A cold start: the device switched on while recording.
+3. Calibration, once early and once after a long pause.
+4. One normal measurement to its end, in every reading mode the program has
+   (rows, patch by patch), each saved.
+5. Cancel in the middle, and quit the program normally.
+6. Every state an earlier session can leave behind, each followed by the
+   program's next start: the program force-quit while it waits for an aim
+   and during a move (the untidy endings, and the program's repair of them),
+   quit normally at the same points (its tidy-up), the power switch with no
+   program running, a pulled cable.
+7. The arm left by the program itself in every region (a patch by patch run
+   force-quit there), then the program started again: the way home from
+   everywhere, with no hand on the arm.
+8. Sheets and aim points in every corner and at every edge; a point beyond
+   reach.
+9. Every patch size and speed; a row that cannot be read; several pages.
+10. Every measurement condition and accessory (filters, apertures, height,
+    sheet hold).
+11. Errors provoked safely, Stop and Pause if offered.
+12. Idle time, and the instrument used by hand in the same session.
+13. A reference sheet read every way, saved, and kept for later.
+14. Photos with a ruler in the picture (the bed, the rest position, the
+    calibration tile), screenshots of the program's settings, and a notes
+    file with one line per block.
+
+Each block is its own step (or take) of the recording tool, labelled, so the
+tool stores its start and end and checks the recording right after it, and
+the owner's notes are tied to the exact times.
+
+### How recordings become code and tests
+
+Section [12b](#12b-instruments-chromiq-drives-itself-the-whole-process-step-by-step)
+is the whole process. In short, for the i1iO 2:
+
+- `scripts/recording_timeline.py` turns a recording into a timeline and a
+  list of every distinct line with its times; the device-specific part is a
+  plug-in, `scripts/recordings/plugins/i1io2_table.py`.
+- The lines the app may send, and the few computed forms, are the allow-list
+  in `workflow/i1io/table/lines.py`; the area, the recorded speeds and the
+  vendor's way home are in `workflow/i1io/table/geometry.py`
+  (`workflow/i1io/table/geometry.py::RECORDED_M2_SPEEDS`,
+  `workflow/i1io/table/geometry.py::homing_detour`); the states the table
+  reports at a start are mapped in
+  `workflow/i1io/table/session_table.py::A0_KNOWN`, each with the recording
+  it was seen in (`docs/design/i1io_table_support.md`, "the table without
+  i1Profiler").
+- `scripts/recording_vs_allowlist.py` checks every line of a new recording
+  against that list.
+- The simulated table, `tests/i1io_table/session_sim.py`, answers as the
+  recordings show, with its own copy of every recorded sequence; where no
+  recording shows an answer, its assumption is a switch the tests run both
+  ways (`tests/i1io_table/test_4355_table_without_i1profiler.py`).
+- Every number about the device lives with its source and confidence in
+  `workflow/i1io/table_facts.py`.
 
 ## 3. Talk to us first
 
@@ -1183,6 +1287,10 @@ device ChromIQ will drive, ask in that same round for:
   afterwards;
 - what the program does when the owner presses Stop, pulls a cable or switches the device off
   mid-move, but only if the owner is happy to try it.
+
+[Section 2a](#2a-recording-an-instrument-that-moves) says why the first round should cover every
+state, every ending and the whole range of movement, with a checklist; the
+[recording plan for the i1iO 3](recording_plan_i1io3.md) is a complete example to copy.
 
 Recordings and saved files are private evidence. They stay outside the repository and its
 tests ([section 5](#5-finding-the-facts), "Keep it lawful and plain").
