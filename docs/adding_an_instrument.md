@@ -396,10 +396,14 @@ at its speed. A limit in ChromIQ needs a named physical reason or a named
 state of the device; "no recording went there" is never one, which is why
 the recordings should go everywhere.
 
-Everything in such a plan stays **normal use of the maker's own program**,
-on the owner's own device. Blocks that do something unusual (switching off or
-pulling the cable during a run) are marked optional, and the power switch is
-named as the stop before anything moves.
+The normal blocks of such a plan are done in the maker's own program, and
+the device moves only where the program moves it. Blocks that do something
+unusual (switching off or pulling the cable during a run) are marked
+optional, and the power switch is named as the stop before anything moves.
+Anything done by hand on the device that the program does not ask for
+(pushing a powered arm, taking the instrument out) goes into a separate,
+clearly optional section with what is known about it, and the maker's own
+manual wins wherever it disagrees with the plan.
 
 ### A checklist to adapt for another device
 
@@ -411,10 +415,13 @@ named as the stop before anything moves.
    (rows, patch by patch), each saved.
 5. Cancel in the middle, and quit the program normally.
 6. Every state an earlier session can leave behind, each followed by the
-   program's next start: quit while aiming, quit with the arm out, force-quit
-   during a move, the power switch, a pulled cable.
-7. The arm moved by hand to every region, then the program started (the way
-   home from everywhere).
+   program's next start: the program force-quit while it waits for an aim
+   and during a move (the untidy endings, and the program's repair of them),
+   quit normally at the same points (its tidy-up), the power switch with no
+   program running, a pulled cable.
+7. The arm left by the program itself in every region (a patch by patch run
+   force-quit there), then the program started again: the way home from
+   everywhere, with no hand on the arm.
 8. Sheets and aim points in every corner and at every edge; a point beyond
    reach.
 9. Every patch size and speed; a row that cannot be read; several pages.
@@ -427,8 +434,9 @@ named as the stop before anything moves.
     calibration tile), screenshots of the program's settings, and a notes
     file with one line per block.
 
-A label per block, typed into the recording tool before and after it, ties
-the owner's notes to the exact times in the recording.
+Each block is its own step (or take) of the recording tool, labelled, so the
+tool stores its start and end and checks the recording right after it, and
+the owner's notes are tied to the exact times.
 
 ### How recordings become code and tests
 
