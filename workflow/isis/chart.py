@@ -295,9 +295,13 @@ def options_from(kw: dict) -> Options:
         row_numbers=bool(kw.get("row_indicators")),
         notes_band=_flag(kw.get(BAND_KEY), False),
         notes_place=place if place in BAND_PLACES else "header",
-        notes_height=min(max(_num(kw.get(BAND_HEIGHT_KEY),
-                                  BAND_HEIGHT_DEFAULT_MM), 4.0),
-                         F.HEADER_MAX_MM.value - F.HEADER_MIN_MM.value),
+        # No cap but the page here (4.3.57, limits round 2): in the trailer
+        # the band may be as tall as the 660 mm chart allows (`check_sheet`
+        # refuses a longer one); in the header X-Rite's 80 mm header holds
+        # 48 mm of it, and `layout_for` refuses more in words. Was clamped
+        # to 48 mm in both places, silently.
+        notes_height=max(_num(kw.get(BAND_HEIGHT_KEY),
+                              BAND_HEIGHT_DEFAULT_MM), 4.0),
         margins=margins,
         offset=(max(0.0, _num(kw.get("offset_x"), 0.0)),
                 max(0.0, _num(kw.get("offset_y"), 0.0))),
@@ -852,10 +856,35 @@ def check_sheet(sheet: Sheet) -> None:
                 "a barcode longer than the chart is wide"))
 
 
+def _refuse_what_the_options_cannot_hold(kw: dict, opts: "Options") -> None:
+    """Two asks the panel takes since 4.3.57 (limits round 2: no cap but the
+    page) that an i1iSis chart cannot be drawn with, refused in words rather
+    than quietly drawn as something else (IsisSheetRefused)."""
+    from core.i18n import tr
+    if (_num(kw.get("offset_x"), 0.0) < 0
+            or _num(kw.get("offset_y"), 0.0) < 0):
+        # the chart is placed from its page's top left corner, inside the
+        # margins; an offset below 0 used to be read as 0
+        raise IsisSheetRefused("offset_negative", tr(
+            "a chart offset below 0 would move it out past the margins (an "
+            "i1iSis chart takes an offset of 0 or more, which moves it right "
+            "and down)"))
+    room = F.HEADER_MAX_MM.value - F.HEADER_MIN_MM.value
+    if (opts.notes_band and opts.notes_place == "header"
+            and opts.notes_height > room + 1e-6):
+        raise IsisSheetRefused("band_header", tr(
+            "a notes band of {h} mm does not fit in the header, which is at "
+            "most {most} mm long and keeps {own} mm for itself. Make the "
+            "notes band {room} mm or lower, or put it in the trailer").format(
+                h=f"{opts.notes_height:g}", most=f"{F.HEADER_MAX_MM.value:g}",
+                own=f"{F.HEADER_MIN_MM.value:g}", room=f"{room:g}"))
+
+
 def layout_for(N: int, paper_w: float, paper_h: float, kw: dict
                ) -> "tuple[Options, Grid, Sheet]":
     """Options, grid and sheet of an N-patch chart, checked."""
     opts = options_from(kw)
+    _refuse_what_the_options_cannot_hold(kw, opts)
     grid = grid_for(N, paper_w, paper_h, opts)
     sheet = sheet_for(grid, paper_w, paper_h, opts)
     check_sheet(sheet)

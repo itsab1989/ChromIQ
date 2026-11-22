@@ -43,6 +43,12 @@ NO_ROOM_ACROSS = "across"      # left + right
 NO_ROOM_ALONG = "along"        # top + bottom
 NO_ROOM_BOTH = "both"          # only all four together
 NO_ROOM_PATCH = "patch"        # not even with no margins at all
+#: Round 2 of the limits (4.3.57, item 39): the clip border and the gaps
+#: between patches have no cap but the page either, so they can be what
+#: leaves no room, and a sentence that blamed the margins for them would send
+#: the reader to the wrong box.
+NO_ROOM_CLIP = "clip"          # the clip border (it widens its side's margin)
+NO_ROOM_SPACING = "spacing"    # spacers, gaps between strips / patches, sig
 
 
 def _fits(geom: Geom, paper_w_mm: float, paper_h_mm: float, npat: int) -> bool:
@@ -69,14 +75,35 @@ def no_room_kind(geom: Geom, paper_w_mm: float, paper_h_mm: float,
     npat = max(1, int(npat or 1))
     if _fits(geom, paper_w_mm, paper_h_mm, npat):
         return None
-    if _fits(replace(geom, margin_l=0.0, margin_r=0.0),
-             paper_w_mm, paper_h_mm, npat):
-        return NO_ROOM_ACROSS
-    if _fits(replace(geom, margin_t=0.0, margin_b=0.0),
-             paper_w_mm, paper_h_mm, npat):
-        return NO_ROOM_ALONG
+    w, h = paper_w_mm, paper_h_mm
+    # Every single cause that, taken away alone, lets the page lay out, with
+    # how many millimetres it holds: the largest is the one named (a 290 mm
+    # margin beside a 1 mm spacer is the margin's doing, a 2000 mm spacer
+    # beside 6 mm margins the spacer's). Margins first, so a tie keeps the
+    # answer this gave before round 2.
+    found: "list[tuple[float, str]]" = []
+    if _fits(replace(geom, margin_l=0.0, margin_r=0.0), w, h, npat):
+        kind = NO_ROOM_ACROSS
+        clip_w = (float(geom.lbord) + float(geom.border)
+                  if float(getattr(geom, "lbord", 0.0) or 0.0) > 0 else 0.0)
+        right = (getattr(geom, "clip_side", "left") or "left") == "right"
+        side, other = ((geom.margin_r, geom.margin_l) if right
+                       else (geom.margin_l, geom.margin_r))
+        if clip_w > 0 and abs(side - clip_w) < 1e-6 and clip_w >= other:
+            kind = NO_ROOM_CLIP    # the clip border set that side's margin
+        found.append((geom.margin_l + geom.margin_r, kind))
+    if _fits(replace(geom, margin_t=0.0, margin_b=0.0), w, h, npat):
+        found.append((geom.margin_t + geom.margin_b, NO_ROOM_ALONG))
+    gaps = (float(geom.pspa) + max(0.0, float(geom.rrsp) - float(geom.pwid))
+            + max(0.0, float(getattr(geom, "strip_indicator_gap", 0.0) or 0.0)))
+    if gaps > 0 and _fits(replace(geom, pspa=0.0,
+                                  rrsp=min(float(geom.rrsp), float(geom.pwid)),
+                                  strip_indicator_gap=0.0), w, h, npat):
+        found.append((gaps, NO_ROOM_SPACING))
+    if found:
+        return max(found, key=lambda t: t[0])[1]
     if _fits(replace(geom, margin_l=0.0, margin_r=0.0, margin_t=0.0,
-                     margin_b=0.0), paper_w_mm, paper_h_mm, npat):
+                     margin_b=0.0), w, h, npat):
         return NO_ROOM_BOTH
     return NO_ROOM_PATCH
 
@@ -99,6 +126,17 @@ def no_room_text(kind: "str | None") -> "str | None":
             "blank paper your instrument starts and stops on and the room "
             "for the strip letters. Make the top or bottom margin smaller, "
             "make the patches shorter, or choose a longer paper.")
+    if kind == NO_ROOM_CLIP:
+        return tr(
+            "The clip border is so wide that it leaves no room on this paper "
+            "for even one strip of patches. Make the clip border narrower, "
+            "make the patches narrower, or choose a wider paper.")
+    if kind == NO_ROOM_SPACING:
+        return tr(
+            "The gaps around the patches leave no room on this paper for even "
+            "one patch. Make the spacer width, the gap between patches, the "
+            "gap between strips or the gap under the strip letters smaller, "
+            "or choose a larger paper.")
     if kind == NO_ROOM_BOTH:
         return tr(
             "The margins on the four sides together leave no room on this "
@@ -1270,6 +1308,65 @@ def _comb(anchor: float, step: float, lo: float, hi: float) -> list[float]:
     return [anchor + k * step for k in range(kmin, kmax + 1)]
 
 
+def helper_marker_edges(geom: Geom, top_bottom: bool = True,
+                        sides: bool = True) -> "tuple[bool, bool]":
+    """Which edges really carry ruler marks, ``(top_bottom, sides)``: what
+    was asked for, less the axis a honeycomb cannot line up with. The rule
+    :func:`helper_marker_lines_mm` draws by and :func:`furniture_off_sheet`
+    refuses by, in one place."""
+    from .instruments import is_hexagonal as _is_hex
+    if _is_hex(geom):
+        # ONE AXIS, NOT NONE — AND IT IS THE SIDES, WHICH IS THE OPPOSITE OF
+        # WHAT THIS BLOCK FIRST SAID.
+        #
+        # The stagger that makes a honeycomb a honeycomb is applied to **x**,
+        # indexed by the patch's position DOWN its strip (`patch_rects_px`
+        # :551). So the centres are exactly uniform in y and zigzag by half a
+        # patch width in x. The comb that steps down the page therefore lands on
+        # every row, and the comb that steps across it marks the seam between
+        # two columns.
+        #
+        # Measured on A4 portrait, worst distance from a patch centre to the
+        # nearest dash:
+        #
+        #             top/bottom      sides
+        #     CR30      2.9830 mm    0.0310 mm
+        #     SS        1.7450 mm    0.0250 mm
+        #
+        # The first version of this block kept the top/bottom comb, on a reading
+        # of "dy = 0.0000 between strips" that was evidence for the OTHER one:
+        # `dy` between strips says the columns start level, which is a fact
+        # about x. The docstring warns about exactly this — "the names are the
+        # EDGE, never the axis … anyone naming these after the segment gets them
+        # backwards" — and it was still got backwards.
+        if geom.hex_flat_top:
+            # ROTATED, AND THE AXES INVERT AGAIN. The turn moves the stagger to
+            # y and indexes it by the STRIP, so the centres become uniform in x
+            # and zigzag in y: the mirror of the case below, one orientation
+            # along. Basti, 2026-09-09, asked whether the top and bottom markers
+            # would then be allowed: *"those are the ones that make sense once
+            # the honeycomb is rotated."* They are, and only they are.
+            sides = False
+        else:
+            top_bottom = False
+    return bool(top_bottom), bool(sides)
+
+
+def helper_markers_meet(paper_w_mm: float, paper_h_mm: float, edge_mm: float,
+                        length_mm: float, *, top_bottom: bool = True,
+                        sides: bool = True) -> bool:
+    """Whether the marks asked for would meet their opposite number in the
+    middle of the sheet: the top and bottom marks reach ``edge + length``
+    down from each end of the page's HEIGHT, the side marks across its
+    WIDTH. (Until 4.3.57 both were held to the shorter side whichever were
+    on; the marks of one pair never touch the other pair's middle.)"""
+    reach = max(0.0, float(edge_mm)) + float(length_mm)
+    if float(length_mm) <= 0:
+        return False
+    return bool((top_bottom and reach > paper_h_mm / 2.0)
+                or (sides and reach > paper_w_mm / 2.0))
+
+
 def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
                            layout: Layout, *, edge_mm: float = 2.0,
                            length_mm: float = 2.0, per_patch: int = 3,
@@ -1348,53 +1445,19 @@ def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
     corner rule above is the one deliberate exception, because there the dashes
     collide with **each other** rather than with something the user placed.
     """
-    from .instruments import is_hexagonal as _is_hex
-    if _is_hex(geom):
-        # ONE AXIS, NOT NONE — AND IT IS THE SIDES, WHICH IS THE OPPOSITE OF
-        # WHAT THIS BLOCK FIRST SAID.
-        #
-        # The stagger that makes a honeycomb a honeycomb is applied to **x**,
-        # indexed by the patch's position DOWN its strip (`patch_rects_px`
-        # :551). So the centres are exactly uniform in y and zigzag by half a
-        # patch width in x. The comb that steps down the page therefore lands on
-        # every row, and the comb that steps across it marks the seam between
-        # two columns.
-        #
-        # Measured on A4 portrait, worst distance from a patch centre to the
-        # nearest dash:
-        #
-        #             top/bottom      sides
-        #     CR30      2.9830 mm    0.0310 mm
-        #     SS        1.7450 mm    0.0250 mm
-        #
-        # The first version of this block kept the top/bottom comb, on a reading
-        # of "dy = 0.0000 between strips" that was evidence for the OTHER one:
-        # `dy` between strips says the columns start level, which is a fact
-        # about x. The docstring warns about exactly this — "the names are the
-        # EDGE, never the axis … anyone naming these after the segment gets them
-        # backwards" — and it was still got backwards.
-        if geom.hex_flat_top:
-            # ROTATED, AND THE AXES INVERT AGAIN. The turn moves the stagger to
-            # y and indexes it by the STRIP, so the centres become uniform in x
-            # and zigzag in y: the mirror of the case below, one orientation
-            # along. Basti, 2026-09-09, asked whether the top and bottom markers
-            # would then be allowed: *"those are the ones that make sense once
-            # the honeycomb is rotated."* They are, and only they are.
-            sides = False
-            if not top_bottom:
-                return []
-        else:
-            top_bottom = False
-            if not sides:
-                return []
+    top_bottom, sides = helper_marker_edges(geom, top_bottom, sides)
     if paper_w_mm <= 0 or paper_h_mm <= 0 or length_mm <= 0:
         return []
     if not top_bottom and not sides:
         return []                      # every edge switched off (#164)
     edge = max(0.0, float(edge_mm))
     ln = float(length_mm)
-    if edge + ln > min(paper_w_mm, paper_h_mm) / 2:
-        return []                      # would meet in the middle of the sheet
+    if helper_markers_meet(paper_w_mm, paper_h_mm, edge, ln,
+                           top_bottom=top_bottom, sides=sides):
+        # would meet in the middle of the sheet. Since 4.3.57 (limits round
+        # 2) the build refuses this in words (`furniture_off_sheet`), so a
+        # chart never reaches here with it; the preview's overlay may.
+        return []
 
     place = placement(geom, paper_w_mm, paper_h_mm, layout)
     steps = max(1, layout.steps_in_pass)
@@ -1471,3 +1534,160 @@ def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
             lines.append((edge, y, edge + ln, y))
             lines.append((paper_w_mm - edge - ln, y, paper_w_mm - edge, y))
     return lines
+
+
+# ---------------------------------------------------------------------------
+# NOTHING PRINTED OFF THE PAPER, SAID IN WORDS (4.3.57, limits round 2)
+#
+# The chart offset, the ruler markers, the strip letters' offset and the text
+# distances stopped at 30 to 300 mm, for no physical reason. Their only real
+# limit is the paper, so the build asks the paper: a value that would put
+# something past the sheet's edge (or ruler marks into each other) is refused
+# with the reason, never clamped and never silently left out. The sideways
+# "Label offset" is not here: the renderer holds it at the paper edge and the
+# panel says so (`raster.strip_label_x_plan`, `held_by`).
+# ---------------------------------------------------------------------------
+
+#: How far past an edge counts as off the paper (rounding, not a margin).
+_OFF_SHEET_TOL_MM = 0.05
+
+
+def _patches_off_sheet(geom: Geom, paper_w_mm: float, paper_h_mm: float,
+                       layout: Layout) -> bool:
+    """Whether the fullest page's patch block (spacers and a honeycomb's
+    overshoot included) reaches past an edge of the paper."""
+    place = placement(geom, paper_w_mm, paper_h_mm, layout)
+    steps = layout.steps_in_pass
+    n_first = min(layout.total_patches, layout.patches_per_page)
+    n_passes = (n_first + steps - 1) // steps if steps else 0
+    rows0 = min(steps, n_first) if steps else 0
+    if n_passes <= 0 or rows0 <= 0:
+        return False
+    edge = geom.pspa if (geom.edge_spacers and geom.pspa > 0) else 0.0
+    hxew = float(getattr(geom, "hxew", 0.0) or 0.0)
+    hxeh = float(getattr(geom, "hxeh", 0.0) or 0.0)
+    y_top, y_bottom = place.y_span(0, rows0 - 1)
+    left = place.x_of(0) - hxew
+    right = place.x_of(n_passes - 1) + geom.pwid + hxew
+    top = y_top - edge - hxeh
+    bottom = y_bottom + edge + hxeh
+    t = _OFF_SHEET_TOL_MM
+    return (left < -t or top < -t or right > paper_w_mm + t
+            or bottom > paper_h_mm + t)
+
+
+def ruler_markers_off_sheet(geom: Geom, paper_w_mm: float, paper_h_mm: float,
+                            *, helper_markers: bool = False,
+                            helper_marker_edge: float = 0.0,
+                            helper_marker_len: float = 0.0,
+                            helper_markers_top_bottom: bool = True,
+                            helper_markers_sides: bool = True
+                            ) -> "str | None":
+    """The plain reason when the ruler helper markers asked for would meet
+    in the middle of the sheet (:func:`helper_markers_meet`, on the edges
+    :func:`helper_marker_edges` really draws), else None. Until 4.3.57 they
+    were then silently left off the chart. Needs no layout: `build_chart`
+    asks it before laying the page out, which their reserve can also break."""
+    from core.i18n import tr
+    if not helper_markers or float(helper_marker_len or 0.0) <= 0:
+        return None
+    tb, sd = helper_marker_edges(geom, bool(helper_markers_top_bottom),
+                                 bool(helper_markers_sides))
+    if (tb or sd) and helper_markers_meet(
+            float(paper_w_mm), float(paper_h_mm),
+            float(helper_marker_edge or 0.0), float(helper_marker_len),
+            top_bottom=tb, sides=sd):
+        return tr(
+            "The ruler helper markers would meet in the middle of the sheet: "
+            "their distance from the page edge plus their length is more "
+            "than half of the paper. Make “Distance from page edge” or "
+            "“Marker length” smaller, or switch the markers off.")
+    return None
+
+
+def text_distance_off_sheet(paper_w_mm: float, paper_h_mm: float, *,
+                            text_edge: float = 0.0, text_edge_top: float = 0.0,
+                            text_edge_clip: float = 0.0) -> "str | None":
+    """The plain reason when a "Text distance from edge" is as large as the
+    paper itself (Top and Bottom against its height, Clip against its
+    width), else None. Needs no layout, so `chart.build_chart` asks it
+    BEFORE laying the page out: a bottom distance that large also leaves no
+    room for the patches, and the reader must be sent to this box, not told
+    to make the patches smaller."""
+    from core.i18n import tr
+    if (float(text_edge or 0.0) >= float(paper_h_mm)
+            or float(text_edge_top or 0.0) >= float(paper_h_mm)
+            or float(text_edge_clip or 0.0) >= float(paper_w_mm)):
+        return tr(
+            "A distance under “Text distance from edge” is larger than the "
+            "paper itself, so the text it places would be printed off the "
+            "sheet. Make that distance smaller than the paper.")
+    return None
+
+
+def furniture_off_sheet(geom: Geom, paper_w_mm: float, paper_h_mm: float,
+                        layout: Layout, *, helper_markers: bool = False,
+                        helper_marker_edge: float = 0.0,
+                        helper_marker_len: float = 0.0,
+                        helper_markers_top_bottom: bool = True,
+                        helper_markers_sides: bool = True,
+                        draw_indicators: bool = True,
+                        strip_label_offset_mm: float = 0.0,
+                        text_edge: float = 0.0, text_edge_top: float = 0.0,
+                        text_edge_clip: float = 0.0) -> "str | None":
+    """The plain reason when something on this sheet would be printed off
+    the paper, else None. Asked by `chart.build_chart` after the layout, so
+    every chart the engine draws (Generate, a redraw, a preset) is held to
+    it, and the reason reaches the person the way the margins' does
+    (`LayoutError.plain`)."""
+    from core.i18n import tr
+    w, h = float(paper_w_mm), float(paper_h_mm)
+    t = _OFF_SHEET_TOL_MM
+    # 1. the chart offset (the only thing that moves the block past the
+    #    margins: `compute` lays it out inside them)
+    if (float(getattr(geom, "offset_x", 0.0) or 0.0)
+            or float(getattr(geom, "offset_y", 0.0) or 0.0)):
+        if _patches_off_sheet(geom, w, h, layout):
+            return tr(
+                "The chart offset moves part of the chart off the paper, "
+                "where it can be neither printed nor measured. Make “Chart "
+                "offset” smaller (a negative value moves the chart left or "
+                "up), or set it back to 0.")
+    # 2. the ruler helper markers
+    why = ruler_markers_off_sheet(
+        geom, w, h, helper_markers=helper_markers,
+        helper_marker_edge=helper_marker_edge,
+        helper_marker_len=helper_marker_len,
+        helper_markers_top_bottom=helper_markers_top_bottom,
+        helper_markers_sides=helper_markers_sides)
+    if why:
+        return why
+    # 3. the text distances themselves: text cannot start past the far edge
+    why = text_distance_off_sheet(w, h, text_edge=text_edge,
+                                  text_edge_top=text_edge_top,
+                                  text_edge_clip=text_edge_clip)
+    if why:
+        return why
+    # 4. the strip letters, up or down ("Label offset" and the top reserve)
+    band = float(getattr(geom, "label_band_mm", -1.0))
+    if draw_indicators and band != 0.0:
+        place = placement(geom, w, h, layout)
+        lead = float(place.leader_top)
+        # `label_ink_top_mm` / `label_ink_reach_mm` are measured from the
+        # band's anchor with "Label offset" already in them (`raster.
+        # _furniture_reserves_mm`); 0 / 0 = not measured, and the band then
+        # stands at the anchor plus the offset, as tall as its reserve.
+        top_mm = float(getattr(geom, "label_ink_top_mm", 0.0) or 0.0)
+        reach = float(getattr(geom, "label_ink_reach_mm", 0.0) or 0.0)
+        if reach > 0:
+            ink_top, ink_bottom = lead + top_mm, lead + reach
+        else:
+            ink_top = lead + float(strip_label_offset_mm or 0.0)
+            ink_bottom = ink_top + (band if band > 0 else float(geom.txhisl))
+        if ink_top < -t or ink_bottom > h + t:
+            return tr(
+                "The strip letters would be printed off the paper. Bring "
+                "“Label offset” closer to 0, or make “Top” under “Text "
+                "distance from edge” smaller, so the letters stay on the "
+                "sheet.")
+    return None

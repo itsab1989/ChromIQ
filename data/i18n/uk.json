@@ -4872,7 +4872,6 @@
  "Sheet-text font": "Шрифт тексту аркуша",
  "Shift": "Shift",
  "Shifts the image or the branding inside the clip border, in millimetres.\n\n  • X moves it ACROSS the clip border — towards the paper edge, or towards the patches.\n  • Y moves it ALONG the clip border — up or down the sheet.\n\nBoth start at 0, which centres the content in the clip border. Watch the Preview: what leaves the clip border is not printed.": "Зсуває зображення чи фірмовий знак усередині поля затискача, у міліметрах.\n\n  • X зсуває ПОПЕРЕК поля затискача — до краю паперу або до патчів.\n  • Y зсуває ВЗДОВЖ поля затискача — вгору чи вниз аркушем.\n\nОбидва починаються з 0, тобто вміст по центру поля затискача. Стежте за «Перегляд»: те, що виходить за межі поля затискача, не друкується.",
- "Shifts the whole patch block right (X) and down (Y) on the sheet, in mm. Usually 0 — use it to nudge the layout away from a printer's unprintable area or to line up with a pre-printed sheet. Only used in “Prioritise patch size”; area-first places the block by the margins.": "Зсуває весь блок патчів праворуч (X) і вниз (Y) на аркуші, у мм. Зазвичай 0 — використовуйте, щоб відсунути макет від ділянки, де принтер не друкує, або щоб вирівняти з попередньо надрукованим аркушем. Використовується лише в режимі «Спершу розмір патча»; «Спершу область діаграми» розміщує блок за полями.",
  "Shortcut": "Комбінація клавіш",
  "Shortcuts for getting around ChromIQ with the keyboard. ": "Комбінації клавіш для роботи з ChromIQ за допомогою клавіатури. ",
  "Show 3D preview ▸": "Показати 3D-перегляд ▸",

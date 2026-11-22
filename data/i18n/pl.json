@@ -4842,7 +4842,6 @@
  "Sheet-text font": "Czcionka tekstu arkusza",
  "Shift": "Shift",
  "Shifts the image or the branding inside the clip border, in millimetres.\n\n  • X moves it ACROSS the clip border — towards the paper edge, or towards the patches.\n  • Y moves it ALONG the clip border — up or down the sheet.\n\nBoth start at 0, which centres the content in the clip border. Watch the Preview: what leaves the clip border is not printed.": "Przesuwa obraz albo znak wewnątrz pasa mocowania, w milimetrach.\n\n  • X przesuwa go W POPRZEK pasa mocowania — ku krawędzi papieru albo ku polom.\n  • Y przesuwa go WZDŁUŻ pasa mocowania — w górę albo w dół arkusza.\n\nOba zaczynają od 0, co centruje zawartość w pasie mocowania. Patrz na podgląd: to, co wychodzi poza pas mocowania, nie zostanie wydrukowane.",
- "Shifts the whole patch block right (X) and down (Y) on the sheet, in mm. Usually 0 — use it to nudge the layout away from a printer's unprintable area or to line up with a pre-printed sheet. Only used in “Prioritise patch size”; area-first places the block by the margins.": "Przesuwa cały blok pól w prawo (X) i w dół (Y) na arkuszu, w mm. Zwykle 0 — użyj, aby odsunąć układ od niedrukowalnego obszaru drukarki lub dopasować do wcześniej zadrukowanego arkusza. Używane tylko w „Priorytet rozmiaru pola”; tryb obszaru umieszcza blok według marginesów.",
  "Shortcut": "Skrót",
  "Shortcuts for getting around ChromIQ with the keyboard. ": "Skróty do poruszania się po ChromIQ za pomocą klawiatury. ",
  "Show 3D preview ▸": "Pokaż podgląd 3D ▸",

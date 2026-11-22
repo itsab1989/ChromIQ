@@ -3808,7 +3808,6 @@
  "Sheet-text font": "シートテキストのフォント",
  "Shift": "Shift",
  "Shifts the image or the branding inside the clip border, in millimetres.\n\n  • X moves it ACROSS the clip border — towards the paper edge, or towards the patches.\n  • Y moves it ALONG the clip border — up or down the sheet.\n\nBoth start at 0, which centres the content in the clip border. Watch the Preview: what leaves the clip border is not printed.": "画像またはブランド表示を、クリップ帯の中でミリ単位に動かします。\n\n  • X はクリップ帯を横切る方向に動かします — 用紙の端に近づけるか、パッチ側に寄せるか。\n  • Y はクリップ帯に沿って動かします — 用紙の上方向または下方向へ。\n\nどちらも 0 から始まり、その状態で内容はクリップ帯の中央に置かれます。プレビューを見てください: クリップ帯から出たものは印刷されません。",
- "Shifts the whole patch block right (X) and down (Y) on the sheet, in mm. Usually 0 — use it to nudge the layout away from a printer's unprintable area or to line up with a pre-printed sheet. Only used in “Prioritise patch size”; area-first places the block by the margins.": "パッチブロック全体をシート上で右（X）と下（Y）にずらします（mm）。通常は0です。プリンターの印刷不可領域からレイアウトを離したり、あらかじめ印刷された紙に合わせたりするのに使います。「パッチサイズを優先」でのみ使われます。領域優先モードでは余白でブロックを配置します。",
  "Shortcut": "ショートカット",
  "Shortcuts for getting around ChromIQ with the keyboard. ": "キーボードで ChromIQ を操作するためのショートカット。 ",
  "Show 3D preview ▸": "3Dプレビューを表示 ▸",

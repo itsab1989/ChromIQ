@@ -860,6 +860,25 @@ def build_chart(
         # (`page_output.support`, THE PIXEL RULE).
         w_mm, h_mm = _po.page_mm(page_size, dpi)
     geom = _geom_for(len(target.patches))
+    # A text distance as large as the paper, or ruler marks that would meet
+    # (4.3.57, limits round 2: no cap but the page): said before the layout,
+    # which their reserves would also break, in a sentence about the wrong box.
+    # Not for an i1iSis chart: it draws its own furniture (no ruler marks,
+    # its letters held inside its own bands) and refuses its own sheets
+    # (`isis.chart.check_sheet`).
+    _why = None if _isis else (geometry.text_distance_off_sheet(
+                w_mm, h_mm, text_edge=text_edge, text_edge_top=text_edge_top,
+                text_edge_clip=text_edge_clip)
+            or geometry.ruler_markers_off_sheet(
+                geom, w_mm, h_mm, helper_markers=bool(helper_markers),
+                helper_marker_edge=helper_marker_edge,
+                helper_marker_len=helper_marker_len,
+                helper_markers_top_bottom=bool(helper_markers_top_bottom),
+                helper_markers_sides=bool(helper_markers_sides)))
+    if _why:
+        _exc = geometry.LayoutError(_why)
+        _exc.plain = _why
+        raise _exc
     try:
         layout = geometry.compute(geom, w_mm, h_mm, len(target.patches))
     except geometry.LayoutError as exc:
@@ -922,6 +941,32 @@ def build_chart(
         _i1io_chart.check_sheet(geom, layout, w_mm, h_mm,
                                         crosses=_i1io_crosses)
 
+    def _refuse_off_sheet(geom_now, layout_now) -> None:
+        # NOTHING OFF THE PAPER, SAID IN WORDS (4.3.57, limits round 2): the
+        # offset, the ruler markers, the strip letters and the text distances
+        # have no cap but the paper, so the paper refuses what it cannot hold
+        # (`geometry.furniture_off_sheet`), the way it refuses margins. Not
+        # for an i1iSis chart (see the check before the layout).
+        if _isis:
+            return
+        why = geometry.furniture_off_sheet(
+            geom_now, w_mm, h_mm, layout_now,
+            helper_markers=bool(helper_markers),
+            helper_marker_edge=helper_marker_edge,
+            helper_marker_len=helper_marker_len,
+            helper_markers_top_bottom=bool(helper_markers_top_bottom),
+            helper_markers_sides=bool(helper_markers_sides),
+            draw_indicators=bool(draw_indicators),
+            strip_label_offset_mm=strip_label_offset_mm,
+            text_edge=text_edge, text_edge_top=text_edge_top,
+            text_edge_clip=text_edge_clip)
+        if why:
+            exc = geometry.LayoutError(why)
+            exc.plain = why
+            raise exc
+
+    _refuse_off_sheet(geom, layout)
+
     # EACH INK'S RAMP ON ITS OWN STRIP (#182, Knut 5965186237). Only for a
     # calibration build, and only when the .ti1 is targen's pure ramp set:
     # anything else keeps its rows. The .ti1 is rewritten on disk as well, so
@@ -960,6 +1005,7 @@ def build_chart(
                 if _i1io:
                     _i1io_chart.check_sheet(geom, layout, w_mm, h_mm,
                                         crosses=_i1io_crosses)
+                _refuse_off_sheet(geom, layout)
                 if _isis:
                     _isis_sheet = _isis_check(layout, len(target.patches))
     if cal is not None and apply_cal:

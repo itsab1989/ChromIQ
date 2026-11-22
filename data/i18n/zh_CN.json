@@ -3808,7 +3808,6 @@
  "Sheet-text font": "页面文字字体",
  "Shift": "Shift",
  "Shifts the image or the branding inside the clip border, in millimetres.\n\n  • X moves it ACROSS the clip border — towards the paper edge, or towards the patches.\n  • Y moves it ALONG the clip border — up or down the sheet.\n\nBoth start at 0, which centres the content in the clip border. Watch the Preview: what leaves the clip border is not printed.": "在夹纸边条内以毫米为单位移动图像或标识。\n\n  • X 让它横向穿过夹纸边条移动 — 靠向纸张边缘，或靠向色块。\n  • Y 让它沿夹纸边条移动 — 在纸上向上或向下。\n\n两者都从 0 开始，此时内容在夹纸边条中居中。请留意预览：离开夹纸边条的部分不会被打印。",
- "Shifts the whole patch block right (X) and down (Y) on the sheet, in mm. Usually 0 — use it to nudge the layout away from a printer's unprintable area or to line up with a pre-printed sheet. Only used in “Prioritise patch size”; area-first places the block by the margins.": "在纸面上将整个色块块向右 (X) 和向下 (Y) 移动（毫米）。通常为 0——用它把布局挪开打印机的不可打印区域，或对齐预印页面。仅在「优先色块尺寸」中使用；区域优先模式按边距放置该块。",
  "Shortcut": "快捷键",
  "Shortcuts for getting around ChromIQ with the keyboard. ": "用键盘在 ChromIQ 中导航的快捷键。 ",
  "Show 3D preview ▸": "显示 3D 预览 ▸",

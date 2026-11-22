@@ -4836,7 +4836,6 @@
  "Sheet-text font": "Шрифт текста листа",
  "Shift": "Shift",
  "Shifts the image or the branding inside the clip border, in millimetres.\n\n  • X moves it ACROSS the clip border — towards the paper edge, or towards the patches.\n  • Y moves it ALONG the clip border — up or down the sheet.\n\nBoth start at 0, which centres the content in the clip border. Watch the Preview: what leaves the clip border is not printed.": "Сдвигает изображение или знак внутри кромки зажима, в миллиметрах.\n\n  • X сдвигает ПОПЕРЁК кромки зажима — к краю бумаги или к патчам мишени.\n  • Y сдвигает ВДОЛЬ кромки зажима — вверх или вниз по листу.\n\nОба начинаются с 0, что центрирует содержимое в кромке зажима. Следи за предпросмотром: то, что выходит за кромку зажима, не печатается.",
- "Shifts the whole patch block right (X) and down (Y) on the sheet, in mm. Usually 0 — use it to nudge the layout away from a printer's unprintable area or to line up with a pre-printed sheet. Only used in “Prioritise patch size”; area-first places the block by the margins.": "Сдвигает весь блок патчей вправо (X) и вниз (Y) на листе, в мм. Обычно 0 — используйте, чтобы отодвинуть раскладку от непечатаемой области принтера или совместить с заранее напечатанным листом. Используется только в «Приоритет размера патча»; режим области размещает блок по полям.",
  "Shortcut": "Сочетание",
  "Shortcuts for getting around ChromIQ with the keyboard. ": "Сочетания для навигации по ChromIQ с клавиатуры. ",
  "Show 3D preview ▸": "Показать 3D-предпросмотр ▸",

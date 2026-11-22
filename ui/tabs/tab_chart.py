@@ -8847,7 +8847,10 @@ class TabChart(QWidget):
                 pages_row_l.addWidget(pages_lbl)
                 self._manual_pages_spin = NoScrollSpinBox(pages_row_w)
                 self._manual_pages_spin.setObjectName("compact_input")
-                self._manual_pages_spin.setRange(1, 20)
+                # The layout panel's Pages box mirrors this one, so the two
+                # hold the same range (4.3.57, limits round 2: 999, was 20)
+                from ui.dialogs.layout_options_panel import PAGES_MAX as _PGMAX
+                self._manual_pages_spin.setRange(1, _PGMAX)
                 self._manual_pages_spin.setValue(1)
                 self._manual_pages_spin.setMaximumWidth(90)
                 self._manual_pages_spin.setEnabled(False)

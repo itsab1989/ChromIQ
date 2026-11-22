@@ -212,6 +212,15 @@ def patchsize_help() -> str:
 PT_PER_MM = 72.0 / 25.4          # ≈ 2.835
 MM_PER_PT = 25.4 / 72.0          # ≈ 0.3528
 
+#: Limits round 2 (4.3.57, item 39). Pages: more pages is only more ink, paper
+#: and reading time (Manual's Pages box mirrors this one and takes the same).
+PAGES_MAX = 999
+#: "Strips (columns)" / "Patches per strip (rows)" in "Prioritise chart area":
+#: the largest page ChromIQ makes (2000 mm) over the engine's smallest patch
+#: (`area_fit._MIN_PATCH_MM`, 1 mm). More than the sheet holds is reported by
+#: the area fit ("By columns / rows asks for ..."), as it was below 200 / 500.
+AREA_GRID_MAX = 2000
+
 
 
 # What the clip-strip image button offers, and so what a drop there may bring
@@ -1101,7 +1110,10 @@ class LayoutOptionsPanel(QWidget):
             self._pages_lbl = QLabel(tr("Pages:"), self)
             sel.addWidget(self._pages_lbl, 1, 2)
             self.pages = NoScrollSpinBox(self)
-            self.pages.setRange(1, 20)
+            # 999, not 20 (4.3.57, limits round 2): more pages is only more
+            # ink, paper and reading time, never a chart that cannot be
+            # built. (Manual's own Pages box mirrors this one: same range.)
+            self.pages.setRange(1, PAGES_MAX)
             self.pages.setValue(1)
             self.pages.setMaximumWidth(70)
             self.pages.valueChanged.connect(self._emit)
@@ -1210,7 +1222,15 @@ class LayoutOptionsPanel(QWidget):
                 self._sync_hex_flat_top_visibility)
             self._on_instr_changed()
 
-        def mm(special_auto: bool = False, top: float = 300.0) -> NoScrollDoubleSpinBox:
+        # NO CAP BUT THE PAGE (4.3.57, limits round 2, under Basti's rule "a
+        # limit needs a physical reason or it goes"): the gaps, the patch
+        # size, the offsets, the text distances and the ruler markers stop at
+        # the largest page ChromIQ makes. Whatever does not fit the paper
+        # chosen is refused by the build in words (`geometry.no_room_kind`,
+        # `geometry.furniture_off_sheet`), never clamped.
+        from workflow.page_output.support import CUSTOM_MM_MAX as _PAGE_TOP
+
+        def mm(special_auto: bool = False, top: float = _PAGE_TOP) -> NoScrollDoubleSpinBox:
             sb = _LenBox(self)
             sb.setRange(0, top)
             sb.setDecimals(1)
@@ -1222,9 +1242,13 @@ class LayoutOptionsPanel(QWidget):
             sb.valueChanged.connect(self._emit)
             return sb
 
-        def scale() -> NoScrollDoubleSpinBox:
+        def scale(top: float = 4.0) -> NoScrollDoubleSpinBox:
             sb = NoScrollDoubleSpinBox(self)
-            sb.setRange(0.5, 3.0)
+            # printtarg's own limits (4.3.57, limits round 2; measured,
+            # `ti2_relayout`): -a 0.1 to 4.0, -A 0.1 to 8.0. Was 0.5 to 3.0
+            # for no reason found. A patch too large for the paper is refused
+            # in words (`geometry.no_room_kind`).
+            sb.setRange(0.1, top)
             sb.setDecimals(3)
             sb.setSingleStep(0.05)
             # START AT 1.0, THE INSTRUMENT'S OWN SIZE. A QDoubleSpinBox starts
@@ -1668,11 +1692,11 @@ class LayoutOptionsPanel(QWidget):
         self._area_fields_w = QWidget(self)
         afg = QGridLayout(self._area_fields_w)
         afg.setContentsMargins(0, 0, 0, 0)
-        self.area_cols = NoScrollSpinBox(self); self.area_cols.setRange(0, 200)
+        self.area_cols = NoScrollSpinBox(self); self.area_cols.setRange(0, AREA_GRID_MAX)
         self.area_cols.setSpecialValueText(tr("auto")); self.area_cols.setMaximumWidth(96)
         self.area_cols.valueChanged.connect(self._emit)
         self.area_cols.valueChanged.connect(self._sync_layout_mode)
-        self.area_rows = NoScrollSpinBox(self); self.area_rows.setRange(0, 500)
+        self.area_rows = NoScrollSpinBox(self); self.area_rows.setRange(0, AREA_GRID_MAX)
         self.area_rows.setSpecialValueText(tr("auto")); self.area_rows.setMaximumWidth(96)
         self.area_rows.valueChanged.connect(self._emit)
         self.area_rows.valueChanged.connect(self._sync_layout_mode)
@@ -1687,7 +1711,7 @@ class LayoutOptionsPanel(QWidget):
         self.area_ratio.setValue(100.0)
         self.area_ratio.valueChanged.connect(self._emit)
         self.area_min_patch = _LenBox(self)
-        self.area_min_patch.setRange(0.0, 100.0); self.area_min_patch.setDecimals(1)
+        self.area_min_patch.setRange(0.0, _PAGE_TOP); self.area_min_patch.setDecimals(1)
         self.area_min_patch.setSingleStep(0.5); self.area_min_patch.setMaximumWidth(96)
         self.area_min_patch.setSpecialValueText(tr("auto"))
         self.area_min_patch.valueChanged.connect(self._emit)
@@ -1843,8 +1867,8 @@ class LayoutOptionsPanel(QWidget):
         # ---- Patches & spacers (2-column: label | control) ----
         ps = QGroupBox(tr("Patches && spacers"), self)
         g = QGridLayout(ps)
-        self.pscale = scale()
-        self.sscale = scale()
+        self.pscale = scale(4.0)
+        self.sscale = scale(8.0)
         self.spacer_mode = ElidingComboBox(self)
         for k, lbl in (("colored", tr("Coloured")), ("bw", tr("Black & white")),
                        ("none", tr("None"))):
@@ -1853,8 +1877,8 @@ class LayoutOptionsPanel(QWidget):
         self.spacer_mode.currentIndexChanged.connect(self._sync_spacer_swatches)
         self._track_answer(self.spacer_mode, "spacer_mode")
         self.spacer_width = mm(special_auto=True)
-        self.patch_x = small_mm(special_auto=True)
-        self.patch_y = small_mm(special_auto=True)
+        self.patch_x = small_mm(top=_PAGE_TOP, special_auto=True)
+        self.patch_y = small_mm(top=_PAGE_TOP, special_auto=True)
         self.inter_patch = mm()
         # An inter-patch gap is room for an edge spacer (SF-A, 4.3.18 r2).
         self.inter_patch.valueChanged.connect(self._sync_edge_spacers_box)
@@ -2294,7 +2318,7 @@ class LayoutOptionsPanel(QWidget):
                        ("black", tr("Black"))):
             self.underline_mode.addItem(lbl, k)
         self.underline_mode.currentIndexChanged.connect(self._on_underline_changed)
-        self.underline_thickness = small_mm(top=5.0)
+        self.underline_thickness = small_mm(top=5.0)   # kept: cosmetic (item 39)
         self.underline_gap = small_mm(top=20.0)
         add_row(sig3, 0, tr("Underline:"), self.underline_mode,
                 tip=TooltipButton(
@@ -2371,7 +2395,7 @@ class LayoutOptionsPanel(QWidget):
         self.strip_label_offset_x = _LenBox(self)
         self.strip_label_offset = _LenBox(self)
         for _sb in (self.strip_label_offset_x, self.strip_label_offset):
-            _sb.setRange(-50.0, 50.0)
+            _sb.setRange(-_PAGE_TOP, _PAGE_TOP)   # 4.3.57: the page
             _sb.setDecimals(1)
             _sb.setSingleStep(0.5)
             _sb.setSuffix(" mm")
@@ -2527,8 +2551,13 @@ class LayoutOptionsPanel(QWidget):
         self.nolimit = WrappingCheckBox(tr("Don't cap strip length"), self)
         self.nolimit.toggled.connect(self._emit)
         self.max_strip = mm(special_auto=True, top=2000.0)  # large paper / roll media
-        self.offx = small_mm(top=300.0)
-        self.offy = small_mm(top=300.0)
+        # -page to +page (4.3.57, limits round 2): a negative offset moves
+        # the chart left / up; one that puts a patch off the paper is refused
+        # in words (`geometry.furniture_off_sheet`).
+        self.offx = small_mm(top=_PAGE_TOP)
+        self.offy = small_mm(top=_PAGE_TOP)
+        self.offx.setMinimum(-_PAGE_TOP)
+        self.offy.setMinimum(-_PAGE_TOP)
         self.strip_pat = QLineEdit(self); self.strip_pat.textChanged.connect(self._emit)
         self.patch_pat = QLineEdit(self); self.patch_pat.textChanged.connect(self._emit)
         # CHECKED ON EVERY KEYSTROKE, AND ONLY COLOURED (forum report,
@@ -2567,8 +2596,8 @@ class LayoutOptionsPanel(QWidget):
         self.patch_align.activated.connect(self._mark_align_chosen)
         # Clip-border width (i1/p3, clip mode only) — reserved left zone for the
         # scanner's paper clip; printtarg hard-codes 26 mm, we make it adjustable.
-        self.clip_width = small_mm(top=100.0)
-        self.clip_width.setMinimum(10.0)
+        self.clip_width = small_mm(top=_PAGE_TOP)   # 4.3.57: was 100
+        self.clip_width.setMinimum(10.0)   # the cards' base margin (kept)
         self.clip_width.valueChanged.connect(self._update_clip_margin_conflict)
         # The left/right margins feed the same clip-side priority check.
         self.margins["l"].valueChanged.connect(self._update_clip_margin_conflict)
@@ -2644,10 +2673,14 @@ class LayoutOptionsPanel(QWidget):
                 tip=TooltipButton(
                     tr("Chart offset"),
                     tr("Shifts the whole patch block right (X) and down (Y) on the "
-                       "sheet, in mm. Usually 0 — use it to nudge the layout away "
-                       "from a printer's unprintable area or to line up with a "
-                       "pre-printed sheet. Only used in “Prioritise patch size”; "
-                       "area-first places the block by the margins."), self))
+                       "sheet, in mm; a negative value shifts it left or up. "
+                       "Usually 0. Use it to nudge the layout away from a "
+                       "printer's unprintable area or to line up with a "
+                       "pre-printed sheet. An offset that would move patches "
+                       "off the paper is not drawn: Generate tells you so, and "
+                       "you can make the offset smaller. Only used in "
+                       "“Prioritise patch size”; area-first places the block "
+                       "by the margins."), self))
         add_row(gg, 6, tr("Strip pattern:"), self.strip_pat,
                 tip=TooltipButton(
                     tr("Strip pattern"),
@@ -2862,8 +2895,9 @@ class LayoutOptionsPanel(QWidget):
         # already says these are ruler helper markers.
         self.helper_markers_cb = WrappingCheckBox(tr("Print helper markers"), self)
         self.helper_markers_cb.toggled.connect(self._emit)
-        self.helper_marker_edge = small_mm(top=60.0)
-        self.helper_marker_len = small_mm(top=60.0)
+        # the page (4.3.57): marks that would meet are refused in words
+        self.helper_marker_edge = small_mm(top=_PAGE_TOP)
+        self.helper_marker_len = small_mm(top=_PAGE_TOP)
         self.helper_marker_per_patch = NoScrollSpinBox(self)
         self.helper_marker_per_patch.setRange(2, 12)
         # A two-digit count, so it takes the narrow width the panel's other
@@ -3200,9 +3234,11 @@ class LayoutOptionsPanel(QWidget):
         # (Knut #93): top = strip labels, bottom = sheet text, clip = notes/clip
         # band. Independent of the margins; text overflows toward this line (and a
         # violation is flagged) if its margin is too small.
-        self.text_edge_top = small_mm(top=30.0); self.text_edge_top.setValue(4.0)
-        self.text_edge = small_mm(top=30.0); self.text_edge.setValue(4.0)
-        self.text_edge_clip = small_mm(top=30.0); self.text_edge_clip.setValue(4.0)
+        # the page (4.3.57, limits round 2; was 30): a distance larger than
+        # the paper is refused in words (`geometry.furniture_off_sheet`)
+        self.text_edge_top = small_mm(top=_PAGE_TOP); self.text_edge_top.setValue(4.0)
+        self.text_edge = small_mm(top=_PAGE_TOP); self.text_edge.setValue(4.0)
+        self.text_edge_clip = small_mm(top=_PAGE_TOP); self.text_edge_clip.setValue(4.0)
         _te = QHBoxLayout(); _te.setContentsMargins(0, 0, 0, 0); _te.setSpacing(4)
         for _lbl, _sp in ((tr("T"), self.text_edge_top), (tr("B"), self.text_edge),
                           (tr("Clip"), self.text_edge_clip)):
@@ -5683,7 +5719,10 @@ class LayoutOptionsPanel(QWidget):
             """Width the box must have to show its longest string, or None."""
             fm = sb.fontMetrics()
             longest = sb.prefix() + sb.textFromValue(sb.maximum()) + sb.suffix()
+            # a box that goes negative (the chart offset) shows a minus too
+            lowest = sb.prefix() + sb.textFromValue(sb.minimum()) + sb.suffix()
             widest = max(fm.horizontalAdvance(longest),
+                         fm.horizontalAdvance(lowest),
                          fm.horizontalAdvance(sb.specialValueText() or ""))
             opt = QStyleOptionSpinBox()
             sb.initStyleOption(opt)
@@ -6073,8 +6112,10 @@ class LayoutOptionsPanel(QWidget):
             kind = geometry.recipe_no_room_kind(self.get_recipe())
         except Exception:      # noqa: BLE001 - a notice, never a blocker
             return None
-        if kind in (None, geometry.NO_ROOM_PATCH):
+        if kind in (None, geometry.NO_ROOM_PATCH, geometry.NO_ROOM_CLIP,
+                    geometry.NO_ROOM_SPACING):
             return None        # it fits, or it is not the margins' doing
+            #                    (Generate still refuses it in words)
         sides = {geometry.NO_ROOM_ACROSS: ("l", "r"),
                  geometry.NO_ROOM_ALONG: ("t", "b")}.get(kind,
                                                          ("t", "r", "b", "l"))

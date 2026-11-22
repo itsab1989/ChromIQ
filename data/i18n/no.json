@@ -3808,7 +3808,6 @@
  "Sheet-text font": "Arktekst-skrift",
  "Shift": "Skift",
  "Shifts the image or the branding inside the clip border, in millimetres.\n\n  • X moves it ACROSS the clip border — towards the paper edge, or towards the patches.\n  • Y moves it ALONG the clip border — up or down the sheet.\n\nBoth start at 0, which centres the content in the clip border. Watch the Preview: what leaves the clip border is not printed.": "Flytter bildet eller merket inne i klemmekanten, i millimeter.\n\n  • X flytter det PÅ TVERS av klemmekanten — mot papirkanten eller mot målefeltene.\n  • Y flytter det LANGS klemmekanten — opp eller ned på arket.\n\nBegge starter på 0, som sentrerer innholdet i klemmekanten. Følg med på forhåndsvisningen: det som forlater klemmekanten, blir ikke skrevet ut.",
- "Shifts the whole patch block right (X) and down (Y) on the sheet, in mm. Usually 0 — use it to nudge the layout away from a printer's unprintable area or to line up with a pre-printed sheet. Only used in “Prioritise patch size”; area-first places the block by the margins.": "Forskyver hele feltblokken til høyre (X) og ned (Y) på arket, i mm. Vanligvis 0 — bruk det for å dytte oppsettet vekk fra en skrivers ikke-skrivbare område eller for å stille det på linje med et forhåndstrykt ark. Brukes bare i «Prioriter feltstørrelse»; områdemodus plasserer blokken etter margene.",
  "Shortcut": "Hurtigtast",
  "Shortcuts for getting around ChromIQ with the keyboard. ": "Hurtigtaster for å navigere i ChromIQ med tastaturet. ",
  "Show 3D preview ▸": "Vis 3D-forhåndsvisning ▸",

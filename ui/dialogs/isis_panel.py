@@ -185,7 +185,12 @@ class IsisPanelMixin:
             return box
         self.isis_header = spin(32.0, 80.0, 32.0)
         put(tr("Header length:"), self.isis_header, "header")
-        self.isis_trailer = spin(25.5, 300.0, 25.5)
+        # The minima are X-Rite's; the maxima were ours and are the page now
+        # (4.3.57, limits round 2): a chart longer than 660 mm, or a notes
+        # band taller than the header holds, is refused in words
+        # (`isis.chart.check_sheet`, `_refuse_what_the_options_cannot_hold`).
+        from workflow.page_output.support import CUSTOM_MM_MAX as _PAGE_TOP
+        self.isis_trailer = spin(25.5, _PAGE_TOP, 25.5)
         put(tr("Trailer length:"), self.isis_trailer, "trailer")
         self.isis_tight = QCheckBox(tr("Tight margins"), g)
         put("", self.isis_tight, "tight")
@@ -213,7 +218,7 @@ class IsisPanelMixin:
         self.isis_band_place.addItem(tr("Header"), "header")
         self.isis_band_place.addItem(tr("Trailer"), "trailer")
         put(tr("Notes band place:"), self.isis_band_place, "band")
-        self.isis_band_height = spin(4.0, 48.0, 24.0, 1.0)
+        self.isis_band_height = spin(4.0, _PAGE_TOP, 24.0, 1.0)
         put(tr("Notes band height:"), self.isis_band_height, "band")
         # "Show row indicators" ticked, but the chart in the preview has no
         # room for the numbers (M-ISIS-ROW-NUMBERS-NO-ROOM): said here, not
