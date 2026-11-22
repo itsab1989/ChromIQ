@@ -198,13 +198,34 @@ def test_not_now_sends_nothing_and_the_offer_stays(tmp_path):
     assert p.drive(job.calibrate()).ok and p.drive(job.align()).ok
 
 
-def test_an_arm_moved_while_the_question_was_shown_is_not_homed(tmp_path):
+def test_an_arm_moved_while_the_question_was_shown_is_asked_about_again(tmp_path):
+    """4.3.57 (item 21): moved 10 mm by a hand while the question was shown: nothing moves,
+    the question is asked again with the new reading (it said so), and the arm, left where the
+    hand put it, is then homed from there. (Until 4.3.56 the measurement ended here.)"""
+    asks = []
+
     def moved(person, res):
         if res.confirm == C.GO and res.detail.get("step") == "home_at_start":
+            asks.append(dict(res.detail))
             person.sim.pos = [800.0, 700.0]          # a hand on it (mode off: it moves by hand)
     job, sim, helper, run, p = job_for(tmp_path, real_table=False)
     p.on_ask = moved
     sim.pos = [800.0, 800.0]
+    assert p.drive(job.open()).ok
+    r = p.drive(job.calibrate())
+    assert r.ok, (r.kind, r.reason)
+    assert len(asks) == 2 and asks[1]["moved_while_asked"] and asks[1]["moved_mm"] == 10.0
+    assert ";i12b" in sim.received and not job.start_homing_failed
+    assert job.turned_guided is None or "moved" in job.turned_guided
+
+
+def test_an_arm_that_keeps_moving_between_the_questions_is_not_homed(tmp_path):
+    def moved(person, res):
+        if res.confirm == C.GO and res.detail.get("step") == "home_at_start":
+            person.sim.pos = [person.sim.pos[0], person.sim.pos[1] - 100.0]
+    job, sim, helper, run, p = job_for(tmp_path, real_table=False)
+    p.on_ask = moved
+    sim.pos = [800.0, 900.0]
     assert p.drive(job.open()).ok
     r = p.drive(job.calibrate())
     assert r.kind == J.Kind.STOPPED and r.reason == "arm_moved_before_homing"

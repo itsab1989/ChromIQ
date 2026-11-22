@@ -424,6 +424,14 @@ class CSimTable(SimTable):
             self.pos = [self.pos[0] + REAL_REST_RELAX[0], self.pos[1] + REAL_REST_RELAX[1]]
         if cid != "p0" and cid in ("m0", "m1", "m2", "i1", "i0"):
             self._relax_due = None
+            self._scan_settle = None
+        settle = getattr(self, "_scan_settle", None)
+        if cid == "p0" and settle is not None:
+            if settle[2] > 0:                      # the first reading still sees the offset
+                self._scan_settle = (settle[0], settle[1], settle[2] - 1)
+            else:
+                self.pos = [settle[0], settle[1]]
+                self._scan_settle = None
         if cid == "p1":
             self.p1_count += 1
             return 0, self._xy(self.pos[0] - self.sight_offset[0],
@@ -524,6 +532,15 @@ class CSimTable(SimTable):
         self._busy_until = done_at
         self.scan_moves.append((tuple(self.pos), p["to"], p["v"]))
         self.pos = [float(p["to"][0]), float(p["to"][1])]
+        # 4.3.57 (item 21): the arm ends a scan move "scan_end_off" units short along X (the
+        # owner's row 2: 6 units at 168 mm/s); "scan_end_settle" = where it reads from the
+        # second reading on (an arm still settling), relative to the target
+        off = self.c_faults.get("scan_end_off")
+        if off:
+            self.pos[0] += float(off)
+            settle = self.c_faults.get("scan_end_settle")
+            self._scan_settle = None if settle is None else (
+                float(p["to"][0]) + float(settle), float(p["to"][1]), 1)
         self.last_scan_end = (float(p["to"][0]), float(p["to"][1]))
         self._reply(done_at, ":$m20")
 

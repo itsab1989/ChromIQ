@@ -1919,6 +1919,12 @@ class TableMeasureWindow(QFrame):
         self._state.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
         self._state.setVisible(False)
         body.addWidget(self._state)
+        # 4.3.57 (item 21): every text of a page can be selected and copied (the table owner
+        # could not copy the positions a stop page showed him): mouse selection, the context
+        # menu's Copy, and Cmd+C once clicked (ClickFocus; no Tab stop, so the no-default-button
+        # rule of the pop-up stays as it is)
+        for lab in (self._title, self._text, self._state, self._status):
+            lab.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
 
         # the footer: pinned, the same place on every page
         line = QFrame(self)
@@ -3788,6 +3794,18 @@ class TableMeasureWindow(QFrame):
                   "press “As described, my hands are away”. Nothing moves before ChromIQ's next "
                   "question.")
 
+    @staticmethod
+    def _moved_ask_again(d: dict, body: str) -> "tuple[str, str]":
+        """4.3.57 (item 21): the homing question asked again after the held arm moved more than
+        its own creep while it waited (M-I1IO-DRIVE-ARM-MOVED-ASK-AGAIN above the question)."""
+        from workflow import measurement_messages as M
+        try:
+            mm = f"{float(d.get('moved_mm')):.1f}"
+        except (TypeError, ValueError):
+            mm = "?"
+        title, note = M.M_I1IO_DRIVE_ARM_MOVED_ASK_AGAIN.render(mm=mm)
+        return title, note + "\n\n" + body
+
     def _row_status(self, row: int) -> str:
         return tr("Reading row {row} of {rows} on page {page} of {pages}...").format(
             row=row, rows=self._rows_on_page(), page=self.job.page + 1,
@@ -3853,6 +3871,9 @@ class TableMeasureWindow(QFrame):
             # 4.3.52, THE START RULE (the owner, 2026-11-20): the arm is not at its resting
             # place; ChromIQ brings it there now, from wherever it is, after this one question
             title, body = M.M_I1IO_DRIVE_HOME_AT_START.render()
+            if d.get("moved_while_asked"):
+                # 4.3.57 (item 21): asked again, the held arm moved while it waited
+                title, body = self._moved_ask_again(d, body)
             self._pending_kind = kind
             self._show("home_at_start", title, body,
                        [(tr("Not now"), self._answer_slot("back")),
@@ -3891,6 +3912,8 @@ class TableMeasureWindow(QFrame):
                 # last round: an a0 never seen in the just-switched-on family: said first
                 body = M.M_I1IO_DRIVE_START_UP_UNKNOWN.render(a0=d.get("a0_unknown"))[1] + \
                     "\n\n" + body
+            if kind == "go" and d.get("moved_while_asked"):
+                title, body = self._moved_ask_again(d, body)
             if kind == "start_up" and d.get("aiming_left_on"):
                 # 2026-11-21: a table just switched on with its aiming mode still on (a0 511800)
                 body += "\n\n" + M.M_I1IO_DRIVE_START_UP_AIMING.render()[1]

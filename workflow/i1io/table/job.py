@@ -414,6 +414,24 @@ class _ArrivedBeside(StageFailed):
     (read the row again), never a reading taken there."""
 
 
+class _MovedWhileAsked(Exception):
+    """4.3.57 (item 21): right before a START homing the held arm read further from where it
+    was found than its own creep explains (``tbl.HELD_ARM_MOVED_UNITS``). Only s0 and p0 were
+    sent; nothing moved. The caller asks the hands-off question again with the new reading
+    (``MOVED_ASK_AGAIN_MAX`` times, then the old doubt)."""
+
+    def __init__(self, found, now):
+        super().__init__(f"before the homing the held arm reads {now}, not {found}, where "
+                         f"ChromIQ found it")
+        self.found, self.now = found, now
+
+
+#: 4.3.57 (item 21): how often the hands-off question before a START homing is asked again
+#: after the held arm moved while it waited; an arm that keeps moving between questions is not
+#: at rest by itself (a STATE: something holds or pushes it), and the homing is not sent
+MOVED_ASK_AGAIN_MAX = 2
+
+
 class PersonStopped(Exception):
     """The person chose not to go on (a clean stop; the sitting goes on)."""
 
@@ -2325,6 +2343,7 @@ class TableJob:
         (``start_homing_failed``): nothing more is sent, the window shows the failure page."""
         d = self._table
         stage = self._block["stage"] if self._block is not None else "start"
+        moved = None
         ans = yield Ask(Confirm.GO, {"step": "home_at_start", "page": self.page + 1,
                                      "at_start": True, "inline": True})
         self._start_case_answer(ans)
@@ -2339,7 +2358,16 @@ class TableJob:
         if stopped_because is not None:
             d.reopen_for_homing(stopped_because, cp.HOME_DETOUR)
         try:
-            self._home_at_start(found, stage)
+            # 4.3.57 (item 21): the arm moved further than its creep while the question
+            # waited: read again (done) and ask again, instead of ending the measurement
+            asked_again = 0
+            while True:
+                try:
+                    self._home_at_start(found, stage)
+                    break
+                except _MovedWhileAsked as mv:
+                    found, asked_again = (yield from self._ask_again_after_a_move(
+                        mv, "home_at_start", asked_again, {"at_start": True, "inline": True}))
         except BaseException:
             self.start_homing_failed = True
             if stopped_because is not None:
@@ -2436,7 +2464,16 @@ class TableJob:
         self._start_block("home_after_stop")
         goes_on = False
         try:
-            self._home_at_start(found, "home_after_stop")
+            asked_again = 0
+            while True:                     # 4.3.57 (item 21), as in _start_homing
+                try:
+                    self._home_at_start(found, "home_after_stop")
+                    break
+                except _MovedWhileAsked as mv:
+                    found, asked_again = (yield from self._ask_again_after_a_move(
+                        mv, "home_after_stop", asked_again,
+                        {"after_a_stop": stopped_because is not None, "at_start": True,
+                         "form": "start"}))
             goes_on = self.ended is None
         except BaseException:
             self.start_homing_failed = True
@@ -2468,8 +2505,15 @@ class TableJob:
         d.exchange("status")
         got = d.position()
         if found is not None and not _near(got, found):
-            raise d._doubt(f"before the homing the held arm reads {got}, not {found}, where "
-                           f"ChromIQ found it")
+            # 4.3.57 (item 21): a held arm creeps by itself (tbl.HELD_ARM_CREEP_UNITS, measured
+            # 1.3 mm); within HELD_ARM_MOVED_UNITS that is its own creep and the homing goes on
+            # from the new reading (the homing does not depend on where the arm is); beyond it,
+            # nothing is sent and the hands-off question is asked again (the caller)
+            if got is None or not _near(got, found, tbl.HELD_ARM_MOVED_UNITS):
+                raise _MovedWhileAsked(found, got)
+            d.log("DATA", f"the held arm crept from {tuple(found)} to {tuple(got)} while the "
+                          f"question waited (within {tbl.HELD_ARM_MOVED_UNITS} units, its own "
+                          "creep): the homing starts from there")
         # 2026-11-21: the vendor's way home first where it was recorded (the back strip, the
         # far side): geometry.homing_detour; the back strip is no longer refused
         got = self._way_home(got)
@@ -2495,6 +2539,41 @@ class TableJob:
             d.outside_at = p
             raise d._doubt(f"after the homing the arm reads {p}, not at its resting place")
         d.state = "homed"
+
+    def _ask_again_after_a_move(self, mv: "_MovedWhileAsked", step: str, asked_again: int,
+                                extra: dict):
+        """4.3.57 (item 21): the held arm read beyond its own creep right before a homing (only
+        s0 p0 were sent). The hands-off question again, saying how far the arm moved, with the
+        new reading as where it was found; the rest of the sitting guided (a hand may have been
+        on the arm). After MOVED_ASK_AGAIN_MAX such questions: the old doubt (nothing more is
+        sent). Returns (the new place, the count). A generator."""
+        d = self._table
+        if asked_again >= MOVED_ASK_AGAIN_MAX or mv.now is None:
+            raise d._doubt(str(mv))
+        asked_again += 1
+        dx, dy = int(mv.now[0] - mv.found[0]), int(mv.now[1] - mv.found[1])
+        d.log("DATA", f"{mv}: it moved ({dx}, {dy}) units while the question waited, more than "
+                      f"its own creep ({tbl.HELD_ARM_MOVED_UNITS} units); nothing moved, the "
+                      f"question is asked again ({asked_again} of {MOVED_ASK_AGAIN_MAX})")
+        self._turn_guided("the held arm moved while a question waited")
+        detail = {"step": step, "page": self.page + 1, "moved_while_asked": True,
+                  "moved_mm": round(max(abs(dx), abs(dy)) / 10.0, 1),
+                  "found": list(mv.found), "now": list(mv.now), **extra}
+        ans = yield Ask(Confirm.GO, detail)
+        self._start_case_answer(ans)
+        if ans != "yes":
+            raise PersonStopped("person_chose_back")
+        # the same STATE checks as before the first question (this homing is the one already
+        # agreed, so "tried already" is not a reason; an arm that crept to rest is homed too)
+        tried, self._home_after_stop_tried = self._home_after_stop_tried, False
+        try:
+            why = self._start_homing_why()
+        finally:
+            self._home_after_stop_tried = tried
+        if why and why != "at_rest":
+            raise StageFailed(why)
+        self._check_other_program()
+        return tuple(mv.now), asked_again
 
     def _note(self, note, step: "str | None", about: str) -> "dict | None":
         """The person's own words, into the log (a NOTE line) and into the result block of the
@@ -3534,10 +3613,15 @@ class TableJob:
         last = d.position_now
         got = d.position()
         if last is not None and not _near(got, last) and d.arm_free is False:
-            # 4.3.50 (table re-review, MUST-A): its own id, so the page says what is true (the
-            # held arm was moved while it waited; nothing that moves was sent)
-            raise d._doubt(f"before the homing the held arm reads {got}, not {last}, where "
-                           f"ChromIQ left it")
+            if got is None or not _near(got, last, tbl.HELD_ARM_MOVED_UNITS):
+                # 4.3.50 (table re-review, MUST-A): its own id, so the page says what is true
+                # (the held arm was moved while it waited; nothing that moves was sent)
+                raise d._doubt(f"before the homing the held arm reads {got}, not {last}, where "
+                               f"ChromIQ left it")
+            # 4.3.57 (item 21): within the held arm's own creep (tbl.HELD_ARM_MOVED_UNITS)
+            d.log("DATA", f"the held arm crept from {tuple(last)} to {tuple(got)} while it "
+                          f"waited (within {tbl.HELD_ARM_MOVED_UNITS} units, its own creep): "
+                          "the homing starts from there")
         # 2026-11-21: the vendor's way home (a detour to the home line first, from the back strip
         # and from the far side; geometry.homing_detour); the back strip is no longer refused
         got = self._way_home(got)

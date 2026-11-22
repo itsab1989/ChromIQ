@@ -105,6 +105,9 @@ def shrunk_edge_mm(plan, need: int, step_mm: float = 0.01) -> "float | None":
 #: for +-25 readings, 0.352..0.392 for +-4) and to make the values worse.
 CUT_REFINE_READINGS = 0
 ARRIVAL_UNITS = 5
+#: 4.3.57 (item 21): the wait before an arm read at a strip row's end beyond the held arm's
+#: creep is read once more (the computed moves' own ARRIVAL_RECHECK_S, job.py)
+ROW_END_RECHECK_S = 0.3
 #: 4.3.47 fix2: beside the row start by at most 1 mm: a clean failure, not a doubt
 ARRIVAL_BESIDE_UNITS = 10
 ACK_TIMEOUT_S = 0.5
@@ -617,7 +620,24 @@ def _one_path_to_the_fire(table: tbl.Table, inst, plan: RowPlan, outdir: str,
         res.end_xy = table.position()
         table.arm_free = False
         if not _near(res.end_xy, plan.end):
-            doubts.append(f"the arm stands at {res.end_xy}, not at the row end {plan.end}")
+            # 4.3.57 (item 21): the owner's row 2 at 168 mm/s ended 6 units (0.6 mm) short of
+            # its planned end and was stopped by a 5 unit limit, although a held arm moves up
+            # to 13 units by itself (tbl.HELD_ARM_CREEP_UNITS) and the row placement check had
+            # confirmed every patch. Within tbl.HELD_ARM_MOVED_UNITS: noted, the row stands;
+            # beyond it: read once more after ROW_END_RECHECK_S (a p0, nothing that moves),
+            # and only a second reading beyond it is a doubt, as before.
+            if not _near(res.end_xy, plan.end, tbl.HELD_ARM_MOVED_UNITS):
+                table.c_wait(ROW_END_RECHECK_S)
+                first = res.end_xy
+                res.end_xy = table.position()
+                res.notes.append(f"the arm read {first} at the row end, {res.end_xy} "
+                                 f"{ROW_END_RECHECK_S:.1f} s later")
+            if not _near(res.end_xy, plan.end, tbl.HELD_ARM_MOVED_UNITS):
+                doubts.append(f"the arm stands at {res.end_xy}, not at the row end {plan.end}")
+            else:
+                res.notes.append(f"the arm stands at {res.end_xy}, {plan.end} was planned: "
+                                 f"within {tbl.HELD_ARM_MOVED_UNITS} units, the held arm's own "
+                                 "creep")
     except tbl.Doubt as exc:
         doubts.append(str(exc))
     if doubts:

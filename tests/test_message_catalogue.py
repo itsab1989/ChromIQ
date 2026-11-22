@@ -208,6 +208,8 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-I1IO-DRIVE-REPAIR-AT-START", "M-I1IO-DRIVE-START-UP-AIMING",
     "M-I1IO-DRIVE-REPAIR-MIXED", "M-I1IO-DRIVE-START-UP-UNKNOWN",
     "M-I1IO-DRIVE-HOME-AT-START-DONE",
+    # 4.3.57 (item 21): the homing question asked again after the held arm moved
+    "M-I1IO-DRIVE-ARM-MOVED-ASK-AGAIN",
     # 2026-11-20, 4.3.51, the owner's decision: when it does not work
     "M-I1IO-DRIVE-HOME-TRY-FAILED",
     "M-I1IO-DRIVE-ARM-WAY-OUT", "M-I1IO-DRIVE-I1PROFILER-LIMIT",

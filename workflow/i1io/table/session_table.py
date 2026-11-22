@@ -559,6 +559,19 @@ RECORDED_FIRST_STARTS = ((-1297, 2681), (-1303, 2689), (-1283, 2677), (-1210, 26
 #: The two readings right before the first patch move must agree this closely (the arm is
 #: free: a hand still on it would show as a difference).
 STILL_UNITS = 2
+#: 4.3.57 (item 21): how far a HELD arm moves BY ITSELF, nothing sent, MEASURED on the table
+#: owner's i1iO 2 on 22 Nov 2026 (ChromIQ 4.3.56 logs): at rest right after a homing it read
+#: (1102, 8) -> (1102, 17) and (1102, 16) -> (1102, 29) within seconds (13 units = 1.3 mm), and
+#: an arm left out at (-1268, 2847) read (-1260, 2850) 208 s later (8 units). The largest: 13.
+HELD_ARM_CREEP_UNITS = 13
+#: ...and the limit drawn from it: a held arm read more than this from where it was (on either
+#: axis) has been moved by something other than its own creep (a hand, a move that did not run
+#: as sent): more than twice the largest creep measured, and still under half the smallest
+#: patch pitch of a table chart (8 mm across the rows), so it never hides a whole patch.
+#: Used where a 5 unit (0.5 mm) limit refused the owner's table twice on 22 Nov 2026: the held
+#: arm before a START homing (job._home_at_start: beyond it, read again and ask again) and the
+#: arm at a strip row's end (scan.run_row: beyond it, read once more 0.3 s later).
+HELD_ARM_MOVED_UNITS = 30
 #: 4.3.47: how far the arm may shift when f1 lets it go at the alignment start (b_align), from
 #: the reading after m1 (held) to the one read after f1 (free). MEASURED on the volunteer's
 #: i1iO 2 on 18 Nov 2026 (ChromIQ 4.3.46): (2506, 1429) held, (2501, 1441) free 0.8 s later,

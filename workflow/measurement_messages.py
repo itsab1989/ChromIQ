@@ -13864,6 +13864,20 @@ M_I1IO_DRIVE_HOME_AT_START = _m(
     "off at its power switch.",
     approved=False)
 
+#: 4.3.57 (item 21): put ABOVE the homing question (M-I1IO-DRIVE-HOME-AT-START, or the GO
+#: page of the homing after a stop) when it is asked again because the held arm read more than
+#: its own creep away (session_table.HELD_ARM_MOVED_UNITS) right before the homing; nothing
+#: moved. {mm}: how far, in mm.
+M_I1IO_DRIVE_ARM_MOVED_ASK_AGAIN = _m(
+    "M-I1IO-DRIVE-ARM-MOVED-ASK-AGAIN",
+    "The arm moved while ChromIQ waited",
+    "Right before bringing the arm home, ChromIQ asked the table where the arm is. It is now "
+    "{mm} mm away from the place where it was when ChromIQ asked you. That is more than the "
+    "arm moves by itself, so something may have touched it. ChromIQ sent no movement.\n\n"
+    "If nobody is touching the arm or the table now, ChromIQ can bring the arm home from where "
+    "it stands. Please take your hands away and answer the question below again.",
+    approved=False)
+
 #: 4.3.52: the one place ChromIQ does not bring a held arm home from, on physical grounds: the
 #: back of the table beside the white tile's holder (job.in_back_strip). {way}:
 #: M-I1IO-DRIVE-ARM-WAY-OUT. Button: End measurement.
@@ -14426,7 +14440,7 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_HOME_AT_START, M_I1IO_DRIVE_ARM_OUT_BACK,
     M_I1IO_DRIVE_REPAIR_AT_START, M_I1IO_DRIVE_START_UP_AIMING,
     M_I1IO_DRIVE_REPAIR_MIXED, M_I1IO_DRIVE_START_UP_UNKNOWN,
-    M_I1IO_DRIVE_HOME_AT_START_DONE,
+    M_I1IO_DRIVE_HOME_AT_START_DONE, M_I1IO_DRIVE_ARM_MOVED_ASK_AGAIN,
     M_I1IO_DRIVE_ARM_WAY_OUT, M_I1IO_DRIVE_ARM_WAY_OUT_ENDED, M_I1IO_DRIVE_HOME_TRY_FAILED,
     M_I1IO_DRIVE_I1PROFILER_LIMIT,
     M_I1IO_DRIVE_END,
