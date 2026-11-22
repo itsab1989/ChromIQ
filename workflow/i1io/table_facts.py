@@ -310,9 +310,12 @@ MARK_CLEAR_MM = Fact(1.0, "ours", OURS)
 #: single sheet"). On by default: a cross is easier and safer to put the
 #: sight on than the middle of a patch. Off, the person aims at the centres
 #: of three corner patches (table top left, bottom left, bottom right), as
-#: X-Rite's own software does; the table needs three points either way, and
-#: the four corner slots then hold clearly visible patches of the set
-#: (`chart.corner_order`).
+#: X-Rite's own software does; the table needs three points either way.
+#: 4.3.57 (item 29): switching them off moves no patch (the same margins,
+#: alignment and patch order as with them; until 4.3.56 `chart.corner_order`
+#: swapped visible patches into the corners and the freed side band took
+#: patches); a page whose corner patches cannot be aimed at keeps its crosses
+#: (`chart.page_crosses`).
 AIM_CROSSES = Fact(True, "ours: easier and safer to aim at than a patch",
                    OURS)
 #: A corner patch for aiming is mid to dark: CIELAB L* at most this (on the
@@ -324,6 +327,17 @@ CORNER_MIN_C = Fact(25.0, "ours", OURS)
 CORNER_DARK_L = Fact(45.0, "ours", OURS)
 #: Never near white, whatever is left in a small set.
 CORNER_NEVER_L = Fact(85.0, "ours: near white is not aimed at", OURS)
+#: 4.3.57 (item 30): how far off the centre of a corner PATCH an ordinary aim
+#: by eye lands, sideways. The owner's aims at CROSSES on 22 Nov 2026 were
+#: 0.25 to 0.7 mm off; the row placement study measured aim plus print
+#: errors of 1 to 2.5 mm on patches. A patch has no cross hair to meet, so
+#: 1.5 mm.
+#: ...and the alignment's angle limit at mark 2, a copy for the chart side
+#: (the chart code never imports the table package): equal to
+#: `table.geometry.ANGLE_TOL_DEG` (a test holds the two together).
+ALIGN_ANGLE_TOL_DEG = Fact(1.0, "table.geometry.ANGLE_TOL_DEG", OURS)
+CORNER_AIM_ERROR_MM = Fact(1.5, "ours: the owner's crosses 0.25-0.7 mm, the "
+                           "row placement study's patches 1-2.5 mm", OURS)
 
 #: Without the crosses the text line (chart name, page N/M, sheet text, logo)
 #: is printed only where it costs no patch (the owner, 2026-11-13): it is
@@ -516,7 +530,11 @@ def spacer_width_mm(asked: "float | None" = None,
 #: (`chart.free_text_plan`). Any of the nine places keeps every run, mark
 #: and label inside the margins, which are what keep them clear.
 ALIGN_WITH_CROSSES = Fact("center", "ours", OURS)
-ALIGN_WITHOUT_CROSSES = Fact("center-left", "ours", OURS)
+#: 4.3.57 (item 29): THE CROSSES NEVER MOVE A PATCH. Without them the block
+#: sits where it sits with them (until 4.3.56 "center-left", which moved it):
+#: switching the crosses off changes only what is aimed at.
+ALIGN_WITHOUT_CROSSES = Fact("center", "ours: the same place as with the "
+                             "crosses (4.3.57, item 29)", OURS)
 ALIGNMENTS = ("top-left", "top-center", "top-right", "center-left", "center",
               "center-right", "bottom-left", "bottom-center", "bottom-right")
 

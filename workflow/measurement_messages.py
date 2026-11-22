@@ -8917,6 +8917,19 @@ _I1IO_PATCH_OFF_SHEET = ("A patch would lie partly off the sheet. Make the margi
 _I1IO_PATCH_ON_CROSS = ("A patch would touch an aiming cross. Make the margins larger"
                         " or the chart offset smaller, or switch the aiming crosses "
                         "off.")
+#: 4.3.57 (item 30): a page without crosses whose corner patches lie close
+#: together, where the margins set by hand leave no room to keep its crosses
+_I1IO_CORNERS_CLOSE = ("On page {page}, the corner patches you aim at lie only {mm} mm "
+                       "apart, so a small aiming error at one of them can make ChromIQ "
+                       "refuse the alignment. The margins you set leave no room for the "
+                       "crosses on that page. Aim very exactly at the centres of the "
+                       "corner patches, or make the margins larger: that page then keeps "
+                       "its crosses.")
+_I1IO_CORNERS_TOO_CLOSE = ("On page {page}, the corner patches you would aim at lie only "
+                           "{mm} mm apart, and the table needs its three aiming points at "
+                           "least 10 mm apart. The margins you set leave no room for the "
+                           "crosses on that page. Make the margins larger: that page then "
+                           "keeps its crosses.")
 _I1IO_PATCH_IN_CLIP = ("A patch would lie in the clip border. Make the clip border "
                        "narrower, or the left margin larger.")
 _I1IO_RUN_NEAR_EDGE = ("A strip has no room before its first or after its last patch"

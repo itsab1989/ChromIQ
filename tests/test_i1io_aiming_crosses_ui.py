@@ -95,14 +95,20 @@ def test_manual_the_margins_and_the_recipe_follow_the_box(chart_tab):
     assert panel.margins["r"].value() == 15.0
     assert chart.capacity(panel.get_recipe().build_kwargs(), True) == 528
     panel.i1io_crosses_cb.setChecked(False)
+    # 4.3.57 (item 29): THE CROSSES NEVER MOVE A PATCH: the margin stays, the
+    # box only allows less now; a person who lowers it gets more patches
     assert panel.margins["r"].minimum() == 5.0
-    assert panel.margins["r"].value() == 5.0
+    assert panel.margins["r"].value() == 15.0
     r = panel.get_recipe()
-    assert r.i1io_crosses is False and r.margin_right == 5.0
+    assert r.i1io_crosses is False and r.margin_right == 15.0
     kw = r.build_kwargs()
     assert kw["i1io_crosses"] is False
     from workflow.layout_engine import geometry, instruments, papers
     w, h = papers.dimensions_mm("A4")
+    assert geometry.patches_per_sheet(
+        instruments.geom_from_build_kwargs(kw), w, h) == 528
+    panel.margins["r"].setValue(5.0)
+    kw = panel.get_recipe().build_kwargs()
     assert geometry.patches_per_sheet(
         instruments.geom_from_build_kwargs(kw), w, h) == 552
     # back on: the crosses' band again
@@ -138,7 +144,7 @@ def test_a_recipe_and_a_preset_keep_the_answer(chart_tab):
     panel.i1io_crosses_cb.setChecked(True)
     panel.set_recipe(LayoutRecipe.from_dict(d))
     assert panel.i1io_crosses_cb.isChecked() is False
-    assert panel.margins["r"].value() == 5.0
+    assert panel.margins["r"].value() == 15.0       # 4.3.57: the margin stays
     # build kwargs round trip (a chart's stored kwargs)
     r2 = LayoutRecipe.from_build_kwargs(LayoutRecipe.from_dict(d)
                                         .build_kwargs())
@@ -275,7 +281,7 @@ def test_the_guided_help_is_live(chart_tab):
     from ui.dialogs.layout_options_panel import i1io_crosses_help
     kw = src.pop("kw")
     text = i1io_crosses_help(kw, **src)
-    assert "gains no patches: 528 either way" in text
+    assert "a page holds 528 patches, with the crosses or without them" in text
     assert "A1" in text
 
 
@@ -301,7 +307,7 @@ def test_manual_save_as_defaults_keeps_every_i1io_option(qapp, tmp_path):
                 want.spacer_mode, want.strip_gap_mm, want.inter_patch_mm,
                 want.show_strip_indicators, want.i1io_crosses,
                 want.margin_top, want.margin_right) == (
-            "Letter", 12.0, 9.0, "bw", 1.0, 1.5, False, False, 20.0, 5.0)
+            "Letter", 12.0, 9.0, "bw", 1.0, 1.5, False, False, 20.0, 15.0)
         tab._on_save_defaults()
     finally:
         tab.close()

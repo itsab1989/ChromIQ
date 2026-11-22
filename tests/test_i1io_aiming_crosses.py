@@ -160,13 +160,29 @@ def on_chart(tmp_path_factory):
     return folder
 
 
-def test_no_cross_is_printed_without_them(off_chart, on_chart):
+def test_no_cross_is_printed_without_them(on_chart, tmp_path):
     from PIL import Image
     from workflow.i1io import chart
-    side = json.loads((off_chart / "c.i1io.json").read_text("utf-8"))
+    from workflow.layout_engine import chart as lchart
+    # 4.3.57 (item 29): without the crosses at the margins nobody lowered,
+    # their room stays free, and empty (Manual's lowered margins put patches
+    # there, so that build cannot show it)
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    ti1 = _ti1(plain / "c.ti1", 528)
+    # no near-white patch, so no page keeps its crosses for a pale corner
+    ti1.write_text(ti1.read_text(encoding="utf-8").replace(" 100.0000", " 40.0000")
+                   .replace(" 99.0000", " 40.0000").replace(" 98.0000", " 40.0000")
+                   .replace(" 97.0000", " 40.0000").replace(" 96.0000", " 40.0000")
+                   .replace(" 95.0000", " 40.0000").replace(" 94.0000", " 40.0000"),
+                   encoding="utf-8")
+    lchart.build_chart(ti1, plain / "c", instrument="IO2",
+                       paper="A4", dpi=100, seed=4242, i1io_crosses=False)
+    side = json.loads((plain / "c.i1io.json").read_text("utf-8"))
+    assert {p["aim"] for p in side["pages"]} == {"corner patches"}
     w, h = side["paper_mm"]
     s = 100 / 25.4
-    for folder, inked in ((on_chart, True), (off_chart, False)):
+    for folder, inked in ((on_chart, True), (plain, False)):
         img = np.asarray(Image.open(folder / "c.tif").convert("L"))
         for m in chart.marks(w, h):
             x, y = (int(round(v * s)) for v in m.centre_mm)
@@ -445,21 +461,24 @@ def test_the_line_is_centred_between_the_bottom_corner_patches(off_chart):
 
 def test_every_page_has_its_own_aim_points_and_names(tmp_path):
     """Two full pages and a third of two strips: every page records its own
-    three patches by the names printed on it, the letters running on."""
+    three patches by the names printed on it, the letters running on.
+    4.3.57 (item 30): the third page's corner patches lie 8 mm apart across
+    its two strips, closer than the table's 10 mm between two aims, so it
+    keeps its crosses (it could never be aligned on its corner patches)."""
     from workflow.i1io import chart
     _build(tmp_path, 552 * 2 + 48, i1io_crosses=False)
     side = json.loads((tmp_path / "c.i1io.json").read_text("utf-8"))
     pages = side["pages"]
-    assert [p["aim"] for p in pages] == ["corner patches"] * 3
+    assert [p["aim"] for p in pages] == ["corner patches"] * 2 + ["crosses"]
     assert pages[0]["aim_patches"] == ["A1", "W1", "W24"]
     assert pages[1]["aim_patches"] == ["X1", "AT1", "AT24"]
-    assert pages[2]["aim_patches"] == ["AU1", "AV1", "AV24"]
-    for p in pages:
+    assert pages[2]["aim_patches"] == []
+    for p in pages[:2]:
         assert [a["patch"] for a in p["aim_points"]] == p["aim_patches"]
     text = (tmp_path / "c.ti2").read_text("utf-8")
     assert 'KEYWORD "CHROMIQ_I1IO_AIM_PATCHES"' in text
     assert ('CHROMIQ_I1IO_AIM_PATCHES "1: A1 W1 W24; 2: X1 AT1 AT24; '
-            '3: AU1 AV1 AV24"') in text
+            '3: crosses"') in text
     d = chart.aim_details(tmp_path / "c.ti2")
     assert d["aim"] == "corner patches" and d["labels"] is True
     assert [p["patches"] for p in d["pages"]] == [
@@ -484,7 +503,8 @@ def test_a_last_page_of_one_strip_keeps_its_crosses(tmp_path):
         tmp_path / "c.ti2").read_text("utf-8")
     w, h = side["paper_mm"]
     s = 100 / 25.4
-    for page, inked in ((1, False), (2, True)):
+    # (page 1's cross places hold patches: Manual's lowered margins)
+    for page, inked in ((2, True),):
         img = np.asarray(Image.open(tmp_path / f"c_0{page}.tif").convert("L"))
         for m in chart.marks(w, h):
             x, y = (int(round(v * s)) for v in m.centre_mm)
@@ -555,13 +575,14 @@ def test_the_crosses_help_counts_and_names_live():
     text = i1io_crosses_help(_manual_off("A4"),
                              name="My chart", sheet_text="", pages=1,
                              paper_label="A4")
-    assert "528 patches with the crosses, 552 without them" in text
-    assert "gains 24 patches" in text
+    # Manual at its lowered floor: without the crosses the patches are laid
+    # out again on the smaller margin (4.3.57, item 29: only then)
+    assert "528 patches with the crosses and 552 without them" in text
     assert "patch A1 (top-left corner)" in text and "W24" in text
     assert "—" not in text
     letter = i1io_crosses_help(_manual_off("Letter"),
                                name="My chart", paper_label="Letter")
-    assert "506 patches with the crosses, 528 without them" in letter
+    assert "506 patches with the crosses and 528 without them" in letter
     # Letter leaves no free paper 10 mm from the edge on a full page (it
     # used to move to the top edge, 5 to 9 mm from it: item 4, 2026-11-13)
     assert "move to the top edge" not in letter
@@ -587,8 +608,13 @@ def test_a_part_filled_last_page_uses_the_engines_own_fill_up(tmp_path):
     _build(tmp_path, 552 + 30, i1io_crosses=False)
     side = json.loads((tmp_path / "c.i1io.json").read_text("utf-8"))
     assert side["generation"]["padding_patches"] == 18
-    assert side["pages"][1]["aim_patches"] == ["X1", "Y1", "Y24"]
-    rows = _ti2_rows(tmp_path / "c.ti2")
+    # 4.3.57 (item 30): page 2 has two strips, its corner patches 8 mm apart:
+    # it keeps its crosses; the same count on three strips per page more
+    # aims at its corner patches, all of them printed patches of the set
+    assert side["pages"][1]["aim"] == "crosses"
+    _build(tmp_path / "more", 552 + 60, i1io_crosses=False)
+    side = json.loads((tmp_path / "more" / "c.i1io.json").read_text("utf-8"))
+    rows = _ti2_rows(tmp_path / "more" / "c.ti2")
     for name in side["pages"][1]["aim_patches"]:
         assert rows[name] != (100.0, 100.0, 100.0), name
         assert _lab(rows[name])[0] < 85.0, name
@@ -650,7 +676,7 @@ def test_a_full_a4_or_letter_page_without_crosses_leaves_the_name_off():
         assert fx["name"] == "whole", (paper, fx)
         text = i1io_crosses_help({"paper": paper, "instrument": "IO2"},
                                  name="My chart", paper_label=paper)
-        assert "gains no patches" in text
+        assert "with the crosses or without them" in text
 
 
 @pytest.mark.parametrize("n", [100, 552])

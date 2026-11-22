@@ -343,12 +343,13 @@ def fixed_build_kwargs(kw: dict) -> dict:
     ox, oy = _mm(kw.get("offset_x"), 0.0), _mm(kw.get("offset_y"), 0.0)
     t_, r_, b_, l_ = least
     if (not asked or kw.get(GUIDED_KEY)) and not crosses:
-        # GUIDED, WITHOUT THE CROSSES (review 5, item 4): Guided has no
-        # margin boxes, so the person cannot make room for the line with the
-        # chart's name and page number, and on a full sheet it was always left
-        # off. The name and page number come first (the owner): the right
-        # edge keeps the room the crosses' band gives it.
-        r_ = max(r_, F.MARK_SIDE_MM.value)
+        # 4.3.57 (item 29): THE CROSSES NEVER MOVE A PATCH. Margins nobody
+        # set (Guided has no margin boxes) are the crosses' own, so the block,
+        # its grid and every patch stay where they are with the crosses (and
+        # a page that must keep its crosses has their room). Only margins a
+        # person sets by hand in Manual go below them (down to `least`).
+        t_, r_, b_, l_ = (max(a, b) for a, b in zip(
+            least, least_margins_mm({**kw, CROSSES_KEY: True})))
     least_fit = (t_ + max(0.0, -oy), r_ + max(0.0, ox),
                  b_ + max(0.0, oy), l_ + max(0.0, -ox))
     margins = (tuple(max(a, m) for a, m in zip(asked, least_fit))
@@ -639,11 +640,16 @@ def aim_details(ti2_path) -> dict:
     return out
 
 
-def capacity(kw: dict, crosses: bool) -> int:
+def capacity(kw: dict, crosses: bool, smallest: bool = False) -> int:
     """Patches per sheet for the i1iO build kwargs *kw* with or without the
-    crosses (the same geometry the build uses)."""
+    crosses (the same geometry the build uses). *smallest*: with every margin
+    at the smallest the build allows for that choice (`least_margins_mm`),
+    what a person can reach by lowering the margins in Manual."""
     from workflow.layout_engine import geometry, instruments, papers
     k = {**kw, "instrument": "IO2", CROSSES_KEY: bool(crosses)}
+    if smallest:
+        k["margins"] = least_margins_mm(k)
+        k.pop(GUIDED_KEY, None)
     paper = k.get("paper") or "A4"
     w, h = papers.dimensions_mm(paper)
     return geometry.patches_per_sheet(instruments.geom_from_build_kwargs(k),
@@ -927,6 +933,38 @@ def visible(rgb) -> bool:
     return _lab_of_rgb(rgb)[0] < F.CORNER_NEVER_L.value
 
 
+def corner_side_needed_mm() -> float:
+    """4.3.57 (item 30): the shortest side of the aimed triangle (corner patch
+    to corner patch) on which an ordinary aim at a patch centre
+    (`table_facts.CORNER_AIM_ERROR_MM`) still passes the alignment's own
+    angle check (`table.geometry.ANGLE_TOL_DEG`): an aim *e* mm off sideways
+    turns the corner at mark 2 by about atan(e / side). 1.5 mm and 1 degree:
+    86 mm. That angle check is kept as it is: it is the only check that sees
+    mark 3 aimed one strip off (atan(pitch / row length), 1.67 degrees on a
+    275 mm row of 8 mm strips). It also covers fit_model's own refusal of two
+    aims less than 1 cm apart (a page of two strips, 8 mm, could never be
+    aligned without its crosses)."""
+    import math
+    return F.CORNER_AIM_ERROR_MM.value / math.tan(
+        math.radians(F.ALIGN_ANGLE_TOL_DEG.value))
+
+
+def corners_far_enough(cells: dict) -> bool:
+    """4.3.57 (item 30): whether the three corner patches of a page (*cells*
+    as `corner_cells` gives them) lie far enough apart, across and along the
+    rows, to be aimed at instead of the crosses (`corner_side_needed_mm`)."""
+    import math
+    try:
+        pts = []
+        for corner in CORNERS[:3]:
+            c = cells[corner]
+            pts.append(((c[3] + c[5]) / 2.0, (c[4] + c[6]) / 2.0))
+    except (KeyError, TypeError, IndexError):
+        return False
+    need = corner_side_needed_mm()
+    return math.dist(pts[0], pts[1]) >= need and math.dist(pts[1], pts[2]) >= need
+
+
 def page_crosses(target, layout, geom, w: float, h: float,
                  slots: "list[int]", crosses: bool) -> "list[bool]":
     """One answer per page: does it carry the crosses? All pages do when the
@@ -937,11 +975,14 @@ def page_crosses(target, layout, geom, w: float, h: float,
     * a page of ONE strip (the last page of a chart that does not fill it):
       its top-left and bottom-left corner would be one patch, and three
       points on one line place nothing;
-    * a page whose corner holds no visible patch (a set with too few that
-      are not near white, `corner_order`): paper is not a target.
+    * a page whose corner holds no visible patch (near white,
+      `visible`): paper is not a target;
+    * 4.3.57 (item 30): a page whose corner patches lie too close together,
+      across or along the rows, to align on (`corners_far_enough`).
 
-    The crosses' places lie outside the patches of such a page (it has
-    fewer strips than the sheet holds, or `check_sheet` refuses it), so
+    The crosses' places lie outside the patches: since 4.3.57 a chart
+    without crosses keeps their margins unless a person lowers them by hand
+    in Manual (then `check_sheet` refuses a page that cannot hold them), so
     nothing else moves."""
     from workflow.layout_engine import raster
     if crosses:
@@ -961,7 +1002,50 @@ def page_crosses(target, layout, geom, w: float, h: float,
             i = slot_to_patch.get(cells[corner][0])
             ok = (i is not None and i < real and visible(
                 raster.to_display_rgb(patches[i][0], target.color_rep)))
+        if ok and not corners_far_enough(cells) and crosses_fit(geom, layout, w, h,
+                                                                page):
+            # 4.3.57 (item 30): corner patches too close together to align
+            # on: the page keeps its crosses where their room is free (always,
+            # unless a person lowered the margins by hand; then the build says
+            # so, `corner_warnings`)
+            ok = False
         out.append(not ok)
+    return out
+
+
+def crosses_fit(geom, layout, w: float, h: float, page: int) -> bool:
+    """4.3.57 (item 30): whether page *page*'s patches leave the crosses'
+    zones free (`check_sheet` refuses a patch under a cross)."""
+    zones = [mark_zone(m) for m in marks(w, h)]
+    return not any(_overlap(c[3:], z)
+                   for c in page_patches(geom, layout, w, h, page) for z in zones)
+
+
+def corner_warnings(geom, layout, w: float, h: float,
+                    crosses: "bool | list") -> "list[str]":
+    """4.3.57 (item 30): for every page aimed at its corner patches although
+    they lie closer together than `corner_side_needed_mm` (the margins set by
+    hand left no room for its crosses): a warning, translated; below the
+    10 mm fit_model refuses outright (a page of two strips), a refusal
+    (`I1ioSheetRefused`): such a page could never be aligned."""
+    import math
+    from workflow import measurement_messages as _mm
+    out: "list[str]" = []
+    for page in range(layout.pages):
+        if on_page(crosses, page):
+            continue
+        cells = corner_cells(geom, layout, w, h, page)
+        if len(cells) != 4 or corners_far_enough(cells):
+            continue
+        pts = [((cells[c][3] + cells[c][5]) / 2.0, (cells[c][4] + cells[c][6]) / 2.0)
+               for c in CORNERS[:3]]
+        side = min(math.dist(pts[0], pts[1]), math.dist(pts[1], pts[2]))
+        if side < 10.0:
+            raise I1ioSheetRefused(tr(_mm._I1IO_CORNERS_TOO_CLOSE).format(
+                page=page + 1, mm=f"{side:.0f}"))
+        text = tr(_mm._I1IO_CORNERS_CLOSE).format(page=page + 1, mm=f"{side:.0f}")
+        if text not in out:
+            out.append(text)
     return out
 
 
@@ -988,7 +1072,13 @@ def _de(a, b) -> float:
 def corner_order(slots: "list[int]", rgbs: "list", real: int, geom, layout,
                  w: float, h: float,
                  skip_pages: "set | None" = None) -> "list[int]":
-    """*slots* (canonical patch index -> sheet slot, the engine's scrambled
+    """4.3.57 (item 29): used only for the pages of a chart without crosses
+    whose margins, lowered by hand, leave no room for the crosses
+    (`sheet_slots`); every other page keeps the seed's order, as with the
+    crosses. Charts made by 4.3.56 and earlier used it on every page; their
+    files keep that order, and the table reads the side file.
+
+    *slots* (canonical patch index -> sheet slot, the engine's scrambled
     order) with clearly visible patches moved into the four corner slots of
     every page, for a chart aimed at its corner patches. *rgbs* are the
     display colours of every patch in canonical order (padding included),
@@ -1077,19 +1167,33 @@ def corner_order(slots: "list[int]", rgbs: "list", real: int, geom, layout,
 def sheet_slots(target, layout, geom, w: float, h: float, seed: int,
                 randomize: bool, crosses: bool) -> "list[int]":
     """The slot of every patch (padding included) on an i1iO chart: the
-    engine's own order, and without the crosses `corner_order` on top. The
+    engine's own order, WITH OR WITHOUT THE CROSSES (4.3.57, item 29: the
+    crosses never move a patch; until 4.3.56 `corner_order` swapped visible
+    patches into the corners of every page of a chart without them, 8
+    patches a page; now only of a page whose margins, lowered by hand, leave
+    no room for its crosses). The
     `.ti2`, the TIFF, the side file and the `.cht` are all written from
-    this one list, so they cannot disagree."""
+    this one list, so they cannot disagree. A chart made before keeps its
+    files, and the table reads its side file: it measures as it was laid
+    out."""
     from workflow.layout_engine import permutation, raster
     slots = permutation.location_permutation(layout.total_patches, seed,
                                              randomize)
     if crosses:
         return slots
+    # ...EXCEPT where the person lowered the margins by hand in Manual so far
+    # that a page has no room for its crosses (its layout is then not the
+    # crosses' layout anyway): there clearly visible patches are moved into
+    # its corners as before (`corner_order`), so it can be aimed at
+    keep = {p for p in range(layout.pages) if crosses_fit(geom, layout, w, h, p)}
+    if len(keep) == layout.pages:
+        return slots
     media = target.media_patch()
     patches = list(target.patches) + [media] * layout.padding
     rgbs = [raster.to_display_rgb(dev, target.color_rep)
             for dev, _xyz in patches]
-    return corner_order(slots, rgbs, len(target.patches), geom, layout, w, h)
+    return corner_order(slots, rgbs, len(target.patches), geom, layout, w, h,
+                        skip_pages=keep)
 
 
 def text_column(w: float, h: float) -> "tuple[float, float, float, float]":

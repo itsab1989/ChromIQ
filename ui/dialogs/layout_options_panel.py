@@ -515,33 +515,49 @@ def i1io_crosses_help(kw: "dict | None", *, name: str = "",
         tr("Without the crosses you aim at the centres of three corner "
            "patches instead, as X-Rite’s own software does: the top-left "
            "patch, the bottom-left patch and the bottom-right patch, with the "
-           "sheet lying on the table as the preview shows it. ChromIQ then "
-           "puts clearly visible, darker or more colourful patches from your "
-           "patch set into the four corners, so they are easy to find. No "
-           "patch is added or left out; only their places change."),
-        tr("In Guided the room the crosses take is kept for the line with "
-           "the chart's name and page number, so switching them off changes "
-           "how you aim, not the patch count. In Manual, with smaller "
-           "margins, it can fit more patches."),
+           "sheet lying on the table as the preview shows it."),
+        tr("Switching the crosses off moves no patch: every patch stays "
+           "exactly where it is with the crosses, and the paper the crosses "
+           "take stays free. So a chart printed with the crosses and the same "
+           "chart printed without them have the same patches in the same "
+           "places, and you can compare the two."),
+        tr("Some pages keep their crosses even when they are switched off: "
+           "a page whose corner patches are almost white, and a page whose "
+           "corner patches lie so close together (a page with only a few rows "
+           "or short rows) that a small aiming error at one of them would "
+           "make ChromIQ refuse the alignment. The preview shows which pages "
+           "keep them."),
     ]
     if kw:
         try:
             from workflow.i1io import chart as _C
             on = _C.capacity(kw, True)
-            off = _C.capacity(kw, False)
+            now = _C.capacity(kw, False)
+            off = _C.capacity(kw, False, smallest=True)
             where = paper_label or str(kw.get("paper") or "")
-            if off > on:
+            if now > on:
+                parts.append(tr(
+                    "On this sheet, {paper}, with the patch size, spacers and "
+                    "margins set now, a page holds {on} patches with the "
+                    "crosses and {now} without them: the margins you set are "
+                    "smaller than the room the crosses need, so without them "
+                    "the patches are laid out again on that smaller margin."
+                ).format(paper=where, on=on, now=now))
+            elif off > on:
                 parts.append(tr(
                     "On this sheet, {paper}, with the patch size and spacers "
-                    "set now: {on} patches with the crosses, {off} without "
-                    "them. Switching them off gains {gain} patches on every "
-                    "page.").format(paper=where, on=on, off=off,
-                                    gain=off - on))
+                    "set now, a page holds {on} patches, with the crosses or "
+                    "without them. Without the crosses you may lower the "
+                    "margins yourself in Manual, down to the printer's edge: "
+                    "with every margin at its smallest, a page holds up to "
+                    "{off} patches. The preview then shows the new layout, "
+                    "and a page that must keep its crosses needs their room "
+                    "back.").format(paper=where, on=on, off=off))
             else:
                 parts.append(tr(
                     "On this sheet, {paper}, with the patch size and spacers "
-                    "set now, switching the crosses off gains no patches: "
-                    "{on} either way.").format(paper=where, on=on))
+                    "set now, a page holds {on} patches, with the crosses or "
+                    "without them.").format(paper=where, on=on))
             fx = _C.crosses_off_effects(kw, name=name, sheet_text=sheet_text,
                                         pages=pages)
             names = fx.get("aim_patches") or []
@@ -4117,19 +4133,27 @@ class LayoutOptionsPanel(QWidget):
             # The margins are LIVE for the i1iO (any value at or above its
             # minimum), and the box offers nothing below it (review r3 m1).
             # A margin that stood at the previous minimum follows the new
-            # one, so the paper the crosses, a clip border or a larger label
-            # held comes back when they go (and is given when they come).
+            # one, so the paper a clip border or a larger label held comes
+            # back when they go (and is given when they come).
+            # 4.3.57 (item 29): THE CROSSES NEVER MOVE A PATCH. The value a
+            # box follows is the minimum WITH the crosses, so switching them
+            # off lowers only what the box allows (a person may then lower a
+            # margin by hand), never the margin itself.
             prev = getattr(self, "_i1io_prev_least", None) or {}
+            ft, fr, fb, fl = self._i1io_least_margins(crosses=True)
+            follow = {"t": ft, "r": fr, "b": fb, "l": fl}
             for k, v in want["margins"].items():
                 box = self.margins.get(k)
                 if box is not None:
                     old = prev.get(k)
+                    to = max(v, follow.get(k, v))
                     box.setMinimum(v)
-                    if box.value() < v - 1e-9 or (
-                            old is not None
-                            and abs(box.value() - old) < 1e-6):
+                    if box.value() < v - 1e-9:
                         box.setValue(v)
-            self._i1io_prev_least = dict(want["margins"])
+                    elif old is not None and abs(box.value() - old) < 1e-6:
+                        box.setValue(to)
+            self._i1io_prev_least = {k: max(v, follow.get(k, v))
+                                     for k, v in want["margins"].items()}
             for name, data in (("layout_mode", want["layout_mode"]),
                                ("patch_align", want["patch_align"]),
                                *want["combos"].items()):
@@ -4471,9 +4495,12 @@ class LayoutOptionsPanel(QWidget):
         if getattr(self, "_i1io_saved", None) is not None and not self._loading:
             self._i1io_show_what_applies()
 
-    def _i1io_least_margins(self) -> "tuple[float, float, float, float]":
+    def _i1io_least_margins(self, crosses: "bool | None" = None
+                            ) -> "tuple[float, float, float, float]":
         """The i1iO chart's smallest margins for what the panel holds now
-        (`workflow.i1io.chart.least_margins_mm`, the build's own floor)."""
+        (`workflow.i1io.chart.least_margins_mm`, the build's own floor).
+        *crosses*: for the crosses on / off instead of as the panel holds
+        them (4.3.57, item 29: the margins a box follows are the crosses')."""
         from workflow.i1io.chart import least_margins_mm
         try:
             # THE RECIPE THE BUILD USES: the tab's, with Preferences' label
@@ -4486,6 +4513,8 @@ class LayoutOptionsPanel(QWidget):
             rows = getattr(self, "show_indicators", None)
             kw = {"draw_indicators": bool(rows is None or rows.isChecked()),
                   "i1io_crosses": self._i1io_crosses_on()}
+        if crosses is not None:
+            kw["i1io_crosses"] = bool(crosses)
         return least_margins_mm(kw)
 
     def _i1io_crosses_source(self) -> dict:

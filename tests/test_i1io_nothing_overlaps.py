@@ -118,10 +118,14 @@ def test_a_chart_offset_never_reaches_the_name_line():
     assert max(c[2] for c in cells) <= col[0] - 2.0 + 1e-6
 
 
-def test_a_name_line_with_no_paper_is_said(tmp_path):
+def test_a_name_line_with_no_paper_is_said(tmp_path, monkeypatch):
     """Crosses off, a 5 mm right margin and a strip cap leave no paper beside
     the last strip: the line is left off, and that is said."""
     from workflow.i1io import chart as C
+    # 4.3.57 (item 29): the seed's corners stay where they are; this set has a
+    # pale one there, which would keep the page's crosses (and its line
+    # between them): this test is about the page aimed at its corner patches
+    monkeypatch.setattr(C, "visible", lambda rgb: True)
     result = _build(tmp_path, n=420, **{C.CROSSES_KEY: False,
                                         C.CLIP_KEY: True,
                                         "clip_content_mode": "notes",

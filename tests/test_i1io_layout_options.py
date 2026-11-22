@@ -150,12 +150,12 @@ def test_every_alignment_builds_a_sound_chart(tmp_path, align, crosses):
 
 
 def test_nobodys_alignment_is_the_i1ios_own(tmp_path):
-    """Unchosen: centred with the crosses, at the patch numbers without
-    them (what the i1iO did before the audit, byte for byte)."""
+    """Unchosen: centred, with the crosses and (4.3.57, item 29: the crosses
+    never move a patch) without them."""
     from workflow.i1io import chart as C, table_facts as F
     assert C.align_of({}, True) == F.ALIGN_WITH_CROSSES.value == "center"
     assert C.align_of({}, False) == F.ALIGN_WITHOUT_CROSSES.value \
-        == "center-left"
+        == "center"
     assert C.align_of({"i1io_align": "nonsense"}, True) == "center"
     (tmp_path / "a").mkdir()
     (tmp_path / "b").mkdir()
@@ -277,7 +277,8 @@ def test_alignment_follows_the_crosses_until_a_person_picks(panel):
     _to(panel, "IO2")
     assert panel.patch_align.currentData() == "center"
     panel.i1io_crosses_cb.setChecked(False)
-    assert panel.patch_align.currentData() == "center-left"
+    # 4.3.57 (item 29): the crosses never move a patch: the same place
+    assert panel.patch_align.currentData() == "center"
     assert panel.get_recipe().i1io_align == ""
     assert "i1io_align" not in panel.get_recipe().build_kwargs()
     panel.patch_align.setCurrentIndex(panel.patch_align.findData("bottom-right"))

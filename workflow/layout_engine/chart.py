@@ -1016,6 +1016,9 @@ def build_chart(
                                                h_mm, _slots, _i1io_crosses)
         _i1io_warnings = list(_i1io_chart.check_sheet(
             geom, layout, w_mm, h_mm, crosses=_i1io_pages))
+        # 4.3.57 (item 30): pages aimed at corner patches that lie close
+        _i1io_warnings += _i1io_chart.corner_warnings(geom, layout, w_mm, h_mm,
+                                                      _i1io_pages)
         _i1io_warnings += _i1io_chart.option_warnings(_f)
         # "Label offset" X held as on every chart, and the letters and the
         # numbers where the options put them: said, or refused when wholly
