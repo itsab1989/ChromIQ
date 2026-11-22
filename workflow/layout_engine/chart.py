@@ -862,8 +862,16 @@ def build_chart(
     geom = _geom_for(len(target.patches))
     try:
         layout = geometry.compute(geom, w_mm, h_mm, len(target.patches))
-    except geometry.LayoutError:
+    except geometry.LayoutError as exc:
         if not _i1io:
+            # NO ROOM, SAID IN WORDS (4.3.57): the margins have no cap any
+            # more, so the page is what refuses, and the window names the
+            # margins that leave no room (`geometry.no_room_reason`).
+            try:
+                exc.plain = geometry.no_room_reason(
+                    geom, w_mm, h_mm, len(target.patches))
+            except Exception:   # noqa: BLE001 - the engine's words remain
+                exc.plain = None
             raise
         # A SHEET TOO SMALL FOR ONE STRIP, said in words (review 5, item 7):
         # any size inside the table's reach may be chosen now

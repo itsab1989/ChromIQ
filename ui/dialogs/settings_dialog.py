@@ -6888,7 +6888,12 @@ class SettingsDialog(QDialog):
                  ("T", tr("Top")), ("B", tr("Bottom")))):
             grid.addWidget(QLabel(label, self), 0, col, Qt.AlignmentFlag.AlignHCenter)
             sb = NoScrollDoubleSpinBox(self)
-            sb.setRange(0, 100)
+            # No cap but the largest page ChromIQ makes (4.3.57): these are
+            # the margins "Use instrument margins" puts into Create Chart,
+            # whose own boxes lost their 60 mm cap for having no physical
+            # reason; 100 mm here had none either.
+            from workflow.page_output.support import CUSTOM_MM_MAX
+            sb.setRange(0, CUSTOM_MM_MAX)
             sb.setDecimals(1)
             sb.setSingleStep(0.5)
             sb.setSuffix(" mm")

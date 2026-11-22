@@ -2452,7 +2452,17 @@ class LayoutOptionsPanel(QWidget):
         # ---- Page geometry ----
         pg = QGroupBox(tr("Page geometry"), self)
         gg = QGridLayout(pg)
-        self.margins = {k: small_mm(top=60.0) for k in ("t", "r", "b", "l")}
+        # NO CAP BUT THE PAGE (4.3.57, Basti: "the limits are stupid. they
+        # would be stupid for other instruments as well"). These stopped at
+        # 60 mm, for no physical reason, so a small ink-saving test chart
+        # (one wide margin, a few rows on a normal sheet) could not be typed.
+        # The top is the largest page ChromIQ makes (`CUSTOM_MM_MAX`): no
+        # margin can be wider than the paper it is on. A margin that leaves
+        # no room for one patch is outlined in red with the reason
+        # (`_check_margin_room`), and Generate refuses it in words; nothing
+        # is clamped.
+        from workflow.page_output.support import CUSTOM_MM_MAX as _MARGIN_TOP
+        self.margins = {k: small_mm(top=_MARGIN_TOP) for k in ("t", "r", "b", "l")}
         # A margin a person typed is theirs (B8-965): see `_margins_at_default`.
         for _sb in self.margins.values():
             _sb.valueChanged.connect(self._mark_margins_chosen)
@@ -5992,6 +6002,82 @@ class LayoutOptionsPanel(QWidget):
             widget.setToolTip(self._field_hint_orig.pop(wid))
 
     def _update_clip_margin_conflict(self, *_a) -> None:
+        """The clip-border flags (`_update_clip_margin_flags`), then the
+        margins that leave no room for a patch (`_apply_margin_room_flags`)
+        on top: both outline margin boxes, and the second is the one that
+        stops a chart."""
+        self._update_clip_margin_flags()
+        self._apply_margin_room_flags()
+
+    def _schedule_margin_room_check(self) -> None:
+        """Ask "does one patch still fit inside the margins?" a moment after
+        the last change (a geometry rebuild, up to about 20 ms, so not on
+        every step of a spin box)."""
+        if getattr(self, "instr", None) is None:
+            return
+        t = getattr(self, "_margin_room_timer", None)
+        if t is None:
+            from PyQt6.QtCore import QTimer
+            t = QTimer(self)
+            t.setSingleShot(True)
+            t.setInterval(150)
+            t.timeout.connect(self._check_margin_room)
+            self._margin_room_timer = t
+        t.start()
+
+    def _margin_room_problem(self) -> "tuple[str, tuple[str, ...]] | None":
+        """``(the reason, the margin boxes it is about)`` when the margins
+        leave no room for one patch on this paper, else None. Not for the
+        FD-9 (its margins are its own and greyed) or the i1iSis (its build
+        refuses its own sheets in words, naming the margins). A greyed box
+        ("Use instrument margins") is never outlined: on a greyed box a red
+        outline reads as a stuck focus ring (Sebastian); Generate still
+        refuses that sheet in words."""
+        try:
+            inst = self.instr.currentData() if self.instr is not None else None
+        except RuntimeError:
+            return None
+        if not inst or inst in ("FD9", "XRISIS"):
+            return None
+        from workflow.layout_engine import geometry
+        try:
+            kind = geometry.recipe_no_room_kind(self.get_recipe())
+        except Exception:      # noqa: BLE001 - a notice, never a blocker
+            return None
+        if kind in (None, geometry.NO_ROOM_PATCH):
+            return None        # it fits, or it is not the margins' doing
+        sides = {geometry.NO_ROOM_ACROSS: ("l", "r"),
+                 geometry.NO_ROOM_ALONG: ("t", "b")}.get(kind,
+                                                         ("t", "r", "b", "l"))
+        return geometry.no_room_text(kind), sides
+
+    def _check_margin_room(self) -> None:
+        self._margin_room = self._margin_room_problem()
+        self._update_clip_margin_conflict()
+
+    def _apply_margin_room_flags(self) -> None:
+        """Outline the margin boxes that leave no room for a patch, with the
+        reason as their tooltip (`_set_field_conflict`, the panel's way of
+        saying a value cannot work). Top and bottom are only ever flagged
+        here, so they are cleared here; left and right were just cleared by
+        the clip-border flags."""
+        margins = getattr(self, "margins", None) or {}
+        clip_owns_sides = (hasattr(self, "clip_width")
+                           and hasattr(self, "clip_side"))
+        for k in (("t", "b") if clip_owns_sides else ("t", "r", "b", "l")):
+            box = margins.get(k)
+            if box is not None:
+                self._set_field_conflict(box, None)
+        problem = getattr(self, "_margin_room", None)
+        if not problem:
+            return
+        message, sides = problem
+        for k in sides:
+            box = margins.get(k)
+            if box is not None and box.isEnabled():
+                self._set_field_conflict(box, message)
+
+    def _update_clip_margin_flags(self, *_a) -> None:
         """Clip-border width and the clip-side page margin are **independent**
         inputs; the LARGER of the two is what the engine reserves on that edge
         (``instruments.build`` takes the max). The old code silently copied the
@@ -7840,6 +7926,8 @@ class LayoutOptionsPanel(QWidget):
         # connected. Four `perf_counter` reads on a path that already builds
         # strings and repaints a preview.
         t0 = time.perf_counter()
+        # one patch still inside the margins? (4.3.57: no cap but the page)
+        self._schedule_margin_room_check()
         self._update_text_preview()
         t1 = time.perf_counter()
         self._refresh_clip_preview()

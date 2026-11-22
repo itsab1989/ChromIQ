@@ -48,13 +48,13 @@ def _fine_walk(r, measured, reserve, lines, line):
     checked against, and having it in the app would be two implementations.
     """
     from dataclasses import replace
-    from ui.tabs.tab_chart import _MARGIN_BOX_MAX_MM, _MARGIN_STEP_MM
+    from ui.tabs.tab_chart import _MARGIN_SEARCH_TOP_MM, _MARGIN_STEP_MM
     asked = float(r.margin_bottom or 0.0)
     base = mi.engine_patch_bottom_mm(r)
     if base is None:
         return None
     off = measured - base
-    cap = _MARGIN_BOX_MAX_MM - asked
+    cap = _MARGIN_SEARCH_TOP_MM - asked
     probe, run, first = _MARGIN_STEP_MM, 0, None
     while probe <= cap + 1e-9:
         b = mi.engine_patch_bottom_mm(replace(r, margin_bottom=asked + probe))

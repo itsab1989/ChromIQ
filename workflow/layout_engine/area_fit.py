@@ -391,7 +391,17 @@ def _derive_area_patch_size(kw: dict) -> tuple[float, float] | None:
         return (arowl - ec * geom.pspa) / max(1, n) - geom.pspa
 
     def _max_rows_at(height: float) -> int:
-        return max(1, int((arowl - ec * geom.pspa) / (height + geom.pspa)))
+        # A PAGE WITH NEARLY NO LENGTH LEFT (4.3.57: the margins have no cap
+        # any more). `_rows_filling_fit` walks the height down 0.01 mm at a
+        # time, and on a sliver of paper it can land exactly on -pspa, where
+        # this divided by zero and the build died with "division by zero".
+        # A pitch of zero or less is no patch at all: one row is the answer
+        # the formula gives for any negative pitch, and `geometry.compute`
+        # then refuses the page in words ("paper too short").
+        pitch = height + geom.pspa
+        if pitch <= 0:
+            return 1
+        return max(1, int((arowl - ec * geom.pspa) / pitch))
 
     def _rows_filling_fit(n: int) -> float:
         # _rows_filling gives the height that EXACTLY fills n rows, but float

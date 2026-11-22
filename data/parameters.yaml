@@ -826,7 +826,9 @@ parameters:
       name: "Margin (mm)"
       type: int
       min: 0
-      max: 30
+      # printtarg's own limit (3.5.0, measured 2026-11-22: 50 accepted,
+      # 50.5 and above refused "Border margin ... is outside expected range")
+      max: 50
       default: 6
       step: 1
       affects_preview: true

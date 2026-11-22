@@ -18,7 +18,128 @@ from .instruments import Geom
 
 
 class LayoutError(ValueError):
-    """Raised when the page can't hold even a single pass of patches."""
+    """Raised when the page can't hold even a single pass of patches.
+
+    ``plain`` (when set) is the same refusal in the user's words, naming the
+    margins that leave no room (`no_room_reason`); the message itself stays
+    the engine's English sentence, for the log."""
+
+    plain: "str | None" = None
+
+
+# ---------------------------------------------------------------------------
+# NO ROOM ON THE PAGE, SAID IN WORDS (4.3.57, Basti: "the limits are stupid")
+#
+# The margin boxes had a 60 mm cap that had no physical reason. Without it a
+# margin can be typed that leaves no paper for the chart, and the one thing
+# that may stop it is the page itself: `compute` refuses, and these say which
+# margins did it and what to change, instead of the engine's "not enough
+# width for even one row".
+# ---------------------------------------------------------------------------
+
+#: The pair of margins that leaves no room, found by trying the page again
+#: without them (`no_room_kind`).
+NO_ROOM_ACROSS = "across"      # left + right
+NO_ROOM_ALONG = "along"        # top + bottom
+NO_ROOM_BOTH = "both"          # only all four together
+NO_ROOM_PATCH = "patch"        # not even with no margins at all
+
+
+def _fits(geom: Geom, paper_w_mm: float, paper_h_mm: float, npat: int) -> bool:
+    try:
+        compute(geom, paper_w_mm, paper_h_mm, npat)
+        return True
+    except LayoutError:
+        return False
+    except ZeroDivisionError:
+        return False
+
+
+def no_room_kind(geom: Geom, paper_w_mm: float, paper_h_mm: float,
+                 npat: int = 1) -> "str | None":
+    """None when *npat* patches lay out on the page; otherwise which margins
+    leave no room: :data:`NO_ROOM_ACROSS` (left and right), :data:`NO_ROOM_ALONG`
+    (top and bottom), :data:`NO_ROOM_BOTH` (only all four together) or
+    :data:`NO_ROOM_PATCH` (the page is too small even with no margins).
+
+    Found by laying the page out again with that pair of margins at zero, so
+    it follows the engine's own rules (the instrument's run-up, the label
+    band, the clip border) rather than a second copy of them."""
+    from dataclasses import replace
+    npat = max(1, int(npat or 1))
+    if _fits(geom, paper_w_mm, paper_h_mm, npat):
+        return None
+    if _fits(replace(geom, margin_l=0.0, margin_r=0.0),
+             paper_w_mm, paper_h_mm, npat):
+        return NO_ROOM_ACROSS
+    if _fits(replace(geom, margin_t=0.0, margin_b=0.0),
+             paper_w_mm, paper_h_mm, npat):
+        return NO_ROOM_ALONG
+    if _fits(replace(geom, margin_l=0.0, margin_r=0.0, margin_t=0.0,
+                     margin_b=0.0), paper_w_mm, paper_h_mm, npat):
+        return NO_ROOM_BOTH
+    return NO_ROOM_PATCH
+
+
+def no_room_text(kind: "str | None") -> "str | None":
+    """The plain sentence for a :func:`no_room_kind` answer (None for None)."""
+    if kind is None:
+        return None
+    from core.i18n import tr
+    if kind == NO_ROOM_ACROSS:
+        return tr(
+            "The left and right margins leave no room on this paper for even "
+            "one strip of patches: together they take up too much of the "
+            "paper's width. Make the left or right margin smaller, make the "
+            "patches narrower, or choose a wider paper.")
+    if kind == NO_ROOM_ALONG:
+        return tr(
+            "The top and bottom margins leave no room on this paper for a "
+            "strip of patches. A strip needs at least one patch, plus the "
+            "blank paper your instrument starts and stops on and the room "
+            "for the strip letters. Make the top or bottom margin smaller, "
+            "make the patches shorter, or choose a longer paper.")
+    if kind == NO_ROOM_BOTH:
+        return tr(
+            "The margins on the four sides together leave no room on this "
+            "paper for even one patch. Make some of the margins smaller, or "
+            "choose a larger paper.")
+    return tr(
+        "This paper has no room for even one patch of this size, even with "
+        "no margins at all, because the patch and the blank paper your "
+        "instrument needs around it are larger than the paper. Make the "
+        "patches smaller, or choose a larger paper.")
+
+
+def no_room_reason(geom: Geom, paper_w_mm: float, paper_h_mm: float,
+                   npat: int = 1) -> "str | None":
+    """:func:`no_room_text` of :func:`no_room_kind`: None when it fits."""
+    return no_room_text(no_room_kind(geom, paper_w_mm, paper_h_mm, npat))
+
+
+def recipe_no_room_kind(recipe) -> "str | None":
+    """:func:`no_room_kind` for a layout recipe, for the panel's margin boxes:
+    does ONE patch of the size the instrument reads still fit inside the
+    margins? None when it does, or when it cannot be worked out (a notice is
+    never a blocker; Generate still refuses in words).
+
+    "Prioritise chart area" is asked at the instrument's own patch size: that
+    is the smallest size it grows from when "Minimum patch width" is auto
+    (`area_fit`), so a box that cannot hold it cannot hold that chart."""
+    try:
+        from . import instruments, papers
+        kw = dict(recipe.build_kwargs())
+        if kw.get("layout_mode") == "area_first":
+            kw["layout_mode"] = "patch_first"
+            kw.pop("patch_w", None)
+            kw.pop("patch_h", None)
+        kw["area_target_count"] = 1
+        geom = instruments.geom_from_build_kwargs(kw)
+        w_mm, h_mm = papers.dimensions_mm(kw.get("paper")
+                                          or getattr(recipe, "paper", "A4"))
+        return no_room_kind(geom, float(w_mm), float(h_mm), 1)
+    except Exception:      # noqa: BLE001 - a notice, never a blocker
+        return None
 
 
 @dataclass(frozen=True)

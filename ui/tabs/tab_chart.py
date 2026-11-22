@@ -3332,11 +3332,16 @@ def _label_is_margin_anchored(geom) -> bool:
         return False
 
 
-#: What the four margin spin boxes will hold, and the grid they step on
-#: (`layout_options_panel`: `small_mm(top=60.0)`, `setSingleStep(0.5)`). A rise
-#: past the first is one the reader can neither type nor click to; a rise off
-#: the second is one they cannot land on exactly.
-_MARGIN_BOX_MAX_MM = 60.0
+#: How high the rise search below looks (the margin it may name, at most),
+#: and the grid the margin boxes step on (`layout_options_panel`:
+#: `setSingleStep(0.5)`). The first was the margin boxes' own 60 mm cap until
+#: 4.3.57, when the cap went (it had no physical reason); it stays the
+#: search's ceiling, because every probe is a geometry rebuild the reader
+#: waits for. Above it the message names the boxes without a number. A rise
+#: off the grid is one the reader cannot land on exactly.
+_MARGIN_SEARCH_TOP_MM = 60.0
+#: The old name, which earlier driver scripts in `scripts/` still read.
+_MARGIN_BOX_MAX_MM = _MARGIN_SEARCH_TOP_MM
 _MARGIN_STEP_MM = 0.5
 
 #: How far the coarse pass of the rise search steps before it hands over to the
@@ -3347,7 +3352,7 @@ _MARGIN_COARSE_MM = 2.5
 
 def margin_rise_that_clears_mm(r, measured_bottom_mm: float, reserve_mm: float,
                                lines: int, line_mm: float, *,
-                               cap_mm: float = _MARGIN_BOX_MAX_MM,
+                               cap_mm: float = _MARGIN_SEARCH_TOP_MM,
                                ) -> "float | None":
     """How much more “Bottom” really moves the patches clear of the sheet text.
 
@@ -3401,7 +3406,7 @@ def margin_rise_that_clears_mm(r, measured_bottom_mm: float, reserve_mm: float,
         if base is None:
             return None
         offset = float(measured_bottom_mm) - float(base)
-        cap = min(float(cap_mm), _MARGIN_BOX_MAX_MM - asked)
+        cap = min(float(cap_mm), _MARGIN_SEARCH_TOP_MM - asked)
         if cap <= 0:
             return None
 

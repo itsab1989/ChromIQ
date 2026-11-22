@@ -2036,6 +2036,11 @@ class ChartCreator:
                 msg = (M.M_CHART_ENGINE_REDRAW_FAILED if redraw
                        else M.M_CHART_ENGINE_FAILED)
                 reason = str(exc)
+                # A page with no room for the chart (4.3.57: the margins have
+                # no cap any more): the engine's refusal in plain words, the
+                # engine's own sentence stays in the log line above.
+                if getattr(exc, "plain", None):
+                    reason = str(exc.plain)
                 from workflow.i1io.support import i1io_enabled, is_i1io_code
                 if is_i1io_code(params.instrument):
                     # An i1iO chart drawn again with i1iO support off, or a
