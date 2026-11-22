@@ -354,6 +354,10 @@ class FakePressProc:
             if self.helper.faults.get("press") == "dies_on_arm":
                 self._die()
                 return
+            if self.helper.faults.get("press") == "deaf":
+                # 4.3.57 (item 32): alive, takes the line, never answers (a helper that hung
+                # or never opened the instrument): no press_armed, no press
+                return
             self.armed = str(obj.get("id"))
             self.t_arm = self._now()
             self.min_s = int(obj.get("min_ms", 400)) / 1000.0

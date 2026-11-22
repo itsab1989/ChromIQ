@@ -3947,6 +3947,10 @@ class TableMeasureWindow(QFrame):
                 body += "\n\n" + (M.M_I1IO_DRIVE_AIM_BUTTON_PATCH.render(patch=patch)[1]
                                    if patch else
                                    M.M_I1IO_DRIVE_AIM_BUTTON.render(mark=d.get("mark", "?"))[1])
+            elif d.get("button_unavailable") in _BUTTON_MEANT_BUT_NOT_NOW:
+                # 4.3.57 (item 32): a button wait was started for these aims but does not listen
+                # for this mark: said plainly, the panel's Aimed is the way
+                body += "\n\n" + M.M_I1IO_DRIVE_AIM_BUTTON_NOT_NOW.render()[1]
             self._aim_event(d.get("mark"), d.get("patch") if d.get("target") == "patch"
                             else None)
         elif kind == "front_choice":
@@ -5586,6 +5590,11 @@ def _fill(msg, **kw) -> dict:
 # (i1io-table/<date-time>/), which the first line names. Every function here runs on the GUI
 # thread, AFTER a job call's result arrived or when a page is shown, never inside a move's timed
 # window, and never raises.
+#: 4.3.57 (item 32): job.button_unavailable values for which the button was meant to answer
+#: these aims but cannot now (the page then asks for the panel's Aimed in so many words)
+_BUTTON_MEANT_BUT_NOT_NOW = ("button_not_listening", "button_wait_stopped",
+                             "button_wait_still_holds_the_instrument")
+
 _TABLE_RESULT_SKIP = ("state", "readings", "patches", "rows_data", "second_moves", "values")
 
 

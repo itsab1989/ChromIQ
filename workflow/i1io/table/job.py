@@ -186,6 +186,16 @@ BUTTON_WAIT_MS = 600000
 #: how long the job waits, before it opens a reader, for the button wait to have let go of the
 #: i1Pro 2 (the helper's own close plus the kill that follows a close that blocks)
 BUTTON_CLOSE_WAIT_S = 12.0
+#: 4.3.57 (item 32): how long the job waits, after arming the button wait for a mark, for the
+#: helper's own "press_armed" answer before the button is offered on the page. The helper opens
+#: the i1Pro 2 before it listens (chromiq_presswait.c: press_armed only from its loop, after
+#: press_wait_ready): measured 1.02 s on the table owner's machine (22 Nov 2026); four times
+#: that. Without the answer the page asks for the panel's Aimed (the button is not listening);
+#: the next mark arms and checks again.
+BUTTON_ARMED_WAIT_S = 4.0
+#: why the button is not offered although a button wait was started for these aims: the page
+#: then says plainly to press Aimed (M-I1IO-DRIVE-AIM-BUTTON-NOT-NOW)
+BUTTON_NOT_LISTENING = "button_not_listening"
 BUTTON_IGNORED = "button_press_ignored"
 #: final fix round, S-2: the button wait has not let go of the i1Pro 2 within
 #: BUTTON_CLOSE_WAIT_S: no reader is opened (refused truthfully, nothing moves)
@@ -4330,6 +4340,20 @@ class TableJob:
             self.button_unavailable = "button_wait_stopped"
             self.diag.log("BUTTON", "the button wait has stopped; the panel's Aimed is the way")
             return None
+        # 4.3.57 (item 32): arm() only WROTE the command; the button is offered only once the
+        # helper answered that it listens for this mark (after a refused aim the new wait could
+        # be dead or not yet open, and the button then looked dead while the page offered it)
+        waiting = getattr(w, "wait_armed", None)
+        if waiting is not None and not waiting(token, BUTTON_ARMED_WAIT_S):
+            with self._press_lock:
+                if self._press_token == token:
+                    self._press_token = None
+            self.button_unavailable = BUTTON_NOT_LISTENING
+            self.diag.log("BUTTON", f"the button wait did not answer that it listens for mark "
+                                    f"{mark} within {BUTTON_ARMED_WAIT_S:.0f} s (alive: "
+                                    f"{_alive(w)}); the page asks for the panel's Aimed")
+            return None
+        self.button_unavailable = None
         return token
 
     def _press_disarm(self) -> None:
@@ -6829,6 +6853,13 @@ def _default_press_factory(folder, log):
     if not rd.press_wait_supported():
         raise HelperWithoutButtonWait()
     return rd.PressWaiter(rd.helper_path(), folder, log)
+
+
+def _alive(w) -> "bool | None":
+    try:
+        return bool(w.alive())
+    except Exception:      # noqa: BLE001
+        return None
 
 
 def _close_quietly(w) -> None:

@@ -698,6 +698,22 @@ class PressWaiter:
         except ReaderFailed:
             return False
 
+    def wait_armed(self, token: str, timeout: float = 4.0) -> bool:
+        """4.3.57 (item 32): True once the helper reported ``press_armed`` for *token* (it
+        listens for a press of this mark); False when it did not within *timeout* s, or it
+        ended or reported an error first. Reads the event list only (the queue is left as it
+        is), so a press reported meanwhile is still seen by the job."""
+        end = time.monotonic() + max(0.0, float(timeout))
+        while True:
+            for ev in list(self.proc.events):
+                if ev.get("event") == "press_armed" and str(ev.get("id")) == str(token):
+                    return True
+            if not self.alive():
+                return False
+            if time.monotonic() >= end:
+                return False
+            time.sleep(0.02)
+
     def disarm(self) -> None:
         try:
             if self.alive():

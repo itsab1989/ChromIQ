@@ -13117,6 +13117,20 @@ M_I1IO_DRIVE_AIM_BUTTON = _m(
     "lost.",
     approved=False)
 
+#: 4.3.57 (item 32): added to M-I1IO-DRIVE-AIM (or -AIM-PATCH) when a button wait was started
+#: for these aims but the helper did not answer press_armed for this mark within
+#: job.BUTTON_ARMED_WAIT_S (or it stopped, or the last wait still holds the instrument): the
+#: button is not offered, the panel's Aimed is the way.
+M_I1IO_DRIVE_AIM_BUTTON_NOT_NOW = _m(
+    "M-I1IO-DRIVE-AIM-BUTTON-NOT-NOW",
+    "Please press Aimed on the screen",
+    "The button on the instrument cannot answer this question right now: ChromIQ's reading "
+    "program did not confirm that it is listening for the press. So please press Aimed on the "
+    "screen once the cross hairs sit where they should. It counts exactly the same as the "
+    "button.\n\n"
+    "At the next aiming question, ChromIQ tries the button again.",
+    approved=False)
+
 M_I1IO_DRIVE_STRIP_OPTION = _m(
     "M-I1IO-DRIVE-STRIP-OPTION",
     "How the table reads each row",
@@ -14415,7 +14429,7 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_OPTIONS_FIELDS, M_I1IO_DRIVE_MARKER, M_I1IO_DRIVE_START_UP,
     M_I1IO_DRIVE_GO, M_I1IO_DRIVE_SHEET_LAID, M_I1IO_DRIVE_ARM_FELT,
     M_I1IO_DRIVE_AIM, M_I1IO_DRIVE_AIM_BUTTON, M_I1IO_DRIVE_AIM_PATCH,
-    M_I1IO_DRIVE_AIM_BUTTON_PATCH, M_I1IO_DRIVE_STRIP_OPTION,
+    M_I1IO_DRIVE_AIM_BUTTON_PATCH, M_I1IO_DRIVE_AIM_BUTTON_NOT_NOW, M_I1IO_DRIVE_STRIP_OPTION,
     M_I1IO_DRIVE_STRIP_FIRST_TRY, M_I1IO_DRIVE_STRIP_TOO_LONG, M_I1IO_DRIVE_STRIP_DEFAULT_OFFER,
     M_I1IO_DRIVE_STRIP_OUTSIDE_AREA, M_I1IO_DRIVE_STRIP_NOT_POSSIBLE,
     M_I1IO_DRIVE_DUAL_ROWS, M_I1IO_DRIVE_DUAL_SPOT, M_I1IO_DRIVE_DUAL_PATCHES_TOO_SHORT,
