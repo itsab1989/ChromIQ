@@ -225,6 +225,37 @@ def remeasured_opening(strips: int, patches: int = 0) -> str:
               "successfully.</b>").format(n=strips)
 
 
+def suppress_warnings_help() -> str:
+    """The ⓘ text of "Suppress warning messages (-S)", Guided and Manual.
+
+    EXACTLY THE TWO WARNINGS -S TURNS OFF (4.3.57, item 15). It used to name
+    calibration notices, dark-patch range warnings and strip timing, none of
+    which -S touches. ArgyllCMS's chartread manual: *"The -S flag causes the
+    normal "wrong strip" and "unexpected value" warnings to be suppressed"*;
+    in the reading helper `emit_warnings` gates exactly those (the wrong
+    strip, the unexpected response of a strip, and of one patch read patch
+    by patch: `native/chartread_helper/chromiq_chartread.c`)."""
+    return tr(
+        "Turns off two warnings that chartread gives while you read a "
+        "chart:\n\n"
+        "• **Wrong strip:** “Seem to have read strip B rather than A”. "
+        "It appears when the colours you just read look more like another "
+        "strip of the chart than the one you were asked to read.\n"
+        "• **Unexpected colour:** “There is at least one patch with a very "
+        "unexpected response”. It appears when a patch reads very far from "
+        "the colour the chart file expects for it (when you read patch by "
+        "patch, the same for one patch).\n\n"
+        "Both compare your readings with the colours the chart file "
+        "expects. On a paper or printer far from those expectations, for "
+        "example a matte or tinted paper, they can come up on almost every "
+        "strip although nothing is wrong, which is why this box is ticked "
+        "by default.\n\n"
+        "With the box ticked, take a little more care to read the strip "
+        "ChromIQ asks for.\n\n"
+        "Not affected by this box: errors that stop a reading, and "
+        "ChromIQ's own checks, such as “Strip may be misaligned”.")
+
+
 @dataclass
 class _ReplacedStoredChart:
     """A dated verification's stored chart, set aside at Start because the
@@ -3816,13 +3847,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._suppress_cb, _ = _bool_row(
             tr("Suppress warning messages (-S)"), True,
             tr("Suppress Warnings (-S)"),
-            tr("Suppresses non-fatal instrument warnings from chartread.\n\n"
-            "**Suppressed messages include:** notices that the calibration\n"
-            "has changed, reflectance range warnings on very dark\n"
-            "patches, and strip timing cautions. These rarely affect\n"
-            "measurement quality.\n\n"
-            "Fatal errors that would prevent a .ti3 from being written are\n"
-            "always shown regardless of this setting."),
+            suppress_warnings_help(),
         )
         self._nocal_cb, _nocal_tip = _bool_row(
             tr("Skip initial calibration (-N)"), False,
@@ -4441,13 +4466,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._m_suppress_cb = _bool_row_m(
             tr("Suppress warning messages (-S)"), True,
             tr("Suppress Warnings (-S)"),
-            tr("Suppresses non-fatal instrument warnings from chartread.\n\n"
-            "**Suppressed messages include:** notices that the calibration\n"
-            "has changed, reflectance range warnings on very dark\n"
-            "patches, and strip timing cautions. These rarely affect\n"
-            "measurement quality.\n\n"
-            "Fatal errors that would prevent a .ti3 from being written are\n"
-            "always shown regardless of this setting."),
+            suppress_warnings_help(),
         )
         self._m_nocal_cb = _bool_row_m(
             tr("Skip initial calibration (-N)"), False,
