@@ -2459,8 +2459,28 @@ class TabProfile(QWidget):
         if idx >= 0:
             self._ac_mode_combo.setCurrentIndex(idx)
         self._ac_verbose_cb.setChecked(bool(s.get("applycal_verbose", False)))
+        # THE BUTTON SAYS WHAT THE MODE DOES (4.3.57, item 12): it read
+        # "Apply Calibration" in Remove and Check mode too.
+        self._ac_mode_combo.currentIndexChanged.connect(self._ac_sync_run_label)
+        self._ac_sync_run_label()
 
         return container
+
+    def _ac_mode_words(self) -> "tuple[str, str]":
+        """(the run button's label, the progress bar's label while it runs)
+        for the mode chosen in Apply Calibration."""
+        mode = self._ac_mode_combo.currentData() or "apply"
+        if mode == "remove":
+            return tr("Remove Calibration"), tr("Removing calibration…")
+        if mode == "check":
+            return tr("Check Calibration"), tr("Checking calibration…")
+        return tr("Apply Calibration"), tr("Applying calibration…")
+
+    def _ac_sync_run_label(self, *_a) -> None:
+        label, _busy = self._ac_mode_words()
+        self._ac_run_btn.setText(label)
+        if self._ac_run_btn.isEnabled():        # not while it runs
+            self._ac_progress.set_label(label, "")
 
     def _ac_browse_cal(self) -> None:
         p = open_file_dialog(self, tr("Select calibration file"), tr("CAL files (*.cal)"),
@@ -2548,7 +2568,7 @@ class TabProfile(QWidget):
         _out_before, _started_ns = _stamp(out_icc), _time.time_ns()
         self._ac_log.clear()
         self._ac_run_btn.setEnabled(False)
-        self._ac_progress.set_label(tr("Applying calibration…"), "applycal")
+        self._ac_progress.set_label(self._ac_mode_words()[1], "applycal")
         self._ac_progress.set_value(None)
         self._ac_progress.start()
 
@@ -2558,7 +2578,7 @@ class TabProfile(QWidget):
 
         def _on_finish(result: Path | None) -> None:
             self._ac_progress.stop()
-            self._ac_progress.set_label(tr("Apply Calibration"), "")
+            self._ac_progress.set_label(self._ac_mode_words()[0], "")
             self._ac_progress.set_value(0)
             self._ac_run_btn.setEnabled(True)
             if result is None:

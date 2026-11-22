@@ -151,3 +151,20 @@ def test_the_tab_reports_a_real_check(tmp_path, qtbot, monkeypatch):
     assert "applycal failed" not in log
     assert not run.calibrated_icc.exists()
     assert run.load_meta().profile_build == before
+
+
+def test_the_run_button_says_what_the_mode_does(tmp_path, qtbot):
+    """4.3.57, item 12: the button read "Apply Calibration" in Remove and
+    Check mode too.
+
+    MUTATION: drop the `currentIndexChanged` connection to
+    `_ac_sync_run_label` and the label stays "Apply Calibration"."""
+    from tests.test_the_new_profile_engine_is_one_switch import _tab
+    tab = _tab(tmp_path, profile_engine_beta=False)
+    qtbot.addWidget(tab)
+    combo = tab._ac_mode_combo
+    for mode, label in (("remove", "Remove Calibration"),
+                        ("check", "Check Calibration"),
+                        ("apply", "Apply Calibration")):
+        combo.setCurrentIndex(combo.findData(mode))
+        assert tab._ac_run_btn.text() == label, mode
