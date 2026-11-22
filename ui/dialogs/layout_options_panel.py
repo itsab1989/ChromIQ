@@ -5853,6 +5853,65 @@ class LayoutOptionsPanel(QWidget):
                     self.paper.currentData() or "A4")
         return (self._inst, "A4")
 
+    def _instrument_margins_now(self) -> "dict[str, float]":
+        """The four margins "Use instrument margins" stands for on the current
+        instrument and paper: the user's Instrument Limits entry, else the
+        instrument's own. Keys "t", "r", "b", "l"; a key the entry leaves
+        empty is missing. ONE ANSWER for the boxes it fills
+        (`_sync_instr_margins`) and the recipe that Generate builds from
+        (`get_recipe`, 4.3.57 item 38: the greyed boxes do not count)."""
+        fn = getattr(self, "_threshold_lookup", None)
+        out: "dict[str, float]" = {}
+        if fn is None:
+            return out
+        inst, paper = self._current_instrument_paper()
+        try:
+            thr = fn(inst, paper)
+        except Exception:
+            thr = None
+        if thr:
+            for k, key in {"t": "T", "r": "R", "b": "B", "l": "L"}.items():
+                v = thr.get(key)
+                if v not in (None, ""):
+                    out[k] = float(v)
+        else:
+            # No user-defined Instrument-Limits entry for this instrument
+            # (e.g. SpectroScan): don't leave the PREVIOUS instrument's
+            # margins showing (Knut). Fall back to this instrument's own
+            # default margins from the engine geometry, so the four boxes
+            # always update the moment you pick a different instrument.
+            fb = {"t": 6.0, "r": 6.0, "b": 6.0, "l": 6.0}
+            try:
+                from workflow.layout_engine import instruments as _ins
+                _fkw = {"instrument": inst, "paper": paper,
+                        "layout_mode": "patch_first"}
+                _cb = getattr(self, "i1io_crosses_cb", None)
+                if inst == "IO2" and _cb is not None:
+                    # THE i1iO'S MINIMUM FOLLOWS ITS CROSSES (review 3,
+                    # item 7): without them the right margin may be
+                    # smaller, and a reopened chart made without them
+                    # was locked to the margins WITH them (552 patches
+                    # became 528; 4.3.33 too).
+                    _fkw["i1io_crosses"] = bool(_cb.isChecked())
+                if inst == "XRISIS":
+                    # the i1iSis's own: i1Profiler's 5 mm page margins
+                    # (its geometry's margins place the grid, they are
+                    # no page margins, `workflow.isis.chart`)
+                    from workflow.isis.chart_facts import \
+                        MARGIN_DEFAULT_MM as _IM
+                    raise LookupError(_IM.value)
+                g = _ins.geom_from_build_kwargs(_fkw)
+                fb = {"t": g.margin_t, "r": g.margin_r,
+                      "b": g.margin_b, "l": g.margin_l}
+            except LookupError as _own:
+                fb = dict.fromkeys(("t", "r", "b", "l"),
+                                   float(_own.args[0]))
+            except Exception:
+                pass
+            for k, v in fb.items():
+                out[k] = float(v)
+        return out
+
     def _sync_instr_margins(self, *_a) -> None:
         """When "Use instrument margins" is on, fill the four margins from the
         threshold lookup for the current combo and lock them read-only; ticking it
@@ -5881,52 +5940,8 @@ class LayoutOptionsPanel(QWidget):
             if not loading and getattr(self, "_saved_margins", None) is None:
                 self._saved_margins = {k: self.margins[k].value()
                                        for k in ("t", "r", "b", "l")}
-            inst, paper = self._current_instrument_paper()
-            try:
-                thr = fn(inst, paper)
-            except Exception:
-                thr = None
-            if thr:
-                for k, key in {"t": "T", "r": "R", "b": "B", "l": "L"}.items():
-                    v = thr.get(key)
-                    if v not in (None, ""):
-                        _set(k, v)
-            else:
-                # No user-defined Instrument-Limits entry for this instrument
-                # (e.g. SpectroScan): don't leave the PREVIOUS instrument's
-                # margins showing (Knut). Fall back to this instrument's own
-                # default margins from the engine geometry, so the four boxes
-                # always update the moment you pick a different instrument.
-                fb = {"t": 6.0, "r": 6.0, "b": 6.0, "l": 6.0}
-                try:
-                    from workflow.layout_engine import instruments as _ins
-                    _fkw = {"instrument": inst, "paper": paper,
-                            "layout_mode": "patch_first"}
-                    _cb = getattr(self, "i1io_crosses_cb", None)
-                    if inst == "IO2" and _cb is not None:
-                        # THE i1iO'S MINIMUM FOLLOWS ITS CROSSES (review 3,
-                        # item 7): without them the right margin may be
-                        # smaller, and a reopened chart made without them
-                        # was locked to the margins WITH them (552 patches
-                        # became 528; 4.3.33 too).
-                        _fkw["i1io_crosses"] = bool(_cb.isChecked())
-                    if inst == "XRISIS":
-                        # the i1iSis's own: i1Profiler's 5 mm page margins
-                        # (its geometry's margins place the grid, they are
-                        # no page margins, `workflow.isis.chart`)
-                        from workflow.isis.chart_facts import \
-                            MARGIN_DEFAULT_MM as _IM
-                        raise LookupError(_IM.value)
-                    g = _ins.geom_from_build_kwargs(_fkw)
-                    fb = {"t": g.margin_t, "r": g.margin_r,
-                          "b": g.margin_b, "l": g.margin_l}
-                except LookupError as _own:
-                    fb = dict.fromkeys(("t", "r", "b", "l"),
-                                       float(_own.args[0]))
-                except Exception:
-                    pass
-                for k, v in fb.items():
-                    _set(k, v)
+            for k, v in self._instrument_margins_now().items():
+                _set(k, v)
         else:
             saved = getattr(self, "_saved_margins", None)
             if saved is not None:        # restore what was there before ticking
@@ -8649,6 +8664,22 @@ class LayoutOptionsPanel(QWidget):
         r.margin_left = self.margins["l"].value()
         if hasattr(self, "use_instr_margins"):
             r.use_instrument_margins = self.use_instr_margins.isChecked()
+            # THE GREYED BOXES DO NOT COUNT (4.3.57, item 38, seen on screen):
+            # with the tick on, the four boxes are disabled and say they are
+            # locked to the instrument's margins, but a value written into
+            # them anyway (a preset or restore that sets them, a driver) went
+            # straight into the chart. The tick is the person's choice, so the
+            # recipe takes what the tick stands for, from the same lookup that
+            # fills the boxes.
+            # Not the FD-9: its greyed margins are its own (the top one
+            # follows the patch height), written by its own code.
+            if (r.use_instrument_margins and r.instrument != "FD9"
+                    and getattr(self, "_threshold_lookup", None) is not None):
+                want = self._instrument_margins_now()
+                r.margin_top = want.get("t", r.margin_top)
+                r.margin_right = want.get("r", r.margin_right)
+                r.margin_bottom = want.get("b", r.margin_bottom)
+                r.margin_left = want.get("l", r.margin_left)
         # Preserve the chart's base margin (printtarg -m; drives the clip-holder
         # width lbord = clip_width − border). The panel has no separate control
         # for it, so re-deriving it from min(margins) silently changed it on a
