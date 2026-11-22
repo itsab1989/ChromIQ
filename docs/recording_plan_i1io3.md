@@ -52,14 +52,14 @@ This plan is the worked example of
 - **Why:** ChromIQ only ever sends a device commands it has seen X-Rite's own
   software send to that very model. Your recordings are where those commands
   come from.
-- **How long:** honestly, **about 9 hours in all, best over two days**,
+- **How long:** honestly, **about 9.5 hours in all, best over two days**,
   including about an hour of getting ready and one hour in which the table
   simply waits. You can stop after any block.
 
   | part | what it gives us | priority | time |
   |---|---|---|---|
   | Part 1, B01 to B09 | how the table is recognised, started cold and warm, calibrated, aimed, read in rows and patch by patch, ended cleanly, and recovered by i1Profiler after it was closed without tidying up | ESSENTIAL | about 1.5 h |
-  | Part 2, B10 to B15 | every other state a session can leave the table in, and the way home from every part of the bed | ESSENTIAL (B14, B15 optional) | about 1.25 h |
+  | Part 2, B10 to B15 | every other state a session can leave the table in, and the way home from every part of the bed | ESSENTIAL (B14, B15 optional) | about 1.5 h |
   | Optional extras, X1 to X3 | things done by hand that only the table can answer | OPTIONAL, only if you are comfortable | about 15 min |
   | Part 3, B16 to B25 | the whole bed, every patch length and speed, retries, two pages, the conditions, the limits, a reference sheet, a long pause | IMPORTANT | about 4.5 h, one hour of it waiting |
   | Part 4, B26 to B28 | sleep, the instrument by hand, a ChromIQ chart | NICE TO HAVE | about 30 min |
@@ -278,7 +278,7 @@ write its file name into `notes.txt`.
 | name | what to make in i1Profiler | copies | used in |
 |---|---|---|---|
 | **Sheet S** (small) | 3 rows of about 10 to 12 patches, at the **smallest patch size** i1Profiler offers for scanning, on an ordinary A4 or Letter page. | 2. Cut one copy down to the printed area plus about 2 cm on every side: **Sheet S-cut**. | Parts 1, 2, 3 |
-| **Sheet F** (full page) | As many patches as fit one page at the smallest patch size, on the **largest page size** i1Profiler offers for the i1iO 3 (note which it is). | 2. Keep one clean, flat and out of the light: the **reference sheet** of B24. | B16f, B18a, B24 |
+| **Sheet F** (full page) | As many patches as fit one page at the smallest patch size, on the **largest page size** i1Profiler offers for the i1iO 3 (note which it is). | 2. Keep one clean, flat and out of the light: the **reference sheet** of B24. | B16f, B17, B24 |
 | **Sheets R1 to R5** (patch lengths) | Five small charts of **2 rows** each, at **five patch sizes spread over the whole range** i1Profiler offers for scanning: the smallest (R1), the largest (R5), and three between them, as evenly spaced as it allows. If it offers fewer than five sizes, one sheet per size it offers. | 1 each | B18 |
 | **Sheet P** (two pages) | A chart with more patches than fit one page, so that i1Profiler lays it out on **two pages**. | 1 of each page | B20 |
 | **Plain sheets** | Plain paper, unprinted: three A4 or Letter sheets, and one sheet **larger than the bed** (A3 or Tabloid) if you have one. | | B17, B19 |
@@ -410,7 +410,7 @@ shows does not fit an i1iO 3 or this plan:
 | "up to five short steps ... about 30 minutes", and "WHAT YOU WILL DO (5 short steps ...)" | That was for the i1iO 2. This plan replaces those steps. |
 | "STEP 1 of 5: One row of a chart that scans in one pass", with its own instructions | Ignore its instructions. Each take of step 1 is one block of this plan. |
 | "(take 2)", "(take 3)" ... in the step's title | Expected: one take per block. |
-| CHECK: "the recording holds N packets from the i1iO 3. Its protocol is not known yet, so this step cannot be checked here: please just carry on" | Good: the table was recorded. Carry on. |
+| CHECK: "the recording holds N packets from the i1iO 3. Its protocol is not known yet, so this step cannot be checked here: please just carry on." | N counts **every** i1iO 3 packet since the run began, not only this take's. So write N down after each take: if it is **larger** than after the take before, the table was recorded in this take; carry on. If it is **not larger**, this take recorded nothing of the table: do that block again in a new take (with `again`). |
 | CHECK: "no table command was recorded in this step: please repeat it" | The tool did not see the i1iO 3 under the USB number it expects. That is itself something we need to know: note it in `notes.txt` and carry on (no need to repeat). |
 | CHECK: "the recording on ... has stopped, so nothing more is being recorded" | The recorder ended (for example after a power cycle or sleep). Type `q`, end the run, start a new run, and do that block again. |
 | (Windows) no CHECK line at all | Expected: on Windows the tool cannot see Wireshark's file. |
@@ -593,7 +593,7 @@ sending.
 
 ## 11. Part 2: every state the table can be left in
 
-**ESSENTIAL. One run, about 1.25 hours. Sheets S and S-cut.** B14 and B15 are
+**ESSENTIAL. One run, about 1.5 hours. Sheets S and S-cut.** B14 and B15 are
 optional: essential to us if you are willing, and fine to skip.
 
 Start a new run. The table is on, i1Profiler closed, the arm at rest.
@@ -640,9 +640,9 @@ confirmed.
    arm does when it finds the table.
 5. Quit i1Profiler normally (`quit`). End the take.
 
-### B13. The way home from every part of the bed (about 30 min)
+### B13. The way home from every part of the bed (about 35 min)
 
-**Labels:** `IO3-B13a` to `IO3-B13f`, one take each. **This tells us** how
+**Labels:** `IO3-B13a` to `IO3-B13g`, one take each. **This tells us** how
 X-Rite's software brings a held arm home from each part of the bed. On the
 i1iO 2 it went straight home from most places, but by a detour from two parts
 of the bed, and we found those late. Here **i1Profiler itself puts the arm
@@ -654,7 +654,11 @@ For each place, lay **Sheet S-cut** there and:
 2. Start a measurement of Sheet S-cut in **patch by patch** mode, aim as
    i1Profiler asks.
 3. Let it read the first two or three patches. **While the arm stands still on
-   a patch** (between two moves), force-quit i1Profiler (`killed`).
+   a patch** (between two moves), first type `d` if the measuring head is down
+   on the sheet at that moment, or `u` if it is up, then force-quit i1Profiler
+   (`killed`). In patch by patch mode the head is probably down on the sheet
+   when i1Profiler goes away, and may stay down until i1Profiler starts again.
+   That is expected; at worst it leaves a mark on the sheet, not on the table.
 4. Note where the arm stands. Wait 20 seconds.
 5. Start i1Profiler again. Note **exactly** the way the arm takes home:
    straight, or first to somewhere else (where?), then home.
@@ -672,6 +676,11 @@ The places (as you stand in front of the table):
   as freely as when you aim**, move it gently to the strip beside the white
   calibration reference (or wherever B04 calibrated), as far to the side as it
   goes without force. Then go on from step 4.
+- **g**: beside the calibration reference, put there by i1Profiler itself:
+  start a measurement and, **while i1Profiler calibrates** (the arm then stands
+  at the calibration reference without anyone moving it), type `calibrating`,
+  then force-quit i1Profiler (`killed`). Then go on from step 4. No sheet is
+  needed for this one.
 
 If a place cannot be reached because the sheet will not lie there, note that
 and go on.
@@ -1037,7 +1046,7 @@ so choose that. Your table will not be in ChromIQ's list; choose the i1iO.
 
 **Label:** `IO3-B28`. **This tells us** what happens to the connection when
 the computer sleeps. On Windows a new USB address after sleep has made a
-recording keep nothing before, so do this one **last**.
+recording keep nothing before (the tool's change notes say this was likely, not proven), so do this one **last**.
 
 1. Start the take, type the label. Start i1Profiler and let it find the table.
 2. Put the computer to sleep. Wait one minute. Wake it.
@@ -1190,10 +1199,10 @@ with the time to the second.
 | [ ] | B10 quit normally while aiming | `IO3-B10` | ESSENTIAL | 6 min |
 | [ ] | B11 quit normally with the arm out | `IO3-B11` | ESSENTIAL | 6 min |
 | [ ] | B12 the aiming mode across a power cycle | `IO3-B12` | ESSENTIAL | 10 min |
-| [ ] | B13 a to f, the way home from every part of the bed | `IO3-B13a` ... `IO3-B13f` | ESSENTIAL | 30 min |
+| [ ] | B13 a to g, the way home from every part of the bed | `IO3-B13a` ... `IO3-B13g` | ESSENTIAL | 35 min |
 | [ ] | B14 a, b switched off and on while i1Profiler runs (optional) | `IO3-B14a`, `IO3-B14b` | ESSENTIAL (optional) | 10 min |
 | [ ] | B15 USB cable pulled (optional) | `IO3-B15` | ESSENTIAL (optional) | 10 min |
-| [ ] | *end run 2 (Part 2, about 1.25 h)* | | | |
+| [ ] | *end run 2 (Part 2, about 1.5 h)* | | | |
 | [ ] | X1 the arm pushed, table on (only if comfortable) | `IO3-X1` | OPTIONAL EXTRA | 5 min |
 | [ ] | X2 switched on with the arm out (only if comfortable) | `IO3-X2` | OPTIONAL EXTRA | 5 min |
 | [ ] | X3 a, b the instrument not in the arm (only if comfortable) | `IO3-X3a`, `IO3-X3b` | OPTIONAL EXTRA | 8 min |
@@ -1240,7 +1249,7 @@ i1Pro 2) either taught us from a recording, or made us ask for again later.
 | B06 | Patch by patch: the move, the reading and the pace per patch. | Patch by patch reading at i1Profiler's pace. |
 | B07 | i1Profiler's cancel sends a different ending from the normal end of a job; it was recorded only later. | Every ending leaves a table the next start can take. |
 | B08, B09 | A table that a program left without tidying up (ChromIQ's own untidy endings did it) kept its aiming mode, and ChromIQ's next start refused it. Only a recording of i1Profiler starting on such a table showed how to repair it. A free arm in that mode homed at a start is still unproven. | Recovering every untidy ending without i1Profiler. |
-| B10, B11 | i1Profiler's normal quit put the table back in order from every state recorded. | The tidy-up ChromIQ copies for its own endings. |
+| B10, B11 | Every normal quit of i1Profiler that was recorded happened with the arm at rest, and it put the table back in order; a normal quit from the middle of aiming or with the arm out was never recorded. | The tidy-up ChromIQ copies for its own endings. |
 | B12 | The aiming mode was seen to survive a power cycle, but never confirmed. | Telling the person truthfully what the power switch resets. |
 | B13 | i1Profiler homed straight from most places, but by a detour from two parts of the bed (one beside the calibration reference); both were found late, and early versions refused places no recording had covered. | Going home from every part of the bed, the way the vendor does. |
 | B14, B15 | A lost link with a move still waiting needed the power switch; what the table does after the cable comes back was never recorded. | The lost-link page, and the way back. |
