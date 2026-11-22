@@ -31,6 +31,8 @@ def _found(tmp_path, pos, kind, cid, value):
     def on_ask(person, res):
         if res.confirm == J.Confirm.GO and res.detail.get("step") == "home_at_start" \
                 and kind == "moved":
+            # 4.3.57 (item 21): beyond the held arm's creep at EVERY question (an arm that
+            # keeps moving: asked again twice, then nothing more is sent)
             person.sim.pos = [person.sim.pos[0] + 40.0, person.sim.pos[1]]
     job, sim, helper, run, p = job_for(tmp_path, real_table=False)
     p.on_ask = on_ask
@@ -49,6 +51,11 @@ def test_a_homing_that_does_not_work_sends_nothing_more(tmp_path, kind, cid, val
     res = p.drive(job.calibrate())
     assert not res.ok, (res.kind, res.reason)
     sent = sim.received[n + 1:]                       # after the reading that found it
+    if kind == "moved":
+        # 4.3.57 (item 21): s0 p0 at each of the three questions, nothing that moves
+        sent = [ln for ln in sent if ln not in (";s022", ";p025")] + sent[:2]
+        assert ";i12b" not in sent and not [x for x in sent if x[1:3] in ("m0", "i1")]
+        sent = sent[-2:]
     # nothing but the recorded lines (2026-11-21: from the far side N3's detour first)
     want = F1_PLUS if pos[0] <= 1281 else [";s022", ";p025", ";m0044e05da00c806", ";p025",
                                            ";i12b", ";s022", ";p025"]
