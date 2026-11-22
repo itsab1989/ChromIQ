@@ -4473,6 +4473,42 @@ class TableJob:
                               "so ChromIQ calibrates now, at rest, before the aims")
         return False
 
+    def _cal_place_now(self, reader):
+        """Where this calibration is made (a generator): the own tile again while the instrument
+        is still out of the arm, the place from Preferences > Beta, the person's answer (asked
+        once in the session), or the place of the last calibration. *reader*: the calibration
+        reader already started (closed on "stop"), or None."""
+        if self.instrument_out:
+            # S-1 (the volunteer's table, 17 Nov 2026: an own-tile calibration failed and the
+            # session went on): the instrument may still lie on its own tile, out of the arm.
+            # A calibration now is made on the own tile again, never "in the arm" with the
+            # instrument outside it; the place is not asked (an answer "table tile" would
+            # calibrate on whatever the instrument lies on and leave it out of the arm). The
+            # person is asked for "ready" on the own tile and "seated" afterwards, as always.
+            self.diag.log("STEP", "the instrument is still out of the arm after a calibration "
+                                  "on its own tile that did not finish: calibrating on its own "
+                                  "tile again")
+            return "own tile"
+        if self.cal_place is None and self.calibration_place_preference in (
+                "table tile", "own tile"):
+            # 4.3.52: the place chosen in Preferences > Beta (the window passes it): not a
+            # question at the table, so not asked (before 4.3.52 the window answered this
+            # question itself from the same setting; the window has no answer of its own now)
+            place = self.calibration_place_preference
+            self.diag.log("ANSWER", f"calibrate: calibration_place {place} (Preferences > "
+                                    "Beta; not asked)")
+            return place
+        if self.cal_place is None:
+            ans = yield Ask(Confirm.CAL_PLACE, {"recommended": CAL_PLACE_RECOMMENDED,
+                                                "measured": CAL_PLACE_MEASURED,
+                                                "decision_open": "D-4b"})
+            if ans == "stop":
+                if reader is not None:
+                    self._close_reader(reader)
+                raise PersonStopped("calibration_not_started")
+            return ans
+        return self.cal_place
+
     def _cal_place_ok(self, ev) -> bool:
         """The reader's calibration request (its own prompt, an event): only a reflective white
         is a calibration this job does; the person placed the instrument before the reader
@@ -4534,39 +4570,20 @@ class TableJob:
                 return {"place": None, "skipped": "still_valid"}
             self.minus_n_checked = True
         # tester C1: the reader first (its checks and the consent), then the place, asked once
-        # in the session (the tester asked it at the reader's calibration request)
+        # in the session (the tester asked it at the reader's calibration request).
+        # 4.3.57 (item 34, the owner's 22:17 dual try): WITH THE DUAL SCAN the place comes
+        # FIRST, because the reader's --dual-white names the tile the dual calibration is made
+        # on: a reader started before the place was known got "table" (white_for_place(None))
+        # while the instrument lay on its own tile, and every row then asked for the dual tile
+        # of the "instrument" white and found none (dual_calibration_not_kept)
+        place = None
+        if self.dual is not None:
+            place = yield from self._cal_place_now(None)
         reader = yield from self._start_reader(
             folder, "c1_spot", sp.CAL_PATCHES, True,
-            dual_args=self._dual_spot_args(folder, self.cal_place) if self.dual else ())
-        if self.instrument_out:
-            # S-1 (the volunteer's table, 17 Nov 2026: an own-tile calibration failed and the
-            # session went on): the instrument may still lie on its own tile, out of the arm.
-            # A calibration now is made on the own tile again, never "in the arm" with the
-            # instrument outside it; the place is not asked (an answer "table tile" would
-            # calibrate on whatever the instrument lies on and leave it out of the arm). The
-            # person is asked for "ready" on the own tile and "seated" afterwards, as always.
-            self.diag.log("STEP", "the instrument is still out of the arm after a calibration "
-                                  "on its own tile that did not finish: calibrating on its own "
-                                  "tile again")
-            place = "own tile"
-        elif self.cal_place is None and self.calibration_place_preference in (
-                "table tile", "own tile"):
-            # 4.3.52: the place chosen in Preferences > Beta (the window passes it): not a
-            # question at the table, so not asked (before 4.3.52 the window answered this
-            # question itself from the same setting; the window has no answer of its own now)
-            place = self.calibration_place_preference
-            self.diag.log("ANSWER", f"calibrate: calibration_place {place} (Preferences > "
-                                    "Beta; not asked)")
-        elif self.cal_place is None:
-            ans = yield Ask(Confirm.CAL_PLACE, {"recommended": CAL_PLACE_RECOMMENDED,
-                                                "measured": CAL_PLACE_MEASURED,
-                                                "decision_open": "D-4b"})
-            if ans == "stop":
-                self._close_reader(reader)
-                raise PersonStopped("calibration_not_started")
-            place = ans
-        else:
-            place = self.cal_place
+            dual_args=self._dual_spot_args(folder, place) if self.dual else ())
+        if place is None:
+            place = yield from self._cal_place_now(reader)
         if place == "own tile":
             ok = yield Ask(Confirm.CAL_OWN_TILE)
             if ok != "ready":
@@ -6824,11 +6841,12 @@ def error_words(exc: BaseException) -> dict:
         msg = ""
     at = ""
     try:
-        import traceback
-        frames = traceback.extract_tb(exc.__traceback__)
-        if frames:
-            f = frames[-1]
-            at = f"{Path(f.filename).name}:{f.lineno} {f.name}"
+        tb = exc.__traceback__
+        while tb is not None and tb.tb_next is not None:
+            tb = tb.tb_next
+        if tb is not None:
+            code = tb.tb_frame.f_code
+            at = f"{Path(code.co_filename).name}:{tb.tb_lineno} {code.co_name}"
     except Exception:      # noqa: BLE001
         at = ""
     text = type(exc).__name__ + (f": {msg}" if msg else "") + (f" ({at})" if at else "")

@@ -124,6 +124,8 @@ class HelperSim:
         #: the dual scan on the table (2026-11-18): a dual tile kept for the spot white / the
         #: strip white (as the helper keeps it beside ArgyllCMS's calibration file)
         self.spot_dual_kept = False
+        #: 4.3.57 (item 34): the --dual-white the kept spot tile was made for
+        self.spot_dual_kept_white: "str | None" = None
         self.strip_dual_kept = False
         #: 4.3.46: the chart names of the spot readers that were still running when the reader
         #: gave up on them and ended them by force (the real _Proc.stop's kill)
@@ -467,7 +469,10 @@ class FakeHelperProc:
         self._cal_fault = fault
         if self.dual and self.no_cal:
             # a row's reader takes up the dual tile kept for this white (or has none)
-            ok = h.spot_dual_kept and not h.faults.get("dual_not_kept")
+            # 4.3.57 (item 34): kept PER WHITE, as the real helper keeps it (the owner's 22:17
+            # session: a tile kept under "table" was not found for "instrument")
+            ok = (bool(h.spot_dual_kept) and h.spot_dual_kept_white ==
+                  self.dual_args.get("--dual-white") and not h.faults.get("dual_not_kept"))
             self._emit({"event": "dual_calibration", "ok": ok,
                         "why": "" if ok else "no_dual_calibration", "mode": "spot",
                         "lamp_clocks": 515, "uv_clocks": 515, "volts": [-1, -1], "driver": 0})
@@ -558,6 +563,7 @@ class FakeHelperProc:
                 sim.clock += 0.6
                 ok = not h.faults.get("dual_cal_fails")
                 h.spot_dual_kept = ok
+                h.spot_dual_kept_white = self.dual_args.get("--dual-white") if ok else None
                 self._emit({"event": "dual_calibration", "ok": ok,
                             "why": "" if ok else "uv_tile_dark", "mode": "spot",
                             "lamp_clocks": 515, "uv_clocks": 515, "volts": [662, 658],
