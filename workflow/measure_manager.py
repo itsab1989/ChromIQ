@@ -56,6 +56,25 @@ _CALIBRATION_PROMPT_RE = re.compile(r"Set\s+instrument\s+sensor\s+to\s+calibrati
 # unexpected error :'…' (…)" (chartread.c:2278). Matching only "Strip" meant
 # the wrong-sensor-position case raised no window at all reading patch by patch
 # on stock chartread — Knut, beta.135.
+#: ArgyllCMS's words for a failure that carries no device error code
+#: (`interp_error` of a bare `inst_misread`). The reading helper reports
+#: every refused dual pass that way, so the Measure log said "Strip read
+#: failed due to misread (No device error)" each time, as if the device had
+#: failed (4.3.57, item 16). The log and the windows leave it out; a real
+#: device error, which has words of its own, is shown as it was.
+NO_DEVICE_ERROR = "No device error"
+
+
+def without_no_device_error(text: str) -> str:
+    """*text* without ArgyllCMS's "(No device error)" (or the bare phrase,
+    when it is the whole detail)."""
+    if not text:
+        return text
+    if text.strip() == NO_DEVICE_ERROR:
+        return ""
+    return text.replace(f" ({NO_DEVICE_ERROR})", "")
+
+
 _STRIP_ERROR_RE        = re.compile(r"(?:Strip|Patch)\s+read\s+failed[^(]*\(([^)]+)\)", re.IGNORECASE)
 # chartread.c 3.5.0 L1671/L2238: a comms failure mid-strip. Unlike the misread
 # and unexpected-error variants it prints no "(reason)" in parentheses, so
@@ -4444,7 +4463,7 @@ class MeasureManager(QObject):
         ev = parse_engine_line(line)
         if ev is None:
             if line.strip():
-                on_line(line)
+                on_line(without_no_device_error(line))
                 # Keep the helper's own fatal sentence, which arrives here as
                 # prose. It is the only account of what went wrong when the
                 # helper dies before emitting a single event (#159).
@@ -5383,7 +5402,7 @@ class MeasureManager(QObject):
             if ekind == "misread":
                 # The helper is now blocked on "…any other key to retry".
                 self._at_retry_prompt = True
-                detail = str(ev.get("detail") or "")
+                detail = without_no_device_error(str(ev.get("detail") or ""))
                 # ONE WINDOW PER FAILURE — the printed line and this event are
                 # the SAME physical failure, reported twice.
                 #
@@ -5646,7 +5665,7 @@ class MeasureManager(QObject):
             self.info_message.emit("patch_not_found", tr("Patch '{name}' not found.").format(name=m.group(1)))
 
     def _handle_line(self, line: str, on_line: Callable[[str], None]) -> None:
-        on_line(line)
+        on_line(without_no_device_error(line))
         # Stock chartread announces the device in its -v header, before any
         # strip work begins. The engine reports the same thing as a JSON event
         # (see the "instrument" branch above), so both readers now identify the
@@ -5798,7 +5817,8 @@ class MeasureManager(QObject):
                 # retry-first chain runs and the strip menu's 'd' → 'y' is what
                 # writes the file and ends the session.
                 self._at_retry_prompt = True
-                self.strip_error.emit(m.group(1).strip())
+                self.strip_error.emit(
+                    without_no_device_error(m.group(1).strip()) or "misread")
             elif _STRIP_COMS_FAIL_RE.search(line):
                 self._at_retry_prompt = True      # chartread.c:1671-1673, same prompt
                 self.last_coms_detail = ""        # stock chartread says nothing more
