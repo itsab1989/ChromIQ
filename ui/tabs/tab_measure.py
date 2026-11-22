@@ -7612,6 +7612,15 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             # 4.3.54: also when "only for M1 or M2" reads this chart once (M0 chosen, or a
             # single-scan measurement continued): the row is a choice of condition then
             args = self._args_without_filter(args)
+        # W8 ON THE TABLE PATH TOO (4.3.57, item 35): per_target_settings.md
+        # §3, "Start Measurement / Continue Measurement pressed" writes the
+        # Measure tab's settings for the target. The hand path does it in
+        # `_on_start` after its last question; the table path returned before
+        # that line, so a tick changed for a TABLE START was never stored and
+        # the next load (Open Project, a run change) put the old value back.
+        # Written here, after every question that can still cancel this START
+        # and before the table window opens, as on the hand path.
+        self.save_target_settings()
         _beside = Path(run.measurement_ti3)
         self._ti3_mtime_before = (_beside.stat().st_mtime if _beside.exists()
                                   else None)
