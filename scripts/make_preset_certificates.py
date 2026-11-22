@@ -51,6 +51,31 @@ _VARIANTS = ({"i1pro_chromiq_clip_style": False},
              {"i1pro_chromiq_clip_style": True})
 
 
+def _same_question_one_answer() -> None:
+    """The gamut selection is asked once per patch count. 191 presets ask
+    for only 111 different counts, all through the same profile, margin and
+    intent, and `select_gamut_targets` is deterministic (its docstring), so
+    the same arguments get the answer worked out the first time, as a deep
+    copy. It was 97 % of this script's time (cProfile, 2026-11-22: 369 of
+    397 s)."""
+    import copy
+    from workflow import gamut_target as GT
+    real = GT.select_gamut_targets
+    if getattr(real, "_certificates_memo", False):
+        return
+    answers: dict = {}
+
+    def select(profile, count, margin, intent, **kw):
+        key = (str(profile), count, margin, intent,
+               tuple(sorted((k, str(v)) for k, v in kw.items())))
+        if key not in answers:
+            answers[key] = real(profile, count, margin, intent, **kw)
+        return copy.deepcopy(answers[key])
+
+    select._certificates_memo = True
+    GT.select_gamut_targets = select
+
+
 def build() -> dict:
     from PyQt6.QtWidgets import QApplication
     app = QApplication.instance() or QApplication([])  # noqa: F841
@@ -59,6 +84,7 @@ def build() -> dict:
     from workflow import preset_certificates as PC
     from workflow import preset_eligibility as PE
     PC.set_disabled(True)             # never certify from a certificate
+    _same_question_one_answer()
     settings = AppSettings()
     certs: dict = {}
     t0 = time.monotonic()
