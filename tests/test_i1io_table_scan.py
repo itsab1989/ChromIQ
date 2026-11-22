@@ -27,6 +27,7 @@ import subprocess
 import sys
 import tarfile
 import io
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -313,7 +314,7 @@ def _base_tree(tmp: Path) -> Path:
     return tmp / "native" / "chartread_helper"
 
 
-def _run_target(src: Path, build: Path, target: str) -> str:
+def _build_target(src: Path, build: Path, target: str) -> Path:
     cmake = shutil.which("cmake")
     subprocess.run([cmake, "-S", str(src), "-B", str(build), "-DCMAKE_BUILD_TYPE=Release"],
                    check=True, capture_output=True, timeout=600)
@@ -321,7 +322,10 @@ def _run_target(src: Path, build: Path, target: str) -> str:
                         str(max(2, (os.cpu_count() or 4) // 2))],
                        capture_output=True, text=True, encoding="utf-8", timeout=900)
     assert r.returncode == 0, r.stdout[-2000:] + r.stderr[-2000:]
-    exe = build / target
+    return build / target
+
+
+def _run_exe(exe: Path) -> str:
     r = subprocess.run([str(exe)], capture_output=True, text=True, encoding="utf-8",
                        timeout=300)
     assert r.returncode == 0 and r.stdout.rstrip().endswith("ALL DONE")
@@ -351,17 +355,47 @@ EXISTING_HARNESSES = [
 
 @pytest.fixture(scope="module")
 def _trees(tmp_path_factory):
+    """Every harness of both trees, built (one build folder per tree, one
+    target after another) and then run SIDE BY SIDE: a fake-USB life spends
+    its time in the driver's real waits (the i1Pro 2's lights life: 37 s of
+    sleeping, 0.02 s of CPU), so sixteen separate processes take about as
+    long as the longest one. Each case gets its own two outputs, or the
+    error its own build or run raised."""
     if sys.platform == "win32" or shutil.which("cmake") is None:
         pytest.skip("built on macOS and Linux only")
     tmp = tmp_path_factory.mktemp("tscan_wire")
-    return _base_tree(tmp / "base"), tmp / "b_base", tmp / "b_now"
+    trees = {"base": (_base_tree(tmp / "base"), tmp / "b_base"),
+             "now": (HELPER, tmp / "b_now")}
+    exes, got = {}, {}
+    for side, (src, build) in trees.items():
+        for target in EXISTING_HARNESSES:
+            try:
+                exes[side, target] = _build_target(src, build, target)
+            except Exception as exc:       # noqa: BLE001 - re-raised by its case
+                got[side, target] = exc
+
+    def run(key):
+        try:
+            return key, _run_exe(exes[key])
+        except Exception as exc:           # noqa: BLE001 - re-raised by its case
+            return key, exc
+
+    with ThreadPoolExecutor(max_workers=len(exes)) as pool:
+        got.update(pool.map(run, exes))
+    return got
+
+
+def _output(got, side: str, target: str) -> str:
+    out = got[side, target]
+    if isinstance(out, BaseException):
+        raise out
+    return out
 
 
 @pytest.mark.parametrize("target", EXISTING_HARNESSES)
 def test_without_the_switch_the_wire_is_4_3_44s(_trees, target):
-    base_src, b_base, b_now = _trees
-    base = _run_target(base_src, b_base, target)
-    now = _run_target(HELPER, b_now, target)
+    base = _output(_trees, "base", target)
+    now = _output(_trees, "now", target)
     if _stable(base):
         assert _stable(now) == _stable(base)
     else:
