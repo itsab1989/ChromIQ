@@ -13449,7 +13449,10 @@ M_I1IO_GUIDED_HELP = _m(
     "Please stay beside the table while it measures, and watch it. You can press Stop at "
     "any time. The power switch of the table stops the arm at once. Keep that power switch "
     "in reach. To end a measurement while the table reads, press Stop first, then End "
-    "measurement.",
+    "measurement.\n\n"
+    "You can switch this on or off at any time, without restarting ChromIQ: the change "
+    "counts from the next START MEASUREMENT. A table measurement that is already running "
+    "carries on the way it started.",
     approved=False)
 
 M_I1IO_LOG_HELP = _m(
