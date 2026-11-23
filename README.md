@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-4.3.56-7c5cff">
+  <img alt="Version" src="https://img.shields.io/badge/version-4.3.57-7c5cff">
   <img alt="Downloads" src="https://img.shields.io/endpoint?url=https://itsab1989.github.io/github-traffic-downloads-dashboard/assets/badges/itsab1989_ChromIQ-downloads.json">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2a9d8f">
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-blue">
@@ -710,6 +710,13 @@ ways:
 >   next START: ChromIQ asks you to take your hands away, brings the arm home
 >   the way X-Rite's software does and ends that mode. You should not need
 >   i1Profiler to free the table. This has run only on a simulated table.
+> - New in 4.3.57: the dual scan with rows as strips, which stopped with an
+>   error on a real table, now starts and uses the white tile the calibration
+>   was made on. This is the first time that dual scan reaches a real table,
+>   so it is still a beta. An arm that creeps by itself while it is held is
+>   no longer refused for a small move, a large move is asked about again, a
+>   START no longer changes the Measure settings, and the button of the
+>   instrument is offered only once ChromIQ is listening for it.
 > - The option is off by default, and with it off nothing changes.
 
 Why it may be worth it all the same: X-Rite has ended support for these
