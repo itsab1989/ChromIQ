@@ -29,18 +29,52 @@ from collections import OrderedDict
 
 from core.app_log import line, merged, never_raises
 
-_RENDERED: "OrderedDict[str, tuple[str, str, float]]" = OrderedDict()
+#: id -> (title, body as shown, when, probe). The probe is what a window or a
+#: panel line is matched on: literal text of the message's own template.
+_RENDERED: "OrderedDict[str, tuple[str, str, float, str]]" = OrderedDict()
 _MAX = 64
 _REVERSE: "dict[str, str] | None" = None
 _REVERSE_FOR = None
 _TAGS = re.compile(r"<[^>]+>")
 
 
+_PLACEHOLDER = re.compile(r"\{[^{}]*\}")
+#: a body is matched on its first literal run of at least this many characters
+_PROBE_MIN = 20
+_PROBE_LEN = 60
+
+
+def _probe(body: str, template: "str | None") -> str:
+    """What a window or a panel line must contain to be this message's body.
+
+    Not the start of the FILLED body: a body that begins with a placeholder
+    (M-IMPORT-CXF-CONDITION's "{name} holds the readings ...") began with the
+    file's name, and with a name of 60 characters or more the "start of the
+    body" was the name alone, so every later line naming that file was tagged
+    with the message's id (seen in a tester's log, 4.3.58). The template's
+    first literal run of text is the message's own words, whatever was filled
+    in. A template that is placeholders only gives no probe (its title can
+    still name it)."""
+    if template is None:
+        return _plain(body).strip()[:_PROBE_LEN]
+    t = str(template).replace("{{", "\x01").replace("}}", "\x02")
+    for part in _PLACEHOLDER.split(t):
+        part = _plain(part.replace("\x01", "{").replace("\x02", "}")).strip()
+        if len(part) >= _PROBE_MIN:
+            return part[:_PROBE_LEN]
+    return ""
+
+
 @never_raises
-def note_rendered(msg_id: str, title: str, body: str) -> None:
-    """A catalogue message was rendered (it is about to be shown, or logged)."""
+def note_rendered(msg_id: str, title: str, body: str,
+                  template: "str | None" = None) -> None:
+    """A catalogue message was rendered (it is about to be shown, or logged).
+
+    *template* is the body before its placeholders were filled (translated);
+    given, the message is recognised by its own words, never by a value."""
     try:
-        _RENDERED[str(msg_id)] = (str(title), str(body)[:200], time.monotonic())
+        _RENDERED[str(msg_id)] = (str(title), str(body)[:200], time.monotonic(),
+                                  _probe(body, template))
         _RENDERED.move_to_end(str(msg_id))
         while len(_RENDERED) > _MAX:
             _RENDERED.popitem(last=False)
@@ -95,8 +129,8 @@ def message_id_of(win) -> str:
     try:
         texts = _texts_of(win)
         joined = "\n".join(texts)
-        for mid, (title, body, _t) in reversed(list(_RENDERED.items())):
-            pt, pb = _plain(title).strip(), _plain(body).strip()[:60]
+        for mid, (title, _body, _t, pb) in reversed(list(_RENDERED.items())):
+            pt = _plain(title).strip()
             if (pt and pt in joined) or (pb and pb in joined):
                 return mid
     except Exception:      # noqa: BLE001
@@ -290,8 +324,8 @@ def panel_line(tab: str, text: str, is_html: bool = False) -> None:
             rec[2] += 1
             return
         mid = ""
-        for k, (title, body, _t) in reversed(list(_RENDERED.items())):
-            pt, pb = _plain(title).strip(), _plain(body).strip()[:60]
+        for k, (title, _body, _t, pb) in reversed(list(_RENDERED.items())):
+            pt = _plain(title).strip()
             if (pb and pb in t) or (pt and t.startswith(pt)):
                 mid = k
                 break

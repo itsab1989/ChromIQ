@@ -86,13 +86,14 @@ class Message:
                 and self.body_two is not None:
             body = self.body_two
         title = tr(head).format(**kw) if "{" in head else tr(head)
-        text = tr(body).format(**kw)
+        template = tr(body)
+        text = template.format(**kw)
         if self.needs_old_i1profiler:
             mark_needs_old_i1profiler(text)
         try:
             # A4 (4.3.50): the app log names a shown window by this id
             from core.question_log import note_rendered
-            note_rendered(self.id, title, text)
+            note_rendered(self.id, title, text, template)
         except Exception:      # noqa: BLE001
             pass
         return title, text
