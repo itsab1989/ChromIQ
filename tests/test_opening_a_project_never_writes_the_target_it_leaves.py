@@ -174,7 +174,16 @@ def _own_layout(qapp, win, top: float, left: float) -> None:
 
 
 def _top(qapp, win, value: float) -> None:
-    win._tab_chart._manual_layout_panel.margins["t"].setValue(value)
+    """A person typing a top margin. 4.3.57 (item 38): while "Use instrument margins" is
+    ticked the box is greyed and a value written into it does not count, so the tick is taken
+    off first, as a person has to (the demo projects have it on)."""
+    panel = win._tab_chart._manual_layout_panel
+    tick = getattr(panel, "use_instr_margins", None)
+    if tick is not None and tick.isChecked():
+        tick.setChecked(False)
+        _pump(qapp, 200)
+    assert panel.margins["t"].isEnabled()
+    panel.margins["t"].setValue(value)
     _pump(qapp, 200)
 
 
