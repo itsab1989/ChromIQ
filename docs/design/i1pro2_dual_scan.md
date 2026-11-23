@@ -252,7 +252,9 @@ mismatch (white at 154 clocks, strip at 139), which `calibration_mismatch` refus
   event says `dual_no_uv_tables` (M0 as always). Refused in high resolution (`dual_high_resolution`:
   the tables exist only at 10 nm).
 * **(a) Dual calibration.** After every successful calibration of a dual session (a white
-  calibration is always asked for first: a restored one has no UV reading), still on the tile: 10
+  calibration is always asked for first: a restored one has no UV reading; since 4.3.58 together
+  with everything a normal start asks for, the LED wavelength calibration and the dark first,
+  section 19), still on the tile: 10
   dark + 5 UV-LED readings at the white calibration's own integration (the reading's), then the UV
   volts. Checked by the arithmetic's rules (tables, the UV LED lit: `uv_tile_dark`). The calibration
   and the reading are made in the same mode and at the same integration, per light source; a
@@ -1105,3 +1107,40 @@ after a lamp pass ArgyllCMS did not recognise" (M-DUAL-PASS-TWO-UNREAD, "Read pa
   both passes; it costs table time, not the person's, and table command sequences need their own
   safety review, so it stays as it is. A refused SECOND pass: "Strip Read Failed" as before.
   What is sent to the instrument.
+
+### 19. ⏳ Awaiting confirmation: the start-up calibration of a hand dual scan includes the LED wavelength calibration (2026-11-23, for 4.3.58)
+
+**Confirmed by:** *nobody yet.* Item 40 of 4.3.58. Built and tested on the fake USB layer through
+ArgyllCMS's own calibration code; never run on an instrument. Tests:
+`tests/test_i1pro2_dual_startup_calibration.py` (trace: `native/chartread_helper/tests/
+i1pro2_startcal_test.c`). Helper 2026-11-23b (`+dual-startup-wavelength`).
+
+* **The fault.** From 4.3.48 (helper 2026-11-18c) to 4.3.57 the start of a hand dual scan in
+  strips asked ArgyllCMS for a white calibration ALONE (`chromiq_chartread.c`, the strip branch's
+  dual case, `inst_calt_ref_white`), where a normal start asks for what the instrument needs
+  (`inst_calt_needed`). ArgyllCMS runs the i1Pro 2's wavelength-LED fit only when the request
+  names it (`i1pro_imp.c` `i1pro_imp_calibrate`, the "Wavelength calibration" block), and the
+  dark before the white only when the request names the dark. So every reading of a dual session
+  (M0, M1 and M2) kept the factory wavelength offset, or one restored from ArgyllCMS's calibration
+  file of an earlier session, and its white was taken against an earlier dark.
+* **What it did to the numbers.** About 1 nm towards the red on one tester's i1Pro 2 in every
+  dual session from 20 to 22 Nov 2026 (0.70 to 1.02 nm; 0.98 nm on 616 patches), most of the
+  0.49 mean dE00 between ChromIQ's dual M0 and i1Profiler's on the same sheet; largest on greys
+  built from inks and on colours with a steep spectral edge, smallest on paper white
+  (`~/Desktop/ChromIQ-work/2026-11-23_item40/analysis.txt`, private data: conclusions only).
+  Not yet re-measured with the fix on an instrument.
+* **What changes.** The dual case asks for everything a normal start asks for and the white in
+  any case (`chromiq_dualcal.h`, `cq_dual_startup_calt`: the needed set masked as a normal start
+  masks it, plus `inst_calt_ref_white`). ArgyllCMS orders the work itself (wavelength, dark,
+  white), so on the wire a dual start is now a normal start's calibration, byte for byte, followed
+  by the dual tile exactly as before (10 dark + 5 UV-LED readings at the white's integration, the
+  volts: section 7 (a)). The wavelength-LED pair it adds (a dark, then the LED, one reading each at
+  the EEPROM's wavelength exposure, flags 0x0000 / 0x0300, no lamp clocks) is the pair every
+  normal ChromIQ start sends and the one i1Profiler's recorded calibrations before a dual scan
+  send (`tests/data/i1pro2_dual_wire_shape.json`, `wavelength_led_in_the_calibration`).
+* **What the person sees.** Nothing new on screen: the same request to put the instrument on its
+  tile, about a second longer (the LED reading is about 0.6 s). The readings move by about 1 nm.
+* **Not changed.** Patch by patch and the i1iO 2 table already asked for the normal set
+  (`inst_calt_needed`) and are untouched. A calibration asked for during the session (the
+  Calibrate button) already asked for everything available. A session started with "no
+  calibration" (`-N`) still does not calibrate.
