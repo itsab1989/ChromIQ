@@ -14,7 +14,8 @@ dark, white at the first calibration) and the white in any case
 (chromiq_dualcal.h, ``cq_dual_startup_calt``). Proved on the wire through the REAL driver on the
 fake USB layer (native/chartread_helper/tests/i1pro2_startcal_test.c): the dual start sends
 exactly the normal start's requests, then exactly the dual tile it sent before, and the
-wavelength-LED pair is the one X-Rite i1Profiler's recorded calibrations send
+wavelength-LED pair has the same command form as X-Rite i1Profiler's, at the exposure stored in
+the instrument (16104 clocks in the recordings and in the test harness)
 (tests/data/i1pro2_dual_wire_shape.json, ``wavelength_led_in_the_calibration``).
 """
 from __future__ import annotations

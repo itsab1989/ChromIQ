@@ -1136,8 +1136,9 @@ i1pro2_startcal_test.c`). Helper 2026-11-23b (`+dual-startup-wavelength`).
   by the dual tile exactly as before (10 dark + 5 UV-LED readings at the white's integration, the
   volts: section 7 (a)). The wavelength-LED pair it adds (a dark, then the LED, one reading each at
   the EEPROM's wavelength exposure, flags 0x0000 / 0x0300, no lamp clocks) is the pair every
-  normal ChromIQ start sends and the one i1Profiler's recorded calibrations before a dual scan
-  send (`tests/data/i1pro2_dual_wire_shape.json`, `wavelength_led_in_the_calibration`).
+  normal ChromIQ start sends, in the same command form as i1Profiler's, at the exposure stored in
+  the instrument (16104 clocks in the recordings and in the test harness; recorded in
+  `tests/data/i1pro2_dual_wire_shape.json`, `wavelength_led_in_the_calibration`).
 * **What the person sees.** Nothing new on screen: the same request to put the instrument on its
   tile, about a second longer (the LED reading is about 0.6 s). The readings move by about 1 nm.
 * **Not changed.** Patch by patch and the i1iO 2 table already asked for the normal set

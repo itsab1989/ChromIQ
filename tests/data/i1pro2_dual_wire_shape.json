@@ -7,7 +7,7 @@
       {"req": "0xD4", "flags": "0x0000", "nummeas": 1, "intclocks": 16104, "lampclocks": 0},
       {"req": "0xD4", "flags": "0x0300", "nummeas": 1, "intclocks": 16104, "lampclocks": 0}
     ],
-    "note": "ArgyllCMS's own wavelength calibration (i1pro2_wl_measure) sends exactly this pair: a dark, then the wavelength LED, at the EEPROM's wavelength-calibration exposure. ChromIQ 4.3.48 to 4.3.57 left it out of the hand dual scan's start-up calibration (4.3.58 item 40)."
+    "note": "ArgyllCMS's own wavelength calibration (i1pro2_wl_measure) sends this pair in the same command form as i1Profiler's: a dark, then the wavelength LED, at the exposure stored in the instrument (16104 clocks in the recordings and in the test harness). ChromIQ 4.3.48 to 4.3.57 left it out of the hand dual scan's start-up calibration (4.3.58 item 40)."
   },
   "dual_calibration_tail": {
     "source": "instrument 1, hand-held session 204244 step 2 (and 210339); instrument 2 on the i1iO 2 table, 22:14:49 (the same tail at 139 clocks)",

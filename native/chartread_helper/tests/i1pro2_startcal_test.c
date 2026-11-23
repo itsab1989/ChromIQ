@@ -222,7 +222,7 @@ static i1pro *make(void) {
 	m->maxpve = 0xffff;
 	m->nlin0 = m->nlin1 = 2;
 	m->lin0 = m->lin1 = lin_identity;
-	m->wl_cal_inttime = 16104 * 36e-6;	/* the WL-LED exposure i1Profiler sends too */
+	m->wl_cal_inttime = 16104 * 36e-6;	/* the recorded WL-LED exposure; a real instrument supplies its own, from its memory */
 	m->wl_cal_min_level = 100.0;
 	m->wl_cal_fwhm = 20.0;
 	m->wl_cal_fwhm_tol = 1000.0;
