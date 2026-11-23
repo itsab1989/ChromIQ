@@ -41,6 +41,10 @@ _TAGS = re.compile(r"<[^>]+>")
 _PLACEHOLDER = re.compile(r"\{[^{}]*\}")
 #: a body is matched on its first literal run of at least this many characters
 _PROBE_MIN = 20
+#: ...or, when no run is that long, on its longest run of at least this many
+#: (M-DUAL-PASS-TOO-FAST-LINE's longest is 19, M-REPORT-RAW-JUDGED-AGAINST's
+#: "(printed raw)" 13; both went untagged with the 20-character rule alone)
+_PROBE_FALLBACK_MIN = 10
 _PROBE_LEN = 60
 
 
@@ -53,16 +57,21 @@ def _probe(body: str, template: "str | None") -> str:
     body" was the name alone, so every later line naming that file was tagged
     with the message's id (seen in a tester's log, 4.3.58). The template's
     first literal run of text is the message's own words, whatever was filled
-    in. A template that is placeholders only gives no probe (its title can
+    in. A template with no run of 20 characters falls back to its longest run
+    of at least 10, still the template's own words. A template that is
+    placeholders only (or only short runs) gives no probe (its title can
     still name it)."""
     if template is None:
         return _plain(body).strip()[:_PROBE_LEN]
     t = str(template).replace("{{", "\x01").replace("}}", "\x02")
+    longest = ""
     for part in _PLACEHOLDER.split(t):
         part = _plain(part.replace("\x01", "{").replace("\x02", "}")).strip()
         if len(part) >= _PROBE_MIN:
             return part[:_PROBE_LEN]
-    return ""
+        if len(part) > len(longest):
+            longest = part
+    return longest if len(longest) >= _PROBE_FALLBACK_MIN else ""
 
 
 @never_raises

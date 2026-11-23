@@ -88,3 +88,43 @@ def test_the_probe_is_the_templates_own_words():
     assert ql._probe("x", "{a} {b}") == ""
     # without a template (an old caller) it is the shown text, as before
     assert ql._probe("Shown text here", None) == "Shown text here"
+
+
+# 4.3.59 review: two messages have no literal run of 20 characters, so the
+# 20-character rule alone left them untagged. They fall back to their longest
+# run of at least 10 characters, still the template's own words.
+def test_a_message_without_a_long_run_falls_back_to_its_longest_run():
+    from core import question_log as ql
+    from workflow import measurement_messages as M
+    assert ql._probe("x", M.M_DUAL_PASS_TOO_FAST_LINE.body) == "seconds of reading."
+    assert ql._probe("x", M.M_REPORT_RAW_JUDGED_AGAINST.body) == "(printed raw)"
+    # a run under 10 characters is no probe: too common to name one message
+    assert ql._probe("x", "{a} is short {b}") == ""
+    # the first run of 20 still wins over a longer later one
+    assert ql._probe("x", "{a} twenty characters ok {b} and then a much longer run here") \
+        == "twenty characters ok"
+
+
+@pytest.mark.parametrize("msg, kw", [
+    ("M_DUAL_PASS_TOO_FAST_LINE", dict(fewest=3, need=5, uv_s="2.4")),
+    ("M_REPORT_RAW_JUDGED_AGAINST", dict(set="Strict")),
+])
+def test_the_two_short_run_messages_are_tagged_again(caplog, msg, kw):
+    from core import question_log as ql
+    from workflow import measurement_messages as M
+    m = getattr(M, msg)
+    _title, body = m.render(**kw)
+    with caplog.at_level(logging.INFO, logger="chromiq.events"):
+        ql.panel_line("measure", body)
+    assert _panel_ids(caplog) == [m.id]
+
+
+def test_the_fallback_never_takes_a_long_file_name(caplog):
+    """A short-run message filled with a long file name: a later line naming
+    only that file is not tagged."""
+    from core import question_log as ql
+    from workflow import measurement_messages as M
+    M.M_REPORT_RAW_JUDGED_AGAINST.render(set=LONG_NAME)
+    with caplog.at_level(logging.INFO, logger="chromiq.events"):
+        ql.panel_line("measure", f"Imported {LONG_NAME}: 1012 patches, M1")
+    assert _panel_ids(caplog) == [""]
