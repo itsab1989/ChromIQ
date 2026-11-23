@@ -9739,5 +9739,5 @@
  "The first pass of strip {strip} did not read, so ChromIQ does not ask for its second pass. Do not read the second pass. Leave the instrument where it is and press its button once, briefly: the instrument needs that press to finish the strip, and ChromIQ uses nothing from it. Then read pass 1 of strip {strip} again, as usual. Its second pass follows as always.": "Det första svepet av remsa {strip} lästes inte, så ChromIQ ber inte om det andra svepet. Läs inte det andra svepet. Låt instrumentet ligga kvar och tryck en gång, kort, på dess knapp: instrumentet behöver det trycket för att avsluta remsan, och ChromIQ använder ingenting av det. Läs sedan svep 1 av remsa {strip} igen, som vanligt. Det andra svepet följer som alltid.",
  "Strip {strip}, pass 1 of 2 again (lamp)": "Remsa {strip}, svep 1 av 2 igen (lampa)",
  "The first pass did not read ({reason}). Read strip {strip} again as usual. ChromIQ then asks for its second pass, with the UV light.": "Det första svepet lästes inte ({reason}). Läs remsa {strip} igen som vanligt. ChromIQ ber sedan om det andra svepet, med UV-ljuset.",
- "ChromIQ is already running.": "ChromIQ körs redan."
+ "ChromIQ is already running. Switch to its window, or close it and start ChromIQ again.": "ChromIQ körs redan. Växla till dess fönster, eller stäng det och starta ChromIQ igen."
 }

@@ -10767,5 +10767,5 @@
  "The first pass of strip {strip} did not read, so ChromIQ does not ask for its second pass. Do not read the second pass. Leave the instrument where it is and press its button once, briefly: the instrument needs that press to finish the strip, and ChromIQ uses nothing from it. Then read pass 1 of strip {strip} again, as usual. Its second pass follows as always.": "Первый проход полосы {strip} не считан, поэтому ChromIQ не просит второй проход. Не считывайте второй проход. Оставьте прибор на месте и один раз коротко нажмите его кнопку: прибору нужно это нажатие, чтобы завершить полосу, и ChromIQ ничего из него не использует. Затем снова считайте проход 1 полосы {strip}, как обычно. Второй проход последует как всегда.",
  "Strip {strip}, pass 1 of 2 again (lamp)": "Полоса {strip}, проход 1 из 2 ещё раз (лампа)",
  "The first pass did not read ({reason}). Read strip {strip} again as usual. ChromIQ then asks for its second pass, with the UV light.": "Первый проход не считан ({reason}). Снова считайте полосу {strip} как обычно. Затем ChromIQ попросит второй проход, с УФ-светом.",
- "ChromIQ is already running.": "ChromIQ уже запущен."
+ "ChromIQ is already running. Switch to its window, or close it and start ChromIQ again.": "ChromIQ уже запущен. Перейдите в его окно или закройте его и запустите ChromIQ снова."
 }

@@ -299,20 +299,43 @@ def claim(lock_file: "Path | None" = None) -> "tuple[str, Guard | None]":
         return NO_GUARD, None
 
 
+def stored_language(environ=None) -> str:
+    """The language code in this process's settings store, read with a bare QSettings
+    ``value()``: no :class:`core.settings.AppSettings`, so no migration, no ``remove()``,
+    no write (the first ChromIQ may be opening that store at this moment). Honours
+    ``CHROMIQ_SETTINGS_FILE`` as AppSettings does. "en" when nothing is stored or on any
+    failure. Never raises."""
+    environ = os.environ if environ is None else environ
+    try:
+        from core import settings as cs
+        sandbox = str(environ.get(cs.SETTINGS_FILE_ENV, "") or "").strip()
+        if sandbox:
+            from PyQt6.QtCore import QSettings
+            if not Path(sandbox).expanduser().is_file():
+                return "en"
+            qs = QSettings(sandbox, QSettings.Format.IniFormat)
+        else:
+            qs = cs.QSettings("ChromIQ", "ChromIQ")
+        return str(qs.value("language", "en") or "en")
+    except Exception:      # noqa: BLE001
+        return "en"
+
+
 def tell_already_running() -> None:
     """The one message a user can see from this: the running ChromIQ could not be reached.
-    In the language of the settings store, read only. Never raises."""
+    In the language of the settings store, read only (:func:`stored_language`). Never
+    raises."""
     try:
         from core.i18n import set_language, tr
         try:
-            from core.settings import AppSettings
-            set_language(AppSettings().get("language", "en"))
+            set_language(stored_language())
         except Exception:      # noqa: BLE001
             pass
         from PyQt6.QtWidgets import QMessageBox
         from ui.widgets import keep_message_box_inside_the_work_area
         box = QMessageBox(QMessageBox.Icon.Information, "ChromIQ",
-                          tr("ChromIQ is already running."))
+                          tr("ChromIQ is already running. Switch to its window, or close it "
+                             "and start ChromIQ again."))
         keep_message_box_inside_the_work_area(box)
         box.exec()
     except Exception:      # noqa: BLE001

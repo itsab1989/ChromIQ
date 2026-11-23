@@ -231,12 +231,56 @@ def test_nothing_but_main_claims():
     assert "single_instance" not in (ROOT / "tests" / "conftest.py").read_text(encoding="utf-8")
 
 
+MESSAGE = ("ChromIQ is already running. Switch to its window, or close it and start "
+           "ChromIQ again.")
+
+
 def test_the_message_is_translated_everywhere():
     import json
     for f in sorted((ROOT / "data" / "i18n").glob("*.json")):
         d = json.loads(f.read_text(encoding="utf-8"))
-        assert d.get("ChromIQ is already running."), f.name
-        assert "—" not in d["ChromIQ is already running."]
+        assert d.get(MESSAGE), f.name
+        assert "—" not in d[MESSAGE]
+        assert "ChromIQ is already running." not in d, f.name     # the old, bare text
+
+
+def test_the_message_says_what_to_do_next():
+    src = (ROOT / "core" / "single_instance.py").read_text(encoding="utf-8")
+    body = src[src.index("def tell_already_running"):]
+    assert '"ChromIQ is already running. Switch to its window, or close it "' in body
+    assert "—" not in MESSAGE
+
+
+def test_the_message_reads_the_language_without_touching_the_store(tmp_path, monkeypatch):
+    """4.3.59 review: tell_already_running() built a whole AppSettings() for the language,
+    and AppSettings may migrate and write the store the running ChromIQ is opening. It now
+    reads one value with a bare QSettings, and the store's file is left exactly as it was."""
+    import core.settings as cs
+    from core import single_instance as si
+    ini = tmp_path / "store.ini"
+    # an old-schema store: AppSettings().migrate() would rewrite it
+    ini.write_text("[General]\nlanguage=de\nsettings_schema=0\n", encoding="utf-8")
+    old = 1_600_000_000
+    os.utime(ini, (old, old))
+    before = ini.read_bytes()
+    monkeypatch.setenv(cs.SETTINGS_FILE_ENV, str(ini))
+    built = []
+    monkeypatch.setattr(cs, "AppSettings", lambda *a, **k: built.append(1))
+    assert si.stored_language() == "de"
+    assert built == [], "the language was read through AppSettings"
+    import gc
+    gc.collect()                 # a QSettings left over would sync in its destructor
+    assert ini.read_bytes() == before
+    assert ini.stat().st_mtime == old
+    # no store at all: English, and no file is made
+    missing = tmp_path / "none.ini"
+    assert si.stored_language({cs.SETTINGS_FILE_ENV: str(missing)}) == "en"
+    assert not missing.exists()
+
+
+def test_tell_already_running_never_builds_app_settings():
+    src = (ROOT / "core" / "single_instance.py").read_text(encoding="utf-8")
+    assert "AppSettings" not in src.split("def stored_language", 1)[1].split('"""', 2)[2]
 
 
 def test_the_guard_never_holds_the_settings_files_own_lock(qapp, tmp_path, monkeypatch):
