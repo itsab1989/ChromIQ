@@ -21,6 +21,29 @@ endif()
 
 set(INSTLIB "${CMAKE_CURRENT_SOURCE_DIR}/../instlib")
 
+# No build machine's folder names in the binary (4.3.59 review): i1pro3_imp.c's
+# asserts print __FILE__, which is the absolute source path, so the committed
+# helper carried the builder's home folder. The source root (the folder that
+# holds native/) becomes "." in __FILE__ and in any debug info, so the binary is
+# also the same whatever folder it is built from. gcc 8+ and clang 10+ (every
+# CI toolchain: AppleClang, Linux gcc, mingw-w64 gcc, llvm-mingw clang) take
+# -ffile-prefix-map; each flag is checked first, so an older compiler builds as
+# before. MSVC is not used by any build here, and its equivalent (/d1trimfile)
+# is undocumented, so it is left alone.
+get_filename_component(_cq_source_root "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
+include(CheckCCompilerFlag)
+if(NOT MSVC)
+  check_c_compiler_flag("-ffile-prefix-map=${_cq_source_root}=." CQ_HAS_FILE_PREFIX_MAP)
+  if(CQ_HAS_FILE_PREFIX_MAP)
+    add_compile_options("-ffile-prefix-map=${_cq_source_root}=.")
+  else()
+    check_c_compiler_flag("-fmacro-prefix-map=${_cq_source_root}=." CQ_HAS_MACRO_PREFIX_MAP)
+    if(CQ_HAS_MACRO_PREFIX_MAP)
+      add_compile_options("-fmacro-prefix-map=${_cq_source_root}=.")
+    endif()
+  endif()
+endif()
+
 # Mirror of spectro/Makefile.SA: OBJS + INSOBJS + SUPOBJS.
 set(INSTLIB_UNITS
   conv sa_conv aglob inst numsup rspl1 icoms usbio hidio insttypes
