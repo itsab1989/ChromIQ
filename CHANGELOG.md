@@ -16,6 +16,7 @@
 - **Margins can be any size that still leaves room on the paper.** The old caps are gone for every instrument. The only limit is the page, up to 2000 mm, and a margin that leaves no room for even one strip or one patch is refused in words, with a red outline on the box. Instrument Limits margins go up to 2000 mm too.
 - **Other layout limits follow the page as well.** The number of pages goes up to 999, the area grid up to 2000, and patch and chart sizes up to the page, where a plain refusal says when they do not fit.
 - **A chart offset that runs patches off the paper is now refused.** Before, such a chart was made and printed with patches missing. If you have a saved chart with a large offset, Generate now tells you and asks for a smaller one. A negative offset on an i1iSis chart is refused too, and a notes band that does not fit in the header is refused instead of being cut down.
+- **A faster gamut-based layout.** Charts laid out from a profile's gamut are made 2 to 4.6 times faster (measured on four profiles with 40 to 4000 patches), and the chart is the same, patch for patch. The i1iSis chart layout also remembers its label measurements instead of making them again.
 - **The help of “Suppress warning messages (-S)” names the two warnings it really turns off** while you read a chart.
 - **The run button of Apply Calibration reads what the mode does:** “Remove Calibration” or “Check Calibration”, with matching progress texts.
 - **The app log's dual pass line shows the two alignment values in scientific form,** so they no longer read as 0.
@@ -24,15 +25,14 @@
 
 ### Fixed
 
-- **A faster gamut-based layout.** Charts laid out from a profile's gamut are made 2 to 4.6 times faster (measured on four profiles with 40 to 4000 patches), and the chart is the same, patch for patch. The i1iSis chart layout also remembers its label measurements instead of making them again.
 - **“Measured from Preview” showed the previous project's chart** after you opened another project. It now follows the project you opened.
 - **Typed values in margin boxes that were greyed out by “Use instrument margins” still reached Generate.** They no longer count while the tick is on, and the chart gets the value the greyed box shows.
-- **A START no longer changes your Measure settings** (table, with the beta option on). The settings of the target were loaded over the tab at every START, so values such as -F could be cleared by themselves. A table START also stores the Measure settings, as a hand START does.
+- **A START no longer changes your Measure settings** (table, with the beta option on). The settings of the target were loaded over the tab at every START, so ticks you had set could change by themselves. A table START also stores the Measure settings, as a hand START does.
 
 Only with the beta option “X-Rite i1iO support” on:
 
 - **The dual scan with rows as strips stopped with an error at the start on a real table.** It now starts. The dual scan also uses the white tile the calibration was made on, and with the dual scan the place of the calibration is decided before the calibration is read.
-- **An arm that creeps by itself no longer gets refused.** A held arm can move a little on its own. A small move is now accepted. A bigger move makes ChromIQ ask again (up to two times), and says how far the arm moved. “Not now” to that question is not counted as a failed homing. The start and end of a strip row and the start of the dual scan's second pass follow the same rule, and a start that is too far off stops cleanly before the move.
+- **An arm that creeps by itself no longer gets refused.** A held arm can move a little on its own. A small move is now accepted. A bigger move makes ChromIQ ask again (up to two times), and says how far the arm moved. “Not now” to that question is not counted as a failed homing. The start and end of a strip row follow the same rule. The second pass of a dual scan must still start within 0.5 mm of its place, because its readings are placed from that start; if it does not, it stops cleanly before it moves, and the row keeps its normal reading and can be read again.
 - **The button of the instrument is offered only when ChromIQ is listening.** If it is not, the page says to press “Aimed” on the screen.
 - **The aiming crosses never move a patch.** Switching them off no longer changes where the patches are, and a chart with an automatic patch count no longer gets a different colour set. The margins stay as they are, and the default alignment is the centre with and without the crosses. A page whose corner patches lie too close together keeps its crosses; if there is no room for them, Generate warns or refuses. Charts printed before measure as they did.
 - **The page labels in the table window can now be selected and copied.**
@@ -40,8 +40,8 @@ Only with the beta option “X-Rite i1iO support” on:
 ### Known issues
 
 - **The dual scan with rows as strips has not yet been read on a real table to the end.** It stopped before the first row on a real table until this version, so everything after that point has run on a simulated table only. Please keep the power switch in reach.
-- **The limits of the held arm (13 units for creep, 30 for a refusal) come from one real table.** Other tables may behave differently.
-- **A strip row and the second pass of a dual scan are accepted within 13 units of their planned start.** The second pass has an extra placement check; the row has not.
+- **The limits of the held arm (1.3 mm that a held arm moves by itself, 3 mm before ChromIQ asks again) come from one real table.** Other tables may behave differently.
+- **A strip row is accepted within 1.3 mm of its planned start, and the row placement check then confirms each patch's place.** The second pass of a dual scan is held to 0.5 mm.
 - **Aiming at the corner patches instead of the crosses** needs about 86 mm between the corner patches across the rows. On a narrow page with many near-white patches the crosses are therefore kept on more pages.
 - The new and changed texts of this version are shown as proposed texts and may still be reworded.
 
