@@ -262,3 +262,50 @@ def test_the_guard_never_holds_the_settings_files_own_lock(qapp, tmp_path, monke
         assert "SYNCED NoError" in r.stdout, r.stdout + r.stderr
     finally:
         guard.release()
+
+
+def test_a_vanished_lock_file_does_not_let_a_second_chromiq_in(qapp, tmp_path):
+    """4.3.59 review: the lock file deleted while the first ChromIQ runs (its log folder
+    emptied by hand). The second start then gets the lock, but must not remove the live
+    first one's server: it asks it first, and the first comes to the front."""
+    from core import single_instance as si
+    lock = tmp_path / "chromiq.lock"
+    first = _start(tmp_path, lock, "serve")
+    try:
+        assert "OUTCOME first" in _read_until(first, "READY")
+        lock.unlink()
+        outcome, guard = si.claim(lock)
+        assert outcome == si.SHOWN_OTHER and guard is None
+        assert _read_until(first, "REQUEST")[-1].startswith("REQUEST 1 ")
+        # and the first one is still reachable afterwards: its server was not removed
+        assert si.ask_first_to_show(si.server_name(lock), 0, 1500, 4000)
+    finally:
+        _stop(first)
+
+
+def test_a_crashed_chromiqs_leftover_server_name_is_still_taken_over(qapp, tmp_path):
+    """The other side of the same check: a server name nobody answers on is removed and
+    this start goes on as the first ChromIQ."""
+    from core import single_instance as si
+    lock = tmp_path / "chromiq.lock"
+    name = si.server_name(lock)
+    if sys.platform == "win32":
+        pytest.skip("a named pipe leaves no file behind")
+    # a leftover socket file: a plain file of the server's path, nobody listening
+    from PyQt6.QtNetwork import QLocalServer
+    probe = QLocalServer()
+    assert probe.listen(name)
+    sock_path = probe.fullServerName()
+    probe.close()
+    Path(sock_path).write_bytes(b"")
+    try:
+        t0 = time.monotonic()
+        outcome, guard = si.claim(lock)
+        try:
+            assert outcome == si.FIRST and guard is not None and guard.server is not None
+        finally:
+            if guard is not None:
+                guard.release()
+        assert time.monotonic() - t0 < 5.0
+    finally:
+        Path(sock_path).unlink(missing_ok=True)

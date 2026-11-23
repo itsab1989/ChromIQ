@@ -48,6 +48,10 @@ CONNECT_MS = 1500
 #: how long it then waits for the answer (ms): the first one answers from its event loop,
 #: which a window being built can hold for a few seconds; a hung one costs no more than this
 REPLY_MS = 8000
+#: the shorter ask made before a leftover server name is removed: a crashed ChromIQ's
+#: leftover refuses the connection at once, so this only costs time when one answers
+STALE_CONNECT_MS = 300
+STALE_REPLY_MS = 2000
 #: what the second sends, and what the first answers
 SHOW = b"show\n"
 SHOWN = b"shown\n"
@@ -264,10 +268,26 @@ def claim(lock_file: "Path | None" = None) -> "tuple[str, Guard | None]":
                 return SHOWN_OTHER, None
             log.warning("single instance: the running ChromIQ did not answer")
             return UNREACHABLE, None
+        # We hold the lock, so a server of this name is USUALLY a crashed ChromIQ's
+        # leftover. But the lock file can vanish under a live ChromIQ (its log folder
+        # emptied by hand): ask before listening, or this start would take the running
+        # one's name and open a second app (4.3.59 review). Ask BEFORE listen, not after
+        # it fails: with UserAccessOption, Qt on Unix makes the socket in a private folder
+        # and renames it over an existing one, so listen() does not fail on a live name,
+        # it silently takes it (measured, Qt 6.11, macOS). Nobody listening refuses the
+        # connection at once, so a normal start pays next to nothing for this.
+        if ask_first_to_show(name, 0, STALE_CONNECT_MS, STALE_REPLY_MS):
+            log.info("single instance: the lock file was gone, but a running ChromIQ "
+                     "answered on this settings store; it has come to the front")
+            try:
+                lock.unlock()
+            except Exception:      # noqa: BLE001
+                pass
+            return SHOWN_OTHER, None
         server = QLocalServer()
         server.setSocketOptions(QLocalServer.SocketOption.UserAccessOption)
         if not server.listen(name):
-            # we hold the lock, so a server of this name is a crashed ChromIQ's leftover
+            # nobody answered on it: a crashed ChromIQ's leftover
             QLocalServer.removeServer(name)
             if not server.listen(name):
                 log.warning("single instance: no local server (%s); a second start will "
