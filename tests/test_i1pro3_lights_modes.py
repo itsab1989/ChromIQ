@@ -40,7 +40,7 @@ NAMES = {"01fa04120500": "READY", "0a1402120500": "GOOD",
          "061402120500": "BAD", "00": "OFF"}
 
 
-def _build_and_run(tmp_path_factory, target: str) -> str:
+def _build_and_run(tmp_path_factory, target: str, args=()) -> str:
     if sys.platform == "win32":
         pytest.skip("the fake-USB driver test is built on macOS and Linux only")
     cmake = shutil.which("cmake")
@@ -58,7 +58,7 @@ def _build_and_run(tmp_path_factory, target: str) -> str:
     exe = next(p for p in build.rglob(target + "*")
                if p.is_file() and os.access(p, os.X_OK)
                and p.name in (target, target + ".exe"))
-    r = subprocess.run([str(exe)], capture_output=True, text=True,
+    r = subprocess.run([str(exe), *[str(a) for a in args]], capture_output=True, text=True,
                        encoding="utf-8", timeout=300)
     assert r.returncode == 0 and r.stdout.rstrip().endswith("ALL DONE"), \
         r.stdout[-2000:] + r.stderr[-2000:]

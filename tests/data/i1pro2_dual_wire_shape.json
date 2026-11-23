@@ -1,6 +1,14 @@
 {
   "what": "The SHAPE of X-Rite i1Profiler 3.8.6's i1Pro 2 dual-scan requests, from two owners' USB recordings (2026-11-17; the recordings themselves are private and not in the repository). Only request codes, measurement flags, integration and lamp clock counts and reading counts: the protocol's public form, as docs/design and native/instlib/cq_tscan.h already publish the table's recorded lines. No instrument data, no EEPROM bytes, no serial.",
   "flags": {"dark": "0x0000", "lamp": "0x0100", "uv_led": "0x0200", "wl_led": "0x0300", "scan": "0x0001", "ruler_start": "0x0004", "ruler_end": "0x0008"},
+  "wavelength_led_in_the_calibration": {
+    "source": "instrument 1, hand-held sessions 202936 / 204244 / 210339 step 2 (i1Profiler's calibration before a dual scan): once per calibration, before the white",
+    "requests": [
+      {"req": "0xD4", "flags": "0x0000", "nummeas": 1, "intclocks": 16104, "lampclocks": 0},
+      {"req": "0xD4", "flags": "0x0300", "nummeas": 1, "intclocks": 16104, "lampclocks": 0}
+    ],
+    "note": "ArgyllCMS's own wavelength calibration (i1pro2_wl_measure) sends exactly this pair: a dark, then the wavelength LED, at the EEPROM's wavelength-calibration exposure. ChromIQ 4.3.48 to 4.3.57 left it out of the hand dual scan's start-up calibration (4.3.58 item 40)."
+  },
   "dual_calibration_tail": {
     "source": "instrument 1, hand-held session 204244 step 2 (and 210339); instrument 2 on the i1iO 2 table, 22:14:49 (the same tail at 139 clocks)",
     "after_the_white": [
