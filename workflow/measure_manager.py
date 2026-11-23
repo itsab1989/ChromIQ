@@ -525,6 +525,13 @@ class MeasureManager(QObject):
     # A failed calibration is being retried automatically: (attempt, of_total).
     calibration_retrying   = pyqtSignal(int, int)
     calibration_done       = pyqtSignal()    # emitted when instrument calibration completes
+    # Every typed (JSON) event the engine helper prints, carrying its kind.
+    # The tab's no-response watchdog counts it as an answer: the helper
+    # answers a calibration with events only (cal_done, dual_calibration),
+    # never with a prose line, so a watchdog reset by prose alone warned
+    # "No response from chartread" 12 s after every successful calibration
+    # (seen 8 times in a tester's logs, 4.3.58).
+    engine_event_seen      = pyqtSignal(str)
     # A calibration the USER asked for (K or the Calibrate button), engine
     # only: the instrument asks to be placed, carrying the same three values
     # as calibration_prompt. A separate signal, because its window differs in
@@ -4539,6 +4546,7 @@ class MeasureManager(QObject):
 
         self._engine_saw_event = True
         kind = ev["event"]
+        self.engine_event_seen.emit(str(kind))
         if kind in ("session_start", "strip_ready", "strip_read", "error",
                     "spot_ready", "strip_interrupted", "done"):
             # the wait for a dual strip's second pass is over (4.3.49), and

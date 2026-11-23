@@ -2034,6 +2034,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self.measure_finished.connect(self._maybe_save_measurement_report)
         self._manager.calibration_prompt.connect(self._on_calibration_prompt)
         self._manager.calibration_done.connect(self._on_calibration_done)
+        # A typed engine event is an answer to the last key as much as a
+        # prose line is (the helper answers a calibration with events only).
+        if hasattr(self._manager, "engine_event_seen"):
+            self._manager.engine_event_seen.connect(self._on_engine_event_seen)
         # A calibration the user asked for (K, or the Calibrate button): its
         # own placement window, its own result, and a note when it has to
         # wait for the next strip or patch prompt.
@@ -11722,6 +11726,19 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         """
         self._last_chartread_output_ts = time.monotonic()
         self._key_watchdog.start()
+
+    def _on_engine_event_seen(self, _kind: str) -> None:
+        """The engine helper printed a typed event: it is alive and answering.
+
+        The same reset `_on_log_line` makes for a prose line. Without it the
+        watchdog armed by "Start Calibration" ran out 12 s after the key
+        although the helper had answered with cal_done after 6 s, and the log
+        said "No response from chartread" after a calibration that worked.
+        A helper that prints nothing at all still lets the watchdog fire.
+        """
+        self._last_chartread_output_ts = time.monotonic()
+        if self._key_watchdog.isActive():
+            self._key_watchdog.stop()
 
     def _on_key_watchdog_timeout(self) -> None:
         # Only warn if chartread is still expected to be running and no output
