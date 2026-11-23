@@ -109,11 +109,26 @@ ARRIVAL_UNITS = 5
 #: table lands 0 to 4 units from commanded row ends and 0 to 2 from row starts, and i1Profiler
 #: goes on every time; ChromIQ's 5 unit arrival passed the worst by 1 unit, and stopped a row
 #: end 6 units off. A held arm also moves up to 13 units by itself (tbl.HELD_ARM_CREEP_UNITS).
-#: So a row START (and a UV pass start) within the creep is where the arm stands, and the row
-#: goes on (noted; the row placement check confirms every patch's place from the readings);
-#: up to tbl.HELD_ARM_MOVED_UNITS it fails cleanly and may be read again (nothing is pending:
-#: no scan move was sent); beyond, a doubt, as before.
+#: So a row START within the creep is where the arm stands, and the row goes on (noted; the
+#: row placement check confirms every patch's place from the readings); up to
+#: tbl.HELD_ARM_MOVED_UNITS it fails cleanly and may be read again (nothing is pending: no
+#: scan move was sent); beyond, a doubt, as before. NOT a dual row's UV pass: UV_START_UNITS.
 ROW_START_UNITS = tbl.HELD_ARM_CREEP_UNITS
+#: 4.3.57 fix round (review F3): a dual row's UV pass keeps 4.3.56's start limit, ARRIVAL_UNITS
+#: (0.5 mm). Its readings are placed by its PLAN (``windows``: the patches' along-the-row
+#: places from ``plan.start``) and its scan move is absolute (``plan.m2``), so a pass that starts
+#: k mm off has every reading k mm off along the row, and nothing afterwards puts it back: the
+#: row placement check judges the LAMP pass only (``dual_rows._placement``), and the UV timing
+#: fit only refuses, and only when the R squared gain shows it (on the simulator, starts 0.5 to
+#: 1.5 mm off were "not judged" and their values used; 2 mm and more refused). The project's
+#: own limit for a UV pass over the patches is "off by about 0.7 mm" (``uv_pass_timing_off``,
+#: one reading at 132 mm/s is 0.66 mm), so the start is held under it. Beyond: the UV pass
+#: fails cleanly before its scan move (nothing pending), the row keeps its lamp pass as M0 and
+#: may be read again (4.3.50); beyond tbl.HELD_ARM_MOVED_UNITS after the zero-length move, a
+#: doubt, as before. Not a correction of the readings by the measured start: that start is
+#: itself only known to the held arm's creep (13 units), and a shift across the row cannot be
+#: corrected by moving the windows.
+UV_START_UNITS = ARRIVAL_UNITS
 #: 4.3.57 (item 21): the wait before an arm read at a strip row's end beyond the held arm's
 #: creep is read once more (the computed moves' own ARRIVAL_RECHECK_S, job.py)
 ROW_END_RECHECK_S = 0.3
@@ -440,9 +455,10 @@ def _run_uv_pass(table: tbl.Table, inst, plan: RowPlan, log, outdir: str) -> Row
         if at is None or table.motion_unconfirmed:
             at = table.position()
         res.start_read = at
-        # 4.3.57 (item 21): the lamp pass's end is accepted within tbl.HELD_ARM_MOVED_UNITS
-        # (run_row), so its UV pass starts from there too
-        if not _near(at, plan.start, tbl.HELD_ARM_MOVED_UNITS):
+        # 4.3.57 fix round (review F3): the lamp pass's end may be accepted within
+        # tbl.HELD_ARM_MOVED_UNITS, but its UV pass starts only within UV_START_UNITS of it
+        # (its readings are placed by the plan); else nothing is sent and the row keeps M0
+        if not _near(at, plan.start, UV_START_UNITS):
             raise CleanFail(f"the arm stands at {at}, not at the end of the lamp pass "
                             f"{plan.start}")
         try:
@@ -470,10 +486,8 @@ def _run_uv_pass(table: tbl.Table, inst, plan: RowPlan, log, outdir: str) -> Row
             raise table._doubt(f"d1 answered {d.data}, not the recorded echo {D1_UV_ECHO}")
         got = table.position()
         res.at_start = got
-        # 4.3.57 (item 21): where the zero-length move went (the lamp end read) within the
-        # held arm's creep, and inside the lamp end's own limit
-        if not (_near(got, at, ROW_START_UNITS)
-                and _near(got, plan.start, tbl.HELD_ARM_MOVED_UNITS)):
+        # 4.3.57 fix round (review F3): within UV_START_UNITS of the planned start, as 4.3.56
+        if not _near(got, plan.start, UV_START_UNITS):
             if _near(got, plan.start, ARRIVAL_BESIDE_UNITS):
                 # 4.3.47 fix2, as for the lamp pass's row start (run_row): within 1 mm after the
                 # zero-length move ended normally and d1 echoed: nothing is pending (no scan move
