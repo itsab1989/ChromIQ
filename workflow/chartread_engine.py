@@ -170,11 +170,19 @@ WAVELENGTH_SOURCES = {
 }
 
 
-def wavelength_text(ev: dict) -> str:
+#: 4.3.59: the offset the helper reports is the one the STANDARD-resolution filters use. A
+#: high-resolution read (-H) reads through filters of their own, whose offset the driver does
+#: not record; it normally holds the same value, but the line must not claim to know it.
+HIGH_RES_NOTE = ("this read uses the high-resolution (-H) filters, whose offset is not "
+                 "recorded; the value above is the standard-resolution filters' "
+                 "(normally the same)")
+
+
+def wavelength_text(ev: dict, high_res: bool = False) -> str:
     """4.3.59: one log line for the helper's "wavelength" event (an i1Pro 2): the wavelength
     offset its filters use and where it came from. Diagnostics only: the helper reports it
     after opening the instrument and after each calibration, and sends nothing for it.
-    Never raises."""
+    *high_res*: the reader was started with -H (:data:`HIGH_RES_NOTE`). Never raises."""
     try:
         src = str(ev.get("source") or "?")
         nm = float(ev.get("offset_nm") or 0.0)
@@ -185,20 +193,23 @@ def wavelength_text(ev: dict) -> str:
         return (f"wavelength offset {nm:+.3f} nm ({raw:+.3f} raw bins) at {ev.get('when', '?')}: "
                 f"{WAVELENGTH_SOURCES.get(src, src)}{age_txt}; calibration file: "
                 f"{ev.get('restore', '?')}, {ev.get('modes_restored', '?')} modes restored, "
-                f"{ev.get('modes_skipped', '?')} not (settings differ)")
+                f"{ev.get('modes_skipped', '?')} not (settings differ)"
+                + (f"; {HIGH_RES_NOTE}" if high_res else ""))
     except Exception:      # noqa: BLE001 - a log line never stands in the way
         return f"wavelength event {ev!r}"[:400]
 
 
-def log_wavelength(ev: dict, where: str) -> None:
-    """The app log's line for a "wavelength" event (*where*: "table" or "hand"). Never
-    raises."""
+def log_wavelength(ev: dict, where: str, high_res: bool = False) -> None:
+    """The app log's line for a "wavelength" event (*where*: "table" or "hand"). The offset
+    is the standard-resolution filters'; *high_res* (-H) adds filters=standard_only, as the
+    high-resolution filters' own offset is not recorded. Never raises."""
     try:
         from core.app_log import line
+        extra = {"filters": "standard_only"} if high_res else {}
         line("i1pro2 wavelength", where=where, when=ev.get("when"), source=ev.get("source"),
              offset_nm=ev.get("offset_nm"), offset_raw=ev.get("offset_raw"),
              restore=ev.get("restore"), modes_restored=ev.get("modes_restored"),
-             modes_skipped=ev.get("modes_skipped"), age_s=ev.get("age_s"))
+             modes_skipped=ev.get("modes_skipped"), age_s=ev.get("age_s"), **extra)
     except Exception:      # noqa: BLE001
         pass
 

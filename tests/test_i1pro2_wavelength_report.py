@@ -249,3 +249,53 @@ def test_the_bundled_helper_is_this_build():
     data = exe.read_bytes()
     assert b"chromiq-chartread 2026-11-23c " in data and b"+wavelength-report" in data
     assert b'{"event":"wavelength","when":"%s",%s}' in data
+
+
+# 4.3.59 review, nit 10: the offset reported is the STANDARD-resolution filters'. A read
+# started with -H uses filters of its own, whose offset the driver does not record, so the
+# line says so instead of claiming a value it does not know.
+def test_a_high_res_table_read_says_its_offset_is_not_recorded(trace, caplog):
+    from workflow.chartread_engine import HIGH_RES_NOTE
+    from workflow.i1io.table.reader import _Proc
+    ev = _events(trace, "wl-file")[0]
+    for argv, said in ((["helper", "-H"], True), (["helper"], False)):
+        proc = object.__new__(_Proc)
+        proc.log = _Log()
+        proc.argv = argv
+        caplog.clear()
+        with caplog.at_level(logging.INFO, logger="chromiq.events"):
+            proc._wavelength(ev)
+        (_kind, text), = proc.log.lines
+        assert (HIGH_RES_NOTE in text) is said
+        app = [r.getMessage() for r in caplog.records
+               if r.getMessage().startswith("i1pro2 wavelength:")]
+        assert len(app) == 1 and ("filters=standard_only" in app[0]) is said
+
+
+def test_a_high_res_hand_read_says_its_offset_is_not_recorded(trace, caplog, qapp):
+    from workflow.chartread_engine import HIGH_RES_NOTE
+    from workflow.measure_manager import MeasureManager
+
+    class _Runner:
+        is_running = True
+
+        def write_stdin(self, _data):
+            raise AssertionError("a wavelength event must send nothing")
+
+    m = MeasureManager(_Runner())
+    m._engine_active = True
+    m._high_res = True
+    ev = _events(trace, "wl-file")[0]
+    with caplog.at_level(logging.INFO):
+        m._handle_engine_line(json.dumps(ev), lambda _s: None)
+    msgs = [r.getMessage() for r in caplog.records]
+    assert any(HIGH_RES_NOTE in s for s in msgs)
+    assert any(s.startswith("i1pro2 wavelength:") and "filters=standard_only" in s
+               for s in msgs)
+
+
+def test_the_hand_reader_remembers_a_high_res_start():
+    src = (Path(__file__).resolve().parent.parent / "workflow" / "measure_manager.py"
+           ).read_text(encoding="utf-8")
+    body = src[src.index("    def start(\n"):]
+    assert 'self._high_res = bool(getattr(params, "high_res", False))' in body[:2500]

@@ -335,8 +335,9 @@ class _Proc:
         the table session log and one in the app log. Diagnostics only; never raises."""
         try:
             from workflow.chartread_engine import log_wavelength, wavelength_text
-            self.log("DATA", wavelength_text(ev))
-            log_wavelength(ev, "table")
+            hr = "-H" in (getattr(self, "argv", None) or ())
+            self.log("DATA", wavelength_text(ev, hr))
+            log_wavelength(ev, "table", hr)
         except Exception:      # noqa: BLE001
             pass
 

@@ -963,6 +963,8 @@ class MeasureManager(QObject):
         on_finish: Callable[[int], None],
     ) -> None:
         args = self._build_args(params)
+        #: 4.3.59: a -H read; the wavelength log line says its offset is not recorded
+        self._high_res = bool(getattr(params, "high_res", False))
         # M2 (Knut's missing i1Pro 2 ready beep): the beep is the macOS system
         # alert, so log how its volume and device were set. One background
         # thread per start, never on the GUI thread, never per strip.
@@ -5566,8 +5568,9 @@ class MeasureManager(QObject):
             # 4.3.59: the i1Pro 2's wavelength offset and where it came from (the helper
             # reports it after opening and after each calibration); the app log only
             from workflow.chartread_engine import log_wavelength, wavelength_text
-            log.info("engine: %s", wavelength_text(ev))
-            log_wavelength(ev, "hand")
+            hr = bool(getattr(self, "_high_res", False))
+            log.info("engine: %s", wavelength_text(ev, hr))
+            log_wavelength(ev, "hand", hr)
 
         elif kind in ("cal_done", "cal_message"):
             if kind == "cal_done":
