@@ -1127,7 +1127,7 @@ i1pro2_startcal_test.c`). Helper 2026-11-23b (`+dual-startup-wavelength`).
   dual session from 20 to 22 Nov 2026 (0.70 to 1.02 nm; 0.98 nm on 616 patches), most of the
   0.49 mean dE00 between ChromIQ's dual M0 and i1Profiler's on the same sheet; largest on greys
   built from inks and on colours with a steep spectral edge, smallest on paper white
-  (`~/Desktop/ChromIQ-work/2026-11-23_item40/analysis.txt`, private data: conclusions only).
+  (from a private analysis of tester data: conclusions only).
   Not yet re-measured with the fix on an instrument.
 * **What changes.** The dual case asks for everything a normal start asks for and the white in
   any case (`chromiq_dualcal.h`, `cq_dual_startup_calt`: the needed set masked as a normal start

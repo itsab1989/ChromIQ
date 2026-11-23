@@ -5,8 +5,8 @@ wavelength calibration, as every normal session's does.
 (chromiq_chartread.c, the strip branch's dual case: ``inst_calt_ref_white``). ArgyllCMS runs the
 i1Pro 2's wavelength-LED fit only when the request contains ``inst_calt_wavelength``
 (i1pro_imp.c, i1pro_imp_calibrate), so every dual reading (M0, M1, M2) kept the factory or a
-stale wavelength offset: about 1 nm on Nelson's 616 patches, most of the 0.49 dE00 to
-i1Profiler (~/Desktop/ChromIQ-work/2026-11-23_item40/analysis.txt). The dark before the white
+stale wavelength offset: about 1 nm on a tester's 616 patches, most of the 0.49 dE00 to
+i1Profiler. The dark before the white
 was skipped too.
 
 The dual branch now asks for what a normal start asks for (``inst_calt_needed``: wavelength,
