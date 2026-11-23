@@ -161,6 +161,23 @@ def main() -> int:
     # process; pin it back before anything can show one (core/numeric_locale).
     from core.numeric_locale import pin_c_numeric_locale
     pin_c_numeric_locale()
+    # ONE CHROMIQ AT A TIME, PER SETTINGS STORE (4.3.59). A tester had two
+    # ChromIQ windows open on the same project for 23 minutes (Windows starts a
+    # second process on a second double-click); two can overwrite each other's
+    # settings and write the same run. A second start asks the first to come to
+    # the front and quits, before any window, and before the settings are
+    # opened. A sandboxed store (CHROMIQ_SETTINGS_FILE) has its own lock, so a
+    # driver never meets the user's own ChromIQ. Only main() does this: the
+    # suite and the drivers never call it. See core/single_instance.py.
+    from core import single_instance
+    _instance_outcome, _instance_guard = single_instance.claim()
+    if _instance_outcome == single_instance.SHOWN_OTHER:
+        log.info("Another ChromIQ is running on these settings; it was brought "
+                 "to the front and this start ends")
+        return 0
+    if _instance_outcome == single_instance.UNREACHABLE:
+        single_instance.tell_already_running()
+        return 0
     # Every Argyll tool and the chart-reading helper this process starts skips
     # the serial port whose open can hang for ever (macOS Bluetooth incoming
     # port, 2026-10-03), including a plain `subprocess.run` with no `env=`.
@@ -319,6 +336,8 @@ def main() -> int:
     # Heavy UI import + construction, now visibly covered by the splash.
     from ui.main_window import MainWindow
     win = MainWindow(settings)
+    if _instance_guard is not None:
+        _instance_guard.set_window(win)     # a second start brings this one up
     apply_appearance(app, win, settings.get("appearance", "auto"))
 
     def _on_system_color_scheme_changed(_scheme=None) -> None:

@@ -9738,5 +9738,6 @@
  "Strip {strip}: pass 1 did not read. Press the button once, then read pass 1 again": "色条 {strip}：第 1 遍没有读取成功。请按一次按钮，然后重新读取第 1 遍",
  "The first pass of strip {strip} did not read, so ChromIQ does not ask for its second pass. Do not read the second pass. Leave the instrument where it is and press its button once, briefly: the instrument needs that press to finish the strip, and ChromIQ uses nothing from it. Then read pass 1 of strip {strip} again, as usual. Its second pass follows as always.": "色条 {strip} 的第 1 遍没有读取成功，因此 ChromIQ 不要求第 2 遍。请不要读取第 2 遍。让仪器留在原处，短按一次它的按钮：仪器需要这一按来结束该色条，ChromIQ 不使用其中的任何数据。然后像平常一样重新读取色条 {strip} 的第 1 遍。之后照常进行第 2 遍。",
  "Strip {strip}, pass 1 of 2 again (lamp)": "色条 {strip}，第 1 遍（共 2 遍）重新读取（灯）",
- "The first pass did not read ({reason}). Read strip {strip} again as usual. ChromIQ then asks for its second pass, with the UV light.": "第 1 遍没有读取成功（{reason}）。请像平常一样重新读取色条 {strip}。之后 ChromIQ 会要求用 UV 光读取第 2 遍。"
+ "The first pass did not read ({reason}). Read strip {strip} again as usual. ChromIQ then asks for its second pass, with the UV light.": "第 1 遍没有读取成功（{reason}）。请像平常一样重新读取色条 {strip}。之后 ChromIQ 会要求用 UV 光读取第 2 遍。",
+ "ChromIQ is already running.": "ChromIQ 已在运行。"
 }

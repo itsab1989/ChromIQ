@@ -9738,5 +9738,6 @@
  "Strip {strip}: pass 1 did not read. Press the button once, then read pass 1 again": "ストリップ {strip}: パス 1 は読み取れませんでした。ボタンを一度押してから、パス 1 をもう一度読み取ってください",
  "The first pass of strip {strip} did not read, so ChromIQ does not ask for its second pass. Do not read the second pass. Leave the instrument where it is and press its button once, briefly: the instrument needs that press to finish the strip, and ChromIQ uses nothing from it. Then read pass 1 of strip {strip} again, as usual. Its second pass follows as always.": "ストリップ {strip} の 1 回目のパスが読み取れなかったため、ChromIQ は 2 回目のパスを求めません。2 回目のパスは読み取らないでください。測定器をその場に置いたまま、ボタンを一度だけ短く押してください。測定器はストリップを終えるためにこの押下を必要とし、ChromIQ はそこから何も使いません。その後、ストリップ {strip} のパス 1 をいつもどおりもう一度読み取ってください。2 回目のパスはいつもどおり続きます。",
  "Strip {strip}, pass 1 of 2 again (lamp)": "ストリップ {strip}、パス 1/2 をもう一度 (ランプ)",
- "The first pass did not read ({reason}). Read strip {strip} again as usual. ChromIQ then asks for its second pass, with the UV light.": "1 回目のパスが読み取れませんでした ({reason})。ストリップ {strip} をいつもどおりもう一度読み取ってください。その後 ChromIQ が UV ライトでの 2 回目のパスを求めます。"
+ "The first pass did not read ({reason}). Read strip {strip} again as usual. ChromIQ then asks for its second pass, with the UV light.": "1 回目のパスが読み取れませんでした ({reason})。ストリップ {strip} をいつもどおりもう一度読み取ってください。その後 ChromIQ が UV ライトでの 2 回目のパスを求めます。",
+ "ChromIQ is already running.": "ChromIQ は既に実行中です。"
 }
