@@ -2367,6 +2367,7 @@ class TableJob:
         stopped_because = d.closed_reason
         if stopped_because is not None:
             d.reopen_for_homing(stopped_because, cp.HOME_DETOUR)
+        declined = False
         try:
             # 4.3.57 (item 21): the arm moved further than its creep while the question
             # waited: read again (done) and ask again, instead of ending the measurement
@@ -2376,13 +2377,26 @@ class TableJob:
                     self._home_at_start(found, stage)
                     break
                 except _MovedWhileAsked as mv:
-                    found, asked_again = (yield from self._ask_again_after_a_move(
-                        mv, "home_at_start", asked_again, {"at_start": True, "inline": True}))
+                    try:
+                        found, asked_again = (yield from self._ask_again_after_a_move(
+                            mv, "home_at_start", asked_again,
+                            {"at_start": True, "inline": True}))
+                    except PersonStopped:
+                        declined = True
+                        raise
         except BaseException:
-            self.start_homing_failed = True
+            # fix round (review F2): "Not now" to the question asked AGAIN is the person's
+            # choice, the same as a "no" to the first one: nothing was sent that moves, so the
+            # homing did not fail and the flag (the window's "did not bring the arm home"
+            # page) stays off
+            if not declined:
+                self.start_homing_failed = True
             if stopped_because is not None:
-                d.close_for_sending("the homing at the start did not end at the resting place; "
-                                    "nothing more is sent in this measurement")
+                d.close_for_sending(
+                    "the person chose not to bring the arm home after it moved; nothing more "
+                    "is sent in this measurement" if declined else
+                    "the homing at the start did not end at the resting place; nothing more "
+                    "is sent in this measurement")
             raise
         finally:
             d.current_step = None
@@ -2473,6 +2487,7 @@ class TableJob:
         self._grant_for_run("f")
         self._start_block("home_after_stop")
         goes_on = False
+        declined = False
         try:
             asked_again = 0
             while True:                     # 4.3.57 (item 21), as in _start_homing
@@ -2480,13 +2495,18 @@ class TableJob:
                     self._home_at_start(found, "home_after_stop")
                     break
                 except _MovedWhileAsked as mv:
-                    found, asked_again = (yield from self._ask_again_after_a_move(
-                        mv, "home_after_stop", asked_again,
-                        {"after_a_stop": stopped_because is not None, "at_start": True,
-                         "form": "start"}))
+                    try:
+                        found, asked_again = (yield from self._ask_again_after_a_move(
+                            mv, "home_after_stop", asked_again,
+                            {"after_a_stop": stopped_because is not None, "at_start": True,
+                             "form": "start"}))
+                    except PersonStopped:
+                        declined = True     # fix round (review F2), as in _start_homing
+                        raise
             goes_on = self.ended is None
         except BaseException:
-            self.start_homing_failed = True
+            if not declined:
+                self.start_homing_failed = True
             raise
         finally:
             d.current_step = None
