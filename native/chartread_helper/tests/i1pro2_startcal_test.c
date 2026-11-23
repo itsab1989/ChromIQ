@@ -20,6 +20,11 @@
  * so a wavelength fit shows as a non-zero offset. The EEPROM-derived values
  * are invented in the shape of the driver's (no instrument data).
  *
+ * With "wl" as the second argument (4.3.59) it runs the wavelength report's
+ * scenarios instead (run_wl below): the source and offset the helper's
+ * "wavelength" event reports for a fresh calibration, a restored calibration
+ * file and the factory filters, and that the report makes no USB call.
+ *
  * ArgyllCMS saves its calibration to a file after a calibration: argv[1] is
  * the directory used as XDG_CACHE_HOME for that, and the program refuses to
  * run without it, so nothing is ever written to the person's cache.
@@ -56,6 +61,7 @@
 
 static const char *scn = "?";
 static int last_flags = -1;		/* the flags of the last 0xD4 trigger */
+static int io_count = 0;		/* every USB call the fake layer saw (4.3.59, the "wl" run) */
 
 static void hex(const unsigned char *b, int n) {
 	int i;
@@ -67,6 +73,7 @@ static int fake_control(icoms *p, int requesttype, int request, int value,
                         int index, unsigned char *rwbuf, int rwsize,
                         int *xferred, double tout) {
 	(void)p; (void)value; (void)index; (void)tout;
+	io_count++;
 	printf("%s CTL %02x ", scn, request & 0xff);
 	if ((requesttype & IUSB_ENDPOINT_DIR_MASK) == IUSB_ENDPOINT_OUT)
 		hex(rwbuf, rwsize);
@@ -90,6 +97,7 @@ static int fake_control(icoms *p, int requesttype, int request, int value,
 static int fake_write(icoms *p, usb_cancelt *c, int ep, unsigned char *wbuf,
                       int wsize, int *bwritten, double tout) {
 	(void)p; (void)c; (void)tout;
+	io_count++;
 	printf("%s WR %02x ", scn, ep & 0xff);
 	hex(wbuf, wsize);
 	printf("\n");
@@ -127,6 +135,7 @@ static int fake_read(icoms *p, usb_cancelt *c, int ep, unsigned char *buf,
                      int bsize, int *bread, double tout) {
 	int i;
 	(void)p; (void)tout;
+	io_count++;
 	if ((ep & 0xff) == 0x82 && c != NULL) {	/* the read began: the trigger may go */
 		amutex_lock(c->cmtx);
 		if (c->state == 0) {
@@ -385,6 +394,119 @@ static void run(const char *name, int mode) {
 	fflush(stdout);
 }
 
+/* ---- 4.3.59: the wavelength report (cq_i1pro2_wlreport.h) ----------------
+ * "wl" as the second argument runs these instead of the three above. Each
+ * scenario opens a fresh instrument object the way i1pro_imp_init does after
+ * its EEPROM (i1pro_restore_calibration, then the filters recomputed when mode
+ * 0's wavelength calibration was restored) and prints the helper's
+ * "wavelength" event exactly as cq_emit_wavelength builds it ("WLEVENT ...")
+ * and how many USB calls the report itself made ("WLIO n", always 0). */
+static void reset_wl(void) {
+	i1pro_cq_wl_fresh = 0;
+	i1pro_cq_wl_restore = 0;
+	i1pro_cq_wl_modes_ok = 0;
+	i1pro_cq_wl_modes_skipped = 0;
+	i1pro_cq_wl_filters = 0;
+	i1pro_cq_wl_filters_off = 0.0;
+}
+
+static void open_like_init(i1pro *p) {
+	i1proimp *m = (i1proimp *)p->m;
+	reset_wl();					/* a new helper process starts with these at 0 */
+	i1pro_restore_calibration(p);
+	if (m->ms[0].wl_valid) {
+		if (i1pro_compute_wav_filters(p, 0, 0) != I1PRO_OK
+		 || i1pro_compute_wav_filters(p, 0, 1) != I1PRO_OK) {
+			fprintf(stderr, "filters failed\n");
+			exit(2);
+		}
+	}
+}
+
+static void wl_event(i1pro *p, const char *when) {
+	char frag[320];
+	int before = io_count, rv;
+	rv = i1pro2_cq_wl_report(p, frag, (int)sizeof(frag));
+	if (rv != 0)
+		printf("%s WLEVENT none\n", scn);
+	else
+		printf("%s WLEVENT {\"event\":\"wavelength\",\"when\":\"%s\",%s}\n", scn, when, frag);
+	printf("%s WLIO %d\n", scn, io_count - before);
+	fflush(stdout);
+}
+
+static void close_it(i1pro *p) {
+	icoms *ic = p->icom;
+	a1log *lg = p->log;
+	del_i1proimp(p);
+	free(p);
+	free(ic);
+	del_a1log(lg);
+	printf("%s END\n", scn);
+	fflush(stdout);
+}
+
+/* the calibration file of serial *from* copied to the name of serial *to* */
+static void copy_cal(const char *cache, int from, int to) {
+	char a[1024], b[1024];
+	FILE *fi, *fo;
+	int c;
+	snprintf(a, sizeof(a), "%s/ArgyllCMS/.i1p_%d.cal", cache, from);
+	snprintf(b, sizeof(b), "%s/ArgyllCMS/.i1p_%d.cal", cache, to);
+	if ((fi = fopen(a, "rb")) == NULL || (fo = fopen(b, "wb")) == NULL) {
+		fprintf(stderr, "copy_cal: %s\n", a);
+		exit(2);
+	}
+	while ((c = fgetc(fi)) != EOF)
+		fputc(c, fo);
+	fclose(fi);
+	fclose(fo);
+}
+
+static void run_wl(const char *cache) {
+	i1pro *p;
+	i1proimp *m;
+	int ev;
+
+	scn = "wl-nofile";			/* no calibration file at all */
+	p = make();
+	open_like_init(p);
+	wl_event(p, "open");
+	close_it(p);
+
+	scn = "wl-fresh";			/* a calibration in this process (it writes the file) */
+	p = make();
+	open_like_init(p);
+	wl_event(p, "open");
+	ev = calibrate(p, inst_calt_needed);
+	printf("%s CALIBRATED ev 0x%x\n", scn, ev);
+	wl_event(p, "calibrated");
+	close_it(p);
+
+	scn = "wl-file";			/* the next process: restored from that file */
+	p = make();
+	open_like_init(p);
+	wl_event(p, "open");
+	close_it(p);
+
+	scn = "wl-modes";			/* mode 0's settings differ from the file's */
+	p = make();
+	m = (i1proimp *)p->m;
+	m->ms[0].inttime = 0.7;
+	open_like_init(p);
+	wl_event(p, "open");
+	close_it(p);
+
+	scn = "wl-ident";			/* a file whose identification fails (another serial) */
+	copy_cal(cache, 987654, 987655);
+	p = make();
+	m = (i1proimp *)p->m;
+	m->serno = 987655;
+	open_like_init(p);
+	wl_event(p, "open");
+	close_it(p);
+}
+
 int main(int argc, char *argv[]) {
 	if (argc < 2 || argv[1][0] == '\0') {
 		fprintf(stderr, "usage: i1pro2_startcal_test <scratch directory for ArgyllCMS's calibration file>\n");
@@ -396,6 +518,11 @@ int main(int argc, char *argv[]) {
 #else
 	setenv("XDG_CACHE_HOME", argv[1], 1);
 #endif
+	if (argc > 2 && strcmp(argv[2], "wl") == 0) {
+		run_wl(argv[1]);
+		printf("ALL DONE\n");
+		return 0;
+	}
 	run("normal", 0);
 	run("dual-4357", 1);
 	run("dual", 2);

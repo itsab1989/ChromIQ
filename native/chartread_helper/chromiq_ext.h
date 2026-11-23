@@ -85,6 +85,7 @@ extern int i1pro2_cq_lights_held_after_blue;	/* 4.3.52: the last hold counted fr
 extern int i1pro2_cq_lights_blue_quiet_set_ms;	/* 4.3.53: the blue's wait from --lights-blue-quiet-ms; -1 = 370 */
 extern int i1pro_cq_lamp_off_ms;	/* 4.3.53: ArgyllCMS's lamp wait from --lamp-off-ms; -1 = 1500 */
 extern int i1pro2_cq_lamp_off_ms;	/* after 4.3.54: the i1Pro 2's own, --lamp-off-ms-i1pro2; -1 = see i1pro_imp.c */
+int i1pro2_cq_wl_report(void *pp, char *buf, int len);	/* 4.3.59: the wavelength offset the filters use; reads only */
 void cq_lights_take_pending(void);	/* carries out a pending lights off / exit */
 /* ...and the i1Pro 3's (i1pro3_imp.c), the same prototypes as i1pro3_imp.h. */
 int i1pro3_cq_lights_begin(void *pp);
@@ -160,7 +161,7 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src);
  *
  * ⚠ BUMP THIS IN THE SAME COMMIT AS ANY CHANGE TO THE HELPER, and rebuild and
  * commit native/chromiq-chartread. The test tells you the expected value. */
-#define CQ_HELPER_BUILD "chromiq-chartread 2026-11-23b legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures+exit-guard+save-after-close+i1pro2-lights+i1pro3-lights+i1pro3-lights-choices+ruler-check+usb-step-detail+i1pro2-beta-paused+i1pro2-lights-quiet+resume-spectral-check+hold-interruptible+i1pro2-ruler-back+own-row-direction+turn-round+filter-event+i1pro3-conditions+conditions-commit-last+margin-tolerance+ruler-trigger-wait+margin-one-way+margin-accounted+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule+i1pro2-dual-device+i1pro2-dual-safety+i1io-table-dual+i1io-table-dual-fix2+i1io-table-dual-calreset+i1pro2-dual-gaps+conditions-kept+lights-quiet+i1pro2-dual-blue+blue-own-quiet+blue-quiet-return-only+instrument-waits+blue-side+i1pro2-dual-fresh-start+uv-whole-middle+i1pro2-dual-pace+uv-window-gate+lamp-off-i1pro2+uv-aligned+uv-fallback-window+lamp-refused-no-blue+dual-startup-wavelength"
+#define CQ_HELPER_BUILD "chromiq-chartread 2026-11-23c legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures+exit-guard+save-after-close+i1pro2-lights+i1pro3-lights+i1pro3-lights-choices+ruler-check+usb-step-detail+i1pro2-beta-paused+i1pro2-lights-quiet+resume-spectral-check+hold-interruptible+i1pro2-ruler-back+own-row-direction+turn-round+filter-event+i1pro3-conditions+conditions-commit-last+margin-tolerance+ruler-trigger-wait+margin-one-way+margin-accounted+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule+i1pro2-dual-device+i1pro2-dual-safety+i1io-table-dual+i1io-table-dual-fix2+i1io-table-dual-calreset+i1pro2-dual-gaps+conditions-kept+lights-quiet+i1pro2-dual-blue+blue-own-quiet+blue-quiet-return-only+instrument-waits+blue-side+i1pro2-dual-fresh-start+uv-whole-middle+i1pro2-dual-pace+uv-window-gate+lamp-off-i1pro2+uv-aligned+uv-fallback-window+lamp-refused-no-blue+dual-startup-wavelength+wavelength-report"
 const char *cq_helper_build_string(void);
 
 
@@ -396,6 +397,11 @@ inst *cq_new_replay_inst(a1log *log,
 /* JSON-mode replacement for instappsup's inst_handle_calibrate(): same
  * state machine, but prompts become cal_* events and answers arrive as
  * commands. Never reads the console. */
+/* 4.3.59: one {"event":"wavelength","when":...} for an i1Pro 2: which wavelength
+ * offset its filters use and where it came from (a calibration in this process, the
+ * restored calibration file, or the factory filters). Reads the driver's state only:
+ * nothing is sent to the instrument. Prints nothing for any other instrument. */
+void cq_emit_wavelength(inst *it, const char *when);
 inst_code cq_handle_calibrate(inst *p, inst_cal_type calt, inst_cal_cond calc,
 	int doimmediately);
 /* A calibration the user asked for: inst_calt_available, with prompts that

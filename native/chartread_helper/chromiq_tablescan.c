@@ -501,6 +501,9 @@ int cq_run_table_scan(int comport, flow_control fc, const char *outdir,
 	}
 	cq_emit_raw("{\"event\":\"tscan_instrument\",\"t\":%u,\"model\":\"%s\"}",
 	            msec_time(), inst_name(it->get_itype(it)));
+	/* 4.3.59: the wavelength offset this row process reads with (restored file or factory
+	 * filters; a "tscan_calibrate" reports its own); the log only, nothing sent */
+	cq_emit_wavelength(it, "open");
 	if (cq_tscan_dual)
 		ts_dual_start(it);
 

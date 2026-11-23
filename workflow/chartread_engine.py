@@ -162,6 +162,47 @@ def parse_engine_line(line: str) -> dict | None:
     return ev if isinstance(ev, dict) and "event" in ev else None
 
 
+#: 4.3.59: what the helper's "wavelength" event's "source" means, for the log
+WAVELENGTH_SOURCES = {
+    "calibration": "fitted by a wavelength calibration in this reader process",
+    "file": "restored from the saved calibration file",
+    "factory": "the instrument's factory filters (no wavelength calibration in use)",
+}
+
+
+def wavelength_text(ev: dict) -> str:
+    """4.3.59: one log line for the helper's "wavelength" event (an i1Pro 2): the wavelength
+    offset its filters use and where it came from. Diagnostics only: the helper reports it
+    after opening the instrument and after each calibration, and sends nothing for it.
+    Never raises."""
+    try:
+        src = str(ev.get("source") or "?")
+        nm = float(ev.get("offset_nm") or 0.0)
+        raw = float(ev.get("offset_raw") or 0.0)
+        age = ev.get("age_s")
+        age_txt = (f", calibrated {int(age)} s ago" if isinstance(age, (int, float)) and age >= 0
+                   else "")
+        return (f"wavelength offset {nm:+.3f} nm ({raw:+.3f} raw bins) at {ev.get('when', '?')}: "
+                f"{WAVELENGTH_SOURCES.get(src, src)}{age_txt}; calibration file: "
+                f"{ev.get('restore', '?')}, {ev.get('modes_restored', '?')} modes restored, "
+                f"{ev.get('modes_skipped', '?')} not (settings differ)")
+    except Exception:      # noqa: BLE001 - a log line never stands in the way
+        return f"wavelength event {ev!r}"[:400]
+
+
+def log_wavelength(ev: dict, where: str) -> None:
+    """The app log's line for a "wavelength" event (*where*: "table" or "hand"). Never
+    raises."""
+    try:
+        from core.app_log import line
+        line("i1pro2 wavelength", where=where, when=ev.get("when"), source=ev.get("source"),
+             offset_nm=ev.get("offset_nm"), offset_raw=ev.get("offset_raw"),
+             restore=ev.get("restore"), modes_restored=ev.get("modes_restored"),
+             modes_skipped=ev.get("modes_skipped"), age_s=ev.get("age_s"))
+    except Exception:      # noqa: BLE001
+        pass
+
+
 # Keystroke → command translation. The engine understands the same key
 # semantics as chartread's console — this map keeps MeasureManager's
 # existing send_key('f'|'\r'|…) call sites working unchanged when the

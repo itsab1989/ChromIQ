@@ -275,11 +275,11 @@ def test_the_helper_sends_no_blue_after_a_refused_first_pass():
     assert "it->read_strip(it, \"STRIP\", npatch, (char *)strip" in dd
     ext = (ROOT / "native" / "chartread_helper" / "chromiq_ext.h").read_text(
         encoding="utf-8")
-    assert '"chromiq-chartread 2026-11-23b ' in ext and "+lamp-refused-no-blue" in ext
+    assert '"chromiq-chartread 2026-11-23c ' in ext and "+lamp-refused-no-blue" in ext
     binary = ROOT / "native" / "chromiq-chartread"
     if binary.exists():
         data = binary.read_bytes()
-        assert b"chromiq-chartread 2026-11-23b " in data and b"lamp_refused" in data
+        assert b"chromiq-chartread 2026-11-23c " in data and b"lamp_refused" in data
 
 
 SIM = ROOT / "tests" / "helpers" / "dual_sim_helper.py"

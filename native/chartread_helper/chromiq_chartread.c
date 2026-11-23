@@ -3587,6 +3587,9 @@ a1log *log			/* verb, debug & error log */
 		 * rate for the per-patch pace calculation. */
 		cq_emit_raw("{\"event\":\"instrument\",\"model\":\"%s\",\"chart_model\":\"%s\"}",
 		            inst_name(*atype), inst_name(itype));
+		/* 4.3.59: which wavelength offset an i1Pro 2 reads with as it was opened (the
+		 * restored calibration file or the factory filters); the log only, nothing sent */
+		cq_emit_wavelength(it, "open");
 
 		{
 			int ccssset = 0;

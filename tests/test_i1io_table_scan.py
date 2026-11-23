@@ -207,7 +207,9 @@ def test_the_driver_file_is_4_3_44s_plus_one_include():
     # 4.3.52: the lights' dual-scan blue and quiet time, applied last (their own list);
     # 4.3.53: the waits as values, applied after those (undone first)
     # 4.3.53 (the tester Nelson): the blue's side, applied last (undone first)
-    for old, new in (list(reversed(_vendor_module()["I1PRO_IMP_C_BLUESIDE_453"]))
+    # 4.3.59: the wavelength report, applied last (undone first)
+    for old, new in (list(reversed(_vendor_module()["I1PRO_IMP_C_WL_459"]))
+                     + list(reversed(_vendor_module()["I1PRO_IMP_C_BLUESIDE_453"]))
                      + list(reversed(_vendor_module()["I1PRO_IMP_C_WAITS_453"]))
                      + list(reversed(_vendor_module()["I1PRO_IMP_C_LIGHTS_452"]))
                      + list(reversed(_vendor_module()["I1PRO_IMP_C_DUAL"]))):
@@ -299,13 +301,15 @@ def test_the_build_string():
     # 2026-11-23a = 21f + no blue after a refused first pass (4.3.58 item 17; nothing for the
     # table);
     # 2026-11-23b = 23a + the hand dual scan's start-up calibration asks for the LED wavelength
-    # calibration too (4.3.58 item 40; nothing for the table), last
-    assert "chromiq-chartread 2026-11-23b " in h
+    # calibration too (4.3.58 item 40; nothing for the table);
+    # 2026-11-23c = 23b + the "wavelength" event, the offset the filters use and where it came
+    # from (4.3.59; each table row process reports it, nothing sent changes), last
+    assert "chromiq-chartread 2026-11-23c " in h
     assert ("+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule"
             "+i1pro2-dual-device+i1pro2-dual-safety+i1io-table-dual+i1io-table-dual-fix2"
             "+i1io-table-dual-calreset+i1pro2-dual-gaps+conditions-kept+lights-quiet"
             "+i1pro2-dual-blue+blue-own-quiet+blue-quiet-return-only+instrument-waits"
-            "+blue-side+i1pro2-dual-fresh-start+uv-whole-middle+i1pro2-dual-pace+uv-window-gate+lamp-off-i1pro2+uv-aligned+uv-fallback-window+lamp-refused-no-blue+dual-startup-wavelength\"") in h
+            "+blue-side+i1pro2-dual-fresh-start+uv-whole-middle+i1pro2-dual-pace+uv-window-gate+lamp-off-i1pro2+uv-aligned+uv-fallback-window+lamp-refused-no-blue+dual-startup-wavelength+wavelength-report\"") in h
 
 
 def _base_tree(tmp: Path) -> Path:

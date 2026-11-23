@@ -463,7 +463,7 @@ def test_the_helper_names_the_new_abilities_and_build():
     assert '\\"lights_quiet\\",\\"i1pro2_dual_blue\\"' in h
     ext = (HELPER_SRC / "chromiq_ext.h").read_text(encoding="utf-8")
     # 4.3.53: 2026-11-20d = 20c + the waits as values (tests/test_instrument_waits.py)
-    assert '"chromiq-chartread 2026-11-23b ' in ext
+    assert '"chromiq-chartread 2026-11-23c ' in ext
     assert "+conditions-kept+lights-quiet+i1pro2-dual-blue+blue-own-quiet+blue-quiet-return-only" in ext
 
 
@@ -483,7 +483,7 @@ def test_the_bundled_helper_is_this_build():
     if not exe.is_file():
         pytest.skip("no bundled helper in this checkout")
     data = exe.read_bytes()
-    assert b"chromiq-chartread 2026-11-23b " in data
+    assert b"chromiq-chartread 2026-11-23c " in data
     assert b'"why\\":\\"early\\"' in data or b'"why":"early"' in data
     assert b"blue_quiet_ms" in data and b'"after":"blue"' in data
 

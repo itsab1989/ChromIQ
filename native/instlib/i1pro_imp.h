@@ -1555,6 +1555,11 @@ extern int i1pro2_cq_lights_held_after_blue;	/* the last hold counted from the B
 extern int i1pro2_cq_lights_blue_quiet_set_ms;	/* the BLUE's quiet time from the helper, ms (4.3.53); -1 = CQ_LIGHTS_BLUE_QUIET_MS */
 extern int i1pro_cq_lamp_off_ms;	/* the lamp wait from the helper, ms (4.3.53); -1 = LAMP_OFF_TIME */
 extern int i1pro2_cq_lamp_off_ms;	/* the i1Pro 2's lamp wait from the helper, ms (after 4.3.54); -1 = see CQ_LAMP_OFF_TIME */
+/* 4.3.59: the wavelength offset the filters use, for the helper's log only (cq_i1pro2_wlreport.h) */
+extern int i1pro_cq_wl_fresh, i1pro_cq_wl_restore, i1pro_cq_wl_modes_ok, i1pro_cq_wl_modes_skipped;
+extern int i1pro_cq_wl_filters;
+extern double i1pro_cq_wl_filters_off;
+int i1pro2_cq_wl_report(void *pp, char *buf, int len);	/* 4.3.59: 0 and a JSON fragment for an i1Pro 2, else -1 */
 extern void (*i1pro2_cq_lights_hold_poll)(void);	/* asked during a hold (4.3.37) */
 
 #ifdef __cplusplus

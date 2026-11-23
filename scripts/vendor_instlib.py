@@ -2238,6 +2238,78 @@ I1PRO_IMP_H_BLUESIDE_453 = [
 PATCHES["i1pro_imp.c"] = _fold_dual(PATCHES["i1pro_imp.c"], I1PRO_IMP_C_BLUESIDE_453)
 PATCHES["i1pro_imp.h"] = _fold_dual(PATCHES["i1pro_imp.h"], I1PRO_IMP_H_BLUESIDE_453)
 
+# ---- 4.3.59: which wavelength offset the i1Pro 2's filters use, REPORTED ONLY ----
+# A tester's i1iO table strips showed a -1.25 nm shift. Every table row is a new helper
+# process that does not calibrate: it reads with what i1pro_restore_calibration restored, and a
+# file that fails its identification, or a mode whose settings differ, leaves the EEPROM's
+# factory filters without a word. These pairs only WRITE ChromIQ's own variables at the points
+# where ArgyllCMS restores, fits or uses the offset; nothing in the driver reads them, no
+# request is added or changed, nothing is written to the instrument. The helper reads them
+# through i1pro2_cq_wl_report (ChromIQ's own cq_i1pro2_wlreport.h, included at the end of the
+# file) and prints one "wavelength" event. Pairs 1-8 patch ArgyllCMS's own text; the last is
+# folded into the dual scan's include (see _fold_dual).
+I1PRO_IMP_C_WL_459 = [
+    ("#define PATCH_CONS_THR 0.1\t\t/* Dark measurement consistency threshold */\n",
+     "#define PATCH_CONS_THR 0.1\t\t/* Dark measurement consistency threshold */\n"
+     "/* CHROMIQ PATCH (4.3.59): where the wavelength offset of the filters came\n"
+     " * from, for the helper's log only (cq_i1pro2_wlreport.h). Written at the\n"
+     " * points below, never read by the driver: nothing sent changes. */\n"
+     "int i1pro_cq_wl_fresh = 0;\t\t/* 1 = a wavelength-LED calibration ran in this process */\n"
+     "int i1pro_cq_wl_restore = 0;\t/* the calibration file: 0 none found, 1 not readable, */\n"
+     "\t\t\t\t\t\t\t\t/* 2 identification, 3 mode list, 4 checksum, 5 read */\n"
+     "int i1pro_cq_wl_modes_ok = 0;\t/* bit i: mode i restored from the file */\n"
+     "int i1pro_cq_wl_modes_skipped = 0;\t/* bit i: mode i not restored (its settings differ) */\n"
+     "int i1pro_cq_wl_filters = 0;\t/* 1 = the reflective filters were computed with an offset */\n"
+     "double i1pro_cq_wl_filters_off = 0.0;\t/* the wl_led_off they were computed with */\n"),
+    ('\ta1logd(p->log,2,"i1pro_compute_wav_filters called hr %d refl %d with correction %f raw\\n",hr,refl,s->wl_led_off - m->wl_led_ref_off);\n',
+     '\ta1logd(p->log,2,"i1pro_compute_wav_filters called hr %d refl %d with correction %f raw\\n",hr,refl,s->wl_led_off - m->wl_led_ref_off);\n'
+     "\tif (!hr && refl) {\t/* CHROMIQ PATCH (4.3.59): noted for the log only */\n"
+     "\t\ti1pro_cq_wl_filters = 1;\n"
+     "\t\ti1pro_cq_wl_filters_off = s->wl_led_off;\n"
+     "\t}\n"),
+    ("\t\t\t*calt &= ~inst_calt_wavelength;\n",
+     "\t\t\t*calt &= ~inst_calt_wavelength;\n"
+     "\t\t\ti1pro_cq_wl_fresh = 1;\t/* CHROMIQ PATCH (4.3.59): noted for the log only */\n"),
+    ('\ta1logd(p->log,2,"i1pro_restore_calibration restoring from file \'%s\'\\n",cal_paths[0]);\n',
+     '\ta1logd(p->log,2,"i1pro_restore_calibration restoring from file \'%s\'\\n",cal_paths[0]);\n'
+     "\ti1pro_cq_wl_restore = 5;\t/* CHROMIQ PATCH (4.3.59): for the log; a failure below says which */\n"
+     "\ti1pro_cq_wl_modes_ok = i1pro_cq_wl_modes_skipped = 0;\n"),
+    ('\t\ta1logd(p->log,2,"i1pro_restore_calibration failed to open file for reading\\n");\n',
+     '\t\ta1logd(p->log,2,"i1pro_restore_calibration failed to open file for reading\\n");\n'
+     "\t\ti1pro_cq_wl_restore = 1;\t/* CHROMIQ PATCH (4.3.59): for the log only */\n"),
+    ('\t\ta1logd(p->log,2,"Identification didn\'t verify\\n");\n',
+     '\t\ta1logd(p->log,2,"Identification didn\'t verify\\n");\n'
+     "\t\ti1pro_cq_wl_restore = 2;\t/* CHROMIQ PATCH (4.3.59): for the log only */\n"),
+    ('\t\t\ta1logd(p->log,2,"Mode config. didn\'t verify\\n");\n',
+     '\t\t\ta1logd(p->log,2,"Mode config. didn\'t verify\\n");\n'
+     "\t\t\ti1pro_cq_wl_restore = 3;\t/* CHROMIQ PATCH (4.3.59): for the log only */\n"),
+    ('\t\ta1logd(p->log,2,"Checksum didn\'t verify, bytes %d, got 0x%x, expected 0x%x\\n",nbytes,chsum1, chsum2);\n',
+     '\t\ta1logd(p->log,2,"Checksum didn\'t verify, bytes %d, got 0x%x, expected 0x%x\\n",nbytes,chsum1, chsum2);\n'
+     "\t\ti1pro_cq_wl_restore = 4;\t/* CHROMIQ PATCH (4.3.59): for the log only */\n"),
+    ("\t\t\ts->wl_led_off = ts.wl_led_off;\n",
+     "\t\t\ts->wl_led_off = ts.wl_led_off;\n"
+     "\t\t\ti1pro_cq_wl_modes_ok |= 1 << i;\t/* CHROMIQ PATCH (4.3.59): for the log only */\n"),
+    ('\t\t\ta1logd(p->log,2,"Not restoring cal for mode %d since params don\'t match:\\n",i);\n',
+     '\t\t\ta1logd(p->log,2,"Not restoring cal for mode %d since params don\'t match:\\n",i);\n'
+     "\t\t\ti1pro_cq_wl_modes_skipped |= 1 << i;\t/* CHROMIQ PATCH (4.3.59): for the log only */\n"),
+    ('/* unless ChromIQ\'s helper switches the dual scan on. */\n#include "cq_i1pro2_dual.h"\n',
+     '/* unless ChromIQ\'s helper switches the dual scan on. */\n#include "cq_i1pro2_dual.h"\n'
+     "\n/* CHROMIQ PATCH (4.3.59): the wavelength offset the filters use, reported */\n"
+     "/* for the helper's log (cq_i1pro2_wlreport.h, ChromIQ's own); reads only. */\n"
+     '#include "cq_i1pro2_wlreport.h"\n'),
+]
+I1PRO_IMP_H_WL_459 = [
+    ("extern int i1pro2_cq_lamp_off_ms;\t/* the i1Pro 2's lamp wait from the helper, ms (after 4.3.54); -1 = see CQ_LAMP_OFF_TIME */\n",
+     "extern int i1pro2_cq_lamp_off_ms;\t/* the i1Pro 2's lamp wait from the helper, ms (after 4.3.54); -1 = see CQ_LAMP_OFF_TIME */\n"
+     "/* 4.3.59: the wavelength offset the filters use, for the helper's log only (cq_i1pro2_wlreport.h) */\n"
+     "extern int i1pro_cq_wl_fresh, i1pro_cq_wl_restore, i1pro_cq_wl_modes_ok, i1pro_cq_wl_modes_skipped;\n"
+     "extern int i1pro_cq_wl_filters;\n"
+     "extern double i1pro_cq_wl_filters_off;\n"
+     "int i1pro2_cq_wl_report(void *pp, char *buf, int len);\t/* 4.3.59: 0 and a JSON fragment for an i1Pro 2, else -1 */\n"),
+]
+PATCHES["i1pro_imp.c"] = _fold_dual(PATCHES["i1pro_imp.c"], I1PRO_IMP_C_WL_459)
+PATCHES["i1pro_imp.h"] = _fold_dual(PATCHES["i1pro_imp.h"], I1PRO_IMP_H_WL_459)
+
 # (source-relative, dest-name) — dest flat like the instlib zip
 FILES = []
 
@@ -2529,6 +2601,21 @@ prov.write_text(
     "  reads it with an acquire load); not known (fewer than 100 steps, no\n"
     "  stream): the left blue. Same request, same moment, same waits. No EEPROM\n"
     "  write. Not tested on a real instrument by the project.\n"
+    "\n"
+    "- **`i1pro_imp.c`, `i1pro_imp.h`: the wavelength offset, reported**\n"
+    "  (ChromIQ 4.3.59). Ten small additions (the variables, then nine places\n"
+    "  that set them) that only WRITE ChromIQ's own\n"
+    "  `i1pro_cq_wl_*` variables where ArgyllCMS restores its calibration file\n"
+    "  (which check failed, which modes it restored), fits the wavelength-LED\n"
+    "  offset, and computes the reflective filters (the offset used). Nothing in\n"
+    "  the driver reads them. One `#include \"cq_i1pro2_wlreport.h\"` at the end of\n"
+    "  the file (ChromIQ's own, never written by this script):\n"
+    "  `i1pro2_cq_wl_report`, which reads them and the driver's state for the\n"
+    "  helper's \"wavelength\" log event. No request is added or changed, nothing\n"
+    "  is written to the instrument, and the calibration file's layout is\n"
+    "  unchanged (no struct grew). Proved on the fake USB layer\n"
+    "  (`chartread_helper/tests/i1pro2_startcal_test.c`, run \"wl\"): no USB call,\n"
+    "  and the start-up calibration's wire trace is byte for byte 4.3.58's.\n"
     "\n"
     "| patched file | upstream sha256 (first 16) | shipped sha256 (first 16) |\n"
     "|---|---|---|\n" + "\n".join(patched) + "\n\n"

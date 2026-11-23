@@ -54,6 +54,20 @@ static const char *cq_calc_name(inst_cal_cond calc) {
 	}
 }
 
+/* CHROMIQ_EXT (4.3.59): the wavelength offset an i1Pro 2's filters use, for the
+ * log (chromiq_ext.h). i1pro2_cq_wl_report reads the driver's state only; this
+ * sends nothing to the instrument. */
+void cq_emit_wavelength(inst *it, const char *when) {
+	char frag[320];
+	/* only ArgyllCMS's own i1Pro driver object: the replay instrument of the
+	 * tests can call itself an i1Pro 2 and has none of the driver's state */
+	if (it == NULL || cq_replay_path != NULL || it->get_itype(it) != instI1Pro2)
+		return;
+	if (i1pro2_cq_wl_report((void *)it, frag, (int)sizeof(frag)) != 0)
+		return;
+	cq_emit_raw("{\"event\":\"wavelength\",\"when\":\"%s\",%s}", when, frag);
+}
+
 /* CHROMIQ_EXT: the i1Pro 2 dual scan (step 2): the tile's UV reading right
  * after a successful calibration, while the instrument is still on the tile
  * (chromiq_dualdev.c sets it only for a real i1Pro 2 dual session). */
@@ -86,6 +100,7 @@ inst_code cq_handle_calibrate(inst *p, inst_cal_type calt, inst_cal_cond calc,
 			}
 			if (cq_cal_done_hook != NULL)
 				cq_cal_done_hook(p);	/* the i1Pro 2 dual scan (step 2) */
+			cq_emit_wavelength(p, "calibrated");	/* 4.3.59: the log only */
 			if (usermes)
 				cq_emit_simple("cal_done");
 			return ev;
@@ -203,6 +218,7 @@ int cq_run_requested_calibration(inst *p, int *prompted, char *detail,
 			}
 			if (cq_cal_done_hook != NULL)
 				cq_cal_done_hook(p);	/* the i1Pro 2 dual scan (step 2) */
+			cq_emit_wavelength(p, "calibrated");	/* 4.3.59: the log only */
 			return CQ_CALREQ_DONE;
 		}
 		if ((ev & inst_mask) == inst_unsupported)

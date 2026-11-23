@@ -407,7 +407,8 @@ target_link_libraries(i1pro2_dual_test PRIVATE instlib)
 
 # The i1Pro 2's start-up calibration, normal and dual (4.3.58, item 40): the
 # real i1pro_imp_calibrate on the fake USB layer
-# (tests/test_i1pro2_dual_startup_calibration.py).
+# (tests/test_i1pro2_dual_startup_calibration.py); with "wl", the wavelength
+# report (4.3.59, tests/test_i1pro2_wavelength_report.py).
 add_executable(i1pro2_startcal_test EXCLUDE_FROM_ALL
   ${CMAKE_CURRENT_SOURCE_DIR}/tests/i1pro2_startcal_test.c
   ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_dualscan.c

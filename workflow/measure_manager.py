@@ -5562,6 +5562,13 @@ class MeasureManager(QObject):
             # engine failure worth retrying on stock chartread.
             self._user_quit = True
 
+        elif kind == "wavelength":
+            # 4.3.59: the i1Pro 2's wavelength offset and where it came from (the helper
+            # reports it after opening and after each calibration); the app log only
+            from workflow.chartread_engine import log_wavelength, wavelength_text
+            log.info("engine: %s", wavelength_text(ev))
+            log_wavelength(ev, "hand")
+
         elif kind in ("cal_done", "cal_message"):
             if kind == "cal_done":
                 self._cal_retries_left = self._cal_auto_retries

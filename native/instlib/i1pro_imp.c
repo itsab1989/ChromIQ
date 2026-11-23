@@ -209,6 +209,16 @@ int i1pro2_cq_lamp_off_ms = -1;
                           : (i1pro_cq_lamp_off_ms >= 0 && i1pro_cq_lamp_off_ms <= 5000) \
                           ? (unsigned int)i1pro_cq_lamp_off_ms : (unsigned int)CQ_LAMP_OFF_TIME_I1PRO2)
 #define PATCH_CONS_THR 0.1		/* Dark measurement consistency threshold */
+/* CHROMIQ PATCH (4.3.59): where the wavelength offset of the filters came
+ * from, for the helper's log only (cq_i1pro2_wlreport.h). Written at the
+ * points below, never read by the driver: nothing sent changes. */
+int i1pro_cq_wl_fresh = 0;		/* 1 = a wavelength-LED calibration ran in this process */
+int i1pro_cq_wl_restore = 0;	/* the calibration file: 0 none found, 1 not readable, */
+								/* 2 identification, 3 mode list, 4 checksum, 5 read */
+int i1pro_cq_wl_modes_ok = 0;	/* bit i: mode i restored from the file */
+int i1pro_cq_wl_modes_skipped = 0;	/* bit i: mode i not restored (its settings differ) */
+int i1pro_cq_wl_filters = 0;	/* 1 = the reflective filters were computed with an offset */
+double i1pro_cq_wl_filters_off = 0.0;	/* the wl_led_off they were computed with */
 
 #define USE_RD_SYNC				/* Use mutex syncronisation, else depend on TRIG_DELAY */
 #define TRIG_DELAY 10			/* Measure trigger delay to allow pending read, msec */
@@ -1813,6 +1823,7 @@ i1pro_code i1pro_imp_calibrate(
 			s->wl_valid = 1;
 			s->wldate = cdate;
 			*calt &= ~inst_calt_wavelength;
+			i1pro_cq_wl_fresh = 1;	/* CHROMIQ PATCH (4.3.59): noted for the log only */
 
 			/* Save the calib to all modes */
 			a1logd(p->log,5,"Saving wavelength calib to similar modes\n");
@@ -4555,6 +4566,8 @@ i1pro_code i1pro_restore_calibration(i1pro *p) {
 	}
 
 	a1logd(p->log,2,"i1pro_restore_calibration restoring from file '%s'\n",cal_paths[0]);
+	i1pro_cq_wl_restore = 5;	/* CHROMIQ PATCH (4.3.59): for the log; a failure below says which */
+	i1pro_cq_wl_modes_ok = i1pro_cq_wl_modes_skipped = 0;
 
 	/* Check the last modification time */
 	{
@@ -4570,6 +4583,7 @@ i1pro_code i1pro_restore_calibration(i1pro *p) {
 
 	if ((fp = fopen(cal_paths[0], nmode)) == NULL) {
 		a1logd(p->log,2,"i1pro_restore_calibration failed to open file for reading\n");
+		i1pro_cq_wl_restore = 1;	/* CHROMIQ PATCH (4.3.59): for the log only */
 		xdg_free(cal_paths, no_paths);
 		return I1PRO_INT_CAL_RESTORE;
 	}
@@ -4595,6 +4609,7 @@ i1pro_code i1pro_restore_calibration(i1pro *p) {
 	 || nwav0 != m->nwav[0]
 	 || nwav1 != m->nwav[1]) {
 		a1logd(p->log,2,"Identification didn't verify\n");
+		i1pro_cq_wl_restore = 2;	/* CHROMIQ PATCH (4.3.59): for the log only */
 		goto reserr;
 	}
 
@@ -4625,6 +4640,7 @@ i1pro_code i1pro_restore_calibration(i1pro *p) {
 		 || ambient != s->ambient
 		 || adaptive != s->adaptive) {
 			a1logd(p->log,2,"Mode config. didn't verify\n");
+			i1pro_cq_wl_restore = 3;	/* CHROMIQ PATCH (4.3.59): for the log only */
 			goto reserr;
 		}
 
@@ -4685,6 +4701,7 @@ i1pro_code i1pro_restore_calibration(i1pro *p) {
 	if (x.ef != 0
 	 || chsum1 != chsum2) {
 		a1logd(p->log,2,"Checksum didn't verify, bytes %d, got 0x%x, expected 0x%x\n",nbytes,chsum1, chsum2);
+		i1pro_cq_wl_restore = 4;	/* CHROMIQ PATCH (4.3.59): for the log only */
 		goto reserr;
 	}
 
@@ -4804,6 +4821,7 @@ i1pro_code i1pro_restore_calibration(i1pro *p) {
 			s->wl_valid = ts.wl_valid;
 			s->wldate = ts.wldate;
 			s->wl_led_off = ts.wl_led_off;
+			i1pro_cq_wl_modes_ok |= 1 << i;	/* CHROMIQ PATCH (4.3.59): for the log only */
 
 			s->dark_valid = ts.dark_valid;
 			s->ddate = ts.ddate;
@@ -4845,6 +4863,7 @@ i1pro_code i1pro_restore_calibration(i1pro *p) {
 
 		} else {
 			a1logd(p->log,2,"Not restoring cal for mode %d since params don't match:\n",i);
+			i1pro_cq_wl_modes_skipped |= 1 << i;	/* CHROMIQ PATCH (4.3.59): for the log only */
 			a1logd(p->log,2,"emis = %d : %d, trans = %d : %d, ref = %d : %d\n",s->emiss,ts.emiss,s->trans,ts.trans,s->reflective,ts.reflective);
 			a1logd(p->log,2,"scan = %d : %d, flash = %d : %d, ambi = %d : %d, adapt = %d : %d\n",s->scan,ts.scan,s->flash,ts.flash,s->ambient,ts.ambient,s->adaptive,ts.adaptive);
 			a1logd(p->log,2,"inttime = %f : %f\n",s->inttime,ts.inttime);
@@ -8428,6 +8447,10 @@ i1pro_code i1pro_compute_wav_filters(i1pro *p, int hr, int refl) {
 //printf("i1pro_compute_wav_filters called hr %d refl %d with correction %f raw\n",hr,refl,s->wl_led_off - m->wl_led_ref_off);
 
 	a1logd(p->log,2,"i1pro_compute_wav_filters called hr %d refl %d with correction %f raw\n",hr,refl,s->wl_led_off - m->wl_led_ref_off);
+	if (!hr && refl) {	/* CHROMIQ PATCH (4.3.59): noted for the log only */
+		i1pro_cq_wl_filters = 1;
+		i1pro_cq_wl_filters_off = s->wl_led_off;
+	}
 
 	twidth = (m->wl_long[hr] - m->wl_short[hr])/(m->nwav[hr] - 1.0);	/* Filter width */
 
@@ -14782,3 +14805,7 @@ static i1data *new_i1data(i1proimp *m) {
 /* cq_i1pro2_dual.h, at the end of the file; nothing in it does anything */
 /* unless ChromIQ's helper switches the dual scan on. */
 #include "cq_i1pro2_dual.h"
+
+/* CHROMIQ PATCH (4.3.59): the wavelength offset the filters use, reported */
+/* for the helper's log (cq_i1pro2_wlreport.h, ChromIQ's own); reads only. */
+#include "cq_i1pro2_wlreport.h"
