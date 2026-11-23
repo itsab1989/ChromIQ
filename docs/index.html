@@ -28,7 +28,7 @@
   "operatingSystem": "macOS, Windows, Linux",
   "applicationCategory": "DesignApplication",
   "applicationSubCategory": "Colour management / printer profiling",
-  "softwareVersion": "4.3.57",
+  "softwareVersion": "4.3.58",
   "license": "https://www.gnu.org/licenses/gpl-3.0.html",
   "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"},
   "url": "https://itsab1989.github.io/ChromIQ/",
@@ -495,7 +495,7 @@ footer .sp{flex:1}
           beside the option chooses when it runs; this fix has not run on a real instrument yet. New in 4.3.55: the
           second pass is lined up with the first before its readings are counted, so it is refused as too fast far
           less often, and after each strip ChromIQ shows the pace of both passes; this was tested by replaying
-          recorded passes, not yet on a real instrument. Off until you turn it
+          recorded passes, not yet on a real instrument. New in 4.3.58: the dual scan now makes the instrument&rsquo;s wavelength calibration at the start, as a normal session always has; from 4.3.48 to 4.3.57 it left it out and its readings were shifted by about 1 nm (typically 0.3 to 0.5 &Delta;E00), so measuring again with 4.3.58 is worth it if you built profiles from them. After a first pass that did not read, no second pass is asked any more: press the button once and read pass 1 again. Off until you turn it
           on in <b>Preferences &rsaquo; Beta</b>.</p>
       </div>
       <div style="display:grid;gap:22px">

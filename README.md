@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-4.3.57-7c5cff">
+  <img alt="Version" src="https://img.shields.io/badge/version-4.3.58-7c5cff">
   <img alt="Downloads" src="https://img.shields.io/endpoint?url=https://itsab1989.github.io/github-traffic-downloads-dashboard/assets/badges/itsab1989_ChromIQ-downloads.json">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2a9d8f">
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-blue">
@@ -775,7 +775,14 @@ first try: [The dual scan, step by step](docs/i1pro2_dual_scan.md).
 > the pace of both passes. The i1Pro 2 now waits 1.10 s after its lamp goes
 > out (the i1Pro keeps 1.5 s), with its own field in Preferences > Beta. The
 > dual scan changes were tested by replaying recorded passes, not yet on a
-> real instrument. With the option off, nothing changes.
+> real instrument. New in 4.3.58: the dual scan now makes the instrument's
+> wavelength calibration at the start, as a normal session always has. From
+> 4.3.48 to 4.3.57 it left that calibration out, so its readings (M0, M1 and
+> M2) were shifted by about 1 nm, typically 0.3 to 0.5 ΔE00. If you built
+> profiles from such readings, measuring again with 4.3.58 is worth it. After
+> a first pass that did not read, ChromIQ no longer asks for a second pass:
+> you press the button once and read pass 1 again. With the option off,
+> nothing changes.
 
 ### Tools menu — standalone utilities
 The masthead **Tools** button opens a menu of conversions and checks you can run

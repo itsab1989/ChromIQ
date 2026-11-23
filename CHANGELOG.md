@@ -1,5 +1,25 @@
 # Changelog
 
+## v4.3.58
+
+**For the X-Rite i1Pro 2 and ES-2000 dual scan (beta): since 4.3.48 the dual scan skipped the instrument's wavelength calibration at its start, so all its readings (M0, M1 and M2) were shifted by about 1 nm. This is fixed: the dual scan now calibrates like a normal session. Measurements made with the dual scan in 4.3.48 to 4.3.57 carry this shift. If you build profiles from them, measuring again with 4.3.58 is worth it.**
+
+### Fixed
+
+- **The dual scan now makes the instrument's wavelength calibration at the start of a session,** as every normal session does. Before, it only did the white calibration, so the readings used a wavelength setting that was not freshly measured. All readings of the dual scan (M0, M1 and M2) were shifted by about 1 nm. Typically that is 0.3 to 0.5 dE00. It shows most on greys mixed from inks and on some saturated colours, and least on paper white. The fix sends only what a normal session already sends. The calibration on the tile takes about a second longer, and nothing else changes on screen. This applies to the dual scan by hand with the i1Pro 2 or ES-2000. Patch by patch readings and the i1iO table were not affected by this calibration fault.
+- **After a first pass that did not read, no second pass is asked any more** (i1Pro 2 dual scan by hand, strips). Before, ChromIQ asked for the second pass of a strip whose first pass had not read. Now it tells you to press the button of the instrument once, briefly, and then to read pass 1 again. The instrument needs that one press to finish the strip, and ChromIQ uses nothing from it. “Use Anyway” and “Keep it” work as before.
+
+### Changed
+
+- **Every START writes to the app log whether it ran in Guided or Manual.** One line, “measure start: module guided” or “measure start: module manual”, so the log shows which Measure module a start came from.
+- **The help of “Wait for further presses” mentions the dual scan.** The one press asked for after a first pass that did not read waits this long too, before ChromIQ asks for pass 1 again.
+- **The release now attaches the libusb source and its licence note by itself.**
+
+### Known issues
+
+- Dual scan measurements from 4.3.48 to 4.3.57 keep their shift. ChromIQ does not change them afterwards.
+- The new and changed texts of this version are shown as proposed texts and may still be reworded.
+
 ## v4.3.57
 
 **For everyone who makes charts: margins can now be as large as the paper allows, other layout limits follow the page too, and a layout that cannot fit is refused in plain words. Charts laid out from a profile's gamut are made 2 to 4.6 times faster, with the same result. For owners of an X-Rite i1iO 2 table who try the beta option “X-Rite i1iO support”: the dual scan with rows as strips, which stopped with an error on a real table, now runs, and several things that went wrong on a real table are fixed. This is the first time that dual scan reaches a real table, so it is still a beta: please read the known issues at the end.**
