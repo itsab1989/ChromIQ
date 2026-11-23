@@ -231,7 +231,9 @@ def test_eight_files_skip_wholesale_without_it():
     # helper and asked about (tests/test_strip_shift_in_the_helper.py)
     # 40 with the app log's conditions end line (4.3.50, A7: a real dual scan's files counted,
     # tests/test_the_app_log_says_where_the_conditions_went.py)
-    assert len(whole) == 10 and len(partial) == 41, (
+    # 42 with item 17 (4.3.58, helper 23a): a refused first pass of a dual strip asks for no
+    # second pass (tests/test_dual_refused_pass_one_asks_no_second.py)
+    assert len(whole) == 10 and len(partial) == 42, (
         "the number of files gated on the chart-reading helper has changed "
         f"({len(whole)} wholesale, {len(partial)} in part) -> update the "
         f"header in tests/conftest.py. wholesale={whole} partial={partial}")

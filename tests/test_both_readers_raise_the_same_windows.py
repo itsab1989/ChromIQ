@@ -59,15 +59,17 @@ HELPER_C = (Path(__file__).resolve().parent.parent
 # and its usage lines) above these lines (lines 3560-4100 of v4.3.54 are byte-identical at +4: a
 # move), and +5 that had already built up by 4.3.54, when each string sat on its window's last line;
 # the pins are now the strings' own lines again
+# +8 on 2026-11-23 (4.3.58, helper 23a, item 17): the refused first pass of an i1Pro 2 dual strip
+# asks for no second pass, inserted above these lines (a move, nothing else changed)
 HELPER_LINES = {
     "capability":  ("Need reflection spot, strip, xy or chart reading capability,",
-                    "Need reflection spot, strip, xy or chart reading capability", 3624),
+                    "Need reflection spot, strip, xy or chart reading capability", 3632),
     "ccmx_set":    ("Setting Colorimeter Correction Matrix failed with error :'x' (0x1)",
-                    "Setting Colorimeter Correction Matrix failed with error", 3683),
+                    "Setting Colorimeter Correction Matrix failed with error", 3691),
     "ccmx_read":   ("Reading CCMX/CCSS File 'x.ccmx' failed with error 2:'nope'",
-                    "Reading CCMX/CCSS File", 3705),
+                    "Reading CCMX/CCSS File", 3713),
     "mode_set":    ("Setting instrument mode failed with error :'unsupported' (0x2)",
-                    "Setting instrument mode failed with error", 4051),
+                    "Setting instrument mode failed with error", 4059),
     "init_fail":   ("Initialising instrument failed with message 'Communications failure'",
                     None, None),
     "coms_fail":   ("Establishing communications with instrument failed with message 'timeout'",
