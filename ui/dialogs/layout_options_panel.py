@@ -5912,6 +5912,16 @@ class LayoutOptionsPanel(QWidget):
                 out[k] = float(v)
         return out
 
+    def _as_box_shows(self, k: str, v: float) -> float:
+        """``v`` as margin box ``k`` would hold it after ``setValue(v)``: Qt
+        rounds a QDoubleSpinBox value to its decimals (``QString::number(v,
+        'f', decimals)``, which Python's ``'f'`` format matches) and then
+        bounds it to the box's range. Used by `get_recipe` so a ticked "Use
+        instrument margins" builds the value the greyed box shows."""
+        box = self.margins[k]
+        shown = float(f"{float(v):.{box.decimals()}f}")
+        return min(max(shown, box.minimum()), box.maximum())
+
     def _sync_instr_margins(self, *_a) -> None:
         """When "Use instrument margins" is on, fill the four margins from the
         threshold lookup for the current combo and lock them read-only; ticking it
@@ -8675,7 +8685,13 @@ class LayoutOptionsPanel(QWidget):
             # follows the patch height), written by its own code.
             if (r.use_instrument_margins and r.instrument != "FD9"
                     and getattr(self, "_threshold_lookup", None) is not None):
-                want = self._instrument_margins_now()
+                # ...and EXACTLY as the boxes show it (fix round, review F1):
+                # the raw lookup is not what a box can hold (SpectroScan left
+                # 11.249333 shows as 11.2, CR30 14.466667 as 14.5), and 4.3.56
+                # built the box's value. Each value goes through its own box's
+                # rounding and range, so the chart is what the boxes say.
+                want = {k: self._as_box_shows(k, v) for k, v in
+                        self._instrument_margins_now().items()}
                 r.margin_top = want.get("t", r.margin_top)
                 r.margin_right = want.get("r", r.margin_right)
                 r.margin_bottom = want.get("b", r.margin_bottom)
