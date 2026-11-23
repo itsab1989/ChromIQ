@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-4.3.58-7c5cff">
+  <img alt="Version" src="https://img.shields.io/badge/version-4.3.59-7c5cff">
   <img alt="Downloads" src="https://img.shields.io/endpoint?url=https://itsab1989.github.io/github-traffic-downloads-dashboard/assets/badges/itsab1989_ChromIQ-downloads.json">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2a9d8f">
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-blue">
@@ -782,7 +782,10 @@ first try: [The dual scan, step by step](docs/i1pro2_dual_scan.md).
 > profiles from such readings, measuring again with 4.3.58 is worth it. After
 > a first pass that did not read, ChromIQ no longer asks for a second pass:
 > you press the button once and read pass 1 again. With the option off,
-> nothing changes.
+> nothing changes. New in 4.3.59: the app log and the table's session log
+> say which wavelength offset the instrument uses and where it came from (a
+> fresh calibration, the saved calibration or the factory values). This is
+> reporting only; nothing sent to the instrument changes.
 
 ### Tools menu — standalone utilities
 The masthead **Tools** button opens a menu of conversions and checks you can run

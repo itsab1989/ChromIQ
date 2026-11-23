@@ -1,5 +1,25 @@
 # Changelog
 
+## v4.3.59
+
+**Only one ChromIQ can run at a time now, so two windows can never write the same project or settings. A false warning after a good calibration is fixed, and the log says more about the i1iO table and the i1Pro 2.**
+
+### Changed
+
+- **One ChromIQ at a time.** If you start ChromIQ a second time, the window that is already open comes to the front and the second start quits. This way two windows can never write the same project or the same settings. A message appears only if the running ChromIQ cannot be reached: "ChromIQ is already running. Switch to its window, or close it and start ChromIQ again."
+- **For the i1iO table and the i1Pro 2 (beta): the app log and the table's session log now say which wavelength offset the instrument uses, and where it came from:** a fresh calibration, the saved calibration or the factory values. This is reporting only. Nothing sent to the instrument changes.
+
+### Fixed
+
+- **The false warning "No response from chartread after sending a key" no longer appears after a calibration that worked.**
+- **Diagnostics: log lines are no longer tagged with the wrong message when a file name is long.**
+- **The helper program that reads charts no longer carries a build path.**
+
+### Known issues
+
+- The new texts of this version are shown as proposed texts and may still be reworded.
+- The one-window check has been tested on macOS only so far.
+
 ## v4.3.58
 
 **For the X-Rite i1Pro 2 and ES-2000 dual scan (beta): since 4.3.48 the dual scan skipped the instrument's wavelength calibration at its start, so all its readings (M0, M1 and M2) were shifted by about 1 nm. This is fixed: the dual scan now calibrates like a normal session. Measurements made with the dual scan in 4.3.48 to 4.3.57 carry this shift. If you build profiles from them, measuring again with 4.3.58 is worth it.**
