@@ -861,6 +861,7 @@ static int cq_dd_nocal = 0;		/* -N was given */
 static void cq_lights_second_pass_due(int lamp_ok);
 static void cq_lights_second_pass_over(void);
 static void cq_lights_second_pass_poll(void);
+#include "chromiq_dualcal.h"
 #include "chromiq_dualdev.c"
 
 /* The driver's record of the reading read_strip / read_sample just made
@@ -4554,8 +4555,13 @@ a1log *log			/* verb, debug & error log */
 		if (nocal == 0 && cq_dd.on && !cq_dd.cal.have_uv_tile) {
 			/* CHROMIQ_EXT: the i1Pro 2 dual scan needs a calibration that
 			 * also reads the tile with the UV LED, at the reading's own
-			 * exposure: a white calibration now (a restored one has none) */
-			rv = cq_handle_calibrate(it, inst_calt_ref_white, inst_calc_none, 0);
+			 * exposure: a white calibration now (a restored one has none).
+			 * 4.3.58 (item 40): AND everything a normal start asks for, the
+			 * LED wavelength calibration and the dark first: the white
+			 * alone left every dual reading about 1 nm off
+			 * (chromiq_dualcal.h). */
+			rv = cq_handle_calibrate(it, cq_dual_startup_calt(it->needs_calibration(it)),
+			                         inst_calc_none, 0);
 			if (rv != inst_ok) {
 				printf("\nCalibration failed with error :'%s' (%s)\n",
 	       	       it->inst_interp_error(it, rv), it->interp_error(it, rv));
