@@ -65,9 +65,13 @@ def _live_tab(tmp_path, monkeypatch):
     windows = []
 
     def _no_window(dlg):
+        from PyQt6.QtWidgets import QLabel
         windows.append(dlg.windowTitle())
+        texts.append(" ".join(lb.text() for lb in dlg.findChildren(QLabel)))
         dlg.reject()
+    texts = []
     monkeypatch.setattr(tab, "_exec_measurement_window", _no_window)
+    tab._test_window_texts = texts
     return tab, keys, windows
 
 
@@ -120,13 +124,13 @@ def test_an_accepted_first_pass_still_gets_its_second_pass(
         qapp, tmp_path, monkeypatch):
     """A first pass ArgyllCMS accepted, even a doubtful one ("Use Anyway",
     ChromIQ's slip check: both are asked only after both passes), gets its
-    second pass, and a failure then is the ordinary window."""
+    second pass, and a failure then is the ordinary window. Unchanged since
+    4.3.57, so this passes against 4.3.57 too, by design."""
     tab, keys, windows = _live_tab(tmp_path, monkeypatch)
     tab._dual_pass_one("B")
     tab._on_dual_pass({"strip": "B", "pass": "uv", "of": 2, "lamp_ok": True})
     assert tab._status_bar_lbl.text() == "Strip B, pass 2 of 2 (UV light)"
     assert tab._sound.played == []
-    assert tab._dual_lamp_refused is None
     tab._on_strip_error("Misread", button=True)
     assert windows == ["Strip Read Failed"]
     assert keys.sent == ["\r"]       # the window's Retry (rejected = retry)
@@ -145,35 +149,88 @@ def test_another_strip_after_the_refusal_is_not_called_again(
     tab.close()
 
 
-def test_a_lost_connection_or_a_stop_keeps_its_own_way(qapp, tmp_path, monkeypatch):
+def _refused_pass_one(tab, strip="A"):
+    """Strip prompt, then a dual_pass with lamp_ok false, as the helper sends
+    them after a first pass ArgyllCMS refused."""
+    tab._dual_pass_one(strip)
+    tab._on_dual_pass({"strip": strip, "pass": "uv", "of": 2, "lamp_ok": False})
+    tab._on_dual_pass_result({"what": "strip", "strip": strip, "ok": False,
+                              "why": "lamp"})
+
+
+def test_a_connection_lost_during_the_press_shows_its_window_one_step_later(
+        qapp, tmp_path, monkeypatch):
+    """What really happens (chromiq_dualdev.c cq_dd_strip, review of
+    4.3.58-a, finding 3): after a refused first pass the helper reports the
+    FIRST pass's error whatever the press returned (lamp_ok false sets
+    why = "lamp" and keeps *rv), so a connection lost during the press reaches
+    the tab as the lamp's misread text, never as "communication". The tab
+    sends Retry; the helper's next lamp pass then fails on the lost
+    connection, and THAT misread opens the connection window, at the Retry,
+    one step later. The helper is deliberately not changed for this (it would
+    need another safety review)."""
     tab, keys, windows = _live_tab(tmp_path, monkeypatch)
-    tab._on_dual_pass({"strip": "A", "pass": "uv", "of": 2, "lamp_ok": False})
+    _refused_pass_one(tab)
+    # the press: the connection is lost, the helper still sends the lamp's text
+    tab._on_strip_error("Too many patches", button=True)
+    assert windows == [], "no window yet: the helper said the lamp's misread"
+    assert keys.sent == ["\r"], "Retry is sent"
+    # the next step: the strip prompt for pass 1 again, then its lamp pass
+    # fails on the lost connection
+    tab._dual_pass_one("A")
+    assert tab._status_bar_lbl.text() == "Strip A, pass 1 of 2 again (lamp)"
     tab._on_strip_error("Strip read failed due to communication problem")
     assert windows == ["Strip Read Failed"]
-    tab._on_dual_pass({"strip": "A", "pass": "uv", "of": 2, "lamp_ok": False})
+    assert "lost communication with the computer" in tab._test_window_texts[-1]
+    tab.close()
+
+
+def test_a_stop_during_the_press_keeps_its_window(qapp, tmp_path, monkeypatch):
+    """Without a Stop the misread after a refused pass 1 is answered with
+    Retry and no window; with a Stop under way the window opens and answers
+    it, as in 4.3.57."""
+    tab, keys, windows = _live_tab(tmp_path, monkeypatch)
+    _refused_pass_one(tab)
+    tab._on_strip_error("Too many patches", button=True)
+    assert (windows, keys.sent) == ([], ["\r"])
+    _refused_pass_one(tab)
     monkeypatch.setattr(tab._manager, "_user_quit", True, raising=False)
-    assert tab._dual_lamp_refused_misread("Too many patches") is False
+    tab._on_strip_error("Too many patches", button=True)
+    assert windows == ["Strip Read Failed"]
+    tab._dual_pass_one("A")
+    assert "again" not in tab._status_bar_lbl.text()
     tab.close()
 
 
 def test_patch_by_patch_is_unchanged(qapp, tmp_path, monkeypatch):
+    """The same events that end a dual STRIP without a window open the
+    "Patch Read Failed" window when reading patch by patch (the helper never
+    sends dual_pass there, cq_dd_spot; the tab does not rely on that)."""
     tab, keys, windows = _live_tab(tmp_path, monkeypatch)
+    _refused_pass_one(tab)
+    tab._on_strip_error("Misread", button=True)
+    assert (windows, keys.sent) == ([], ["\r"])
     tab._spot_session = True
-    tab._dual_lamp_refused = "A"      # cannot happen (no dual_pass), and still
-    assert tab._dual_lamp_refused_misread("Misread") is False
+    tab._on_dual_pass({"strip": "A", "pass": "uv", "of": 2, "lamp_ok": False})
+    tab._on_strip_error("Misread", button=True)
+    assert windows == ["Patch Read Failed"]
     tab.close()
 
 
 def test_the_failed_strip_is_timed_by_its_lamp_pass_not_the_press(
         qapp, tmp_path, monkeypatch):
-    import time
+    """The pace panel lists the failed strip with its LAMP pass's seconds,
+    not the short press that closes the instrument's ruler stream."""
     tab, keys, windows = _live_tab(tmp_path, monkeypatch)
     tab._last_strip_patches = 20
     tab._current_strip_letter = "A"
-    tab._scan_started_at = time.monotonic() - 3.5        # the lamp pass
+    tab._dual_pass_one("A")
+    tab._on_scan_started()                 # the lamp pass: button ...
+    tab._on_scan_ready()                   # ... and beep,
+    tab._scan_started_at -= 3.5            # 3.5 s before its end
     tab._on_dual_pass({"strip": "A", "pass": "uv", "of": 2, "lamp_ok": False})
-    assert tab._dual_lamp_refused_s == pytest.approx(3.5, abs=0.3)
-    tab._scan_started_at = time.monotonic() - 0.2        # the press
+    tab._on_scan_started()                 # the one press: button and beep
+    tab._on_scan_ready()
     tab._report_failed_strip_pace("Too many patches")
     assert tab._pace_times["A"][0] == pytest.approx(3.5, abs=0.3)
     tab.close()
@@ -274,3 +331,41 @@ def test_the_simulation_says_no_blue_after_a_refused_first_pass(tmp_path, monkey
     assert [e["lamp_ok"] for e in refused if e.get("event") == "dual_pass"] == [False]
     assert any(str(e.get("sent", "")).startswith("blue") for e in good
                if e.get("event") == "lights")
+
+
+@needs_helper
+def test_the_simulation_reports_the_first_pass_error_whatever_the_press_returned(
+        tmp_path, monkeypatch):
+    """As the real helper (chromiq_dualdev.c cq_dd_strip: lamp_ok false sets
+    why = "lamp" and keeps the lamp pass's code): a press that itself fails,
+    here as a lost connection would, still ends in the FIRST pass's misread."""
+    import json
+    import tests.helpers.replay_tools as rt
+    from tests.test_i1pro2_dual_scan_engine import _chart, _dual_args
+    monkeypatch.setenv("CHROMIQ_REPLAY_INSTRUMENT", "i1pro2")
+    monkeypatch.setenv("CHROMIQ_DUAL_SIM_TILE_S", "0.2")
+    monkeypatch.setenv("CHROMIQ_DUAL_SIM_PASS_S", "0.05")
+    monkeypatch.setattr(rt, "HELPER", SIM)
+    base, rp, truth, steps = _chart(tmp_path)
+    cdir = tmp_path / "conditions"
+    cdir.mkdir()
+    with rt.ReplaySession(base, rp, extra_args=_dual_args(cdir) + [
+            "--dual-chosen", "M2"]) as s:
+        s.wait_event("strip_ready", timeout=10)
+        i = s.event_index()
+        s.send(cmd="swipe", lamp_fault="misread", reason="Too many patches")
+        s.wait_event("dual_pass", after=i)
+        s.send(cmd="swipe", uv_fault="uv_pass_missing")   # the press fails too
+        err = s.wait_event("error", after=i, kind="misread")
+        res = s.wait_event("dual_pass_result", after=i)
+        i = s.event_index()
+        s.send(cmd="retry")                  # the tab's own Retry
+        s.wait_event("strip_ready", after=i)
+        i = s.event_index()
+        s.send(cmd="done")
+        s.wait_event("unread_confirm", after=i)
+        s.send(cmd="yes")
+        s.wait_event("done", timeout=10, after=i)
+        s.finish()
+    assert "Too many patches" in json.dumps(err)
+    assert (res.get("ok"), res.get("why")) == (False, "lamp")

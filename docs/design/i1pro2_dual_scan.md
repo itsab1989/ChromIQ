@@ -1074,9 +1074,18 @@ after a lamp pass ArgyllCMS did not recognise" (M-DUAL-PASS-TWO-UNREAD, "Read pa
   itself, and the strip prompt asks for "Strip A, pass 1 of 2 again (lamp)"
   (M-DUAL-PASS-ONE-AGAIN), with ArgyllCMS's own reason in its sentence. The strip then goes on as
   always: pass 1, then pass 2. Skip, Stop and the navigation keys stay where they always are; a
-  lost connection and a Stop under way keep their own window (`ui/tabs/tab_measure.py`
-  `_on_dual_pass`, `_dual_lamp_refused_misread`, `_dual_pass_one`). The failed strip is timed by
-  its lamp pass, not by the press (`_report_failed_strip_pace`).
+  Stop under way keeps its own window (`ui/tabs/tab_measure.py` `_on_dual_pass`,
+  `_dual_lamp_refused_misread`, `_dual_pass_one`). The failed strip is timed by its lamp pass, not
+  by the press (`_report_failed_strip_pace`).
+* **A connection lost during the press shows its window one step later.** After a refused first
+  pass the helper reports the FIRST pass's error whatever the press returned
+  (`chromiq_dualdev.c` `cq_dd_strip`: with `lamp_ok` false it sets `why = "lamp"` and keeps the
+  lamp pass's code), so a connection lost during the press reaches the tab as the lamp's misread
+  text, never as a connection error. The tab sends Retry as for any refused first pass; the
+  helper's next lamp pass then fails on the lost connection, and that misread opens "Strip Read
+  Failed" with the lost-connection advice: at the Retry, not at once. Nothing is lost by the
+  delay (the strip was not read either way). The helper is deliberately not changed for this,
+  since a helper change needs its own safety review (review of 4.3.58-a, finding 3).
 * **Why one press is still needed (the limit, said plainly).** The lamp pass opens the
   instrument's ruler stream ("ruler start", 0x0105); the only recorded form that closes it is the
   UV trigger with "ruler end" (0x0209), which goes out when the button is pressed. ChromIQ sends

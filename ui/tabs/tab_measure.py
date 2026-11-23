@@ -13921,7 +13921,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 getattr(self, "_spot_session", False)):
             return False
         if "communication" in str(reason or "").lower():
-            return False          # a lost connection keeps its own window
+            # defensive: after a refused pass 1 the helper reports the lamp
+            # pass's error even when the press lost the connection
+            # (cq_dd_strip), so the connection window comes at the Retry's
+            # lamp pass, one step later (i1pro2_dual_scan.md section 18)
+            return False
         if getattr(self._manager, "_user_quit", False):
             return False          # a Stop is under way: it answers this prompt
         self._dual_lamp_refused = None
