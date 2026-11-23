@@ -118,7 +118,9 @@ def wait_help() -> str:
         "example before “Strip Read Failed” appears after a press that was "
         "too short to read a strip, or before a pause continues. Reading "
         "patch by patch, each patch is kept this long after its press before "
-        "the next one is ready.\n\n"
+        "the next one is ready. With the i1Pro 2 dual scan, the one press "
+        "asked for after a first pass that did not read waits this long too, "
+        "before ChromIQ asks for pass 1 again.\n\n"
         "**Default:** 0.60 s (from 0.30 to 1.50 s).")
 
 
