@@ -148,7 +148,9 @@ def test_a_page_under_10_mm_without_room_for_crosses_is_refused():
 
 def test_a_chart_made_before_measures_from_its_own_side_file(tmp_path, monkeypatch):
     """A chart laid out by 4.3.56 (the corner swap on every page) keeps its files; the table
-    drive reads the side file only, so it is measured exactly as it was printed."""
+    drive reads the side file only, so it is measured exactly as it was printed. Fix round
+    (review N5): the side file is read the way START reads it, through ``drivable_sheet``, from
+    a run folder (its ``table_place``)."""
     from workflow.i1io import chart
     from workflow.layout_engine import permutation, raster
 
@@ -159,12 +161,13 @@ def test_a_chart_made_before_measures_from_its_own_side_file(tmp_path, monkeypat
         rgbs = [raster.to_display_rgb(dev, target.color_rep) for dev, _x in patches]
         return chart.corner_order(slots, rgbs, len(target.patches), geom, layout, w, h)
     monkeypatch.setattr(chart, "sheet_slots", old_slots)
-    _r, old = _build(tmp_path / "old", 528, "A4", pale=True, i1io_crosses=False)
+    run_dir = tmp_path / "proj" / "runs" / "run1"
+    _r, old = _build(run_dir, 528, "A4", pale=True, i1io_crosses=False)
     monkeypatch.undo()
     from ui.i1io_table_window import drivable_sheet
     from workflow.i1io.table import job as J
-    side_path = tmp_path / "old" / "c.i1io.json"
-    sheet = json.loads(side_path.read_text(encoding="utf-8"))
+    sheet = drivable_sheet(run_dir / "c.ti2")
+    assert sheet is not None, "START would not drive the chart made before"
     assert sheet == old
     job = J.TableJob(sheet, folder=tmp_path / "s", open_transport=lambda: None,
                      preflight=lambda: None, other_program=lambda: False)
@@ -172,5 +175,4 @@ def test_a_chart_made_before_measures_from_its_own_side_file(tmp_path, monkeypat
     assert _places(job.sheet) == _places(old)
     # and today's build of the same chart differs (it would not be the printed one)
     _r, new = _build(tmp_path / "new", 528, "A4", pale=True, i1io_crosses=False)
-    assert _ti2_rows(tmp_path / "old" / "c.ti2") != _ti2_rows(tmp_path / "new" / "c.ti2")
-    assert drivable_sheet is not None
+    assert _ti2_rows(run_dir / "c.ti2") != _ti2_rows(tmp_path / "new" / "c.ti2")

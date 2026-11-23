@@ -84,3 +84,29 @@ def test_the_repair_line_names_where_the_arm_stood():
     line = [ln for ln in job2.diag.lines if "the aiming mode is ended" in ln][-1]
     assert "found None" not in line
     assert f"found {tuple(job2.homed_from)}" in line or f"found {job2.homed_from}" in line
+
+
+def test_the_repair_line_never_names_an_earlier_homings_place():
+    """Fix round (review N1): ``homed_from`` is written by every ending homing; the repair's
+    line must name this homing's place or *found*, never one left by an earlier homing.
+    MUTATION: drop the reset before ``_end_of_job`` in ``_repair_homing`` and the earlier
+    place is still there when this homing starts."""
+    from tests.i1io_table import job_harness as H
+    from tests.i1io_table.test_4355_table_without_i1profiler import _leave_it_there
+    sim = _leave_it_there()
+    job2, sim2, _t = H.make_job(sim=sim)
+    p2 = H.Person(job2, sim2)
+    assert p2.drive(job2.open()).ok
+    earlier = (4321, 1234)
+    job2.homed_from = earlier                     # left by an earlier ending homing
+    seen = []
+    real = job2._end_of_job
+
+    def spy(stage=None):
+        seen.append(job2.homed_from)
+        return real(stage)
+    job2._end_of_job = spy
+    assert p2.drive(job2.repair_at_start()).ok
+    assert seen == [None]
+    line = [ln for ln in job2.diag.lines if "the aiming mode is ended" in ln][-1]
+    assert str(earlier) not in line

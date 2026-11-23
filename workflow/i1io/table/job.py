@@ -1054,6 +1054,8 @@ class TableJob:
         #: 4.3.52: the START rule's homing ran and did not end at rest (the window's failure
         #: page), and how many times it brought the arm home (the app log)
         self.start_homing_failed = False
+        #: 4.3.57 (item 20): where the arm stood right before the last ending homing (the logs)
+        self.homed_from = None
         self.brought_home_at_start = 0
         #: 2026-11-21: the table found in its aiming mode was brought home and the mode ended
         #: (repair_at_start / the start-up's end of the mode), and whether that was tried
@@ -3841,6 +3843,8 @@ class TableJob:
         d.log("DATA", f"the table was found in its aiming mode (a0 {d.a0_answer}): ChromIQ sends "
                       "i1Profiler's end of a job (s0 p0 i1 s0 f0 f4 f4 p0) to bring the arm home "
                       "and end the mode, as i1Profiler does with such a table")
+        # fix round (review N1): this homing's own place, never an earlier homing's
+        self.homed_from = None
         try:
             self._end_of_job(stage)
         except BaseException:
@@ -3865,7 +3869,7 @@ class TableJob:
         # 4.3.57 (item 20): where the arm stood, as read right before the homing (*found* is
         # None when nothing had read it before the question)
         d.log("DATA", f"the aiming mode is ended and the arm is at its resting place "
-                      f"{d.position_now} (found {getattr(self, 'homed_from', None) or found}); "
+                      f"{d.position_now} (found {self.homed_from or found}); "
                       "the measurement goes on")
 
     def _end_mode_at_rest(self) -> None:

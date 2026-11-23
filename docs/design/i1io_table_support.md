@@ -1949,12 +1949,25 @@ review.
   rule above: within it the START homing (and the homing after a stop, and the ending's homing)
   starts from the new reading; beyond it, before a START homing, nothing moves and the hands-off
   question is asked again saying how far the arm moved (M-I1IO-DRIVE-ARM-MOVED-ASK-AGAIN), at most
-  twice, then the doubt as before; the rest of the sitting is guided.
+  twice, then the doubt as before; the rest of the sitting is guided. A "Not now" to the
+  question asked again is the person's choice, as a "no" to the first one: it is not a failed
+  homing (fix round, review F2).
+* **The ending's homing does not ask again** (fix round, review N2). Beyond the 30 units, the
+  homing that ends a measurement refuses (nothing is sent, the doubt as before), while START's
+  homing asks the hands-off question again. As built: at the ending the readings are already
+  kept and a held arm found that far off was moved by a hand (4.3.50, M-I1IO-DRIVE-HOME-ARM-MOVED:
+  the done page gives the way on); at START the measurement is still to come. Both are safe;
+  neither is to be changed to match the other unasked.
 * **A strip row's arrivals take the table's landing error.** Under i1Profiler 3.8.1 the owner's
   table landed 0 to 4 units from commanded row ends and starts and i1Profiler went on. Row end:
-  within 30 units the row stands; beyond, one more reading 0.3 s later, then the doubt. Row start
-  and the UV pass's start: within 13 units the row is read; up to 30 it fails cleanly (read
-  again); beyond, a doubt.
+  within 30 units the row stands; beyond, one more reading 0.3 s later, then the doubt. Row start:
+  within 13 units the row is read; up to 30 it fails cleanly (read again); beyond, a doubt.
+* **A dual row's UV pass keeps 4.3.56's start limit** (fix round, review F3): within 5 units
+  (0.5 mm) of its planned start. Its readings are placed by its plan and nothing corrects a shifted
+  start afterwards (the row placement check judges the lamp pass only; the UV timing fit only
+  refuses, and only when it can see the shift). Beyond it the UV pass is not started (nothing more
+  is sent), the row keeps its lamp pass as M0 and may be read again; beyond 30 units after the
+  zero-length move, a doubt.
 * **The dual scan's white** names the tile the calibration is made on: with the dual scan the
   calibration place is decided before the calibration reader starts.
 * **The instrument's button** is offered for a mark only once the helper answered that it listens
