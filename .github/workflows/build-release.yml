@@ -659,7 +659,6 @@ jobs:
               printf '\n\nThe two files ending in `_homebrew.dmg` are identical copies that Homebrew downloads, so Homebrew installs can be counted separately. If you download by hand, please take the normal DMG, the one without `_homebrew` in its name.'
               printf '\n\n---\n☕ ChromIQ is free and always will be — if it saves you time or ink, a coffee is a kind way to say thanks. Completely optional, and the app stays fully featured either way.\n\n'
               printf '[![Support ChromIQ on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/itsab1989)\n'
-              printf '\n\n**Source of libusb (LGPL):** ChromIQ now includes libusb 1.0.30, unmodified, under the GNU Lesser General Public License 2.1 or later, loaded as a separate library. Its source, `libusb-1.0.30.tar.bz2`, exactly as published by the libusb project, is attached to this release.\n'
             } > /tmp/release_notes.txt
             # The arm64 and universal2 matrix legs run in parallel and both
             # pass the `gh release view` check above when neither has created
@@ -694,9 +693,6 @@ jobs:
           VERSIONED="${ART%.dmg}_${RELEASE_TAG}.dmg"
           mv "$ART" "$VERSIONED"
           gh release upload "$RELEASE_TAG" "$VERSIONED" --clobber
-          # The libusb source the LGPL asks us to offer (fetched and
-          # checksum-verified above); both legs upload the same bytes.
-          gh release upload "$RELEASE_TAG" libusb-1.0.30.tar.bz2 --clobber
           # universal2 job also publishes the x86_64-thinned DMG.
           if [ "${{ matrix.arch }}" = "universal2" ] && [ -f "ChromIQ-macOS-x86_64.dmg" ]; then
             X86_VERSIONED="ChromIQ-macOS-x86_64_${RELEASE_TAG}.dmg"
@@ -715,6 +711,26 @@ jobs:
               gh release upload "$RELEASE_TAG" "$HB_COPY" --clobber
             fi
           done
+
+      - name: Attach the libusb source (LGPL) and its note to the release
+        # ONE leg only: two legs uploading the same asset with --clobber
+        # (delete, then upload) can collide and fail a leg. It runs after the
+        # DMG and Homebrew uploads, so nothing here can skip them. The note
+        # goes into the body whichever job created the release (the Linux and
+        # Windows jobs create it from their own templates and won that race
+        # on v4.3.55 to v4.3.57), and only when it is not there yet, so a
+        # re-run never adds it twice.
+        if: ${{ !inputs.dry_run && matrix.arch == 'universal2' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          LIBUSB_TARBALL="libusb-1.0.30.tar.bz2"
+          gh release upload "$RELEASE_TAG" "$LIBUSB_TARBALL" --clobber
+          gh release view "$RELEASE_TAG" --json body -q .body > /tmp/release_body.txt
+          if ! grep -qF "Source of libusb (LGPL)" /tmp/release_body.txt; then
+            printf '\n\n**Source of libusb (LGPL):** ChromIQ includes libusb 1.0.30, unmodified, under the GNU Lesser General Public License 2.1 or later, loaded as a separate library. Its source, `%s`, exactly as published by the libusb project, is attached to this release.\n' "$LIBUSB_TARBALL" >> /tmp/release_body.txt
+            gh release edit "$RELEASE_TAG" --notes-file /tmp/release_body.txt
+          fi
 
   # Homebrew tap (github.com/itsab1989/homebrew-chromiq): once BOTH macOS
   # builds have uploaded their DMGs (arm64 here; universal2 also uploads the
