@@ -310,6 +310,13 @@ _HELP = tr(
 )
 
 
+def _calibration_tip_html() -> str:
+    """M-SPOT-CAL-TIP, for the rich-text Calibration Complete window."""
+    import html as _html
+    from workflow import measurement_messages as M
+    return _html.escape(M.M_SPOT_CAL_TIP.render()[1])
+
+
 def _without_call_to_action(html: str) -> str:
     """Drop a trailing "then click <b>Start Calibration</b>." from shared text.
 
@@ -385,6 +392,9 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         #: True between a misread and the next ready prompt. While set, Take
         #: reading clears the error before it reads (see _on_take_reading).
         self._misread = False
+        #: True between "Calibrate again" (item 41) and the ready prompt that
+        #: lets the calibration key through (see :meth:`_on_ready`).
+        self._recalibrate_pending = False
 
         self.setWindowTitle(tr("Read single patches"))
         self.setMinimumWidth(960)
@@ -688,6 +698,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         m.calibration_finished.connect(self._on_calibration_finished)
         m.calibration_position_wrong.connect(self._on_calibration_position_wrong)
         m.misread.connect(self._on_misread)
+        m.calibration_suspect.connect(self._on_calibration_suspect)
         m.sensor_wrong_position.connect(self._on_sensor_wrong_position)
         m.no_instrument.connect(self._on_no_instrument)
         m.device_busy.connect(self._on_device_busy)
@@ -1445,6 +1456,14 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         # spotread's menu prompt is the only proof the error mode is over, so
         # it — not a timer — is what ends the misread state.
         self._misread = False
+        if self.__dict__.get("_recalibrate_pending"):
+            # "Calibrate again" after a misread: spotread's retry prompt has
+            # been left, and this ready prompt is where 'k' is read.
+            self._recalibrate_pending = False
+            self._set_read_enabled(False)
+            self._manager.request_calibration()
+            self._set_status(tr("Calibrating…"))
+            return
         self._set_read_enabled(True)
         # Knut, #130 2026-08-01: *"the 'Ready ….' message is inaccurate, as
         # using instrument button is also possible. Revise text."* Both ways of
@@ -2105,7 +2124,10 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
                  "and hold the side button on the instrument, then hold still "
                  "until the reading is taken.<br><br>"
                  "The instrument stays calibrated for the whole session, so you "
-                 "will not be asked again unless it needs it."),
+                 "will not be asked again unless it needs it.")
+            # Item 41 (4.3.60): what the calibration check cannot see, a
+            # calibration only a little too weak, the person can.
+            + "<br><br>" + _calibration_tip_html(),
             dlg,
         )
         msg.setWordWrap(True)
@@ -2122,6 +2144,55 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             dlg.exec()
         finally:
             self._cal_done_open = False
+
+    def _on_calibration_suspect(self, verdict) -> None:
+        """M-SPOT-CAL-TOO-LIGHT / M-SPOT-CAL-SATURATED (item 41, 4.3.60).
+
+        A reflective reading lighter than any print can be, or a saturated
+        sensor, right after a calibration: ArgyllCMS accepted a white
+        calibration that was too weak (the instrument not flat on its tile),
+        and every reading of the session is too light by one factor. The
+        manager asks at most once per calibration and has already passed the
+        reading on unchanged; this window only offers to calibrate again.
+        """
+        from workflow import measurement_messages as M
+        if self.__dict__.get("_cal_suspect_open"):
+            return
+        if verdict.reason == "saturated":
+            title, body = M.M_SPOT_CAL_SATURATED.render()
+        else:
+            title, body = M.M_SPOT_CAL_TOO_LIGHT.render(
+                percent=f"{verdict.percent:.0f}")
+        self._set_status(title)
+        box = QMessageBox(self)
+        set_warning_icon(box)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        again = box.addButton(tr("Calibrate again"),
+                              QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(tr("Carry on measuring"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(again)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        self._cal_suspect_open = True
+        try:
+            chosen = self._ask(box)
+        finally:
+            self._cal_suspect_open = False
+        if chosen is not again:
+            log.info("spot read: calibration warning answered: carry on")
+            return
+        log.info("spot read: calibration warning answered: calibrate again")
+        self._set_read_enabled(False)
+        self._set_status(tr("Calibrating…"))
+        if getattr(self, "_misread", False):
+            # spotread waits at its retry prompt; leave it first, and send
+            # the calibration key at the ready prompt that follows.
+            self._recalibrate_pending = True
+            self._manager.send_key("\r")
+        else:
+            self._manager.request_calibration()
 
     def _on_calibration_prompt(self) -> None:
         # Same wording as the Measure tab's calibration pop-up — generic but

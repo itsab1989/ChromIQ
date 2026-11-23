@@ -274,7 +274,8 @@ def test_a_colormunki_session_still_starts_spotread(qapp, monkeypatch):
                         lambda: False)
     dlg = _dialog(qapp)
     dlg._on_start_stop()
-    assert _spotread_calls(dlg) == [("spotread", ["-v", "-c", "1"], True)]
+    # -s since 4.3.60 (item 41): the spectrum the calibration check reads.
+    assert _spotread_calls(dlg) == [("spotread", ["-v", "-c", "1", "-s"], True)]
     assert dlg._cr30 is None, "an ArgyllCMS session built ChromIQ's own reader"
 
 

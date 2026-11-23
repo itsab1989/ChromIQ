@@ -57,6 +57,10 @@ _DEVICE_BUSY_RE    = re.compile(r"Device being used",                           
 _USB_ERROR_RE      = re.compile(r"ReadPipeAsync\s+failed",                        re.IGNORECASE)
 _INIT_COMS_FAIL_RE = re.compile(r"Establishing communications with instrument failed with message\s+'([^']+)'", re.IGNORECASE)
 _INIT_INST_FAIL_RE = re.compile(r"Initialising instrument failed with message\s+'([^']+)'", re.IGNORECASE)
+# spotread refuses -s (print the spectrum) on an instrument without spectral
+# data: "Need spectral information for custom illuminant or observer" / "and
+# instrument doesn't support it", then it exits.
+_NO_SPECTRAL_RE    = re.compile(r"instrument doesn't support it",               re.IGNORECASE)
 
 
 @dataclass
@@ -66,6 +70,9 @@ class SpotReadParams:
     high_res: bool = False
     disable_initial_cal: bool = False
     extra_args: str = ""
+    #: Ask spotread for each reflective reading's spectrum (-s), which is what
+    #: the calibration check looks at (workflow/spot_calibration_check.py).
+    spectrum: bool = True
 
 
 class SpotReadManager(QObject):
@@ -94,11 +101,25 @@ class SpotReadManager(QObject):
     coms_init_failed        = pyqtSignal(str)
     inst_init_failed        = pyqtSignal(str)
     session_ended           = pyqtSignal(int)           # exit code
+    # Item 41 (4.3.60): a reflective reading after a calibration is lighter
+    # than any print can be, or the sensor saturated, so the calibration was
+    # probably too weak. A spot_calibration_check.Verdict, at most once per
+    # calibration. The reading itself has already gone out unchanged.
+    calibration_suspect     = pyqtSignal(object)
 
     def __init__(self, runner: "ArgyllRunner", parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._runner = runner
         self._calib_announced: bool = False
+        from workflow.spot_calibration_check import SpotCalibrationCheck
+        self._cal_check = SpotCalibrationCheck()
+        self._params: "SpotReadParams | None" = None
+        self._on_line: "Callable[[str], None] | None" = None
+        #: (wl_short, wl_long, steps) while the values line of a spectrum is due
+        self._spectrum_head: "tuple[float, float, int] | None" = None
+        #: the spectrum printed for the reading whose Result line comes next
+        self._spectrum: "tuple[float, float, list[float]] | None" = None
+        self._spectrum_refused = False
 
     # ------------------------------------------------------------------
     def start(self, params: SpotReadParams, on_line: Callable[[str], None]) -> None:
@@ -106,6 +127,14 @@ class SpotReadManager(QObject):
         cwd  = Path(tempfile.gettempdir())
         log.info("spotread: %s  [cwd=%s]", " ".join(args), cwd)
         self._calib_announced = False
+        self._params = params
+        self._on_line = on_line
+        self._spectrum_head = None
+        self._spectrum = None
+        self._spectrum_refused = False
+        # The session reads with a calibration in force from its first
+        # reading on (the start-up one, or the stored one with -N).
+        self._cal_check.reset()
 
         # A PORT THAT IS NOT AN INSTRUMENT IS NEVER OPENED (core/instrument_port):
         # with nothing plugged in, port 1 is macOS's Bluetooth incoming port,
@@ -121,9 +150,28 @@ class SpotReadManager(QObject):
             args,
             cwd,
             on_line=lambda line: self._handle_line(line, on_line),
-            on_finish=lambda code: self.session_ended.emit(code),
+            on_finish=self._on_finish,
             use_pty=True,
         )
+
+    def _on_finish(self, code: int) -> None:
+        if self._spectrum_refused and self._params is not None \
+                and self._params.spectrum:
+            # This instrument has no spectral data, so spotread refused -s and
+            # ended before it calibrated anything. Start again without it; the
+            # calibration check then judges by Y alone.
+            log.info("spotread refused -s (no spectral data); starting again "
+                     "without it")
+            from dataclasses import replace
+            params = replace(self._params, spectrum=False)
+            on_line = self._on_line or (lambda _l: None)
+            QTimer.singleShot(0, lambda: self.start(params, on_line))
+            return
+        self.session_ended.emit(code)
+
+    def request_calibration(self) -> None:
+        """Ask spotread for a calibration from its ready prompt ('k')."""
+        self._runner.write_stdin("k")
 
     def _finish_refused_start(self) -> None:
         """The ending of a start that would have opened a system port."""
@@ -178,18 +226,53 @@ class SpotReadManager(QObject):
             args.append("-H")
         if p.disable_initial_cal:
             args.append("-N")
-        if p.extra_args:
-            args += shlex.split(p.extra_args)
+        extra = shlex.split(p.extra_args) if p.extra_args else []
+        args += extra
+        # The spectrum is what the calibration check reads (item 41). Only for
+        # reflective readings: an emissive colorimeter has none, and spotread
+        # would refuse to start.
+        if (p.mode == "reflective" and p.spectrum
+                and not any(a in ("-s", "-S") for a in extra)):
+            args.append("-s")
         return args
+
+    def _reflective(self) -> bool:
+        return self._params is None or self._params.mode == "reflective"
 
     def _handle_line(self, line: str, on_line: Callable[[str], None]) -> None:
         on_line(line)
+
+        from workflow import spot_calibration_check as SCC
+        if self._spectrum_head is not None:
+            lo, hi, n = self._spectrum_head
+            self._spectrum_head = None
+            values = SCC.parse_spectrum_values(line, n)
+            if values is not None:
+                self._spectrum = (lo, hi, values)
+                return
+        m = SCC.SPECTRUM_HEAD_RE.search(line)
+        if m:
+            self._spectrum_head = (float(m.group(1)), float(m.group(2)),
+                                   int(m.group(3)))
+            self._spectrum = None
+            return
 
         m = _RESULT_RE.search(line)
         if m:
             xyz = (float(m.group(1)), float(m.group(2)), float(m.group(3)))
             lab = (float(m.group(4)), float(m.group(5)), float(m.group(6)))
+            spectrum, self._spectrum = self._spectrum, None
             self.reading_ready.emit(xyz, lab)
+            if self._reflective():
+                verdict = self._cal_check.on_reading(xyz, spectrum)
+                if verdict is not None:
+                    log.warning(
+                        "spot read: reading lighter than a print can be after "
+                        "this calibration (%.1f %% between %g and %g nm, Y %.2f;"
+                        " %s); asking about the calibration",
+                        verdict.percent or 0.0, *SCC.BAND_NM, xyz[1],
+                        "spectrum" if spectrum else "no spectrum, judged by Y")
+                    self.calibration_suspect.emit(verdict)
             return
 
         m = _INST_TYPE_RE.search(line)
@@ -201,6 +284,7 @@ class SpotReadManager(QObject):
             if self._calib_announced:
                 # We are back at the ready prompt having been in a calibration,
                 # so that calibration is done.
+                self._cal_check.reset()
                 self.calibration_finished.emit()
             self._calib_announced = False
             self.ready_to_read.emit()
@@ -219,6 +303,16 @@ class SpotReadManager(QObject):
 
         if _MISREAD_RE.search(line):
             self.misread.emit()
+            if SCC.SATURATED_RE.search(line) and self._reflective():
+                verdict = self._cal_check.on_saturated()
+                if verdict is not None:
+                    log.warning("spot read: the sensor saturated on a "
+                                "reflective patch after this calibration; "
+                                "asking about the calibration")
+                    self.calibration_suspect.emit(verdict)
+        if _NO_SPECTRAL_RE.search(line) and self._params is not None \
+                and self._params.spectrum:
+            self._spectrum_refused = True
         if _SENSOR_POS_RE.search(line):
             self.sensor_wrong_position.emit()
         if _COMS_FAIL_RE.search(line) or _USB_ERROR_RE.search(line):

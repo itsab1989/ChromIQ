@@ -973,6 +973,10 @@ AWAITING_APPROVAL: "set[str]" = {
                                  # found the first by pressing the spacebar,
                                  # which is the Measure tab's reading trigger.
                                  "M-SPOT-CLEAR", "M-SPOT-UNSAVED",
+                                 # 4.3.60, item 41: Read single patches says
+                                 # when a calibration was probably too weak.
+                                 "M-SPOT-CAL-TOO-LIGHT", "M-SPOT-CAL-SATURATED",
+                                 "M-SPOT-CAL-TIP",
                                  # (beta 17: M-SPOT-CR30-GONE, the CR30
                                  # stopped answering in a spot session, was
                                  # APPROVED by Basti, 2026-10-10, and left
@@ -1427,6 +1431,7 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_measure", "TabMeasure", "_verification_preflight_blocks"),
     ("ui.tabs.tab_chart", "TabChart", "_calibration_replace_message"),
     ("ui.dialogs.spot_read_dialog", "SpotReadDialog", "_confirm_clear"),
+    ("ui.dialogs.spot_read_dialog", "SpotReadDialog", "_on_calibration_suspect"),
     ("ui.dialogs.spot_read_dialog", "SpotReadDialog", "_may_close"),
     ("ui.dialogs.spot_read_dialog", "SpotReadDialog", "_on_cr30_lost"),
     # Auto align. Not a modal window but the window's own log, which is where

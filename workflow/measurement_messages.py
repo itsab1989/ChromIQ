@@ -6438,6 +6438,57 @@ M_SPOT_CR30_EARLY_PRESS = _m(
     count_key="n",
     approved=True)
 
+# --- PROPOSED: a calibration that was probably too weak (item 41, 4.3.60) ---
+#: Tools > Read single patches. ArgyllCMS accepts a white calibration taken
+#: with too little light (the instrument not flat on its white tile): its check
+#: looks at the tile's spectral SHAPE only, so the whole session then reads too
+#: light by one factor. A tester's logs show it twice in 37 calibrations. The
+#: physics behind the limit is in workflow/spot_calibration_check.py. The
+#: reading is never changed or dropped; these windows say so once per
+#: calibration and offer to calibrate again. Shown as proposed in the betas.
+M_SPOT_CAL_TOO_LIGHT = _m(
+    "M-SPOT-CAL-TOO-LIGHT",
+    "This reading is lighter than a print can be",
+    "The patch you just read reflects about {percent} % of the light between "
+    "green and red. A printed colour or a paper cannot reflect more than "
+    "100 % there, so the reading is very likely too light.\n\n"
+    "The likeliest cause is the calibration: the instrument may not have been "
+    "flat on its white tile during the calibration. Then every reading of "
+    "this session comes out too light by the same amount.\n\n"
+    "Choose \u201cCalibrate again\u201d, hold the instrument flat on its white "
+    "tile, and then read the patch once more. The reading you just took stays "
+    "in the list as it is; you can delete it afterwards.\n\n"
+    "If this patch really is that bright (a fluorescent ink, for example), "
+    "choose \u201cCarry on measuring\u201d. You will not be asked again until "
+    "the next calibration.",
+    approved=False)
+
+M_SPOT_CAL_SATURATED = _m(
+    "M-SPOT-CAL-SATURATED",
+    "The instrument received more light than it can measure",
+    "That patch could not be read: the instrument\u2019s sensor was "
+    "saturated, which means more light came back than it is set up for. "
+    "Nothing was added to the list.\n\n"
+    "After a good calibration a printed patch never does this. The likeliest "
+    "cause is the calibration: the instrument may not have been flat on its "
+    "white tile during the calibration. Then the readings of this session "
+    "come out too light, or not at all.\n\n"
+    "Choose \u201cCalibrate again\u201d, hold the instrument flat on its white "
+    "tile, and then read the patch once more.\n\n"
+    "To go on without calibrating, choose \u201cCarry on measuring\u201d. You "
+    "will not be asked again until the next calibration.",
+    approved=False)
+
+#: The short tip in the Calibration Complete window of Read single patches.
+#: It covers what the check above cannot see: a calibration only a little too
+#: weak, which leaves every reading below 100 % but still too light.
+M_SPOT_CAL_TIP = _m(
+    "M-SPOT-CAL-TIP",
+    "Check the calibration on the bare paper",
+    "Tip: read the bare paper first. It should not read lighter than it did "
+    "in earlier sessions. If it does, calibrate again.",
+    approved=False)
+
 # --- PROPOSED: the reference file covers only part of the target -----------
 #: Review 5, 2026-09-03, finding D. A reference file holding the first 48 rows
 #: of the target's own correct 288-row reference builds a profile from a sixth
@@ -14746,6 +14797,7 @@ CATALOGUE = {m.id: m for m in (
     M_REPORT_NOT_SAVED,
     M_CAL_REPLACE_CHART, M_CAL_REPLACE_MEASURED, M_CAL_ARCHIVED_HERE,
     M_SPOT_CLEAR, M_SPOT_UNSAVED, M_SPOT_CR30_GONE, M_SPOT_CR30_EARLY_PRESS,
+    M_SPOT_CAL_TOO_LIGHT, M_SPOT_CAL_SATURATED, M_SPOT_CAL_TIP,
     M_SCAN_REF_SHORT, M_SCAN_REF_DISAGREES, M_SCAN_CLIPPED,
     M_SCAN_LOADED, M_SCAN_DIAGNOSTIC,
     M_SCAN_SHOT_EMPTY, M_SCAN_TARGET_CHANGED,
