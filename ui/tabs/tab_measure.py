@@ -26588,6 +26588,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         )
 
     def _collect_params(self) -> MeasureParams:
+        # 4.3.58 (item 18): which module's settings this read uses. Guided and Manual keep
+        # their own -S / -T / -F, and the tab opens on Guided at every launch, so a START
+        # pressed before switching to Manual reads with Guided's set; without this line
+        # the app log could not tell that from a settings fault.
+        log.info("measure start: module %s", self._current_mode())
         if self._current_mode() == "guided":
             p = self._apply_engine_params(self._collect_guided())
         else:
