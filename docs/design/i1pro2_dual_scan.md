@@ -278,6 +278,8 @@ mismatch (white at 154 clocks, strip at 139), which `calibration_mismatch` refus
   the lamp pass counted readings in a ruler stream that still runs and the ruler is in use
   (`i1pro2_cq_dual_uv_pass_ready`): then its trigger carries "ruler end" and closes the stream.
   It is asked for also after a lamp pass ArgyllCMS did not recognise (both passes again).
+  (Section 18, awaiting confirmation, changes this: after such a lamp pass the person presses once
+  in place instead of reading a second pass; this sentence is marked replaced once 18 is confirmed.)
   Otherwise (the lamp pass's trigger or read failed, the ruler was given up, or a UV pass was left
   with Esc so that the next lamp pass could not start a stream) M1 / M2 end for the session
   (`dual_needs_ruler`) and M0 goes on; a stream left running is drained until the close, as the
@@ -351,7 +353,8 @@ never on a real instrument. Code: `workflow/dual_scan/session.py` (the rules),
   (lamp)" at every strip prompt, "Strip A, pass 2 of 2 (UV light)" when the engine's `dual_pass`
   asks for the second (M-DUAL-PASS-ONE / -TWO; after a first pass ArgyllCMS did not recognise,
   M-DUAL-PASS-TWO-UNREAD, with its own headline "Strip A: pass 1 did not read. Read pass 2 anyway"
-  and the "Strip read failed" sound at that moment, 4.3.52). The strip stays highlighted as for any
+  and the "Strip read failed" sound at that moment, 4.3.52). (Section 18, awaiting confirmation, replaces
+  M-DUAL-PASS-TWO-UNREAD with M-DUAL-PASS-ONE-REFUSED: no second pass after a refused first one.) The strip stays highlighted as for any
   strip.
 * **A refused pass.** The engine makes the strip a misread; "Strip Read Failed" opens as for any
   misread (its buttons, keys and sound unchanged) and shows "The second pass of strip B failed"
@@ -1041,3 +1044,55 @@ says about the UV pass's window.
   rules; the pairing check; spot readings; the i1iO table's dual rows (their own cut,
   `dual_rows.py`); a single scan.
 
+
+### 18. ⏳ Awaiting confirmation: a refused first pass asks for no second pass (2026-11-23, for 4.3.58)
+
+**Confirmed by:** *nobody yet.* Approved as a direction by Basti, 23 Nov 2026 ("when the first
+pass is refused, refuse at once, do not ask for the second pass, and ask the person to read the
+first pass again"). He approved the direction, not the details below. Built and tested against
+the simulated helper and the real helper's replay instrument, and driven on screen against them;
+never on a real instrument. Tests: `tests/test_dual_refused_pass_one_asks_no_second.py`. Helper
+2026-11-23a. Texts §M-PROPOSED: M-DUAL-PASS-ONE-REFUSED, M-DUAL-PASS-ONE-AGAIN. When this section
+is confirmed, it replaces what sections 7 (c) and 8 say about the second pass "asked for also
+after a lamp pass ArgyllCMS did not recognise" (M-DUAL-PASS-TWO-UNREAD, "Read pass 2 anyway").
+
+* **Why.** Until 4.3.57 a first pass ArgyllCMS refused was followed by the request for the
+  second pass (M-DUAL-PASS-TWO-UNREAD), the person read it, and only then did "Strip Read
+  Failed" open and both passes were read again. A tester read 10 such second passes in one
+  morning (22 Nov 2026), each thrown away.
+* **What counts as refused.** Only a first pass that ArgyllCMS's patch recognition refused
+  (`dual_pass` with `lamp_ok` false: "not enough patches", "too many patches", "swipe did not
+  start and end on the media", "not enough samples per patch", an inconsistent reading). Nothing
+  else is known at the end of the first pass: the ruler, the cut, the pairing check, ArgyllCMS's
+  "wrong strip" / "unexpected value" question (Use Anyway) and ChromIQ's slip check (Keep it) all
+  come after both passes, so a first pass that was accepted, doubtful or not, still gets its
+  second pass, and those choices are unchanged.
+* **What the person sees.** At once: the status line says "Strip A: pass 1 did not read. Press
+  the button once, then read pass 1 again" (M-DUAL-PASS-ONE-REFUSED, the whole sentence on hover
+  and in the log), with the "Strip read failed" sound as since 4.3.52. No second pass is asked
+  for. After the press, no "Strip Read Failed" window: the tab answers the misread with Retry
+  itself, and the strip prompt asks for "Strip A, pass 1 of 2 again (lamp)"
+  (M-DUAL-PASS-ONE-AGAIN), with ArgyllCMS's own reason in its sentence. The strip then goes on as
+  always: pass 1, then pass 2. Skip, Stop and the navigation keys stay where they always are; a
+  lost connection and a Stop under way keep their own window (`ui/tabs/tab_measure.py`
+  `_on_dual_pass`, `_dual_lamp_refused_misread`, `_dual_pass_one`). The failed strip is timed by
+  its lamp pass, not by the press (`_report_failed_strip_pace`).
+* **Why one press is still needed (the limit, said plainly).** The lamp pass opens the
+  instrument's ruler stream ("ruler start", 0x0105); the only recorded form that closes it is the
+  UV trigger with "ruler end" (0x0209), which goes out when the button is pressed. ChromIQ sends
+  only recorded forms (section 7 (c), safety review M2), so the helper still waits for that
+  trigger exactly as before; the person presses once without moving the instrument, and nothing
+  of that reading is used (`why: "lamp"`). A tap is the same trigger, only shorter; a tap is an
+  ordinary short scan on the instrument (the button-gesture Beta relies on it). Not asking for
+  the press at all would need a form that was never recorded (a programmed trigger, or a lamp
+  trigger sent over an open stream): it needs a recording and a safety review first.
+* **The lights Beta.** After a refused first pass the blue "second pass due" (section 14) is not
+  sent: one light write fewer, nothing new on the wire; the app log says `second_pass=skipped
+  why=lamp_refused` (`chromiq_chartread.c` `cq_lights_second_pass_due(lamp_ok)`). The red after
+  the misread is unchanged.
+* **Not changed.** Patch by patch (a spot reading is one unit: when the lamp half fails, the UV
+  half is never read, `cq_dd_spot`). The i1iO 2 table: the UV pass of a dual row is part of the
+  row's recorded movement and a lamp pass refused for its timing (section 10b) is judged after
+  both passes; it costs table time, not the person's, and table command sequences need their own
+  safety review, so it stays as it is. A refused SECOND pass: "Strip Read Failed" as before.
+  What is sent to the instrument.

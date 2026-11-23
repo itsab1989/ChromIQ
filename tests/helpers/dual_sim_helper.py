@@ -77,7 +77,8 @@ QUIET_MS, helper 2026-11-20b: ``{"event":"lights","held_ms":n,"after":"blue",
 "quiet_ms":370}``, between the button and the beep; only at that strip's second
 swipe, helper 2026-11-20c: after an Esc the next strip's first swipe is not
 held by the blue); and ``"sent": "green2"`` /
-``"red2"`` after the strip.
+``"red2"`` after the strip. After a refused first pass (4.3.58, helper 2026-11-23a) no blue:
+``{"event":"lights","second_pass":"skipped","why":"lamp_refused"}`` at once.
 
 LIMITS (said, not hidden): without that suffix the replay instrument
 computes M1 / M2 for every strip it reads, so after ``needs_ruler`` the files
@@ -375,7 +376,13 @@ def main(argv: "list[str]") -> int:
             emit({"event": "dual_pass", "strip": strip, "pass": "uv",
                   "of": 2, "lamp_ok": not st["lamp_fault"]})
             st["phase"] = "uv"
-            if lights_sim:
+            if lights_sim and st["lamp_fault"]:
+                # 4.3.58 (item 17, helper 2026-11-23a): no blue after a refused
+                # first pass (cq_lights_second_pass_due(lamp_ok))
+                st["blue_due"], st["blue_at"] = None, None
+                emit({"event": "lights", "second_pass": "skipped",
+                      "why": "lamp_refused"})
+            elif lights_sim:
                 token = object()
                 st["blue_due"], st["blue_at"] = token, None
                 # 4.3.53 (helper 2026-11-20e): the blue's side follows pass 1's

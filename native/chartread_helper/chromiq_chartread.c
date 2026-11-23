@@ -858,7 +858,7 @@ static int cq_dd_nocal = 0;		/* -N was given */
 #include "cq_dual.h"
 /* 4.3.52: the blue before the return pass of a dual scan (the lights Beta,
  * cq_lights_second_pass_* below; nothing unless both options are on) */
-static void cq_lights_second_pass_due(void);
+static void cq_lights_second_pass_due(int lamp_ok);
 static void cq_lights_second_pass_over(void);
 static void cq_lights_second_pass_poll(void);
 #include "chromiq_dualdev.c"
@@ -2658,10 +2658,18 @@ static int cq_lights_blue_after_now(void) {
 	return cq_lights_blue_after_ms >= 0 ? cq_lights_blue_after_ms : CQ_LIGHTS_BLUE_AFTER_MS;
 }
 
-static void cq_lights_second_pass_due(void) {
+static void cq_lights_second_pass_due(int lamp_ok) {
 	cq_lights_blue_due = 0;
 	if (!cq_lights_signals_on() || cq_lights_gen != 2)
 		return;
+	/* 4.3.58 (item 17): after a first pass ArgyllCMS refused, no second pass
+	 * is asked for (the person presses once in place to close the ruler
+	 * stream, then reads pass 1 again), so the blue "second pass due" is
+	 * not sent: one write fewer, nothing new on the wire. */
+	if (!lamp_ok) {
+		cq_emit_raw("{\"event\":\"lights\",\"second_pass\":\"skipped\",\"why\":\"lamp_refused\"}");
+		return;
+	}
 	if ((cq_lights_blue_due = msec_time() + (unsigned int)cq_lights_blue_after_now()) == 0)
 		cq_lights_blue_due = 1;
 }

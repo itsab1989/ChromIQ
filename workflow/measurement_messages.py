@@ -12191,6 +12191,30 @@ M_DUAL_PASS_TWO_UNREAD = _m(
     "(it closes the strip), then both passes of strip {strip} again.",
     approved=False)
 
+#: 4.3.58 (item 17, approved as a direction by Basti, 23 Nov 2026): replaces
+#: M-DUAL-PASS-TWO-UNREAD. A refused first pass asks for no second pass: one
+#: press in place closes the instrument's ruler stream (the only recorded
+#: form, chromiq_dualdev.c), then pass 1 of the same strip again, with no
+#: "Strip Read Failed" window.
+M_DUAL_PASS_ONE_REFUSED = _m(
+    "M-DUAL-PASS-ONE-REFUSED",
+    "Strip {strip}: pass 1 did not read. Press the button once, then read pass 1 again",
+    "The first pass of strip {strip} did not read, so ChromIQ does not ask for "
+    "its second pass. Do not read the second pass. Leave the instrument where "
+    "it is and press its button once, briefly: the instrument needs that press "
+    "to finish the strip, and ChromIQ uses nothing from it. Then read pass 1 of "
+    "strip {strip} again, as usual. Its second pass follows as always.",
+    approved=False)
+
+#: 4.3.58 (item 17): the strip prompt after a refused first pass, on the same
+#: strip; {reason} is the instrument's own word for why pass 1 did not read.
+M_DUAL_PASS_ONE_AGAIN = _m(
+    "M-DUAL-PASS-ONE-AGAIN",
+    "Strip {strip}, pass 1 of 2 again (lamp)",
+    "The first pass did not read ({reason}). Read strip {strip} again as "
+    "usual. ChromIQ then asks for its second pass, with the UV light.",
+    approved=False)
+
 #: In "Strip Read Failed" / "Patch Read Failed" when the second pass (or a
 #: spot's UV half) was refused: the strip came back as a misread.
 M_DUAL_PASS_FAILED = _m(
@@ -14528,6 +14552,7 @@ CATALOGUE = {m.id: m for m in (
     M_DUAL_FILTER_OFF, M_DUAL_FILTER_NOT_DUAL, M_DUAL_BEFORE_START,
     M_DUAL_CAL_TILE, M_DUAL_CAL_DONE, M_DUAL_CAL_REFUSED,
     M_DUAL_PASS_ONE, M_DUAL_PASS_TWO, M_DUAL_PASS_TWO_UNREAD,
+    M_DUAL_PASS_ONE_REFUSED, M_DUAL_PASS_ONE_AGAIN,
     M_DUAL_PASS_FAILED, M_DUAL_SPOT_FAILED, M_DUAL_ENDED, M_DUAL_ON,
     M_DUAL_PASS_NOTE, M_DUAL_START_REFUSED, M_DUAL_FILTER_OFF_PARENT,
     M_DUAL_PASS_PACE, M_DUAL_PASS_PACE_CLOSE, M_DUAL_PASS_TOO_FAST,

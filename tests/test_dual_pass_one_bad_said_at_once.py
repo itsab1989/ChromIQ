@@ -46,9 +46,11 @@ def test_a_bad_first_pass_has_its_own_headline_and_the_failure_sound(qapp, tmp_p
     tab = _live_tab(tmp_path)
     tab._on_dual_pass({"strip": "A", "pass": "uv", "of": 2, "lamp_ok": False})
     assert tab._sound.played == [snd.STRIP_FAIL]
+    # 4.3.58 (item 17): the headline is M-DUAL-PASS-ONE-REFUSED now (no
+    # second pass is asked for; tests/test_dual_refused_pass_one_asks_no_second.py)
     assert tab._status_bar_lbl.text() == (
-        "Strip A: pass 1 did not read. Read pass 2 anyway")
-    assert "The first pass of this strip did not read" in tab._log.toPlainText()
+        "Strip A: pass 1 did not read. Press the button once, then read pass 1 again")
+    assert "does not ask for its second pass" in tab._log.toPlainText()
     tab.close()
 
 

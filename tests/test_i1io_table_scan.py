@@ -295,13 +295,15 @@ def test_the_build_string():
     # 2026-11-21e = 21d + the hand dual scan's UV pass lined up with the lamp pass (second fix
     # round; nothing for the table);
     # 2026-11-21f = 21e + the narrow window only on lined-up positions (third round, S1; nothing
-    # for the table), last
-    assert "chromiq-chartread 2026-11-21f " in h
+    # for the table);
+    # 2026-11-23a = 21f + no blue after a refused first pass (4.3.58 item 17; nothing for the
+    # table), last
+    assert "chromiq-chartread 2026-11-23a " in h
     assert ("+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule"
             "+i1pro2-dual-device+i1pro2-dual-safety+i1io-table-dual+i1io-table-dual-fix2"
             "+i1io-table-dual-calreset+i1pro2-dual-gaps+conditions-kept+lights-quiet"
             "+i1pro2-dual-blue+blue-own-quiet+blue-quiet-return-only+instrument-waits"
-            "+blue-side+i1pro2-dual-fresh-start+uv-whole-middle+i1pro2-dual-pace+uv-window-gate+lamp-off-i1pro2+uv-aligned+uv-fallback-window\"") in h
+            "+blue-side+i1pro2-dual-fresh-start+uv-whole-middle+i1pro2-dual-pace+uv-window-gate+lamp-off-i1pro2+uv-aligned+uv-fallback-window+lamp-refused-no-blue\"") in h
 
 
 def _base_tree(tmp: Path) -> Path:

@@ -8803,6 +8803,14 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             if not started:
                 return
             elapsed = time.monotonic() - started
+            # 4.3.58 (item 17): a dual strip whose first pass was refused ends
+            # with one short press, not a pass: the strip is timed by its lamp
+            # pass, which is the one that failed
+            if getattr(self, "_dual_lamp_refused", None) is not None:
+                lamp_s = getattr(self, "_dual_lamp_refused_s", None)
+                if lamp_s is None:
+                    return
+                elapsed = lamp_s
             tracker = self._pace_tracker()          # config re-read from settings
             kind = failure_kind(reason)
 
@@ -12624,7 +12632,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._dual_buffer = []           # record entries until the next save
         self._dual_record = None         # the pass record being kept
         self._dual_failed = None         # (what, strip, why) for the window
-        self._dual_cal_ev = None         # the last dual_calibration event
+        self._dual_lamp_refused = None   # 4.3.58: strip whose pass 1 was refused
+        self._dual_lamp_refused_s = None  # ...and its lamp pass's seconds
+        self._dual_pass_again = None     # (strip, reason): pass 1 asked for again
+        self._dual_cal_ev = None        # the last dual_calibration event
         self._dual_cal_id = ""           # its id, while it is usable
         self._dual_cal_n = 0
         self._dual_cal_asked = False     # "calibrate again" said for it
@@ -13843,6 +13854,16 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # without calibrating is kept as M0 and M1 / M2 end, whether it is
         # the same strip (Retry) or another (Skip Strip). Review of
         # 2026-11-19, M1: the prompt promised a second refusal.
+        again = getattr(self, "_dual_pass_again", None)
+        self._dual_pass_again = None
+        self._dual_lamp_refused = None
+        if not _dual_cal_unusable(self) and again and str(again[0]) == str(strip_id):
+            # 4.3.58 (item 17): pass 1 of the same strip again, after a refused one
+            title, body = M.M_DUAL_PASS_ONE_AGAIN.render(
+                strip=name, reason=again[1] or "misread")
+            self._dual_prompt(title, body)
+            self._log.appendPlainText(f"[{title}]\n{body}")
+            return
         if not _dual_cal_unusable(self):
             msg = M.M_DUAL_PASS_ONE
         elif getattr(self, "_dual_cal_asked", False):
@@ -13863,8 +13884,24 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._dual_held_said = False  # M-DUAL-PASS-HELD once per wait
         # (4.3.49: after a calibration that cannot give M1 / M2 the engine
         # reads the strip once and asks for none, so this is never that case)
-        msg = (M.M_DUAL_PASS_TWO if ev.get("lamp_ok", True)
-               else M.M_DUAL_PASS_TWO_UNREAD)
+        # 4.3.58 (item 17, approved as a direction by Basti, 23 Nov 2026): a
+        # first pass ArgyllCMS refused asks for NO second pass. The instrument
+        # still needs one press to close its ruler stream (the UV trigger
+        # "ruler end" is the only recorded form that does, chromiq_dualdev.c
+        # cq_dd_strip), so the person presses once in place; the misread that
+        # follows is answered with Retry by the tab itself (_on_strip_error),
+        # and pass 1 of the same strip is asked for again.
+        lamp_ok = bool(ev.get("lamp_ok", True))
+        self._dual_lamp_refused = None if lamp_ok else str(ev.get("strip") or "")
+        self._dual_lamp_refused_s = None
+        if not lamp_ok:
+            import time as _t
+            _st = getattr(self, "_scan_started_at", None)
+            if _st is not None:
+                # the lamp pass's own time, for the failed-strip pace line (the
+                # press that follows would otherwise be timed as the strip)
+                self._dual_lamp_refused_s = _t.monotonic() - _st
+        msg = M.M_DUAL_PASS_TWO if lamp_ok else M.M_DUAL_PASS_ONE_REFUSED
         title, body = msg.render(strip=name)
         self._dual_prompt(title, body)
         self._log.appendPlainText(f"[{title}]\n{body}")
@@ -13875,6 +13912,26 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if not ev.get("lamp_ok", True) and getattr(self, "_sound", None) is not None:
             import core.sound as _snd
             self._sound.play(_snd.STRIP_FAIL)
+
+    def _dual_lamp_refused_misread(self, reason: str) -> bool:
+        """True when this misread ends a dual strip whose first pass was
+        refused (4.3.58, item 17): Retry is sent without a window."""
+        strip = getattr(self, "_dual_lamp_refused", None)
+        if strip is None or not getattr(self, "_dual_live", False) or bool(
+                getattr(self, "_spot_session", False)):
+            return False
+        if "communication" in str(reason or "").lower():
+            return False          # a lost connection keeps its own window
+        if getattr(self._manager, "_user_quit", False):
+            return False          # a Stop is under way: it answers this prompt
+        self._dual_lamp_refused = None
+        self._dual_lamp_refused_s = None
+        self._dual_failed = None
+        self._dual_pass_again = (strip, str(reason or "").strip())
+        log.info("dual scan: strip %s, pass 1 refused (%s): pass 1 again, "
+                 "no window", strip, reason)
+        self._manager.send_key("\r")
+        return True
 
     def _on_dual_pass_held(self, strip: str) -> None:
         """A jump or a move asked for while the second pass of *strip* is
@@ -14074,6 +14131,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._dual_model_notice = ""
         self._dual_live = False
         self._dual_tile_wait = False
+        self._dual_lamp_refused = None   # 4.3.58
+        self._dual_pass_again = None
         self._dual_ended_text = ""
         if getattr(self, "_dual_status_text", ""):
             self._dual_status("")
@@ -15155,6 +15214,17 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if getattr(self, "_pre_measure_window_open", False):
             self._deferred_strip_error = reason
             self._deferred_strip_error_button = bool(button)
+            return
+
+        # 4.3.58 (item 17, approved as a direction by Basti, 23 Nov 2026): the
+        # misread of a dual strip whose FIRST pass ArgyllCMS refused. The person
+        # was told at once (M-DUAL-PASS-ONE-REFUSED, with the "Strip read
+        # failed" sound) and asked for one press, not a second pass; that press
+        # closed the instrument's ruler stream and this misread is its end. No
+        # window and no second sound: Retry is sent here, and the strip prompt
+        # asks for pass 1 of the same strip again (M-DUAL-PASS-ONE-AGAIN), so
+        # Skip, Stop and every other way on stay where they always are.
+        if self._dual_lamp_refused_misread(reason):
             return
 
         # Sound FIRST: this handler opens a modal dialog and blocks inside its

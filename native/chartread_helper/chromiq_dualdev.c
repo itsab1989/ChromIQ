@@ -520,14 +520,18 @@ static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, 
 		cq_cond_lose("dual_dual_needs_ruler");
 		return;
 	}
-	/* the helper asks for it itself; it is asked for also after a lamp pass
-	 * ArgyllCMS did not recognise (it closes the ruler stream; then both
-	 * passes are read again) */
+	/* the helper asks for it itself. After a lamp pass ArgyllCMS did not
+	 * recognise (lamp_ok false) the same recorded UV trigger is still the only
+	 * form that closes the ruler stream, so the helper waits for it as before;
+	 * since 4.3.58 (item 17, approved as a direction by Basti, 23 Nov 2026)
+	 * the app asks for ONE press in place there, not a second pass, answers
+	 * the misread that follows with Retry itself, and asks for pass 1 again.
+	 * Nothing changes on the wire; only the blue is not sent then. */
 	cq_emit_raw("{\"event\":\"dual_pass\",\"strip\":\"%s\",\"pass\":\"uv\",\"of\":2,"
 	            "\"lamp_ok\":%s}", sb, lamp_ok ? "true" : "false");
 	/* 4.3.52: the blue "second pass due" (lights Beta, result signals, an
 	 * i1Pro 2): due a moment after pass 1, sent from the wait below */
-	cq_lights_second_pass_due();
+	cq_lights_second_pass_due(lamp_ok);
 	/* 4.3.49: a calibration asked for during this wait runs at the next
 	 * strip prompt (never over the open ruler stream), and a command that
 	 * would leave the wait (a jump, a move) is held: the wait goes on */

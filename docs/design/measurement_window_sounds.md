@@ -383,6 +383,12 @@ i1Profiler too shows red only after the return pass (recording of 2026-11-17). (
 the lights Beta's result signals, the blue "second pass due" comes after every first pass, read or
 not, as recorded; it has no sound of its own: docs/design/i1pro2_dual_scan.md section 14.)
 
+4.3.58 (item 17, approved as a direction by Basti, 23 Nov 2026; awaiting confirmation like the
+rest of this section): after such a first pass no second pass is asked for (the status line says
+M-DUAL-PASS-ONE-REFUSED: one press in place, then pass 1 again), and no "Strip Read Failed" window
+follows the press, so its sound does not play a second time: the failure is heard once, at pass 1.
+No blue after a refused first pass (docs/design/i1pro2_dual_scan.md section 18).
+
 ## 5. Related documents
 
 - [`measurement_exit_strategy.md`](measurement_exit_strategy.md) — the same windows, from the point of view of how each one ends a session

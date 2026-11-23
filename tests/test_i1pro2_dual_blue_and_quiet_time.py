@@ -348,7 +348,7 @@ def _helper() -> str:
 def test_the_helper_sends_the_blue_550_ms_after_pass_1_from_the_armed_wait():
     h = _helper()
     assert "#define CQ_LIGHTS_BLUE_AFTER_MS 550" in h
-    due = _body(h, "static void cq_lights_second_pass_due(void) {")
+    due = _body(h, "static void cq_lights_second_pass_due(int lamp_ok) {")
     assert "cq_lights_signals_on()" in due and "cq_lights_gen != 2" in due
     assert "i1pro2_cq_" not in due                  # only a time, nothing sent
     poll = _body(h, "static void cq_lights_second_pass_poll(void) {")
@@ -381,20 +381,23 @@ static void cq_emit_raw(const char *fmt, ...) {
 static void step(const char *s) { printf("STEP %s\n", s); }
 int main(void) {
 	/* sent once it is due, never before, never twice */
-	step("due"); cq_lights_second_pass_due();
+	step("due"); cq_lights_second_pass_due(1);
 	now_ms += 100; cq_lights_second_pass_poll();
 	now_ms += 500; cq_lights_second_pass_poll();
 	now_ms += 100; cq_lights_second_pass_poll();
 	cq_lights_second_pass_over();
 	/* left before it was due: said once, and never sent later */
-	step("early"); cq_lights_second_pass_due();
+	step("early"); cq_lights_second_pass_due(1);
 	now_ms += 100; cq_lights_second_pass_over();
 	now_ms += 5000; cq_lights_second_pass_poll();
 	step("next"); now_ms += 5000; cq_lights_second_pass_poll(); cq_lights_second_pass_over();
 	/* without result signals, or on an i1Pro 3: never due */
-	step("nosig"); sig_on = 0; cq_lights_second_pass_due(); sig_on = 1;
+	step("nosig"); sig_on = 0; cq_lights_second_pass_due(1); sig_on = 1;
 	now_ms += 1000; cq_lights_second_pass_poll(); cq_lights_second_pass_over();
-	step("gen3"); cq_lights_gen = 3; cq_lights_second_pass_due(); cq_lights_gen = 2;
+	step("gen3"); cq_lights_gen = 3; cq_lights_second_pass_due(1); cq_lights_gen = 2;
+	now_ms += 1000; cq_lights_second_pass_poll(); cq_lights_second_pass_over();
+	/* 4.3.58 (item 17): after a refused first pass, never due, and said */
+	step("refused"); cq_lights_second_pass_due(0);
 	now_ms += 1000; cq_lights_second_pass_poll(); cq_lights_second_pass_over();
 	printf("END\n");
 	return 0;
@@ -428,6 +431,7 @@ def test_the_helpers_due_poll_over_run_as_written(tmp_path):
         "STEP next",
         "STEP nosig",
         "STEP gen3",
+        "STEP refused", '{"event":"lights","second_pass":"skipped","why":"lamp_refused"}',
         "END"], out
 
 
@@ -436,11 +440,11 @@ def test_the_dual_strip_sets_the_blue_due_only_where_pass_2_is_asked_for():
     body = d[d.index("static void cq_dd_strip("):]
     ready = body.index("if (!i1pro2_cq_dual_uv_pass_ready(it)) {")
     ask = body.index('"{\\"event\\":\\"dual_pass\\"')
-    due = body.index("cq_lights_second_pass_due();")
+    due = body.index("cq_lights_second_pass_due(lamp_ok);")
     loop = body.index("rv2 = it->read_strip(it, \"STRIP\"")
     over = body.index("cq_lights_second_pass_over();")
     assert ready < ask < due < loop < over
-    assert body.count("cq_lights_second_pass_due();") == 1
+    assert body.count("cq_lights_second_pass_due(") == 1
 
 
 def test_the_quiet_flag_takes_only_a_whole_number_from_0_to_10000():
@@ -459,7 +463,7 @@ def test_the_helper_names_the_new_abilities_and_build():
     assert '\\"lights_quiet\\",\\"i1pro2_dual_blue\\"' in h
     ext = (HELPER_SRC / "chromiq_ext.h").read_text(encoding="utf-8")
     # 4.3.53: 2026-11-20d = 20c + the waits as values (tests/test_instrument_waits.py)
-    assert '"chromiq-chartread 2026-11-21f ' in ext
+    assert '"chromiq-chartread 2026-11-23a ' in ext
     assert "+conditions-kept+lights-quiet+i1pro2-dual-blue+blue-own-quiet+blue-quiet-return-only" in ext
 
 
@@ -479,7 +483,7 @@ def test_the_bundled_helper_is_this_build():
     if not exe.is_file():
         pytest.skip("no bundled helper in this checkout")
     data = exe.read_bytes()
-    assert b"chromiq-chartread 2026-11-21f " in data
+    assert b"chromiq-chartread 2026-11-23a " in data
     assert b'"why\\":\\"early\\"' in data or b'"why":"early"' in data
     assert b"blue_quiet_ms" in data and b'"after":"blue"' in data
 

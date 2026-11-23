@@ -230,7 +230,7 @@ static void cq_emit_raw(const char *fmt, ...) {
 }
 @@SOURCE@@
 static void due_at(void) {
-	now_ms = 1000; cq_lights_second_pass_due();
+	now_ms = 1000; cq_lights_second_pass_due(1);
 	for (now_ms = 1000; now_ms <= 7000; now_ms += 10) cq_lights_second_pass_poll();
 	cq_lights_second_pass_over();
 }
@@ -293,7 +293,7 @@ def test_the_bundled_helper_takes_the_waits():
     if not exe.is_file():
         pytest.skip("no bundled helper in this checkout")
     data = exe.read_bytes()
-    assert b"chromiq-chartread 2026-11-21f " in data and b"+instrument-waits" in data
+    assert b"chromiq-chartread 2026-11-23a " in data and b"+instrument-waits" in data
     for s in (b"--lamp-off-ms", b"--lights-blue-quiet-ms", b"--lights-blue-after-ms",
               b"instrument_waits"):
         assert s in data, s

@@ -300,6 +300,9 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-DUAL-PASS-ONE",
     "M-DUAL-PASS-TWO",
     "M-DUAL-PASS-TWO-UNREAD",
+    # 4.3.58 (item 17): a refused first pass asks for no second pass
+    "M-DUAL-PASS-ONE-REFUSED",
+    "M-DUAL-PASS-ONE-AGAIN",
     "M-DUAL-PASS-FAILED",
     "M-DUAL-SPOT-FAILED",
     "M-DUAL-ENDED",
