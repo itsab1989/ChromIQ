@@ -24,6 +24,7 @@ own helper (item 43 steps 2-3).
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import pytest
 
@@ -306,7 +307,15 @@ def _dialog(monkeypatch, family, *, reader="argyll", stored=None):
 
     monkeypatch.setattr(IM, "attached_family", lambda: family)
     monkeypatch.setattr("core.instrument_port.refused_port", lambda *a: None)
+    # A STORE OF ITS OWN (4.3.62 gate): this used to write the reader and the
+    # condition into the worker's shared sandboxed store, and the next file
+    # on that worker (test_cr30_spot_read.py) opened its window on
+    # "Any ArgyllCMS instrument" instead of "Detect automatically".
+    import tempfile
+    from PyQt6.QtCore import QSettings
     s = AppSettings()
+    s._qs = QSettings(str(Path(tempfile.mkdtemp(prefix="chromiq-item43-"))
+                          / "s.ini"), QSettings.Format.IniFormat)
     s.set("spot_read_instrument", reader)
     s.set("spot_read_condition", stored or "M0")
     runner = ArgyllRunner(s)
@@ -671,3 +680,18 @@ def test_a_filter_accepted_without_a_report_still_records_it(qapp, monkeypatch):
     d._on_reading((40.0, 42.0, 35.0), (70.0, 1.0, 2.0))
     assert d._readings[0].condition == "M2"
     d.deleteLater()
+
+
+def test_the_window_tests_leave_the_shared_store_alone(qapp, monkeypatch):
+    """Guard for the 4.3.62 gate: building these windows never changes the
+    worker's own settings, which the next test file on the worker reads."""
+    from core.settings import AppSettings
+    from workflow.dual_scan import instrument_model as IM
+    shared = AppSettings()
+    before = {k: shared.get(k, None)
+              for k in ("spot_read_instrument", "spot_read_condition")}
+    d = _dialog(monkeypatch, IM.FAMILY_I1PRO3, reader="cr30", stored="M2")
+    d._condition.setCurrentIndex(1)
+    d.deleteLater()
+    after = AppSettings()
+    assert {k: after.get(k, None) for k in before} == before

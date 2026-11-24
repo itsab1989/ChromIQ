@@ -4,7 +4,7 @@
 
 **Tools > Read single patches: choose the measurement condition (M0, M1 or M2) for the X-Rite i1Pro 3.**
 
-### Added
+### Changed
 
 - **A "Measurement condition" row in Tools > Read single patches (M0 / M1 / M2).** It is for everyone and is not a Beta. It appears only when an X-Rite i1Pro 3 is connected and the mode is Reflective. You choose one condition for the whole session before you press Start; the row is greyed while the session runs.
 - **Each reading records its condition.** Readings of different conditions are never averaged together. If your list holds readings of more than one condition, saving it writes one .ti3 file per condition. Before ChromIQ replaces .ti3 files from an earlier save, it asks you.
