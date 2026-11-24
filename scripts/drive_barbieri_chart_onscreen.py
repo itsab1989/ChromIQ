@@ -40,6 +40,9 @@ ap.add_argument("--appearance", default="dark")
 ap.add_argument("--guided-05", action="store_true",
                 help="only Guided with the 0.5 mm opening: its film frames, "
                      "a chart on the 35 mm frame")
+ap.add_argument("--beta-off", action="store_true",
+                help="Barbieri support OFF: a chart for the first instrument "
+                     "and the same narrow window, to compare with the Beta on")
 ap.add_argument("--quick", action="store_true",
                 help="only the default chart, the steps window and Guided")
 args = ap.parse_args()
@@ -61,7 +64,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from core.settings import AppSettings  # noqa: E402
 
 _pre = AppSettings()
-_pre.set("barbieri_chart_beta", True)
+_pre.set("barbieri_chart_beta", not args.beta_off)
 _pre.set("page_output_beta", True)
 _pre.set("restore_last_session", False)
 _pre.set("session_project", "")
@@ -71,7 +74,7 @@ from workflow.page_output import support as _po  # noqa: E402
 
 _bs.latch_from(_pre)
 _po.latch_from(_pre)
-assert _bs.barbieri_enabled() and _po.page_output_enabled()
+assert _bs.barbieri_enabled() != args.beta_off and _po.page_output_enabled()
 
 from userdrive import Drive  # noqa: E402
 
@@ -176,6 +179,31 @@ def main() -> int:
         d.note(f"Guided 3 mm papers: {papers}")
         d.end(0, "done")
 
+    def beta_off(d):
+        win._file_mgr.set_target_name(PROJECT)
+        win._file_mgr.project().current_run().ensure_dir()
+        d.goto_tab("chart")
+        tc._switch_mode("manual")
+        yield 600
+        if tc._manual_target_name_edit is not None:
+            tc._manual_target_name_edit.setText(PROJECT)
+        tc._init_manual_layout_panel()
+        yield 600
+        p = tc._manual_layout_panel
+        d.note(f"Barbieri offered in Manual: {p.instr.findData('B100XY') >= 0}")
+        d.later(tc._on_generate)
+        for _ in range(600):
+            yield 200
+            if tc._generate_btn.isEnabled() and not win._runner.is_running \
+                    and win._file_mgr.project().current_run().chart_ti2.exists():
+                break
+        yield 1500
+        d.shot(win, "30-beta-off-wide")
+        win.resize(1100, 820)
+        yield 1500
+        d.shot(win, "31-beta-off-narrow-window")
+        d.end(0, "done")
+
     def script(d):
         win._file_mgr.set_target_name(PROJECT)
         win._file_mgr.project().current_run().ensure_dir()
@@ -257,7 +285,8 @@ def main() -> int:
         yield 800
         d.end(0, "done")
 
-    return d.run(guided_05 if args.guided_05 else script)
+    return d.run(beta_off if args.beta_off else
+                 guided_05 if args.guided_05 else script)
 
 
 if __name__ == "__main__":
