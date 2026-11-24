@@ -41,6 +41,14 @@ class _Log:
     ({"event": "tdual_state", "t": 1014, "on": True, "tile": "kept", "why": "",
       "restore": "kept", "restore_detail": "lamp 136 / uv 136 clocks"},
      "taken up, lamp 136 / uv 136 clocks"),
+    # safety review 2026-11-24: the file matched, but the tile failed its own check afterwards
+    ({"event": "tdual_state", "t": 1014, "on": True, "tile": "none", "why": "uv_tile_dark",
+      "restore": "kept", "restore_detail": "lamp 136 / uv 136 clocks"},
+     "found, but not usable: uv_tile_dark, lamp 136 / uv 136 clocks"),
+    ({"event": "dual_calibration", "ok": False, "why": "bad_uv_tables", "mode": "spot",
+      "lamp_clocks": 523, "uv_clocks": 523, "volts": [-1, -1], "driver": 0,
+      "restore": "kept", "restore_detail": "lamp 523 / uv 523 clocks"},
+     "found, but not usable: bad_uv_tables, lamp 523 / uv 523 clocks"),
 ])
 def test_the_reason_is_one_line_in_the_session_log_and_the_app_log(caplog, ev, words):
     from workflow.i1io.table.reader import _Proc
@@ -52,7 +60,14 @@ def test_the_reason_is_one_line_in_the_session_log_and_the_app_log(caplog, ev, w
     assert kind == "DATA" and text == "dual calibration kept for this white: " + words
     app = [r.getMessage() for r in caplog.records
            if r.getMessage().startswith("i1pro2 dual tile:")]
-    assert len(app) == 1 and "where=table" in app[0] and f"restore={ev['restore']}" in app[0]
+    assert len(app) == 1 and "where=table" in app[0]
+    usable = ev["ok"] if ev["event"] == "dual_calibration" else ev["tile"] == "kept"
+    if ev["restore"] == "kept" and not usable:
+        # never "taken up" when the tile could not be used
+        assert "taken up" not in text and "restore=kept_not_usable" in app[0]
+        assert ev["why"] in app[0]
+    else:
+        assert f"restore={ev['restore']}" in app[0]
 
 
 def test_the_reader_logs_the_reason_for_both_events_and_only_when_the_helper_gives_one():

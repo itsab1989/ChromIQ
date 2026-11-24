@@ -353,11 +353,23 @@ class _Proc:
         try:
             why = str(ev.get("restore") or "")
             detail = str(ev.get("restore_detail") or "")
-            self.log("DATA", "dual calibration kept for this white: "
-                     + ("taken up" if why == "kept" else "not taken up (" + why + ")")
+            # "kept" means the file matched this white; the tile may still fail its own check
+            # afterwards (tables, the UV LED lit): then the event says so (ok false / tile none)
+            usable = (bool(ev.get("ok")) if ev.get("event") == "dual_calibration"
+                      else ev.get("tile") == "kept")
+            check = str(ev.get("why") or "")
+            if why != "kept":
+                state = "not taken up (" + why + ")"
+            elif usable:
+                state = "taken up"
+            else:
+                state = "found, but not usable: " + (check or "unknown")
+            self.log("DATA", "dual calibration kept for this white: " + state
                      + (", " + detail if detail else ""))
             from workflow.chartread_engine import log_dual_tile_restore
-            log_dual_tile_restore(why, detail, "table")
+            log_dual_tile_restore(why if why != "kept" or usable else "kept_not_usable",
+                                  detail if why != "kept" or usable
+                                  else (check or "unknown") + "; " + detail, "table")
         except Exception:      # noqa: BLE001
             pass
 
