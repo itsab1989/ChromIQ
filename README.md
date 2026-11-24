@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-4.3.61-7c5cff">
+  <img alt="Version" src="https://img.shields.io/badge/version-4.3.62-7c5cff">
   <img alt="Downloads" src="https://img.shields.io/endpoint?url=https://itsab1989.github.io/github-traffic-downloads-dashboard/assets/badges/itsab1989_ChromIQ-downloads.json">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2a9d8f">
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-blue">
@@ -802,7 +802,12 @@ on their own, outside the five-step flow:
   lighter than a print can be or the instrument's sensor is saturated, warns
   you once per calibration and offers **Calibrate again** or **Carry on measuring**. Your
   readings are never changed or dropped. A new **Calibrate** button calibrates
-  again without ending the session),
+  again without ending the session. New in 4.3.62: with an X-Rite i1Pro 3
+  in Reflective mode, a **Measurement condition** row (M0, M1 or M2) lets
+  you choose the condition for the session before you press Start. Each
+  reading records its condition, and saving a list with mixed conditions
+  writes one .ti3 per condition. Tested with a simulated instrument, not yet
+  on a real i1Pro 3),
   **Average measurements** (combine repeat reads of the same chart for lower
   noise), **Merge measurements** (fold extra measurements into an existing set),
   **Inspect a measurement**, and **Measurement report (accuracy & trends)**.

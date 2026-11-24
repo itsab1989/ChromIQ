@@ -1,5 +1,21 @@
 # Changelog
 
+## v4.3.62
+
+**Tools > Read single patches: choose the measurement condition (M0, M1 or M2) for the X-Rite i1Pro 3.**
+
+### Added
+
+- **A "Measurement condition" row in Tools > Read single patches (M0 / M1 / M2).** It is for everyone and is not a Beta. It appears only when an X-Rite i1Pro 3 is connected and the mode is Reflective. You choose one condition for the whole session before you press Start; the row is greyed while the session runs.
+- **Each reading records its condition.** Readings of different conditions are never averaged together. If your list holds readings of more than one condition, saving it writes one .ti3 file per condition. Before ChromIQ replaces .ti3 files from an earlier save, it asks you.
+- **An instrument that does not support the setting** is started again without it, and a short note tells you so. Nothing you have read is lost. Other instruments see no change.
+
+### Known issues
+
+- Tested with a simulated instrument, not yet on a real i1Pro 3.
+- M1 and M2 for the i1Pro 2 (through the dual scan Beta) and keeping all three conditions for every reading come in later versions.
+- The new texts of this version are shown as proposed texts and may still be reworded.
+
 ## v4.3.61
 
 **A new Beta: charts for the Barbieri Spectro 100xy. One Spanish button no longer reads like "Log in".**
