@@ -443,7 +443,7 @@ def test_the_side_file_records_the_marks_each_page_carries(tmp_path):
 
 @pytest.mark.parametrize("over,orient,ticks", [
     ({}, "small black square", True),
-    ({"barbieri_marks": False}, "Check which way the sheet lies", False),
+    ({"barbieri_marks": False}, "compare it with the chart preview", False),
     ({"draw_indicators": True, "row_indicators": True},
      "is the top left one", False),
 ])
@@ -470,3 +470,58 @@ def test_the_start_steps_describe_only_what_is_printed(tmp_path, over, orient,
 def test_the_gateway_note_does_not_call_count_times_pitch_the_patch_area():
     from workflow import measurement_messages as M
     assert "patch area is" not in M._BARBIERI_STEPS_GATEWAY_INEXACT
+
+
+
+def _steps_with_marks(tmp_path, page_marks, **over):
+    """The Start steps' fields after the side file's mark records are set
+    to *page_marks* (one dict per page)."""
+    import json
+    from ui.tabs.tab_measure import barbieri_steps_fields
+    from workflow.barbieri.support import side_file_for
+    _build(tmp_path, over.pop("n", 120), **over)
+    side = side_file_for(tmp_path / "c.ti2")
+    doc = json.loads(side.read_text(encoding="utf-8"))
+    for pg, m in zip(doc["pages_detail"], page_marks):
+        pg["marks"] = {"sides_left_out": [], **m}
+    side.write_text(json.dumps(doc), encoding="utf-8")
+    return barbieri_steps_fields(tmp_path / "c.ti2"), doc
+
+
+def test_the_start_square_alone_is_named(tmp_path):
+    f, _ = _steps_with_marks(tmp_path, [{"bold_corner": False,
+                                         "aim_ticks": False,
+                                         "start_square": True}])
+    assert "small black square" in f["orient"]
+    assert "bold corner" not in f["orient"]
+
+
+def test_no_marks_but_the_darkest_patch_first(tmp_path):
+    f, doc = _steps_with_marks(tmp_path, [{"bold_corner": False,
+                                           "aim_ticks": False,
+                                           "start_square": False}])
+    first = doc["pages_detail"][0]["first_patch"]
+    assert any(c["role"] == "first" for c in
+               doc["pages_detail"][0]["check_patches"])
+    assert "chart preview" in f["orient"]
+    assert f"{first} is the darkest patch" in f["orient"]
+    assert "first row of patches" not in f["orient"]
+
+
+def test_a_page_with_other_marks_is_said(tmp_path):
+    on = {"bold_corner": True, "aim_ticks": True, "start_square": True}
+    off = {"bold_corner": False, "aim_ticks": False, "start_square": False}
+    f, doc = _steps_with_marks(tmp_path, [off, on], n=1500)
+    assert len(doc["pages_detail"]) >= 2
+    assert "Not every page carries the same marks" in f["orient"]
+    f, _ = _steps_with_marks(tmp_path, [on, on], n=1500)
+    assert "Not every page" not in f["orient"]
+
+
+def test_the_numbers_help_follows_the_printed_marks():
+    from ui.barbieri_numbers_panel import numbers_help
+    on = {"pages_detail": [{"marks": {"bold_corner": True}}]}
+    off = {"pages_detail": [{"marks": {"bold_corner": False}}]}
+    assert "corner marks show them" not in numbers_help()
+    assert "corner marks show those three corners" in numbers_help(on)
+    assert "no corner marks printed" in numbers_help(off)

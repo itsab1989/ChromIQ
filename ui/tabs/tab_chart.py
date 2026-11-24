@@ -23811,9 +23811,12 @@ class TabChart(QWidget):
                 guided["isis_notes_band"] = bool(
                     self._settings.get("chart_isis_notes_band", False))
             if getattr(self, "_barbieri_head_combo", None) is not None:
-                # the Barbieri's opening (Beta): the saved default
-                guided["barbieri_head"] = str(
-                    self._settings.get("chart_barbieri_head", "") or "")
+                # the Barbieri's opening (Beta): the saved default, FIRST,
+                # because it decides which sheets the paper list holds (a
+                # film frame exists only for the 0.5 mm opening)
+                guided = {"barbieri_head": str(
+                    self._settings.get("chart_barbieri_head", "") or ""),
+                    **guided}
             for fld, val in guided.items():
                 try:
                     self._shared_set("guided", fld, val)
@@ -33500,6 +33503,14 @@ class TabChart(QWidget):
             _across = (float(s.get("chart_fd9_strip_gap_mm", _along))
                        if s.is_stored("chart_fd9_strip_gap_mm") else _along)
             self._fd9_guided = (_w, _h, _along, _across)
+        # THE BARBIERI'S OPENING BEFORE THE PAPER: it decides which sheets
+        # the list holds (the film frames exist only for the 0.5 mm opening),
+        # so restoring it after the paper gave a saved large film frame back
+        # as the 35 mm one
+        if getattr(self, "_barbieri_head_combo", None) is not None:
+            i = self._barbieri_head_combo.findData(
+                str(s.get("chart_barbieri_head", "") or ""))
+            self._barbieri_head_combo.setCurrentIndex(max(0, i))
         paper = s.get("chart_paper", "A4")
         # A saved i1iO with i1iO support (Beta) off is no choice at all: its
         # sheet (landscape, chosen for the table) is read as none too, so the
@@ -33555,10 +33566,6 @@ class TabChart(QWidget):
             self._isis_model_combo.setCurrentIndex(max(0, i))
             self._isis_band_check.setChecked(
                 bool(s.get("chart_isis_notes_band", False)))
-        if getattr(self, "_barbieri_head_combo", None) is not None:
-            i = self._barbieri_head_combo.findData(
-                str(s.get("chart_barbieri_head", "") or ""))
-            self._barbieri_head_combo.setCurrentIndex(max(0, i))
         self._update_dd_visibility()
         self._update_patch_count()
 

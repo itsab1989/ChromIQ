@@ -40,6 +40,9 @@ ap.add_argument("--appearance", default="dark")
 ap.add_argument("--guided-05", action="store_true",
                 help="only Guided with the 0.5 mm opening: its film frames, "
                      "a chart on the 35 mm frame")
+ap.add_argument("--page-beta-off", action="store_true",
+                help="with --guided-05: the page-output Beta OFF, the paper "
+                     "list opened to show the film frames greyed")
 ap.add_argument("--beta-off", action="store_true",
                 help="Barbieri support OFF: a chart for the first instrument "
                      "and the same narrow window, to compare with the Beta on")
@@ -65,7 +68,7 @@ from core.settings import AppSettings  # noqa: E402
 
 _pre = AppSettings()
 _pre.set("barbieri_chart_beta", not args.beta_off)
-_pre.set("page_output_beta", True)
+_pre.set("page_output_beta", not args.page_beta_off)
 _pre.set("restore_last_session", False)
 _pre.set("session_project", "")
 _pre.set("auto_update_preview", False)
@@ -74,7 +77,8 @@ from workflow.page_output import support as _po  # noqa: E402
 
 _bs.latch_from(_pre)
 _po.latch_from(_pre)
-assert _bs.barbieri_enabled() != args.beta_off and _po.page_output_enabled()
+assert _bs.barbieri_enabled() != args.beta_off
+assert _po.page_output_enabled() != args.page_beta_off
 
 from userdrive import Drive  # noqa: E402
 
@@ -169,6 +173,22 @@ def main() -> int:
         papers = [tc._paper_combo.itemText(k)
                   for k in range(tc._paper_combo.count())]
         d.note(f"Guided 0.5 mm papers: {papers}")
+        if args.page_beta_off:
+            combo = tc._paper_combo
+            model = combo.model()
+            for k in range(combo.count()):
+                it = model.item(k)
+                d.note(f"   {combo.itemText(k)}: "
+                       f"{'offered' if it.isEnabled() else 'GREYED'}"
+                       f"{' - ' + it.toolTip() if it.toolTip() else ''}")
+            d.shot(win, "40-guided-05-page-beta-off")
+            combo.showPopup()
+            yield 1200
+            d.shot(combo.view().window(), "41-guided-05-page-beta-off-list")
+            combo.hidePopup()
+            yield 400
+            d.end(0, "done")
+            return
         d.shot(win, "20-guided-05-film-frames")
         yield from generate("21-guided-05-35mm")
         d.shot(win, "21-guided-05-35mm-chart")

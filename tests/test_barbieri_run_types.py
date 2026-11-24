@@ -223,3 +223,30 @@ def test_guided_greys_the_film_frames_without_the_page_beta(win, qapp):
         assert model.item(combo.currentIndex()).isEnabled()
     finally:
         po._latched = before
+
+
+def test_guided_restores_a_saved_large_film_frame(win, qapp):
+    """Saved: Guided, 0.5 mm, the large film frame. Restored: the same paper,
+    not the 35 mm frame (the opening decides the list, so it comes first)."""
+    from workflow.page_output import support as po
+    from workflow.barbieri.chart import film_paper_code
+    before = po._latched
+    po.set_enabled_for_this_process(True)
+    try:
+        tc = win._tab_chart
+        s = tc._settings
+        code = film_paper_code("film_large")
+        s.set("chart_instrument", "B100XY")
+        s.set("chart_barbieri_head", "transmission-0.5")
+        s.set("chart_paper", code)
+        # the combo on the factory opening, as at start-up
+        tc._switch_mode("guided")
+        box = tc._barbieri_head_combo
+        box.setCurrentIndex(box.findData("reflection-3"))
+        qapp.processEvents()
+        tc._restore_defaults_impl()
+        qapp.processEvents()
+        assert box.currentData() == "transmission-0.5"
+        assert tc._paper_combo.currentData() == code
+    finally:
+        po._latched = before

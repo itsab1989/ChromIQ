@@ -1921,10 +1921,22 @@ _BARBIERI_ORIENT_MARKS = (
     "Lay the printed sheet or film on the table the right way up: the bold "
     "corner mark is at the upper right, and the first patch, {first}, is the "
     "top left one.")
+_BARBIERI_ORIENT_SQUARE = (
+    "Lay the printed sheet or film on the table the right way up: the small "
+    "black square sits left of the first patch, {first}, at the top left.")
 _BARBIERI_ORIENT_PLAIN = (
     "Lay the printed sheet or film on the table the right way up: the first "
-    "patch, {first}, is the top left one. Check which way the sheet lies by "
-    "its first row of patches.")
+    "patch, {first}, goes at the top left. The chart has no mark that shows "
+    "which way it lies, so compare it with the chart preview in ChromIQ: the "
+    "preview's top row of patches must be at the top.")
+#: added after {orient} when page 1 has no bold corner but has the check
+#: patches: the darkest patch sits at the first place
+_BARBIERI_ORIENT_DARKEST = (
+    "{first} is the darkest patch of the chart, which makes it easy to find.")
+#: added after {orient} when another page carries other marks than page 1
+_BARBIERI_ORIENT_PAGES_DIFFER = (
+    "Not every page carries the same marks as page 1: lay each page the same "
+    "way, with its first patch at the top left.")
 #: {aim_hint}: the two aim ticks are printed, or they are not.
 _BARBIERI_AIM_TICKS = "The two thin ticks in the margin cross there."
 _BARBIERI_AIM_EYE = "Aim at the middle of that patch by eye."

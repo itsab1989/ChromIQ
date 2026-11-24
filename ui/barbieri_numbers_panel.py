@@ -83,8 +83,9 @@ class BarbieriNumbersPanel(QGroupBox):
         self._lead.setWordWrap(True)
         head.addWidget(self._lead, 1)
         from ui.tooltip_button import TooltipButton
-        head.addWidget(TooltipButton(
-            tr("Barbieri grid numbers"), numbers_help(), self, min_width=560))
+        self._help = TooltipButton(
+            tr("Barbieri grid numbers"), numbers_help(), self, min_width=560)
+        head.addWidget(self._help)
         v.addLayout(head)
         self._body = QLabel("", self)
         self._body.setTextFormat(Qt.TextFormat.RichText)
@@ -110,10 +111,35 @@ class BarbieriNumbersPanel(QGroupBox):
             self.setVisible(False)
             return
         self._body.setText(numbers_html(side))
+        self._help.set_content(tr("Barbieri grid numbers"),
+                               numbers_help(side))
         self.setVisible(True)
 
 
-def numbers_help() -> str:
+def corner_marks_printed(side: dict) -> bool:
+    """Whether page 1 of the chart carries its corner marks (the side file's
+    record of what was printed; an older side file: its marks switch)."""
+    pages = side.get("pages_detail") or [{}]
+    marks = pages[0].get("marks")
+    if marks is None:
+        return bool(side.get("marks_on", True))
+    return bool(marks.get("bold_corner"))
+
+
+def numbers_help(side: "dict | None" = None) -> str:
+    """The help on the numbers; with a chart's side file it also says
+    whether that chart's corner marks show Gateway's corners."""
+    text = _numbers_help_base()
+    if side is None:
+        return text
+    return text + " " + (tr(
+        "On this chart the corner marks show those three corners.")
+        if corner_marks_printed(side) else tr(
+        "This chart has no corner marks printed, so aim Gateway at the "
+        "outer corners of the corner patches."))
+
+
+def _numbers_help_base() -> str:
     return tr(
         "Spectro32 asks for the grid as one line: R, then two offsets (0 here, "
         "because you aim the head by hand at the upper-right patch and save "
@@ -123,7 +149,6 @@ def numbers_help() -> str:
         "instead for the patches across and down and the target size, the "
         "number of patches times the pitch in whole millimetres (the patch "
         "area from edge to edge when the patches have no gaps), and is aimed "
-        "at "
-        "three corners of the patch area: the corner marks show them. A chart "
+        "at three corners of the patch area. A chart "
         "of several pages has one line per page. The reading time is worked "
         "out from the datasheet's pace of about 1.9 seconds a patch.")

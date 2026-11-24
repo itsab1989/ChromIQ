@@ -1841,13 +1841,26 @@ def barbieri_steps_fields(chart) -> dict:
     on = bool(side.get("marks_on", True))
     marks = first.get("marks") or {"bold_corner": on, "aim_ticks": on,
                                    "start_square": on}
+    first_name = first.get("first_patch", "?")
     if marks.get("bold_corner") and marks.get("start_square"):
         orient = tr(M._BARBIERI_ORIENT_MARKS_SQUARE)
     elif marks.get("bold_corner"):
         orient = tr(M._BARBIERI_ORIENT_MARKS)
+    elif marks.get("start_square"):
+        orient = tr(M._BARBIERI_ORIENT_SQUARE)
     else:
         orient = tr(M._BARBIERI_ORIENT_PLAIN)
-    orient = orient.format(first=first.get("first_patch", "?"))
+    orient = orient.format(first=first_name)
+    if not marks.get("bold_corner") and any(
+            c.get("role") == "first" and c.get("patch") == first_name
+            for c in first.get("check_patches") or []):
+        # no bold corner, but the darkest patch is at the first place
+        orient += " " + tr(M._BARBIERI_ORIENT_DARKEST).format(
+            first=first_name)
+    _keys = ("bold_corner", "aim_ticks", "start_square")
+    if any((p.get("marks") or {}).get(k) != marks.get(k)
+           for p in pages[1:] if p.get("marks") for k in _keys):
+        orient += " " + tr(M._BARBIERI_ORIENT_PAGES_DIFFER)
     aim_hint = tr(M._BARBIERI_AIM_TICKS if marks.get("aim_ticks")
                   else M._BARBIERI_AIM_EYE)
     try:
