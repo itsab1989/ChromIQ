@@ -23,12 +23,13 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+# Two jobs, as GitHub's own Pages template has them: `build` uploads the
+# artifact, `deploy` (needs: build) publishes it. The old single job
+# intermittently failed in deploy-pages with "No artifacts named github-pages
+# were found" although the artifact existed.
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/configure-pages@v6
@@ -38,5 +39,13 @@ jobs:
           # v4+ drops dotfiles by default; v3 shipped docs/.nojekyll, so keep
           # the published site byte-for-byte what it was.
           include-hidden-files: true
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v5
