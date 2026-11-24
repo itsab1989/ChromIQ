@@ -212,6 +212,25 @@ def test_nothing_moves_while_a_pop_up_is_open(qtbot, monkeypatch, tmp_path, sett
     assert busy_with_popup == []
 
 
+def _hold_the_job_call(monkeypatch, win):
+    """The window's job call for the next answer waits in the worker until the returned event
+    is set. 4.3.64 gate (2026-11-25): without it the report raced the job thread. Reported
+    within ~5 ms of the window going busy, the stop was taken before the GO answer reached the
+    job (stopped_before_the_next_move, the case below); reported later, as on a loaded machine,
+    the job had already answered GO, read the arm and asked its first-visit question (this
+    file keeps every first visit), and Cancel then showed that question: the companion test
+    after this one. Each ordering is now driven on purpose, never by the scheduler."""
+    import threading
+    gate = threading.Event()
+    real = win.job.answer
+
+    def held(*a, **k):
+        gate.wait(10)
+        return real(*a, **k)
+    monkeypatch.setattr(win.job, "answer", held)
+    return gate
+
+
 def test_report_a_problem_while_a_row_runs_waits_until_the_table_has_stopped(
         qtbot, monkeypatch, tmp_path, settings):
     win, sim, run, p, saved, finished = _quiet(qtbot, monkeypatch, tmp_path, settings,
@@ -219,9 +238,11 @@ def test_report_a_problem_while_a_row_runs_waits_until_the_table_has_stopped(
     p.drive_until("rows")
     watch = _MoveWatch(win, sim)
     sim.transport.delay_s = 0.02
+    gate = _hold_the_job_call(monkeypatch, win)
     [b for b in win._buttons if b.text() == "Go"][0].click()
     qtbot.waitUntil(lambda: win._busy, timeout=5000)
     win._on_problem()                                     # the tab's Report a problem
+    gate.set()                                            # the job call goes on only now
     assert not win.popup_open() and win.pages_shown[-1] != "problem"
     qtbot.waitUntil(lambda: not win._busy, timeout=30000)
     sim.transport.delay_s = 0.0
@@ -231,6 +252,48 @@ def test_report_a_problem_while_a_row_runs_waits_until_the_table_has_stopped(
     p.press("Cancel")
     # the stop that made room for the window was not the person's: the next move asks GO
     assert p.page() in ("go", "stopped_by_you", "report_after_step") and _moves(sim) == n
+
+
+def test_a_problem_reported_once_the_job_waits_at_its_question_shows_that_question_again(
+        qtbot, monkeypatch, tmp_path, settings):
+    """The other ordering (the 4.3.64 gate's): the job had answered GO, read the arm and asked
+    its first-visit question before the report reached it. The problem window still opens only
+    when the job call has returned, Cancel brings back the question that waits, and nothing has
+    moved; answering it does not move either, because the stop the report asked for is honoured
+    before the move."""
+    win, sim, run, p, saved, finished = _quiet(qtbot, monkeypatch, tmp_path, settings,
+                                               sheet=small_sheet([6, 6]))
+    p.drive_until("rows")
+    watch = _MoveWatch(win, sim)
+    sim.transport.delay_s = 0.02
+    job = win.job
+    asked = []
+    real = job.answer
+
+    def answered_then_wait(*a, **k):
+        res = real(*a, **k)                   # GO, the arm read, the first-visit question
+        asked.append(res)
+        return res
+    monkeypatch.setattr(job, "answer", answered_then_wait)
+    import time
+    n = _moves(sim)
+    [b for b in win._buttons if b.text() == "Go"][0].click()
+    assert win._busy
+    # no event loop here: the job's result is queued for the window, not yet delivered
+    t0 = time.monotonic()
+    while not asked and time.monotonic() - t0 < 10:
+        time.sleep(0.005)
+    assert asked and asked[0].kind == "needs_confirmation" and asked[0].confirm == "first_visit", asked
+    win._on_problem()
+    assert win._busy and not win.popup_open() and win.pages_shown[-1] != "problem"
+    qtbot.waitUntil(lambda: not win._busy, timeout=30000)
+    sim.transport.delay_s = 0.0
+    assert win.pages_shown[-1] == "problem" and win.popup_open()
+    p.press("Cancel")
+    assert p.page() == "first_visit" and _moves(sim) == n
+    p.press("Make this move, my hands are away")
+    assert _moves(sim) == n and watch.bad == []
+    assert p.page() in ("go", "stopped_by_you", "report_after_step")
 
 
 # ---- condition 3: a way to the ending from inside every pop-up of an open table ------------------
