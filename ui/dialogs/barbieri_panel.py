@@ -373,8 +373,12 @@ class BarbieriPanelMixin:
                 pa = getattr(self, "patch_align", None)
                 if pa is not None:
                     saved["align"] = pa.currentIndex()
-                    i = pa.findData("top-left")
-                    if i >= 0 and not getattr(self, "_align_chosen", False):
+                    # the Barbieri's own alignment when it is chosen again,
+                    # else top-left unless a person picked one
+                    own_align = getattr(self, "_barbieri_own_align", None)
+                    i = pa.findData(own_align or "top-left")
+                    if i >= 0 and (own_align or not getattr(
+                            self, "_align_chosen", False)):
                         pa.setCurrentIndex(i)
                 # THE MARGINS a new Barbieri chart starts with (15 mm left,
                 # the patch area in the reading area), only where nobody set
@@ -412,6 +416,9 @@ class BarbieriPanelMixin:
             return
         self._barbieri_saved = None
         self._barbieri_own_patch = (self.patch_x.value(), self.patch_y.value())
+        pa = getattr(self, "patch_align", None)
+        if pa is not None:
+            self._barbieri_own_align = pa.currentData()
         si = getattr(self, "show_indicators", None)
         if si is not None:
             self._barbieri_own_letters = si.isChecked()

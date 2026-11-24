@@ -1052,6 +1052,9 @@ def _build_base(
                        target_name=TARGET_INSTRUMENT_NAME["B100XY"],
                        plen=_p, pwid=_p, rrsp=_p, pspa=0.0, tspa=0.0,
                        lspa=0.0, lcar=0.0, txhisl=0.0, padlrow=True,
+                       # no row numbers unless asked for (no labels inside
+                       # or beside the frame by default)
+                       rlwi=0.0,
                        mxpprow=int(_BF.MAX_PER_SIDE.value),
                        extra_keywords=(("CHROMIQ_BARBIERI_LAYOUT", "1"),))
     if key == "CM" and hflag and density < 2:

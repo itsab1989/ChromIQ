@@ -7516,6 +7516,8 @@ class LayoutOptionsPanel(QWidget):
                 "Whatever you set here is kept."))
         else:
             cb.setToolTip("")
+        # the Barbieri's greyed controls keep their own reason (a Beta)
+        self._barbieri_call("_barbieri_hold_greyed")
 
     def _compact_browse(self, tooltip: str):
         """A magenta folder browse button sized like the targen -c browse

@@ -122,6 +122,9 @@ CANDIDATES: dict[str, Any] = {
     "isis_strip_letters": "bottom",
     "isis_notes_band": True, "isis_notes_place": "trailer",
     "isis_notes_height_mm": 12.0, "isis_align": "center",
+    # the Barbieri Spectro 100xy's own (a Beta, 2026-11-24)
+    "barbieri_head": "transmission-3", "barbieri_check_patches": False,
+    "barbieri_marks": False, "barbieri_size": "standard",
     # the rest of the panel
     "pscale": 1.1, "sscale": 1.2, "use_instrument_margins": False,
     "indicator_rotation": 90, "row_indicator_rotation": 180,
