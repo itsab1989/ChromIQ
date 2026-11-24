@@ -670,6 +670,9 @@ static int cq_strip_row(alphix *paix, int totpa, const char *label) {
 	return -1;
 }
 
+static int cq_spot_session = 0;		/* --spot-session (item 43, chromiq_spotsession.c) */
+static int cq_spot_conditions = 0;	/* --spot-conditions (item 43) */
+
 #ifdef CQ_FAKE_USB_TEST
 /* tests only (tests/spot_session_wire_test.c): the instrument the fake USB
  * layer's test builds; never in a shipped build */
@@ -2285,6 +2288,16 @@ inst_code cq_uicallback(void *cntx, inst_ui_purp purp) {
 	}
 	if (purp == inst_armed)
 		cq_wait_left_by_command = 0;	/* a new poll of the wait */
+
+	/* CHROMIQ_EXT (item 43): the spot session ends cleanly when the app is
+	 * gone (its end of the pipe closed) while the instrument waits for a
+	 * press: the wait is left, the session closes the instrument itself
+	 * (cq_ss_end) instead of the exit guard ending the process. Only the
+	 * spot session; every other mode keeps the guard's ending. */
+	if (cq_spot_session && cq_stdin_eof && purp == inst_armed) {
+		cq_wait_left_by_command = 1;
+		return inst_user_abort;
+	}
 
 	/* CHROMIQ_EXT: a calibration the user asked for becomes the 'k' command
 	 * HERE and nowhere else: only while the instrument is armed and waiting
@@ -6674,8 +6687,6 @@ int cq_tscan_dual = 0;
 /* CHROMIQ_EXT (round B, 2026-11-17): --i1io-press-wait, the i1iO table drive's
  * "Aimed" by the instrument's button (chromiq_presswait.c). */
 static int cq_presswait = 0;
-static int cq_spot_session = 0;		/* --spot-session (item 43) */
-static int cq_spot_conditions = 0;	/* --spot-conditions (item 43) */
 
 static int cq_run_button_test(int comport, flow_control fc) {
 	icompaths *icmps = NULL;

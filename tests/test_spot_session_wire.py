@@ -100,7 +100,7 @@ def run(exe: Path, cache: Path, mode: str, *, chart: "Path | None" = None,
         presses: int = 3, calibrate_after: "int | None" = None,
         restored: bool = False, fail_at: "int | None" = None,
         quit_at_cal: bool = False, extra=(), dual: bool = True,
-        timeout: float = 90.0) -> Run:
+        eof_after: "int | None" = None, timeout: float = 90.0) -> Run:
     """One life of the helper. *mode* "session" (--spot-session) or "patch"
     (the chart's patch-by-patch reader). The person's part is scripted the
     same way for both: put the instrument on its tile when asked, press
@@ -157,7 +157,7 @@ def run(exe: Path, cache: Path, mode: str, *, chart: "Path | None" = None,
         try:
             p.stdin.write(json.dumps(kw) + "\n")
             p.stdin.flush()
-        except (BrokenPipeError, OSError):
+        except (BrokenPipeError, OSError, ValueError):
             pass
 
     seen = 0
@@ -179,6 +179,11 @@ def run(exe: Path, cache: Path, mode: str, *, chart: "Path | None" = None,
                     send(cmd="ok")
             elif k in ("spot_reading", "patch_read"):
                 reads += 1
+                if eof_after is not None and reads >= eof_after:
+                    try:
+                        p.stdin.close()     # the app is gone
+                    except OSError:
+                        pass
             elif k == "dual_pass_result" and e.get("calibrate"):
                 want_cal = True                 # what the app does: calibrate, then again
             elif k == "spot_ready":
@@ -328,6 +333,19 @@ def test_f_a_restored_calibration_changes_nothing(exe, chart, tmp_path):
     assert all(e["ok"] for e in s.kinds("dual_pass_result"))
     assert s.wire == p.wire
     assert s.wire[-2:] == ["STATE uv_en 0 lit 0", "CLOSE"]
+
+
+def test_i_the_app_gone_in_the_middle(exe, chart, tmp_path):
+    """The app's end of the pipe closes after the first reading. Patch by
+    patch the exit guard ends the process 1.5 s later (no close of its own,
+    the operating system lets the device go); the spot session leaves the
+    wait at once and closes the instrument itself, UV switch off. The same
+    requests up to there."""
+    s = run(exe, tmp_path / "s", "session", presses=3, eof_after=1)
+    p = run(exe, tmp_path / "p", "patch", chart=chart, presses=3, eof_after=1)
+    assert s.wire[:-2] == p.wire
+    assert s.wire[-2:] == ["STATE uv_en 0 lit 0", "CLOSE"]
+    assert s.kinds("spot_session_end")[-1]["why"] == "stdin"
 
 
 @pytest.mark.parametrize("flag", ["-N", "-H"])
