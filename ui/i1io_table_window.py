@@ -1246,10 +1246,18 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
         "uv_spot_failed": tr(
             "the reading with the UV light did not succeed on a patch, even when it was read "
             "again"),
+        # 2026-11-24: the calibration WAS made; the row's reading program did not find it again
+        # (the table owner's tries of 23 Nov). No longer "please calibrate again": ChromIQ does
+        # that by itself, and a second time would end the same way
         "dual_calibration_not_kept": tr(
-            "the reading program found no calibration with the UV light for the white the "
-            "i1Pro 2 has now, so nothing was moved. Please calibrate again, with the arm at "
-            "home"),
+            "the calibration with the UV light was made, but the reading program for this row "
+            "could not find it again, so nothing was moved. ChromIQ calibrates again before "
+            "it reads any further. If this happens again after that calibration, calibrating once more "
+            "will not help: please end this step, switch the dual scan off in Preferences > "
+            "Beta to measure M0 only, and send the app log, which names the reason"),
+        "dual_calibration_not_found_again": tr(
+            "The reading program could not find the calibration with the UV light again, so "
+            "the instrument is calibrated again first, with the arm at home."),
         "dual_calibration_failed": tr(
             "The calibration on the white tile worked, but its second part, the reading of the "
             "tile with the UV light that M1 and M2 need, did not. Nothing has been read with "
@@ -3994,7 +4002,9 @@ class TableMeasureWindow(QFrame):
                 row=d.get("row", "?"), page=d.get("page", page),
                 why=as_clause(reason_text(d.get("why", ""))))
             if not d.get("again_allowed", True):
-                why = (reason_text("calibration_due") if d.get("calibration_due")
+                why = (reason_text("dual_calibration_not_found_again")
+                       if d.get("why") == "dual_calibration_not_kept"
+                       else reason_text("calibration_due") if d.get("calibration_due")
                        else reason_text("rows_read_again_limit"))
                 body += "\n\n" + M.M_I1IO_DRIVE_ROW_NOT_AGAIN.render(why=why)[1]
         elif kind == "row_failed":
@@ -4004,7 +4014,9 @@ class TableMeasureWindow(QFrame):
                 row=d.get("row", "?"), page=d.get("page", page),
                 why=as_clause(reason_text(d.get("why", ""))))
             if not d.get("again_allowed", True):
-                why = (reason_text("calibration_due") if d.get("calibration_due")
+                why = (reason_text("dual_calibration_not_found_again")
+                       if d.get("why") == "dual_calibration_not_kept"
+                       else reason_text("calibration_due") if d.get("calibration_due")
                        else reason_text("rows_read_again_limit"))
                 body += "\n\n" + M.M_I1IO_DRIVE_ROW_NOT_AGAIN.render(why=why)[1]
         elif kind == "end_of_session":

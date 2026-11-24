@@ -11418,6 +11418,16 @@ With {n} = 1: "The arm moves in 1 second. Please keep your hands away from the t
 >
 > Reading this row again is not possible now: {why}
 
+*Revised 2026-11-24 (awaiting review; the table owner's dual tries of 23 Nov, where a fault in the reading program refused every dual row): for a dual row whose reading program could not find the calibration with the UV light again (reason dual_calibration_not_kept), {why} is no longer the calibration_due sentence (“The instrument's calibration is about to run out, …”), which was not true there, but its own:*
+
+> The reading program could not find the calibration with the UV light again, so the instrument is calibrated again first, with the arm at home.
+
+*and that reason's own clause in M-I1IO-DRIVE-ROW-FAILED / -ROW-FAILED-STRIP no longer ends in “Please calibrate again, with the arm at home” (ChromIQ calibrates by itself, and a second time would end the same way):*
+
+> the calibration with the UV light was made, but the reading program for this row could not find it again, so nothing was moved. ChromIQ calibrates again before it reads any further. If this happens again after that calibration, calibrating once more will not help: please end this step, switch the dual scan off in Preferences > Beta to measure M0 only, and send the app log, which names the reason
+
+**Confirmed by:** *nobody yet.*
+
 ### M-I1IO-DRIVE-REPORT · PROPOSED · the asking mode: after every table step that moved, Measure (the i1iO table window)
 
 *New 2026-11-17 (build step 9 of the i1iO table drive, inside the Beta "X-Rite i1iO support"; drafts of STEP4_PROPOSAL section 3 and the job's confirmations). Shown in betas as a proposed text (Knut, 2026-10-14); approved afterwards.*
