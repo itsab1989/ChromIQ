@@ -1080,6 +1080,79 @@ void cq_replay_arm_spot(const double xyz[3]) {
 	cq_spot_armed[2] = xyz[2];
 }
 
+/* ---------------- the spot session (item 43, 2026-11-24) ----------------
+ * --spot-session has no chart: press n reads the script's patches one after
+ * the other (STRIP A's first, second, ..., then B's, round again after the
+ * last). The main value is the patch's XYZ line, or its LAMP spectrum when
+ * the script has one (an i1Pro 2 dual script); the conditions record of the
+ * press holds its COND values (an i1Pro 3 script), the dual record its LAMP
+ * and UV spectra. Only the spot session arms this; the chart's patch loop
+ * arms the expected value (cq_replay_arm_spot), as before. */
+static int cq_spot_n_armed = 0;
+static int cq_spot_n_strip = 0, cq_spot_n_patch = 0;
+
+static int cq_spot_n_count(const cq_strip *st) {
+	return st->n > st->dl ? st->n : st->dl;
+}
+
+void cq_replay_arm_spot_n(int n) {
+	int total = 0, s, k;
+	for (s = 0; s < cq_nstrips; s++)
+		total += cq_spot_n_count(&cq_strips[s]);
+	cq_spot_n_armed = 0;
+	if (total <= 0 || n < 0)
+		return;
+	k = n % total;
+	for (s = 0; s < cq_nstrips; s++) {
+		int c = cq_spot_n_count(&cq_strips[s]);
+		if (k < c)
+			break;
+		k -= c;
+	}
+	cq_spot_n_strip = s;
+	cq_spot_n_patch = k;
+	cq_spot_n_armed = 1;
+}
+
+/* the armed patch into val and the press's records (one value) */
+static void cq_replay_spot_n_fill(ipatch *val) {
+	cq_strip *st = &cq_strips[cq_spot_n_strip];
+	int i = cq_spot_n_patch, c;
+	memset(val, 0, sizeof(ipatch));
+	cq_rc_n = 0;
+	cq_rd_n = 0;
+	if (st->dl > i)
+		cq_replay_spec_to_patch(st->dlamp[i], CQ_DUAL_NB, val);
+	else if (st->n > i) {
+		val->XYZ[0] = st->xyz[i][0];
+		val->XYZ[1] = st->xyz[i][1];
+		val->XYZ[2] = st->xyz[i][2];
+		val->XYZ_v = 1;
+		val->mtype = inst_mrt_reflective;
+	}
+	for (c = 0; c < 3; c++) {
+		cq_rc_have[c] = st->cn[c] > i;
+		if (!cq_rc_have[c])
+			continue;
+		memset(&cq_rc_vals[c][0], 0, sizeof(ipatch));
+		cq_rc_vals[c][0].XYZ[0] = st->cxyz[c][i][0];
+		cq_rc_vals[c][0].XYZ[1] = st->cxyz[c][i][1];
+		cq_rc_vals[c][0].XYZ[2] = st->cxyz[c][i][2];
+		cq_rc_vals[c][0].XYZ_v = 1;
+		cq_rc_vals[c][0].mtype = inst_mrt_reflective;
+		cq_rc_vals[c][0].mcond = c == 1 ? inst_mrc_D50 : c == 2 ? inst_mrc_uvcut
+		                                               : inst_mrc_none;
+	}
+	cq_rc_n = 1;
+	if (st->dl > i) {
+		memcpy(cq_rd_lamp[0], st->dlamp[i], sizeof(cq_rd_lamp[0]));
+		cq_rd_have_uv = st->du > i;
+		if (cq_rd_have_uv)
+			memcpy(cq_rd_uv[0], st->duv[i], sizeof(cq_rd_uv[0]));
+		cq_rd_n = 1;
+	}
+}
+
 static inst_code cq_read_sample(inst *p, char *name, ipatch *val,
 	instClamping clamp) {
 	cq_inst *cq = (cq_inst *)p;
@@ -1132,6 +1205,11 @@ static inst_code cq_read_sample(inst *p, char *name, ipatch *val,
 					if (strcmp(fault, "wrong_config") == 0)
 						return inst_wrong_config;
 					return inst_misread;
+				}
+				if (cq_spot_n_armed) {	/* the spot session (item 43) */
+					cq_spot_n_armed = 0;
+					cq_replay_spot_n_fill(val);
+					return inst_ok;
 				}
 				memset(val, 0, sizeof(ipatch));
 				val->XYZ[0] = cq_spot_armed[0];

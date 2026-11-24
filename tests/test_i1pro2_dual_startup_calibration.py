@@ -134,9 +134,9 @@ def test_the_helper_asks_for_it_in_the_dual_branch():
 
 def test_the_bundled_helper_is_this_build():
     ext = (HELPER / "chromiq_ext.h").read_text(encoding="utf-8")
-    assert '"chromiq-chartread 2026-11-24b ' in ext and "+dual-startup-wavelength" in ext
+    assert '"chromiq-chartread 2026-11-25a ' in ext and "+dual-startup-wavelength" in ext
     exe = ROOT / "native" / "chromiq-chartread"
     if not exe.is_file():
         pytest.skip("no bundled helper in this checkout")
     data = exe.read_bytes()
-    assert b"chromiq-chartread 2026-11-24b " in data and b"+dual-startup-wavelength" in data
+    assert b"chromiq-chartread 2026-11-25a " in data and b"+dual-startup-wavelength" in data

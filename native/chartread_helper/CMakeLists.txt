@@ -524,11 +524,35 @@ if(CQ_V4352_I1PRO_DIR)
   target_link_libraries(i1pro2_dual_lights_test_v4352 PRIVATE instlib_v4352_i1pro)
 endif()
 
+# Item 43 steps 2-3 (2026-11-24): the spot session (--spot-session) and the
+# chart's patch-by-patch reader, both as the REAL helper (compiled with
+# CQ_FAKE_USB_TEST: its main is cq_helper_main, its instrument the test's)
+# through the real i1Pro 2 driver on a fake USB layer
+# (tests/test_spot_session_wire.py). Never part of a shipped build.
+add_executable(spot_session_wire_test EXCLUDE_FROM_ALL
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests/spot_session_wire_test.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_chartread.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_json.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_margin.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_replay.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_dualscan.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_cal.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_stubs.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_usbwatch.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_tablescan.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_presswait.c
+  ${INSTLIB}/alphix.c
+)
+target_compile_definitions(spot_session_wire_test PRIVATE CQ_FAKE_USB_TEST)
+target_include_directories(spot_session_wire_test PRIVATE
+  ${INSTLIB} ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(spot_session_wire_test PRIVATE instlib)
+
 set(_cq_link_targets chromiq-chartread i1pro2_lights_test i1pro3_lights_test
     i1pro3_conditions_test i1io_table_scan_test)
 list(APPEND _cq_link_targets i1pro2_lights_modes_test i1pro3_lights_modes_test)
 list(APPEND _cq_link_targets i1pro2_dual_test i1io_table_dual_test i1pro2_dual_lights_test)
-list(APPEND _cq_link_targets i1pro2_startcal_test)
+list(APPEND _cq_link_targets i1pro2_startcal_test spot_session_wire_test)
 list(APPEND _cq_link_targets i1pro_ruler_scan_test i1pro3_ruler_test)
 list(APPEND _cq_link_targets i1pro2_lights_modes_test_watched
      i1pro3_lights_modes_test_watched i1pro_ruler_scan_test_watched

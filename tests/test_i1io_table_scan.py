@@ -249,13 +249,14 @@ def test_only_the_switch_reaches_the_new_code():
     # (4.3.49, the record outlives an end; nothing for the table); 2026-11-20a:
     # lights_quiet and i1pro2_dual_blue (4.3.52, the lights Beta; nothing for the table);
     # 2026-11-20d: instrument_waits (4.3.53; the table passes none); 2026-11-21a:
-    # i1pro2_dual_fresh_start (4.3.54, issue 217; nothing for the table)
+    # i1pro2_dual_fresh_start (4.3.54, issue 217; nothing for the table); 2026-11-24a:
+    # spot_session (item 43, Read single patches; nothing for the table)
     assert caps and base and caps == [base[0].replace(
         '\\"margin_tolerance\\"]',
         '\\"margin_tolerance\\",\\"i1pro2_dual_conditions\\",\\"i1pro2_dual_scan\\",'
         '\\"i1io_table_dual\\",\\"conditions_kept\\",\\"lights_quiet\\",'
         '\\"i1pro2_dual_blue\\",\\"instrument_waits\\",\\"i1pro2_dual_fresh_start\\",'
-        '\\"lamp_off_i1pro2\\"]')]
+        '\\"lamp_off_i1pro2\\",\\"spot_session\\"]')]
 
 
 def test_the_build_string():
@@ -302,18 +303,20 @@ def test_the_build_string():
     # table);
     # 2026-11-23b = 23a + the hand dual scan's start-up calibration asks for the LED wavelength
     # calibration too (4.3.58 item 40; nothing for the table);
-    # 2026-11-24b = 23b + the "wavelength" event, the offset the filters use and where it came
+    # 2026-11-23c = 23b + the "wavelength" event, the offset the filters use and where it came
     # from (4.3.59; each table row process reports it, nothing sent changes);
     # 2026-11-24b = 23c + a row reader takes up the kept dual tile again (the clock it is
     # matched in is the i1Pro 2's own, known in a fresh process) and says why when it cannot
-    # (the table owner's dual tries of 23 Nov; nothing sent changes), last
-    assert "chromiq-chartread 2026-11-24b " in h
+    # (the table owner's dual tries of 23 Nov; nothing sent changes);
+    # 2026-11-25a = 24b + Read single patches' spot session (item 43 steps 2-3; a mode of its
+    # own, nothing for the table), last
+    assert "chromiq-chartread 2026-11-25a " in h
     assert ("+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule"
             "+i1pro2-dual-device+i1pro2-dual-safety+i1io-table-dual+i1io-table-dual-fix2"
             "+i1io-table-dual-calreset+i1pro2-dual-gaps+conditions-kept+lights-quiet"
             "+i1pro2-dual-blue+blue-own-quiet+blue-quiet-return-only+instrument-waits"
             "+blue-side+i1pro2-dual-fresh-start+uv-whole-middle+i1pro2-dual-pace+uv-window-gate+lamp-off-i1pro2+uv-aligned+uv-fallback-window+lamp-refused-no-blue+dual-startup-wavelength+wavelength-report"
-            "+dual-tile-restore\"") in h
+            "+dual-tile-restore+spot-session\"") in h
 
 
 def _base_tree(tmp: Path) -> Path:

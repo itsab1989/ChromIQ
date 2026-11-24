@@ -670,6 +670,13 @@ static int cq_strip_row(alphix *paix, int totpa, const char *label) {
 	return -1;
 }
 
+#ifdef CQ_FAKE_USB_TEST
+/* tests only (tests/spot_session_wire_test.c): the instrument the fake USB
+ * layer's test builds; never in a shipped build */
+inst *cq_test_new_inst(a1log *log, inst_code (*uicallback)(void *cntx, inst_ui_purp purp),
+                       void *cntx);
+#endif
+
 /* the i1Pro 3 driver's entries (native/instlib/i1pro3_imp.c) */
 int i1pro3_cq_cond_options(void *pp, int on);
 void i1pro3_cq_cond_arm(void *pp, int on);
@@ -3430,6 +3437,36 @@ static int cq_requested_calibration(inst *it) {
 	}
 }
 
+/* CHROMIQ_EXT (item 43, 2026-11-24): ONE PRESS patch by patch, shared by
+ * the chart's patch-by-patch loop and the spot session (--spot-session,
+ * chromiq_spotsession.c), so both put exactly the same requests on the wire
+ * for a reading: the requested calibration may start only while the
+ * instrument waits here; a fresh group of presses; the lights (Beta); the
+ * conditions (Beta) armed around the reading; the i1Pro 2 dual spot's lamp
+ * half armed, then its UV half on the same patch (one unit); the conditions
+ * record of the reading taken. Moved here unchanged from the patch loop. */
+static inst_code cq_spot_read_once(inst *it, ipatch *val) {
+	inst_code rv;
+	/* CHROMIQ_EXT: a requested calibration may start only while
+	 * the instrument waits here for the next patch. */
+	if (cq_json)
+		cq_cal_gate_set(1);
+	cq_press_listen(0);		/* CHROMIQ_EXT: a fresh group */
+	cq_lights_prompt();		/* CHROMIQ_EXT: lights (Beta) */
+	cq_cond_arm(1);			/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
+	if (cq_dd.on && cq_cond_live())	/* CHROMIQ_EXT: i1Pro 2 dual spot, the lamp half */
+		i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_SPOT);
+	cq_usbwatch_begin();	/* CHROMIQ_EXT 4.3.36: a reading begins */
+	rv = it->read_sample(it, "SPOT", val, 1);
+	if (cq_dd.on && cq_cond_live())	/* CHROMIQ_EXT: i1Pro 2 dual spot, the UV half */
+		cq_dd_spot(&rv);
+	cq_cond_after_read(rv, 1);	/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
+	cq_cond_arm(0);
+	if (cq_json)
+		cq_cal_gate_set(0);
+	return rv;
+}
+
 /* Read all the strips, and return nonzero on abort/error */
 static int
 read_strips(
@@ -3509,7 +3546,13 @@ a1log *log			/* verb, debug & error log */
 			        inst_get_uicontext());
 		} else if (cq_json) {
 			inst_reset_uih();
+#ifdef CQ_FAKE_USB_TEST
+			/* tests only (tests/spot_session_wire_test.c): the REAL driver
+			 * on a fake USB layer; never in a shipped build */
+			it = cq_test_new_inst(log, cq_uicallback, inst_get_uicontext());
+#else
 			it = new_inst(ipath, 0, log, cq_uicallback, inst_get_uicontext());
+#endif
 		} else
 			it = new_inst(ipath, 0, log, DUIH_FUNC_AND_CONTEXT);
 		if (it == NULL) {
@@ -5908,23 +5951,10 @@ a1log *log			/* verb, debug & error log */
 				if (cq_replay_active())
 					cq_replay_arm_spot(scols[pix]->eXYZ);
 
-				/* CHROMIQ_EXT: a requested calibration may start only while
-				 * the instrument waits here for the next patch. */
-				if (cq_json)
-					cq_cal_gate_set(1);
-				cq_press_listen(0);		/* CHROMIQ_EXT: a fresh group */
-				cq_lights_prompt();		/* CHROMIQ_EXT: lights (Beta) */
-				cq_cond_arm(1);			/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
-				if (cq_dd.on && cq_cond_live())	/* CHROMIQ_EXT: i1Pro 2 dual spot, the lamp half */
-					i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_SPOT);
-				cq_usbwatch_begin();	/* CHROMIQ_EXT 4.3.36: a reading begins */
-				rv = it->read_sample(it, "SPOT", &val, 1);
-				if (cq_dd.on && cq_cond_live())	/* CHROMIQ_EXT: i1Pro 2 dual spot, the UV half */
-					cq_dd_spot(&rv);
-				cq_cond_after_read(rv, 1);	/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
-				cq_cond_arm(0);
-				if (cq_json)
-					cq_cal_gate_set(0);
+				/* CHROMIQ_EXT: one press, exactly as the spot session reads it
+				 * (cq_spot_read_once: the calibration gate, the lights, the
+				 * conditions, the i1Pro 2 dual spot). */
+				rv = cq_spot_read_once(it, &val);
 
 				/* CHROMIQ_EXT: button gestures, patch by patch. A press
 				 * reads the patch at once, so a double press would read it
@@ -6644,6 +6674,8 @@ int cq_tscan_dual = 0;
 /* CHROMIQ_EXT (round B, 2026-11-17): --i1io-press-wait, the i1iO table drive's
  * "Aimed" by the instrument's button (chromiq_presswait.c). */
 static int cq_presswait = 0;
+static int cq_spot_session = 0;		/* --spot-session (item 43) */
+static int cq_spot_conditions = 0;	/* --spot-conditions (item 43) */
 
 static int cq_run_button_test(int comport, flow_control fc) {
 	icompaths *icmps = NULL;
@@ -6715,6 +6747,11 @@ static int cq_run_button_test(int comport, flow_control fc) {
 	return 0;
 }
 
+#include "chromiq_spotsession.c"	/* CHROMIQ_EXT (item 43): --spot-session */
+
+#ifdef CQ_FAKE_USB_TEST
+#define main cq_helper_main	/* tests only: tests/spot_session_wire_test.c's main runs this */
+#endif
 int main(int argc, char *argv[]) {
 	int i, j;
 	int fa, nfa, mfa;				/* current argument we're looking at */
@@ -6890,7 +6927,7 @@ int main(int argc, char *argv[]) {
 				 * before it relies on it. One JSON line, then exit 0.
 				 * "legacy_labels": reads sheets ChromIQ's layout engine
 				 * printed with its pre-4.3.3-beta.7 labels as printed. */
-				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"turn\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\",\"lights_signals\",\"lights_during_reading\",\"ruler_check\",\"i1pro3_conditions\",\"margin_tolerance\",\"i1pro2_dual_conditions\",\"i1pro2_dual_scan\",\"i1io_table_dual\",\"conditions_kept\",\"lights_quiet\",\"i1pro2_dual_blue\",\"instrument_waits\",\"i1pro2_dual_fresh_start\",\"lamp_off_i1pro2\"],\"build\":\"%s\"}\n",
+				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"turn\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\",\"lights_signals\",\"lights_during_reading\",\"ruler_check\",\"i1pro3_conditions\",\"margin_tolerance\",\"i1pro2_dual_conditions\",\"i1pro2_dual_scan\",\"i1io_table_dual\",\"conditions_kept\",\"lights_quiet\",\"i1pro2_dual_blue\",\"instrument_waits\",\"i1pro2_dual_fresh_start\",\"lamp_off_i1pro2\",\"spot_session\"],\"build\":\"%s\"}\n",
 				       cq_helper_build_string());
 				fflush(stdout);
 				return 0;
@@ -6936,6 +6973,18 @@ int main(int argc, char *argv[]) {
 				 * when armed, read nothing. No chart. */
 				cq_presswait = 1;
 				eat = 1;
+			} else if (strcmp(argv[ai], "--spot-session") == 0) {
+				/* CHROMIQ_EXT (item 43, 2026-11-24): Tools > Read single
+				 * patches, read by this helper: no chart, no file written,
+				 * one press = one reading (chromiq_spotsession.c). */
+				cq_spot_session = 1;
+				eat = 1;
+			} else if (strcmp(argv[ai], "--spot-conditions") == 0) {
+				/* ...and keep M0, M1 and M2 of every reading where the
+				 * instrument gives them (an i1Pro 3; an i1Pro 2 with the
+				 * dual scan's --dual-scale). Only with --spot-session. */
+				cq_spot_conditions = 1;
+				eat = 1;
 			} else if (strcmp(argv[ai], "--button-test") == 0) {
 				/* CHROMIQ_EXT: Preferences' "Try it": open the instrument,
 				 * report every group of presses, read nothing. */
@@ -6962,7 +7011,8 @@ int main(int argc, char *argv[]) {
 			error("Failed to load replay script '%s'", cq_replay_path);
 	}
 
-	if (argc <= 1 && !cq_button_test && cq_tscan_dir == NULL && !cq_presswait)	/* CHROMIQ_EXT: "Try it" needs no chart */
+	if (argc <= 1 && !cq_button_test && cq_tscan_dir == NULL && !cq_presswait
+	 && !cq_spot_session)	/* CHROMIQ_EXT: "Try it" needs no chart */
 		usage();
 
 	/* Process the arguments */
@@ -6970,7 +7020,7 @@ int main(int argc, char *argv[]) {
 	/* CHROMIQ_EXT: "Try it" has no outfile, so a flag's separate value (the
 	 * "1" of "-c 1") is taken only if no final argument is reserved for it
 	 * (Basti's ColorMunki, 2026-10-25: usage instead of the instrument). */
-	if (cq_button_test || cq_tscan_dir != NULL || cq_presswait)
+	if (cq_button_test || cq_tscan_dir != NULL || cq_presswait || cq_spot_session)
 		mfa = 0;
 	for (fa = 1;fa < argc;fa++) {
 		nfa = fa;					/* skip to nfa if next argument is used */
@@ -7222,6 +7272,9 @@ int main(int argc, char *argv[]) {
 	/* CHROMIQ_EXT (round B): the table drive's button wait needs no chart. */
 	if (cq_presswait)
 		return cq_run_press_wait(comport, fc, cq_guard_inst);
+	/* CHROMIQ_EXT (item 43): Read single patches needs no chart either. */
+	if (cq_spot_session)
+		return cq_run_spot_session(comport, fc, nocal, highres);
 
 	/* Get the file name argument */
 	if (fa >= argc || argv[fa][0] == '-') usage();
@@ -7868,7 +7921,11 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
+#ifdef CQ_FAKE_USB_TEST
+	if (0) {	/* tests only: the fake USB layer needs no port */
+#else
 	if (!xtern && !cq_replay_active()) {	/* CHROMIQ_EXT: replay needs no hardware */
+#endif
 		if ((icmps = new_icompaths(g_log)) == NULL)
 			error("Finding instrument paths failed");
 		if ((ipath = icmps->get_path(icmps, comport)) == NULL)

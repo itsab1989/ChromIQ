@@ -37,7 +37,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 HELPER_NAME = "chromiq-chartread"
-HELPER_BUILD = "2026-11-24b"      # ChromIQ's helper: the table scan (2026-11-17a) + the button wait (17b)
+HELPER_BUILD = "2026-11-25a"      # ChromIQ's helper: the table scan (2026-11-17a) + the button wait (17b)
 #                                    + the i1Pro 2 dual-scan conditions (18a, nothing for the table)
 #                                    + the dual scan's resume rule (18b, nothing for the table)
 #                                    + the dual scan's device side (18c, nothing for the table yet)
@@ -65,6 +65,9 @@ HELPER_BUILD = "2026-11-24b"      # ChromIQ's helper: the table scan (2026-11-17
 #                                    + the kept dual tile taken up again by a fresh row reader
 #                                      (24b: matched in the i1Pro 2's own clock, and a
 #                                      "restore" reason when not; nothing sent changes)
+#                                    + Read single patches' spot session (25a, item 43 steps
+#                                      2-3: a mode of its own, --spot-session; nothing for the
+#                                      table)
 #: the build token of the helper's button wait (--i1io-press-wait, round B). A helper without it
 #: (2026-11-17a and older) is simply not asked: the panel's Aimed button always works.
 PRESS_WAIT_TOKEN = "+i1io-press-wait"
