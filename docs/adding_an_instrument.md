@@ -523,13 +523,18 @@ takes, and give it exactly that:
   sheet (`workflow/isis/export.py`), with a test that the two grids agree.
 - **Or only grid numbers**, typed by the person. i1Profiler's "Measure
   Chart" for the i1iO asks for columns and rows and three aimed corners. A
-  coordinate-reading XY instrument may ask for the centre of the first patch,
-  the distance from patch to patch and the number of rows and columns
-  ([issue #215](https://github.com/itsab1989/ChromIQ/issues/215): a
-  Barbieri Spectro 100xy read through its own older program, Spectro32).
-  ChromIQ then shows those numbers beside the chart, in the units and the
-  order the program asks for them, and prints a mark the person can line the
-  instrument up on.
+  coordinate-reading XY instrument asks for its own set: Spectro32, the older
+  program of the Barbieri Spectro 100xy
+  ([issue #215](https://github.com/itsab1989/ChromIQ/issues/215)), takes the
+  span from the centre of the first patch to the centre of the last one
+  across and down (in 0.1 mm, so (count - 1) x pitch) and the number of
+  columns and rows, and the person aims the head by hand at the centre of the
+  upper-right patch. Barbieri's later program, Gateway, asks instead for the
+  number of patches across and down and the size of the patch area from edge
+  to edge (count x pitch, in whole millimetres), and is aimed at three
+  corners of the patch area. ChromIQ then shows those numbers beside the
+  chart, in the units and the order the program asks for them, and prints
+  marks the person can line the instrument up on.
 
 **The reading order.** A program that writes one line per patch in the order
 it read them, with no patch numbers (Spectro32 does: one line per patch, 41

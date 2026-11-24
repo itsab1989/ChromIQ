@@ -211,12 +211,15 @@ preview, and:
 **Why there is a white band above the patches.** "Measured from Preview" shows
 "Top (to first patch)" **8.0 mm**, although the top margin is 1.0 mm. With
 "Create layout:" set to **"Prioritise patch size, then fit to page"** the
-layout keeps the room a strip reader needs to start and stop: a base border of
-6 mm at the top of every page, plus the SpectroScan's own run-up of 2 mm (with
-the strip and row indicators off). Your top margin counts only where it is
-larger than that. On a frame only 25.4 mm high this costs about seven rows of
-1 mm patches, which is why the frame holds 576 and not more. Left, right and
-bottom follow your margins (1.0, 1.1 and 1.4 mm).
+SpectroScan entry keeps a band at the top that it has always kept: a base
+border of 6 mm, plus 2 mm that come from the SpectroScan layout ChromIQ took
+over from ArgyllCMS's printtarg (with the strip and row indicators off). The
+SpectroScan moves its head to each patch, so it does not need this band to
+start or stop; it stays only so that SpectroScan charts people already make
+do not change. Your top margin counts only where it is larger than that. On a
+frame only 25.4 mm high this costs about seven rows of 1 mm patches, which is
+why the frame holds 576 and not more. Left, right and bottom follow your
+margins (1.0, 1.1 and 1.4 mm).
 
 **How to use the whole frame.** Set "Create layout:" to **"Prioritise chart
 area, then fit patches to it"** instead. Then the four margins you type are
