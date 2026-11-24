@@ -293,7 +293,7 @@ def test_the_bundled_helper_takes_the_waits():
     if not exe.is_file():
         pytest.skip("no bundled helper in this checkout")
     data = exe.read_bytes()
-    assert b"chromiq-chartread 2026-11-23c " in data and b"+instrument-waits" in data
+    assert b"chromiq-chartread 2026-11-24b " in data and b"+instrument-waits" in data
     for s in (b"--lamp-off-ms", b"--lights-blue-quiet-ms", b"--lights-blue-after-ms",
               b"instrument_waits"):
         assert s in data, s

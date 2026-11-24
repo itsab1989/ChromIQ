@@ -130,6 +130,8 @@ int i1pro2_cq_dual_uv_pass_ready(void *pp);	/* 1 = the UV pass may be asked for 
 int i1pro2_cq_tdual_on(void *pp, double *kA, double *kD);	/* CQ_DUAL_NA_*; no ruler */
 int i1pro2_cq_dual_tile_save(void *pp, const cq_dual_tile *t);	/* 1 = kept */
 int i1pro2_cq_dual_tile_restore(void *pp, cq_dual_tile *out);	/* 1 = of this white */
+/* why the last restore found none ("kept" after a success), and its values (2026-11-24, reporting only) */
+const char *i1pro2_cq_dual_tile_restore_why(const char **detail);
 int i1pro2_cq_tdual_ready(void *pp, int pass, int nread, int have_tile, int *wait_ms,
                           char *why, int whylen);
 void i1pro2_cq_tdual_disarm(void);	/* a calibration: no armed pass, no lamp pass done */

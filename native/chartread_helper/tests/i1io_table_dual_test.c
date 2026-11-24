@@ -273,11 +273,15 @@ static void tile(i1pro *p, int save) {
 	fflush(stdout);
 }
 
-static void restore(i1pro *p) {
+static int restore(i1pro *p) {
 	cq_dual_tile t;
+	const char *det = NULL, *why;
 	int r = i1pro2_cq_dual_tile_restore(p, &t);
+	why = i1pro2_cq_dual_tile_restore_why(&det);
 	printf("%s RESTORE %d uv_clocks=%d\n", scn, r, r ? t.uv_clocks : -1);
+	printf("%s WHY %s | %s\n", scn, why, det != NULL ? det : "");
 	fflush(stdout);
+	return r;
 }
 
 static void end(i1pro *p) {
@@ -287,9 +291,76 @@ static void end(i1pro *p) {
 	fflush(stdout);
 }
 
+/* 2026-11-24 (the table owner's dual tries of 23 Nov): a row reader is a NEW
+ * process. It opens the i1Pro 2 (init sets only intclkp2: i1pro_imp.c, from
+ * i1pro2_getmeaschar; intclkp stays 0 until a reading is triggered), gets its
+ * white from ArgyllCMS's file and must take up the dual tile the calibration
+ * process kept, before it has triggered anything. This is that process, run
+ * by the "keep" scenario as a separate program (exec, nothing shared but the
+ * kept file): <path> fresh <cfdate> <variant>. "same" then reads one dual
+ * row with what it took up; the others change one thing the tile is kept
+ * for, and must be refused. */
+static int fresh(const char *variant, long long cfdate) {
+	i1pro *p;
+	i1proimp *m;
+	int have;
+	scn = variant;
+	p = make(instI1Pro2, I1PRO_CAP2_UV_LED | I1PRO_CAP2_ZEB_RUL);
+	m = (i1proimp *)p->m;
+	m->intclkp = 0.0;			/* as opened: no reading triggered yet */
+	m->ms[0].cfdate = (time_t)cfdate;	/* the white restored from ArgyllCMS's file */
+	if (strcmp(variant, "fresh_int") == 0)
+		m->ms[0].inttime = 140 * 36e-6;	/* a white of another integration */
+	else if (strcmp(variant, "fresh_date") == 0)
+		m->ms[0].cfdate -= 5;		/* another white (date) */
+	else if (strcmp(variant, "fresh_white") == 0)
+		m->ms[0].white_data[5] += 0.5;	/* another white of the same date */
+	else if (strcmp(variant, "fresh_scan") == 0)
+		m->ms[0].scan = 0;		/* the spot mode's white, not the strip's */
+	on(p);
+	have = restore(p);
+	lights(p); msec_sleep(10);
+	ready(p, CQ_TDUAL_PASS_LAMP, 550, have);
+	fire(p, CQ_TDUAL_PASS_LAMP, 550);
+	msec_sleep(10);
+	ready(p, CQ_TDUAL_PASS_UV, 550, have);
+	fire(p, CQ_TDUAL_PASS_UV, 550);
+	end(p);
+	return 0;
+}
+
+#ifndef _WIN32
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+/* the fresh process: this program again, nothing shared but the kept file */
+static void run_fresh(const char *self, const char *path, long long cfdate, const char *variant) {
+	char cf[32];
+	pid_t pid;
+	int st = -1;
+	snprintf(cf, sizeof(cf), "%lld", cfdate);
+	fflush(stdout);
+	if ((pid = fork()) == 0) {
+		execl(self, self, path, "fresh", cf, variant, (char *)NULL);
+		_exit(127);
+	}
+	if (pid < 0 || waitpid(pid, &st, 0) != pid || !WIFEXITED(st) || WEXITSTATUS(st) != 0)
+		printf("%s FRESH-PROCESS-FAILED\n", variant);
+	fflush(stdout);
+}
+#endif
+
 int main(int argc, char **argv) {
 	i1pro *p;
 	char path[1024];
+	if (argc > 4 && strcmp(argv[2], "fresh") == 0) {
+		i1pro2_cq_tscan_noproc_for_test = 1;
+		i1pro2_cq_dual_noproc_for_test = 1;
+		i1pro2_cq_tscan_lampoff_ms_for_test = 5;
+		i1pro2_cq_tscan_lightsoff_ms_for_test = 5;
+		i1pro2_cq_dual_tile_path_for_test = argv[1];
+		return fresh(argv[4], atoll(argv[3]));
+	}
 	i1pro2_cq_tscan_noproc_for_test = 1;
 	i1pro2_cq_dual_noproc_for_test = 1;
 	i1pro2_cq_tscan_lampoff_ms_for_test = 5;
@@ -316,6 +387,31 @@ int main(int argc, char **argv) {
 	((i1proimp *)p->m)->ms[0].white_data[5] += 0.5;
 	restore(p);			/* another white of the SAME date (its checksum): not taken up */
 	end(p);
+
+#ifndef _WIN32
+	/* 2026-11-24: kept by the calibration's process, taken up by a NEW one
+	 * (every table row's reader), and only for the white it was made with */
+	scn = "keep";
+	remove(path);
+	p = make(instI1Pro2, I1PRO_CAP2_UV_LED | I1PRO_CAP2_ZEB_RUL);
+	on(p);
+	tile(p, 1);
+	{
+		long long cf = (long long)((i1proimp *)p->m)->ms[0].cfdate;
+		end(p);
+		run_fresh(argv[0], path, cf, "fresh_same");
+		run_fresh(argv[0], path, cf, "fresh_int");
+		run_fresh(argv[0], path, cf, "fresh_date");
+		run_fresh(argv[0], path, cf, "fresh_white");
+		run_fresh(argv[0], path, cf, "fresh_scan");
+	}
+	remove(path);
+	scn = "fresh_none";		/* nothing kept at all */
+	{
+		long long cf = (long long)time(NULL);
+		run_fresh(argv[0], path, cf, "fresh_none");
+	}
+#endif
 
 	/* one dual row: the lamp pass forward, the UV pass straight back */
 	scn = "row";

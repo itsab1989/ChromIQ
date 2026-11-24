@@ -58,6 +58,8 @@ DRIVER_MAY_CALL = _LIBC | {
     # the dual tile kept beside ArgyllCMS's own calibration file: files, no instrument
     "xdg_bds", "xdg_free", "create_parent_directories", "fopen", "fwrite", "fread", "fclose",
     "memcmp", "sprintf", "strncpy", "CQ_TD_NO",
+    # 2026-11-24: why a kept dual tile was not taken up, formatted into a string (libc only)
+    "snprintf",
 }
 
 #: chromiq_dualdev.c (the helper side): the instrument only through the dual API and read_strip
@@ -69,6 +71,8 @@ HELPER_MAY_CALL = _LIBC | {
     "i1pro2_cq_dual_uv_pass_ready",    # reads the driver's state, sends nothing (M2 fix)
     # the i1iO 2 table (--dual-table, 2026-11-18): the dual tile kept / taken up again, files only
     "i1pro2_cq_dual_tile_save", "i1pro2_cq_dual_tile_restore",
+    # 2026-11-24: why the restore found none, a string the driver side kept (nothing sent)
+    "i1pro2_cq_dual_tile_restore_why",
     # arithmetic and output, no instrument
     "cq_dual_check", "cq_dual_cut", "cq_dual_patch", "cq_dual_positions", "cq_cx_from_ipatch",
     "cq_dual_pairing",                 # the pairing check (M1 fix), arithmetic only
@@ -274,6 +278,9 @@ TABLE_HELPER_MAY_CALL = _LIBC | {
     # 4.3.48 re-review NOTE-B: a calibration clears the driver's ready "yes" and delivered lamp
     # pass (cq_i1pro2_dual.h: two assignments, nothing sent)
     "i1pro2_cq_tdual_disarm",
+    # 2026-11-24: why a kept dual tile was not taken up, a string the driver side kept, and
+    # its JSON escaping for the tdual_state event (nothing sent)
+    "i1pro2_cq_dual_tile_restore_why", "cq_json_escape",
 }
 
 

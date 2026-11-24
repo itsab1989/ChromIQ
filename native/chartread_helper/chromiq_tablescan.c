@@ -277,7 +277,8 @@ static void ts_dual_take_tile(const cq_dual_tile *t) {
 /* at the start: the dual session on, the kept tile of this white looked up */
 static void ts_dual_start(inst *it) {
 	cq_dual_tile t;
-	const char *why = NULL;
+	const char *why = NULL, *rwhy, *rdet = NULL;
+	char rdet_esc[200];
 	int na, j;
 	memset(&ts_dd, 0, sizeof(ts_dd));
 	na = i1pro2_cq_tdual_on((void *)it, ts_dd.cal.kA, ts_dd.cal.kD);
@@ -296,9 +297,13 @@ static void ts_dual_start(inst *it) {
 	} else
 		why = na == CQ_DUAL_NA_NO_UV_LED || na == CQ_DUAL_NA_NO_TABLES ? "dual_no_uv_tables"
 		    : na == CQ_DUAL_NA_HIGHRES ? "dual_high_resolution" : "dual_not_available";
-	cq_emit_raw("{\"event\":\"tdual_state\",\"t\":%u,\"on\":%s,\"tile\":\"%s\",\"why\":\"%s\"}",
+	/* 2026-11-24: why a kept tile was not taken up, and the values (reporting only) */
+	rwhy = ts_dd.on ? i1pro2_cq_dual_tile_restore_why(&rdet) : "";
+	cq_json_escape(rdet_esc, sizeof(rdet_esc), rdet != NULL ? rdet : "");
+	cq_emit_raw("{\"event\":\"tdual_state\",\"t\":%u,\"on\":%s,\"tile\":\"%s\",\"why\":\"%s\","
+	            "\"restore\":\"%s\",\"restore_detail\":\"%s\"}",
 	            msec_time(), ts_dd.on ? "true" : "false", ts_dd.have_tile ? "kept" : "none",
-	            why != NULL ? why : "");
+	            why != NULL ? why : "", rwhy != NULL ? rwhy : "", rdet_esc);
 }
 
 /* after a successful strip white: the tile with the UV LED, kept */

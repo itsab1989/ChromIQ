@@ -789,30 +789,70 @@ static void cq_tdual_we(i1pro *p, i1proimp *m, i1pro_state *s, cq_dual_tile *out
 	free_dmatrix(wa, 0, 0, 0, m->nwav[0] - 1);
 }
 
+/* Why the last i1pro2_cq_dual_tile_restore found no kept tile (2026-11-24):
+ * a short word, and the values that decided it. "kept" after a success.
+ * Reporting only: the helper prints both in its events (tdual_state, and the
+ * -N reader's dual_calibration); nothing is sent or decided by them. */
+static char cq_tdual_restore_why[32] = "";
+static char cq_tdual_restore_detail[160] = "";
+static int cq_tdual_restore_no(const char *why, const char *detail) {
+	strncpy(cq_tdual_restore_why, why, sizeof(cq_tdual_restore_why) - 1);
+	cq_tdual_restore_why[sizeof(cq_tdual_restore_why) - 1] = '\0';
+	strncpy(cq_tdual_restore_detail, detail != NULL ? detail : "", sizeof(cq_tdual_restore_detail) - 1);
+	cq_tdual_restore_detail[sizeof(cq_tdual_restore_detail) - 1] = '\0';
+	return 0;
+}
+const char *i1pro2_cq_dual_tile_restore_why(const char **detail) {
+	if (detail != NULL)
+		*detail = cq_tdual_restore_detail;
+	return cq_tdual_restore_why;
+}
+
 /* The kept tile reading of THIS white calibration (restored by ArgyllCMS
  * from its file): 1 = out is a dual calibration as i1pro2_cq_dual_tile
- * would give it (no volts); 0 = none, or not of this white. Reads only. */
+ * would give it (no volts); 0 = none, or not of this white. Reads only.
+ *
+ * 2026-11-24 (the table owner's dual tries of 23 Nov, all refused at row 1
+ * with dual_calibration_not_kept): the integration was compared in clocks of
+ * m->intclkp, which an i1Pro 2 sets only when a reading is triggered
+ * (i1pro_imp.c, "m->intclkp = m->intclkp2"). Every row reader is a NEW
+ * process that restores the tile before it has triggered anything, so the
+ * clock was 0, the integration "unknown" and every kept tile refused. The
+ * clock is now the i1Pro 2's own, m->intclkp2, set when the instrument is
+ * opened (i1pro_imp.c, from i1pro2_getmeaschar, 36 us; init refuses any
+ * other) and the very value every i1Pro 2 trigger copies into m->intclkp,
+ * so it is the clock the kept clocks were counted in. Nothing else is
+ * loosened: the mode, the white's date and checksum, the scan flag and the
+ * integration in clocks must all still match. */
 int i1pro2_cq_dual_tile_restore(void *pp, cq_dual_tile *out) {
 	i1pro *p = (i1pro *)pp;
 	i1proimp *m;
 	i1pro_state *s;
-	char *path = NULL, **paths = NULL, magic[8];
-	int np = 0, ok = 0, v = 0, mode = -1, lc = 0, uc = 0, ms = 0, clk;
+	char *path = NULL, **paths = NULL, magic[8], d[160];
+	int np = 0, ok = 0, v = 0, mode = -1, lc = 0, uc = 0, ms = 0, clk, got = 0;
 	long long cf = 0;
-	unsigned int sum = 0;
-	double T[CQ_DUAL_BANDS];
+	unsigned int sum = 0, now_sum;
+	double T[CQ_DUAL_BANDS], clkp;
 	FILE *fp;
+	cq_tdual_restore_no("", "");
 	if (out == NULL)
-		return 0;
+		return cq_tdual_restore_no("no_output", "");
 	memset(out, 0, sizeof(*out));
 	out->volts_before = out->volts_after = -1;
 	if (cq_dual_s(pp) == NULL)
-		return 0;
+		return cq_tdual_restore_no("not_a_dual_session", "");
 	m = (i1proimp *)p->m;
 	s = &m->ms[m->mmode];
-	if (!s->reflective || !s->cal_valid || m->highres || !cq_tdual_path(m, &path, &paths, &np, 0))
-		return 0;
+	if (!s->reflective)
+		return cq_tdual_restore_no("not_reflective", "");
+	if (!s->cal_valid)
+		return cq_tdual_restore_no("no_white", "the current mode holds no valid white calibration");
+	if (m->highres)
+		return cq_tdual_restore_no("high_resolution", "");
+	if (!cq_tdual_path(m, &path, &paths, &np, 0))
+		return cq_tdual_restore_no("no_folder", "");
 	if ((fp = fopen(path, "rb")) != NULL) {
+		got = 1;
 		ok = fread(magic, 1, 8, fp) == 8 && memcmp(magic, CQ_TDUAL_FILE_MAGIC, 8) == 0
 		  && fread(&v, sizeof(int), 1, fp) == 1 && v == 1
 		  && fread(&mode, sizeof(int), 1, fp) == 1
@@ -826,19 +866,46 @@ int i1pro2_cq_dual_tile_restore(void *pp, cq_dual_tile *out) {
 	}
 	if (paths != NULL)
 		xdg_free(paths, np);
+	if (!got)
+		return cq_tdual_restore_no("no_file", "no dual calibration was kept for this mode");
 	if (!ok)
-		return 0;
-	clk = m->intclkp > 0.0 ? (int)floor(s->inttime / m->intclkp + 0.5) : -1;
+		return cq_tdual_restore_no("unreadable_file", "");
+	clkp = m->intclkp2 > 0.0 ? m->intclkp2 : m->intclkp;
+	clk = clkp > 0.0 ? (int)floor(s->inttime / clkp + 0.5) : -1;
 	/* only for the white it was made with: the same mode, date, white, exposure */
-	if (mode != m->mmode || cf != (long long)s->cfdate || sum != cq_tdual_white_sum(m, s)
-	 || ms != s->scan || uc != clk || lc != clk)
-		return 0;
+	if (mode != m->mmode) {
+		snprintf(d, sizeof(d), "kept for mode %d, now mode %d", mode, m->mmode);
+		return cq_tdual_restore_no("other_mode", d);
+	}
+	if (cf != (long long)s->cfdate) {
+		snprintf(d, sizeof(d), "kept for the white of %lld, now the white of %lld",
+		         cf, (long long)s->cfdate);
+		return cq_tdual_restore_no("other_white_date", d);
+	}
+	if (sum != (now_sum = cq_tdual_white_sum(m, s))) {
+		snprintf(d, sizeof(d), "white checksum kept %08x, now %08x", sum, now_sum);
+		return cq_tdual_restore_no("other_white", d);
+	}
+	if (ms != s->scan) {
+		snprintf(d, sizeof(d), "kept scan=%d, now scan=%d", ms, s->scan);
+		return cq_tdual_restore_no("other_scan", d);
+	}
+	if (clk < 0) {
+		snprintf(d, sizeof(d), "kept lamp %d / uv %d clocks; the clock period is not known", lc, uc);
+		return cq_tdual_restore_no("clock_unknown", d);
+	}
+	if (uc != clk || lc != clk) {
+		snprintf(d, sizeof(d), "kept lamp %d / uv %d clocks, now %d", lc, uc, clk);
+		return cq_tdual_restore_no("other_integration", d);
+	}
 	memcpy(out->T, T, sizeof(T));
 	cq_tdual_we(p, m, s, out);
 	out->lamp_clocks = lc;
 	out->uv_clocks = uc;
 	out->mode_scan = ms;
 	out->ok = 1;
+	snprintf(d, sizeof(d), "lamp %d / uv %d clocks", lc, uc);
+	cq_tdual_restore_no("kept", d);
 	return 1;
 }
 

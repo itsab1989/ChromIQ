@@ -214,6 +214,16 @@ def log_wavelength(ev: dict, where: str, high_res: bool = False) -> None:
         pass
 
 
+def log_dual_tile_restore(restore: str, detail: str, where: str) -> None:
+    """2026-11-24: the app log's line for a reader that looked for the dual calibration kept
+    for its white (the helper's "restore" word and its values). Never raises."""
+    try:
+        from core.app_log import line
+        line("i1pro2 dual tile", where=where, restore=restore, detail=detail)
+    except Exception:      # noqa: BLE001
+        pass
+
+
 # Keystroke → command translation. The engine understands the same key
 # semantics as chartread's console — this map keeps MeasureManager's
 # existing send_key('f'|'\r'|…) call sites working unchanged when the

@@ -84,7 +84,8 @@ static const char *cq_dd_start(inst *it) {
 	 * nothing). The hand path never passes --dual-table: unchanged. */
 	if (cq_dual_table && cq_dd_nocal) {
 		cq_dual_tile t;
-		const char *why;
+		const char *why, *rwhy, *rdet = NULL;
+		char rdet_esc[200];
 		if (i1pro2_cq_dual_tile_restore(it, &t)) {
 			for (j = 0; j < CQ_DUAL_NB; j++) {
 				cq_dd.cal.W[j] = t.W[j];
@@ -99,13 +100,17 @@ static const char *cq_dd_start(inst *it) {
 			cq_dd.cal_ok = why == NULL;
 			cq_dd.cal_why = why != NULL ? why : "";
 		}
-		/* the same event as after a calibration (volts -1: nothing was read) */
+		/* the same event as after a calibration (volts -1: nothing was read);
+		 * 2026-11-24: plus why a kept tile was not taken up (reporting only) */
+		rwhy = i1pro2_cq_dual_tile_restore_why(&rdet);
+		cq_json_escape(rdet_esc, sizeof(rdet_esc), rdet != NULL ? rdet : "");
 		cq_emit_raw("{\"event\":\"dual_calibration\",\"ok\":%s,\"why\":\"%s\",\"mode\":\"%s\","
-		            "\"lamp_clocks\":%d,\"uv_clocks\":%d,\"volts\":[-1,-1],\"driver\":0}",
+		            "\"lamp_clocks\":%d,\"uv_clocks\":%d,\"volts\":[-1,-1],\"driver\":0,"
+		            "\"restore\":\"%s\",\"restore_detail\":\"%s\"}",
 		            cq_dd.cal_ok ? "true" : "false",
 		            cq_dd.cal_ok ? "" : (cq_dd.cal.have_uv_tile ? cq_dd.cal_why : "no_dual_calibration"),
 		            cq_dd.cal_scan ? "scan" : "spot", cq_dd.cal.cal_lamp_clocks,
-		            cq_dd.cal.cal_uv_clocks);
+		            cq_dd.cal.cal_uv_clocks, rwhy != NULL ? rwhy : "", rdet_esc);
 	}
 	return NULL;
 }

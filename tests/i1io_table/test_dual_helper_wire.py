@@ -18,9 +18,13 @@ from an original i1Pro or an i1Pro 2 without a UV LED.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from tests.test_i1pro3_lights_modes import _build_and_run
+
+ROOT = Path(__file__).resolve().parents[2]
 
 N550 = "00000226"
 REC_LAMP = "0000008b00000029" + N550 + "0100"
@@ -73,6 +77,70 @@ def test_a_dual_row_is_the_recorded_bytes(trace):
         ("CTL", "d4", REC_DARK5), ("RD", "82", "1340 -> 1340"),
         ("CTL", "d4", REC_UV), ("RD", "82", "147400 -> 147400"),
         ("CTL", "d4", REC_DARK5), ("RD", "82", "1340 -> 1340"), ("CTL", "d8", "in4")]
+
+
+# ---- 2026-11-24: the kept dual tile, taken up by a NEW process (every table row's reader)
+#
+# The table owner's dual tries of 23 Nov (4.3.58) were all refused at row 1 with
+# dual_calibration_not_kept: the calibration's process kept the tile, and every row reader, a
+# fresh process, found "none" 2 ms after it opened. The restore compared the integration in
+# clocks of m->intclkp, which an i1Pro 2 sets only when a reading is triggered; a fresh reader
+# has triggered nothing, so the clock was 0 and every kept tile was refused. The old test above
+# keeps and takes up the tile in ONE process, after tile() had triggered: it could not see it.
+# "keep" keeps the tile, then runs the test program AGAIN, once per variant, as an opened
+# i1Pro 2 that has triggered nothing (intclkp 0, intclkp2 36 us as init sets it).
+
+def test_a_fresh_reader_takes_up_the_tile_the_calibration_kept(trace):
+    keep = _scn(trace, "keep")
+    assert "SAVED 1" in keep and "END" in keep
+    lines = _scn(trace, "fresh_same")
+    assert "RESTORE 1 uv_clocks=139" in lines
+    assert "WHY kept | lamp 139 / uv 139 clocks" in lines
+    assert not [ln for ln in trace.splitlines() if "FRESH-PROCESS-FAILED" in ln]
+
+
+def test_the_fresh_reader_then_reads_the_recorded_dual_row(trace):
+    """the row that 4.3.58 refused before anything moved: now the recorded bytes, the same as
+    the in-process row above, and nothing before them (the restore reads only a file)"""
+    lines = _scn(trace, "fresh_same")
+    assert _wire(lines) == _wire(_scn(trace, "row"))
+    i = lines.index("STEP lights_off")
+    assert not _wire(lines[:i])
+    assert [ln for ln in lines if ln.startswith("READY")] == [
+        "READY lamp 1 wait=0 why=-", "READY uv 1 wait=0 why=-"]
+
+
+@pytest.mark.parametrize("scn, why, detail", [
+    ("fresh_int", "other_integration", "kept lamp 139 / uv 139 clocks, now 140"),
+    ("fresh_date", "other_white_date", "kept for the white of "),
+    ("fresh_white", "other_white", "white checksum kept "),
+    ("fresh_scan", "other_scan", "kept scan=1, now scan=0"),
+    ("fresh_none", "no_file", "no dual calibration was kept for this mode"),
+])
+def test_a_fresh_reader_still_refuses_a_tile_of_another_white(trace, scn, why, detail):
+    """as strict as before: another integration, white date, white reading or mode, or no
+    kept tile at all, and nothing is taken up, nothing reaches the wire, and the reason says
+    which and with what values"""
+    lines = _scn(trace, scn)
+    assert "RESTORE 0 uv_clocks=-1" in lines
+    w = [ln for ln in lines if ln.startswith("WHY ")]
+    assert len(w) == 1 and w[0].startswith(f"WHY {why} | {detail}"), w
+    assert not [x for x in _wire(lines) if x[1] in ("d4", "d8", "c9")]
+    assert any(ln.startswith("READY lamp -1") and "no dual calibration" in ln for ln in lines)
+
+
+def test_the_restore_matches_in_the_clock_a_fresh_process_knows():
+    """the clock is the i1Pro 2's own (intclkp2, set when it is opened), not intclkp (set only
+    by a trigger); the integration is still compared, in clocks, for both passes"""
+    src = (ROOT / "native" / "instlib" / "cq_i1pro2_dual.h").read_text(encoding="utf-8")
+    body = src[src.index("int i1pro2_cq_dual_tile_restore(void *pp"):]
+    body = body[:body.index("\n}\n")]
+    assert "clkp = m->intclkp2 > 0.0 ? m->intclkp2 : m->intclkp;" in body
+    assert "s->inttime / clkp" in body and "s->inttime / m->intclkp" not in body
+    assert "uc != clk || lc != clk" in body
+    for check in ("mode != m->mmode", "cf != (long long)s->cfdate", "ms != s->scan",
+                  "sum != (now_sum = cq_tdual_white_sum(m, s))"):
+        assert check in body, check
 
 
 def test_a_uv_pass_only_right_after_its_lamp_pass(trace):

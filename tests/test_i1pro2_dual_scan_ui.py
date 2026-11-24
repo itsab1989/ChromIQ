@@ -265,7 +265,12 @@ def test_the_simulation_speaks_the_real_helpers_events(tmp_path, monkeypatch):
                 # the pace block comes whole, or not at all
                 assert _c_pace_fields() <= keys, (sorted(_c_pace_fields() - keys), e)
                 keys -= _c_pace_fields()
-            assert keys == _c_fields(ev), (ev, e)
+            # 2026-11-24: only the table's -N reader, which takes up a kept dual tile, adds why
+            # it did or did not (restore, restore_detail); a calibration's event has neither
+            want = _c_fields(ev)
+            if ev == "dual_calibration":
+                want = want - {"restore", "restore_detail"}
+            assert keys == want, (ev, e)
     res = [e for e in s.events if e.get("event") == "dual_pass_result"]
     assert [(r["ok"], r["why"]) for r in res] == [
         (False, "uv_pass_wrong_strip"), (True, ""), (True, "")]

@@ -302,14 +302,18 @@ def test_the_build_string():
     # table);
     # 2026-11-23b = 23a + the hand dual scan's start-up calibration asks for the LED wavelength
     # calibration too (4.3.58 item 40; nothing for the table);
-    # 2026-11-23c = 23b + the "wavelength" event, the offset the filters use and where it came
-    # from (4.3.59; each table row process reports it, nothing sent changes), last
-    assert "chromiq-chartread 2026-11-23c " in h
+    # 2026-11-24b = 23b + the "wavelength" event, the offset the filters use and where it came
+    # from (4.3.59; each table row process reports it, nothing sent changes);
+    # 2026-11-24b = 23c + a row reader takes up the kept dual tile again (the clock it is
+    # matched in is the i1Pro 2's own, known in a fresh process) and says why when it cannot
+    # (the table owner's dual tries of 23 Nov; nothing sent changes), last
+    assert "chromiq-chartread 2026-11-24b " in h
     assert ("+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule"
             "+i1pro2-dual-device+i1pro2-dual-safety+i1io-table-dual+i1io-table-dual-fix2"
             "+i1io-table-dual-calreset+i1pro2-dual-gaps+conditions-kept+lights-quiet"
             "+i1pro2-dual-blue+blue-own-quiet+blue-quiet-return-only+instrument-waits"
-            "+blue-side+i1pro2-dual-fresh-start+uv-whole-middle+i1pro2-dual-pace+uv-window-gate+lamp-off-i1pro2+uv-aligned+uv-fallback-window+lamp-refused-no-blue+dual-startup-wavelength+wavelength-report\"") in h
+            "+blue-side+i1pro2-dual-fresh-start+uv-whole-middle+i1pro2-dual-pace+uv-window-gate+lamp-off-i1pro2+uv-aligned+uv-fallback-window+lamp-refused-no-blue+dual-startup-wavelength+wavelength-report"
+            "+dual-tile-restore\"") in h
 
 
 def _base_tree(tmp: Path) -> Path:

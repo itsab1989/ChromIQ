@@ -37,7 +37,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 HELPER_NAME = "chromiq-chartread"
-HELPER_BUILD = "2026-11-23c"      # ChromIQ's helper: the table scan (2026-11-17a) + the button wait (17b)
+HELPER_BUILD = "2026-11-24b"      # ChromIQ's helper: the table scan (2026-11-17a) + the button wait (17b)
 #                                    + the i1Pro 2 dual-scan conditions (18a, nothing for the table)
 #                                    + the dual scan's resume rule (18b, nothing for the table)
 #                                    + the dual scan's device side (18c, nothing for the table yet)
@@ -62,6 +62,9 @@ HELPER_BUILD = "2026-11-23c"      # ChromIQ's helper: the table scan (2026-11-17
 #                                    + the "wavelength" event: the offset the filters use and
 #                                      where it came from (23c, 4.3.59: reported only, nothing
 #                                      sent changes; each row process says it once)
+#                                    + the kept dual tile taken up again by a fresh row reader
+#                                      (24b: matched in the i1Pro 2's own clock, and a
+#                                      "restore" reason when not; nothing sent changes)
 #: the build token of the helper's button wait (--i1io-press-wait, round B). A helper without it
 #: (2026-11-17a and older) is simply not asked: the panel's Aimed button always works.
 PRESS_WAIT_TOKEN = "+i1io-press-wait"
@@ -324,6 +327,8 @@ class _Proc:
                 self.log("INST", shown if len(shown) < 600 else shown[:600] + "...")
                 if ev.get("event") == "wavelength":
                     self._wavelength(ev)
+                elif ev.get("event") in ("tdual_state", "dual_calibration") and ev.get("restore"):
+                    self._dual_restore(ev)
                 self.events.append(ev)
                 self.q.put(ev)
         except Exception:
@@ -338,6 +343,21 @@ class _Proc:
             hr = "-H" in (getattr(self, "argv", None) or ())
             self.log("DATA", wavelength_text(ev, hr))
             log_wavelength(ev, "table", hr)
+        except Exception:      # noqa: BLE001
+            pass
+
+    def _dual_restore(self, ev: dict) -> None:
+        """2026-11-24: whether this row reader took up the dual tile the calibration kept, and
+        why not (the helper's "restore" word and its values), as one line in the table session
+        log and one in the app log. Diagnostics only; never raises."""
+        try:
+            why = str(ev.get("restore") or "")
+            detail = str(ev.get("restore_detail") or "")
+            self.log("DATA", "dual calibration kept for this white: "
+                     + ("taken up" if why == "kept" else "not taken up (" + why + ")")
+                     + (", " + detail if detail else ""))
+            from workflow.chartread_engine import log_dual_tile_restore
+            log_dual_tile_restore(why, detail, "table")
         except Exception:      # noqa: BLE001
             pass
 
