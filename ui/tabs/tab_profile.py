@@ -3573,7 +3573,11 @@ class TabProfile(QWidget):
                     self._load_build_from(None)
                 # a film measurement on a target with nothing stored: the
                 # defaults put Reflective back, so the preselection follows
-                self._preselect_for_loaded_film()
+                # (asked for by name: the per-target tests run this method
+                # on a stand-in tab without it)
+                _film = getattr(self, "_preselect_for_loaded_film", None)
+                if _film is not None:
+                    _film()
                 return False
             with setting_source(f"the target's stored settings ({_where})"):
                 self._m_apply_preset_data(stored)
@@ -3588,9 +3592,10 @@ class TabProfile(QWidget):
                 self._apply_guided_profile_fields(stored)
             if hasattr(self, "_load_build_from"):
                 self._load_build_from(stored)
-            if "z_media_type" not in stored:
+            _film = getattr(self, "_preselect_for_loaded_film", None)
+            if "z_media_type" not in stored and _film is not None:
                 # stored before this field was kept: nobody chose it here
-                self._preselect_for_loaded_film()
+                _film()
             return True
         except Exception:      # noqa: BLE001
             log.warning("Could not apply the target's Build Profile settings",
