@@ -161,7 +161,7 @@ SIZE_PRESETS: "tuple[SizePreset, ...]" = (
     # with): 30 x 24 patches of 7.5 mm on A4 landscape.
     SizePreset("standard", "Barbieri standard area 225 x 180 mm (7.5 mm "
                "patches)", F.HEAD_REFLECTION_3, 7.5,
-               (15.0, 56.95, 14.95, 15.0), paper="A4R"),
+               (15.0, 56.9, 14.9, 15.0), paper="A4R"),
     # The datasheet reading area, 235 x 200 mm: 36 x 30 patches of 6.5 mm
     # (234 x 195 mm) on A4 landscape with 5 mm top and bottom.
     SizePreset("full", "Full reading area 235 x 200 mm (6.5 mm patches)",

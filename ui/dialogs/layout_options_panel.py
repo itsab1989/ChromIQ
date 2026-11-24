@@ -753,6 +753,9 @@ class LayoutOptionsPanel(QWidget):
     I1IO_INSTRUMENT = ("IO2", "i1iO 2 + i1Pro 2")
     #: The X-Rite i1iSis family (Beta, `workflow.isis.support`), likewise.
     ISIS_INSTRUMENT = ("XRISIS", "i1iSis family")
+    #: The Barbieri Spectro 100xy (Beta, `workflow.barbieri.support`),
+    #: likewise.
+    BARBIERI_INSTRUMENT = ("B100XY", "Barbieri Spectro 100xy")
 
     @classmethod
     def instruments(cls) -> "list[tuple[str, str]]":
@@ -768,7 +771,42 @@ class LayoutOptionsPanel(QWidget):
         from workflow.isis.support import isis_enabled
         if isis_enabled():
             out.append((cls.ISIS_INSTRUMENT[0], tr(cls.ISIS_INSTRUMENT[1])))
+        from workflow.barbieri.support import barbieri_enabled
+        if barbieri_enabled():
+            out.append(cls.BARBIERI_INSTRUMENT)
         return out
+
+    # ---- the Barbieri Spectro 100xy (Beta): `ui.dialogs.barbieri_panel` ---
+    # Thin calls, the module imported only while the Beta is on, so with it
+    # off nothing of the Barbieri is loaded
+    # (tests/test_barbieri_off_changes_nothing.py).
+
+    def _barbieri_call(self, name: str, *args):
+        if not getattr(self, "_barbieri_support", False):
+            return None
+        from ui.dialogs import barbieri_panel
+        return getattr(barbieri_panel.BarbieriPanelMixin, name)(self, *args)
+
+    def _barbieri_build_group(self, parent_layout) -> None:
+        self._barbieri_call("_barbieri_build_group", parent_layout)
+
+    def _sync_barbieri_widgets(self, on: bool) -> None:
+        self._barbieri_call("_sync_barbieri_widgets", on)
+
+    def _barbieri_apply_to_recipe(self, r) -> None:
+        self._barbieri_call("_barbieri_apply_to_recipe", r)
+
+    def _barbieri_set_from_recipe(self, r) -> None:
+        self._barbieri_call("_barbieri_set_from_recipe", r)
+
+    def _barbieri_option_changed(self, *_a) -> None:
+        self._barbieri_call("_barbieri_option_changed")
+
+    def _barbieri_head_changed(self, *_a) -> None:
+        self._barbieri_call("_barbieri_head_changed")
+
+    def _barbieri_size_picked(self, index: int) -> None:
+        self._barbieri_call("_barbieri_size_picked", index)
 
     # ---- the X-Rite i1iSis family (Beta): `ui.dialogs.isis_panel` -------
     # Thin calls, the module imported only while the Beta is on, so with it
@@ -1056,6 +1094,8 @@ class LayoutOptionsPanel(QWidget):
         self._i1io_support = bool(i1io_enabled())
         from workflow.isis.support import isis_enabled
         self._isis_support = bool(isis_enabled())
+        from workflow.barbieri.support import barbieri_enabled
+        self._barbieri_support = bool(barbieri_enabled())
         # The page-output Beta (#215): built only while it is on, and only
         # where the page is chosen (the panels with selectors), so with it
         # off this panel is 4.3.42's widget for widget.
@@ -2783,6 +2823,9 @@ class LayoutOptionsPanel(QWidget):
             # The i1iSis chart's own options (a Beta), under the page
             # geometry; built only while its Beta is on.
             self._isis_build_group(_basic_v)
+        if self._barbieri_support:
+            # The Barbieri chart's own options (a Beta), likewise.
+            self._barbieri_build_group(_basic_v)
         self._update_clip_visibility()
 
         # ---- Output ----
@@ -3866,6 +3909,9 @@ class LayoutOptionsPanel(QWidget):
         if getattr(self, "_isis_support", False):
             # Only while i1iSis charts are on.
             syncs.append((self._sync_isis_widgets, inst == "XRISIS"))
+        if getattr(self, "_barbieri_support", False):
+            # Only while Barbieri charts are on.
+            syncs.append((self._sync_barbieri_widgets, inst == "B100XY"))
         for sync, on in syncs:
             if not on:
                 sync(False)
@@ -5358,6 +5404,7 @@ class LayoutOptionsPanel(QWidget):
         # the i1iSis's greyed controls stay greyed whatever ran after its
         # entering sync (Beta; review of a7ca1489e, M1)
         self._isis_call("_isis_hold_greyed")
+        self._barbieri_call("_barbieri_hold_greyed")
 
     # ---- Clip-border content -------------------------------------------
     def _sync_clip_content_enabled(self) -> None:
@@ -5900,12 +5947,24 @@ class LayoutOptionsPanel(QWidget):
                     from workflow.isis.chart_facts import \
                         MARGIN_DEFAULT_MM as _IM
                     raise LookupError(_IM.value)
+                if inst == "B100XY":
+                    # the Barbieri's own (a Beta): 15 mm left for the
+                    # table, 10 mm elsewhere, the patch area kept inside
+                    # the datasheet reading area (`workflow.barbieri.chart.
+                    # default_margins`); its geometry has no margins of its
+                    # own, they are the law
+                    from workflow.barbieri.chart import default_margins
+                    from workflow.layout_engine import papers as _pp
+                    _w, _h = _pp.dimensions_mm(paper or "A4R")
+                    _t, _r, _b, _l = default_margins(_w, _h)
+                    raise LookupError({"t": _t, "r": _r, "b": _b, "l": _l})
                 g = _ins.geom_from_build_kwargs(_fkw)
                 fb = {"t": g.margin_t, "r": g.margin_r,
                       "b": g.margin_b, "l": g.margin_l}
             except LookupError as _own:
-                fb = dict.fromkeys(("t", "r", "b", "l"),
-                                   float(_own.args[0]))
+                fb = (dict(_own.args[0]) if isinstance(_own.args[0], dict)
+                      else dict.fromkeys(("t", "r", "b", "l"),
+                                         float(_own.args[0])))
             except Exception:
                 pass
             for k, v in fb.items():
@@ -8575,6 +8634,9 @@ class LayoutOptionsPanel(QWidget):
         if getattr(self, "_isis_support", False):
             # the i1iSis chart's own options (a Beta)
             self._isis_set_from_recipe(r)
+        if getattr(self, "_barbieri_support", False):
+            # the Barbieri chart's own options (a Beta)
+            self._barbieri_set_from_recipe(r)
         if self.instr is not None:
             # the page-output Beta's page (#215; held while it is off)
             from ui.dialogs import page_output_panel as _pop
@@ -8805,6 +8867,9 @@ class LayoutOptionsPanel(QWidget):
         if getattr(self, "_isis_support", False):
             # the i1iSis chart's own options (a Beta), for its recipe only
             self._isis_apply_to_recipe(r)
+        if getattr(self, "_barbieri_support", False):
+            # the Barbieri chart's own options (a Beta), for its recipe only
+            self._barbieri_apply_to_recipe(r)
         if self.instr is not None:
             # the page-output Beta's page (#215): its typed sides and the
             # file's resolution unit while it is on; while it is off, a

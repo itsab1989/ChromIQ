@@ -1920,9 +1920,10 @@ M_BARBIERI_STEPS = _m(
     approved=False)
 
 #: One page's line of {grid_lines} and {gateway_lines} (M-BARBIERI-STEPS).
-_BARBIERI_STEPS_GRID_LINE = "Page {page}: {r}  ({cols} columns, {rows} rows)"
+_BARBIERI_STEPS_GRID_LINE = (
+    "Page {page}: {r}  (columns: {cols}, rows: {rows}; aim at {aim})")
 _BARBIERI_STEPS_GATEWAY_LINE = (
-    "Page {page}: {cols} patches across, {rows} down, target size "
+    "Page {page}: patches across: {cols}, down: {rows}, target size "
     "{gx} x {gy} mm")
 #: Added to a Gateway line when count x pitch is not a whole millimetre.
 _BARBIERI_STEPS_GATEWAY_INEXACT = (
@@ -1958,19 +1959,19 @@ _BARBIERI_PATCH_SMALL = (
     "may then read part of a neighbouring patch. The chart is made as you "
     "asked; choose larger patches if the readings look mixed.")
 _BARBIERI_MARKS_LEFT_OUT = (
-    "The margin on the {sides} side is too narrow for the corner marks, so "
-    "they were left out there. Make that margin a little wider (about 1 mm "
-    "is enough) to have them printed.")
+    "Some margins are too narrow for the corner marks, so the marks were "
+    "left out on these sides: {sides}. Make those margins a little wider "
+    "(about 1 mm is enough) to have them printed.")
 _BARBIERI_LOG_CHART = (
     "Barbieri Spectro 100xy chart (Beta): opening {opening} (Spectro32 "
     "{code}), pitch {px} x {py} mm, pages: {pages}.")
 _BARBIERI_LOG_PAGE = (
-    "Barbieri page {page}: {cols} x {rows} patches; Spectro32 {r}; Gateway "
+    "Barbieri page {page}: grid {cols} x {rows}; Spectro32 {r}; Gateway "
     "{cols} x {rows} in {gx} x {gy} mm; aim at {aim}, first patch read "
     "{first}.")
 _BARBIERI_LOG_TIME = (
-    "Barbieri: {cells} patches to read, about {minutes} min at the "
-    "datasheet's pace.")
+    "Barbieri: patches to read: {cells}; at the datasheet's pace about "
+    "{minutes} min.")
 
 #: The Print tab's note for a loaded Barbieri chart.
 M_BARBIERI_PRINT_NOTE = (

@@ -911,6 +911,10 @@ AWAITING_APPROVAL: "set[str]" = {
                                  # two windows and the layout refusal.
                                  "M-ISIS-NOT-YET", "M-ISIS-SUPPORT-OFF",
                                  "M-ISIS-SHEET-CHECK", "M-ISIS-NO-TXF",
+                                 # 2026-11-24: the Barbieri Spectro 100xy
+                                 # chart Beta (charts measured in Spectro32):
+                                 # Start's two windows.
+                                 "M-BARBIERI-STEPS", "M-BARBIERI-SUPPORT-OFF",
                                  "M-GUIDED-SET-PAGES",
                                  # the same for a verification or a
                                  # calibration chart made for the table
@@ -1365,6 +1369,9 @@ WINDOW_SOURCES = [
     # 2026-11-14: the X-Rite i1iSis chart Beta's two Start windows.
     ("ui.tabs.tab_measure", "TabMeasure", "_isis_not_yet_window"),
     ("ui.tabs.tab_measure", "TabMeasure", "_isis_support_off_window"),
+    # 2026-11-24: the Barbieri Spectro 100xy chart Beta's two Start windows.
+    ("ui.tabs.tab_measure", "TabMeasure", "_barbieri_steps_window"),
+    ("ui.tabs.tab_measure", "TabMeasure", "_barbieri_support_off_window"),
     # 4.3.23: which measurement condition of an i1Profiler CxF to import.
     ("ui.dialogs.cxf_condition_dialog", "CxfConditionDialog", "__init__"),
     ("ui.tabs.tab_measure", "TabMeasure", "_replace_message"),

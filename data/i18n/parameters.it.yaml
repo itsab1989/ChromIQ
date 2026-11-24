@@ -509,6 +509,7 @@ parameters:
         - "FD-9"
         - "i1iO 2 + i1Pro 2"
         - "Famiglia i1iSis"
+        - "Barbieri Spectro 100xy"
     "-h":
       name: "Double density"
       tooltip_title: "Double density (-h)"

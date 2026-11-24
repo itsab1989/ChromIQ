@@ -2571,6 +2571,8 @@ class TabPrint(QWidget):
             text = ""
         if not text:
             text = self._isis_feed_note()
+        if not text:
+            text = self._barbieri_print_note()
         lbl.setText(text)
         lbl.setVisible(bool(text))
 
@@ -2604,6 +2606,34 @@ class TabPrint(QWidget):
                             bool(side.get("fed_as_printed", True))))
         except Exception:      # noqa: BLE001 - a note, never a blocker
             log.debug("i1iSis feed note not worked out", exc_info=True)
+        return ""
+
+    def _barbieri_print_note(self) -> str:
+        """For a Barbieri Spectro 100xy chart (Beta on): print at 100 %
+        without scaling, because the vendor program is told the patch
+        positions in millimetres. Empty for every other chart; with the Beta
+        off nothing is read."""
+        try:
+            from workflow.barbieri.support import (barbieri_enabled,
+                                                   chart_names_barbieri)
+            if not barbieri_enabled():
+                return ""
+            pages = [p for p, _f in (getattr(self._preview, "_pages", None)
+                                     or [])]
+            if not pages:
+                return ""
+            import re as _re
+            page = Path(pages[0])
+            stems = [page.stem]
+            m = _re.fullmatch(r"(.+)_\d+", page.stem)
+            if m:
+                stems.insert(0, m.group(1))
+            for stem in stems:
+                if chart_names_barbieri(page.with_name(stem + ".ti2")) is True:
+                    from workflow import measurement_messages as M
+                    return tr(M.M_BARBIERI_PRINT_NOTE)
+        except Exception:      # noqa: BLE001 - a note, never a blocker
+            log.debug("Barbieri print note not worked out", exc_info=True)
         return ""
 
     def _update_edge_note(self) -> None:

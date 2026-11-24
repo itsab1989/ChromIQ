@@ -623,7 +623,7 @@ parameters:
     - flag: "-i"
       name: "Measurement Instrument"
       type: choice
-      choices: ["i1", "p3", "CM", "SS", "CR30", "FD9", "IO2", "XRISIS"]
+      choices: ["i1", "p3", "CM", "SS", "CR30", "FD9", "IO2", "XRISIS", "B100XY"]
       labels:
         - "i1Pro / i1Pro 2 / i1Pro 3"
         - "i1Pro 3 Plus"
@@ -633,6 +633,7 @@ parameters:
         - "FD-9"
         - "i1iO 2 + i1Pro 2"
         - "i1iSis family"
+        - "Barbieri Spectro 100xy"
       default: "i1"
       no_space: true
       affects_preview: true

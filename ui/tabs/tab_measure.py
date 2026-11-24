@@ -1793,13 +1793,66 @@ def _is_i1profiler_chart_instrument(name) -> bool:
     if _is_i1io_chart_instrument(name):
         return True
     from workflow.isis.support import is_isis_instrument_name, isis_enabled
-    return isis_enabled() and is_isis_instrument_name(name)
+    if isis_enabled() and is_isis_instrument_name(name):
+        return True
+    # A Barbieri Spectro 100xy chart (a Beta) is measured in Barbieri's own
+    # program, not by ChromIQ: the same holds for it, only while it is on.
+    from workflow.barbieri.support import (barbieri_enabled,
+                                           is_barbieri_instrument_name)
+    return barbieri_enabled() and is_barbieri_instrument_name(name)
+
+
+def barbieri_steps_fields(chart) -> dict:
+    """The fields of M-BARBIERI-STEPS for the chart at *chart*, from its side
+    file (`workflow.barbieri.chart`): the opening, Spectro32's grid line and
+    Gateway's numbers for every page, the aim and first patch, the reading
+    time and the side file's name. Never raises; what is unknown reads "?"."""
+    from pathlib import Path as _P
+    from workflow import measurement_messages as M
+    from workflow.barbieri.chart import head_label, head_of
+    from workflow.barbieri.support import read_side_file, side_file_for
+    side = {}
+    try:
+        side = read_side_file(chart) or {}
+    except Exception:      # noqa: BLE001
+        side = {}
+    pages = side.get("pages_detail") or []
+    head = head_of(side.get("head"))
+    grid, gate = [], []
+    for pg in pages:
+        grid.append(tr(M._BARBIERI_STEPS_GRID_LINE).format(
+            page=pg.get("page"), r=pg.get("spectro32"),
+            cols=pg.get("columns"), rows=pg.get("rows"),
+            aim=pg.get("aim_patch")))
+        gw = pg.get("gateway") or {}
+        line = tr(M._BARBIERI_STEPS_GATEWAY_LINE).format(
+            page=pg.get("page"), cols=gw.get("patches_x"),
+            rows=gw.get("patches_y"), gx=gw.get("size_x_mm"),
+            gy=gw.get("size_y_mm"))
+        if gw and not gw.get("exact", True):
+            from core.i18n import decimal_text
+            line += tr(M._BARBIERI_STEPS_GATEWAY_INEXACT).format(
+                ex=decimal_text(gw.get("size_x_exact_mm", 0)),
+                ey=decimal_text(gw.get("size_y_exact_mm", 0)))
+        gate.append(line)
+    first = pages[0] if pages else {}
+    try:
+        side_name = side_file_for(chart).name
+    except Exception:      # noqa: BLE001
+        side_name = "?"
+    del _P
+    return dict(
+        mode=head.spectro32 or "?", opening=head_label(head),
+        grid_lines="\n".join(grid) or "?", aim=first.get("aim_patch", "?"),
+        first=first.get("first_patch", "?"),
+        minutes=int(side.get("reading_minutes") or 0) or "?",
+        gateway_lines="\n".join(gate) or "?", side=side_name)
 
 
 #: Instruments behind a Beta switch: their chart lines follow their own
 #: switch (`_fd9_ask`, `_is_i1profiler_chart_instrument`), so that with the
 #: switch off the tab reads exactly as before the Beta.
-_BETA_INSTRUMENT_KEYS = frozenset({"FD9", "IO2", "XRISIS"})
+_BETA_INSTRUMENT_KEYS = frozenset({"FD9", "IO2", "XRISIS", "B100XY"})
 
 
 def _chart_reads_by_position(name) -> bool:
@@ -7469,6 +7522,21 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                     "i1iSis, and “X-Rite i1iSis charts” is switched off in "
                     "Preferences → Beta."))
             return True
+        # A Barbieri Spectro 100xy chart (a Beta), read HERE for the same
+        # reason. On, `_on_start` has already answered it; off,
+        # M-BARBIERI-SUPPORT-OFF.
+        from workflow.barbieri.support import is_barbieri_instrument_name
+        if is_barbieri_instrument_name(name):
+            from workflow.barbieri.support import barbieri_enabled
+            if barbieri_enabled():
+                self._barbieri_steps_window()
+            else:
+                self._barbieri_support_off_window()
+                self._log.appendPlainText(tr(
+                    "Measurement not started: this chart is for the Barbieri "
+                    "Spectro 100xy, and “Barbieri Spectro 100xy” is switched "
+                    "off in Preferences → Beta."))
+            return True
         from workflow.fd9.support import is_fd9_instrument_name
         if is_fd9_instrument_name(name):
             self._fd9_support_off_window()
@@ -8407,6 +8475,40 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             multipage_note=(tr(M.M_ISIS_MULTIPAGE_NOTE).format(pages=pages)
                             if pages > 1 else ""))
         self._i1io_window(title, body)
+
+    def _refused_as_a_barbieri_chart(self) -> bool:
+        """True, with M-BARBIERI-STEPS shown, when Barbieri charts are on and
+        the loaded chart is a Barbieri chart. Reads the chart's header only
+        while the switch is on, and never raises."""
+        from workflow.barbieri.support import barbieri_enabled
+        if not barbieri_enabled() or not self._ti1_path:
+            return False
+        try:
+            from workflow.barbieri.support import chart_names_barbieri
+            chart = self._chart_file_for(self._ti1_path)
+            if chart_names_barbieri(chart) is not True:
+                return False
+        except Exception:      # noqa: BLE001 - never block a read on this
+            return False
+        self._barbieri_steps_window()
+        self._log.appendPlainText(tr(
+            "Measurement not started: this chart is for the Barbieri Spectro "
+            "100xy, which ChromIQ cannot talk to yet; it is measured in "
+            "Spectro32 (the window says how)."))
+        return True
+
+    def _barbieri_steps_window(self) -> None:
+        """M-BARBIERI-STEPS on screen, filled from the chart's side file; the
+        text is the catalogue's."""
+        from workflow import measurement_messages as M
+        title, body = M.M_BARBIERI_STEPS.render(
+            **barbieri_steps_fields(self._chart_file_for(self._ti1_path)))
+        self._i1io_window(title, body)
+
+    def _barbieri_support_off_window(self) -> None:
+        """M-BARBIERI-SUPPORT-OFF on screen: the text is the catalogue's."""
+        from workflow import measurement_messages as M
+        self._i1io_window(*M.M_BARBIERI_SUPPORT_OFF.render())
 
     def _isis_support_off_window(self) -> None:
         """M-ISIS-SUPPORT-OFF on screen: the text is the catalogue's."""
@@ -10069,6 +10171,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # BEFORE anything is recovered, armed or written. Off, nothing is
         # read here (`_blocked_by_unusable_target_instrument` says it).
         if self._refused_as_an_isis_chart():
+            return
+        # A Barbieri Spectro 100xy chart with its Beta on: ChromIQ cannot talk
+        # to the instrument yet, so Start explains the Spectro32 way
+        # (M-BARBIERI-STEPS) BEFORE anything is recovered, armed or written.
+        # Off, nothing is read here (`_blocked_by_unusable_target_instrument`
+        # says it).
+        if self._refused_as_a_barbieri_chart():
             return
         if not self._ti1_path:
             self._log.appendPlainText("[ERROR] No .ti2 file selected.")

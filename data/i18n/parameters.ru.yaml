@@ -500,6 +500,7 @@ parameters:
         - "FD-9"
         - "i1iO 2 + i1Pro 2"
         - "Семейство i1iSis"
+        - "Barbieri Spectro 100xy"
     "-h":
       name: "Двойная плотность"
       tooltip_title: "Двойная плотность (-h)"

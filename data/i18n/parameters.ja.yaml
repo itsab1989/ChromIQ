@@ -485,6 +485,7 @@ parameters:
         - "FD-9"
         - "i1iO 2 + i1Pro 2"
         - "i1iSis ファミリー"
+        - "Barbieri Spectro 100xy"
     "-h":
       name: "ダブルデンシティ"
       tooltip_title: "ダブルデンシティ (-h)"

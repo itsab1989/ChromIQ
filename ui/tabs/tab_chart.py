@@ -2247,6 +2247,8 @@ _MARGIN_INSTR_LABEL = {
     "SS": "SpectroScan", "CR30": "CR30", "FD9": "FD-9",
     # the i1iSis family (a Beta), `core.settings.THRESHOLD_INSTR_LABEL`
     "XRISIS": "i1iSis (Beta)",
+    # the Barbieri Spectro 100xy (a Beta), likewise
+    "B100XY": "Barbieri 100xy (Beta)",
 }
 
 # Canonical sheet name keyed by sorted (short, long) mm, rounded — so any paper
@@ -4048,6 +4050,31 @@ def _isis_on() -> bool:
     return isis_enabled()
 
 
+def _barbieri_on() -> bool:
+    """Barbieri charts (Preferences > Beta, `workflow.barbieri.support`)."""
+    from workflow.barbieri.support import barbieri_enabled
+    return barbieri_enabled()
+
+
+def barbieri_instrument_bullet() -> str:
+    """The Barbieri's bullet in the Instrument (i) of Guided and Manual, only
+    while its Beta (Preferences > Beta) is on."""
+    return tr(
+        "  •  Barbieri Spectro 100xy: a measuring table that carries a "
+        "spectrophotometer head from patch to patch over a chart lying on "
+        "it. It is told where the patch grid is in Barbieri's own program "
+        "(Spectro32, or Gateway), you aim the head by hand at the upper-right "
+        "patch, and the table reads every patch, row by row. ChromIQ cannot "
+        "talk to it yet: it lays out a plain grid of patches sized for the "
+        "measuring opening you choose (6.5 mm patches for the 3 mm opening, "
+        "1 mm for the 0.5 mm one), with marks at the corners to aim at, and "
+        "shows the numbers to type into Spectro32 or Gateway beside the "
+        "chart. There is no hidden band at the top: the margins you set are "
+        "where the patches begin. Nobody on the team owns a Spectro 100xy, so "
+        "no ChromIQ chart has been read by one yet. Barbieri charts are a "
+        "beta (Preferences → Beta).")
+
+
 def _saved_beta_instrument_is_off(code) -> bool:
     """True for a stored instrument code this ChromIQ does not offer: an
     i1iO code while i1iO support is off, the i1iSis family while its Beta is
@@ -4064,6 +4091,9 @@ def _saved_beta_instrument_is_off(code) -> bool:
         return True
     from workflow.isis.support import is_isis_code
     if is_isis_code(code) and not _isis_on():
+        return True
+    from workflow.barbieri.support import is_barbieri_code
+    if is_barbieri_code(code) and not _barbieri_on():
         return True
     from workflow.i1io.support import i1io_enabled, is_i1io_code
     return is_i1io_code(code) and not i1io_enabled()
@@ -4826,6 +4856,9 @@ def _engine_instrument(code) -> str:
         # The i1iSis family, the panel's own name for it too while its Beta
         # is on; off, an instrument this ChromIQ does not offer.
         return "XRISIS" if _isis_on() else "i1"
+    if eng == "B100XY":
+        # The Barbieri Spectro 100xy, likewise (a Beta).
+        return "B100XY" if _barbieri_on() else "i1"
     return eng if eng in ("i1", "p3", "CM", "SS", "CR30") else "i1"
 
 
@@ -7165,7 +7198,22 @@ class TabChart(QWidget):
         _info_row.setContentsMargins(16, 0, 16, 0)
         _info_row.setSpacing(8)
         _info_row.addWidget(self._margin_panel, stretch=3)
-        _info_row.addWidget(self._layout_info_panel, stretch=2)
+        if _barbieri_on():
+            # THE BARBIERI's GRID NUMBERS (a Beta), under the chart layout
+            # information, shown only while the chart in the preview is a
+            # Barbieri chart (`ui.barbieri_numbers_panel`). Off, the row is
+            # the one it was.
+            from ui.barbieri_numbers_panel import BarbieriNumbersPanel
+            self._barbieri_numbers = BarbieriNumbersPanel(right)
+            _info_col = QVBoxLayout()
+            _info_col.setContentsMargins(0, 0, 0, 0)
+            _info_col.setSpacing(8)
+            _info_col.addWidget(self._layout_info_panel)
+            _info_col.addWidget(self._barbieri_numbers)
+            _info_col.addStretch(1)
+            _info_row.addLayout(_info_col, stretch=2)
+        else:
+            _info_row.addWidget(self._layout_info_panel, stretch=2)
         # THE TWO FRAMES SCROLL RATHER THAN CRUSH (4.3.5 beta 4). On a
         # 1280 x 800 screen the right pane has about 480 px under the
         # masthead; the preview needs about 330 of them and "Measured from
@@ -7480,6 +7528,9 @@ class TabChart(QWidget):
             # The i1iSis family, a Beta as well: off, not offered.
             if code == "XRISIS" and not _isis_on():
                 continue
+            # The Barbieri Spectro 100xy, a Beta as well: off, not offered.
+            if code == "B100XY" and not _barbieri_on():
+                continue
             self._instr_combo.addItem(label, code)
         self._instr_combo.currentIndexChanged.connect(self._update_patch_count)
         self._instr_combo.currentIndexChanged.connect(self._update_dd_visibility)
@@ -7535,7 +7586,9 @@ class TabChart(QWidget):
             + (("\n\n" + i1io_instrument_bullet())
                if i1io_enabled() else "")
             + (("\n\n" + isis_instrument_bullet())
-               if _isis_on() else ""),
+               if _isis_on() else "")
+            + (("\n\n" + barbieri_instrument_bullet())
+               if _barbieri_on() else ""),
             inner,
             min_width=600,
         ))
@@ -7655,6 +7708,27 @@ class TabChart(QWidget):
             dd_row.addSpacing(20)
             dd_row.addWidget(self._isis_band_check)
             dd_row.addWidget(self._isis_band_tooltip)
+        if _barbieri_on():
+            # THE BARBIERI's GUIDED CHOICE (a Beta): the measuring opening,
+            # which gives the patch size. Built only while the Beta is on,
+            # shown only for the Barbieri.
+            from ui.dialogs.barbieri_panel import (barbieri_option_help,
+                                                   fill_head_combo)
+            self._barbieri_head_combo = QComboBox(inner)
+            fill_head_combo(self._barbieri_head_combo)
+            self._barbieri_head_combo.currentIndexChanged.connect(
+                self._update_patch_count)
+            self._barbieri_head_label = QLabel(tr("Measuring opening:"),
+                                               inner)
+            self._barbieri_head_tooltip = TooltipButton(
+                tr("Measuring opening"), barbieri_option_help("head"), inner,
+                min_width=600)
+            for w in (self._barbieri_head_label, self._barbieri_head_combo,
+                      self._barbieri_head_tooltip):
+                w.setVisible(False)
+            dd_row.addWidget(self._barbieri_head_label)
+            dd_row.addWidget(self._barbieri_head_combo)
+            dd_row.addWidget(self._barbieri_head_tooltip)
         dd_row.addWidget(self._dd_check)
         dd_row.addWidget(self._dd_tooltip)
         dd_row.addSpacing(20)
@@ -10121,7 +10195,8 @@ class TabChart(QWidget):
         _flag = instr if instr is not None else self._active_instrument_flag()
         eng = {"3p": "p3"}.get(_flag, _flag)
         if eng not in ("i1", "p3", "CM", "SS", "CR30", "FD9") and not (
-                eng in ("IO2", "XRISIS") and p.instr.findData(eng) >= 0):
+                eng in ("IO2", "XRISIS", "B100XY")
+                and p.instr.findData(eng) >= 0):
             eng = "i1"
         paper = (paper if paper is not None
                  else self._active_paper_code()) or "A4"
@@ -12421,6 +12496,17 @@ class TabChart(QWidget):
                             + "\n\n" + fd9_instrument_bullet())
             # The i1iO table, a Beta too: off, the -i list is 4.3.32's.
             # The i1iSis family, a Beta too: off, not offered.
+            # The Barbieri Spectro 100xy, a Beta too: off, not offered.
+            from workflow.barbieri.support import CODE as _BB
+            if not _barbieri_on():
+                params = _without_choice(params, _BB)
+            else:
+                for param in params.get("printtarg", []) or []:
+                    if param.get("flag") == "-i" and _BB in (
+                            param.get("choices") or []):
+                        param["tooltip_body"] = (
+                            str(param.get("tooltip_body", "")).rstrip()
+                            + "\n\n" + barbieri_instrument_bullet())
             from workflow.isis.support import CODE as _IS
             if not _isis_on():
                 params = _without_choice(params, _IS)
@@ -12734,6 +12820,11 @@ class TabChart(QWidget):
                    if (getattr(self, "_isis_model_combo", None) is not None
                        and self._instr_combo.currentData() == "XRISIS")
                    else {}),
+                # the Barbieri's opening (Beta), only for a Barbieri row
+                **({"barbieri_head": self._barbieri_head_combo.currentData()}
+                   if (getattr(self, "_barbieri_head_combo", None) is not None
+                       and self._instr_combo.currentData() == "B100XY")
+                   else {}),
             }
         # manual
         toks = []
@@ -12806,6 +12897,11 @@ class TabChart(QWidget):
                 band = getattr(self, "_isis_band_check", None)
                 if band is not None:
                     band.setChecked(bool(value))
+            elif field == "barbieri_head":
+                box = getattr(self, "_barbieri_head_combo", None)
+                if box is not None:
+                    i = box.findData(str(value or ""))
+                    box.setCurrentIndex(max(0, i))
         else:  # manual (a superset of guided's options)
             if field == "instrument":
                 self._set_manual_value("printtarg", "-i", value)
@@ -19991,6 +20087,13 @@ class TabChart(QWidget):
             band = getattr(self, "_isis_band_check", None)
             if band is not None and band.isChecked():
                 kw.update(isis_notes_band=True, clip_content_mode="notes")
+        if instr == "B100XY" and guided:
+            # Guided's Barbieri chart (Beta), as the build has it: the
+            # opening's patch size and the default margins
+            from workflow.barbieri.chart import guided_kwargs
+            box = getattr(self, "_barbieri_head_combo", None)
+            kw.update(guided_kwargs(paper, box.currentData()
+                                    if box is not None else ""))
         return instruments.geom_from_build_kwargs(kw)
 
     def _engine_capacity(self, instr: str, paper: str, *, dd: bool, td: bool,
@@ -20491,6 +20594,14 @@ class TabChart(QWidget):
                          and box.currentData() == "xl" else GUIDED_PAPERS)
             if current not in sizes:
                 current = "A4"
+        elif instr == "B100XY":
+            # The Barbieri's Guided sheets: A4 and Letter, landscape first
+            # (their patch area fits one pass of the table with the default
+            # margins). Manual takes any paper.
+            from workflow.barbieri.chart import GUIDED_PAPERS as _BGP
+            sizes = list(_BGP)
+            if current not in sizes:
+                current = "A4R"
         elif instr == "IO2":
             # The i1iO's sheets: landscape, inside the arm's reach
             # (`workflow.i1io.chart.GUIDED_PAPERS`). Only reachable with i1iO
@@ -20713,6 +20824,11 @@ class TabChart(QWidget):
             for w in (self._isis_model_combo, self._isis_model_tooltip,
                       self._isis_band_check, self._isis_band_tooltip):
                 w.setVisible(instr == "XRISIS")
+        if getattr(self, "_barbieri_head_combo", None) is not None:
+            # the Barbieri's measuring opening, for the Barbieri only
+            for w in (self._barbieri_head_label, self._barbieri_head_combo,
+                      self._barbieri_head_tooltip):
+                w.setVisible(instr == "B100XY")
         # Triple density: CM-only, hidden everywhere else.
         td_visible = instr == "CM"
         self._td_check.setVisible(td_visible)
@@ -23662,6 +23778,10 @@ class TabChart(QWidget):
                     or "standard")
                 guided["isis_notes_band"] = bool(
                     self._settings.get("chart_isis_notes_band", False))
+            if getattr(self, "_barbieri_head_combo", None) is not None:
+                # the Barbieri's opening (Beta): the saved default
+                guided["barbieri_head"] = str(
+                    self._settings.get("chart_barbieri_head", "") or "")
             for fld, val in guided.items():
                 try:
                     self._shared_set("guided", fld, val)
@@ -23688,6 +23808,9 @@ class TabChart(QWidget):
                 # an i1iSis-less row: the standard model, no notes band
                 guided = {"isis_model": "standard",
                           "isis_notes_band": False, **guided}
+            if getattr(self, "_barbieri_head_combo", None) is not None:
+                # a row without the Barbieri's opening: the 3 mm reflection
+                guided = {"barbieri_head": "", **guided}
             for fld, val in guided.items():
                 try:
                     self._shared_set("guided", fld, val)
@@ -25454,7 +25577,9 @@ class TabChart(QWidget):
                 (".ti1", ".ti2", ".cht", ".channels.json", ".strips.json",
                  ".tif", ".ti3", ".icc", ".icm", ".i1io.json",
                  # …and an i1iSis chart's (a Beta) the same way
-                 ".isis.json")]
+                 ".isis.json",
+                 # …and a Barbieri chart's (a Beta) too
+                 ".barbieri.json")]
         srcs += run.stem_files(stem, "_*.tif")
         present = [p for p in srcs if p.is_file()]
         if not present:
@@ -27307,6 +27432,12 @@ class TabChart(QWidget):
         panel = getattr(self, "_layout_info_panel", None)
         if panel is None:
             return
+        numbers = getattr(self, "_barbieri_numbers", None)
+        if numbers is not None:
+            # the Barbieri's grid numbers (Beta) for the chart in the preview
+            numbers.show_chart(getattr(self, "_margin_ti2", None)
+                               if getattr(self, "_margin_tiffs", None)
+                               else None)
         show = bool(self._settings.get("layout_info_show", True))
         panel.setVisible(show)
         if not show:
@@ -31854,6 +31985,24 @@ class TabChart(QWidget):
                          "on" if rec.get("isis_outline", True) else "off",
                          "on" if rec.get("isis_notes_band") else "off",
                          rec.get("isis_notes_place") or "header")
+            from workflow.barbieri.support import is_barbieri_code as _is_b
+            if _is_b(rec.get("instrument")):
+                # THE BARBIERI's OWN OPTIONS (a Beta; the app log is the one
+                # log a tester sends): the opening, the ready-made size, the
+                # check patches, the marks and the patch size and gaps
+                log.info("chart build (%s) in %s: Barbieri options: opening "
+                         "%s, size %s, check patches %s, marks %s, patch "
+                         "%s x %s mm, gaps %s / %s mm, labels %s",
+                         trigger, mode,
+                         rec.get("barbieri_head") or "reflection-3",
+                         rec.get("barbieri_size") or "own",
+                         "off" if rec.get("barbieri_check_patches") is False
+                         else "on",
+                         "off" if rec.get("barbieri_marks") is False
+                         else "on",
+                         rec.get("patch_w_mm"), rec.get("patch_h_mm"),
+                         rec.get("inter_patch_mm"), rec.get("strip_gap_mm"),
+                         "on" if rec.get("show_strip_indicators") else "off")
             if mode == "guided":
                 # The raw numbers the engine is handed, as before.
                 log.info("chart build (%s) in %s: engine kwargs %s",
@@ -32698,6 +32847,10 @@ class TabChart(QWidget):
                   str(self._isis_model_combo.currentData() or "standard"))
             s.set("chart_isis_notes_band",
                   bool(self._isis_band_check.isChecked()))
+        if (params.instrument == "B100XY"       # Barbieri (Beta) only
+                and getattr(self, "_barbieri_head_combo", None) is not None):
+            s.set("chart_barbieri_head",
+                  str(self._barbieri_head_combo.currentData() or ""))
         s.set("chart_pages",               params.pages)
         s.set("chart_double_density",      params.double_density)
         s.set("chart_triple_density",      params.triple_density)
@@ -32952,6 +33105,12 @@ class TabChart(QWidget):
                                     and getattr(self, "_isis_band_check",
                                                 None) is not None
                                     and self._isis_band_check.isChecked()),
+            # the Barbieri's measuring opening (Beta)
+            barbieri_head        = (str(self._barbieri_head_combo.currentData()
+                                        or "")
+                                    if instr == "B100XY" and getattr(
+                                        self, "_barbieri_head_combo", None)
+                                    is not None else ""),
         )
 
     def _manual_i1io_context(self) -> dict:
@@ -33354,6 +33513,10 @@ class TabChart(QWidget):
             self._isis_model_combo.setCurrentIndex(max(0, i))
             self._isis_band_check.setChecked(
                 bool(s.get("chart_isis_notes_band", False)))
+        if getattr(self, "_barbieri_head_combo", None) is not None:
+            i = self._barbieri_head_combo.findData(
+                str(s.get("chart_barbieri_head", "") or ""))
+            self._barbieri_head_combo.setCurrentIndex(max(0, i))
         self._update_dd_visibility()
         self._update_patch_count()
 

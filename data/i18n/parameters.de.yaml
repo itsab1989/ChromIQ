@@ -492,6 +492,7 @@ parameters:
         - "FD-9"
         - "i1iO 2 + i1Pro 2"
         - "i1iSis-Familie"
+        - "Barbieri Spectro 100xy"
       tooltip_title: "Messgerät (-i)"
       tooltip_body: |
         Teilt dem Chart-Generator mit, mit welchem Spektralfotometer du

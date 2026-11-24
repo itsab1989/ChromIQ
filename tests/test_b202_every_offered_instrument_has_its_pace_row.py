@@ -55,8 +55,11 @@ DEVICES = {
 # exists to time, and this step does not measure with it at all.
 # XRISIS: the X-Rite i1iSis family (Beta) reads a sheet by itself and is
 # measured in i1Profiler; ChromIQ never measures with it, nothing to time.
+# B100XY: the Barbieri Spectro 100xy (Beta) is an XY table that moves its
+# head to each patch, measured in Barbieri's own program; nothing to time.
 NO_STRIPS = {"SS": "spectroscan", "CR30": "cr30", "FD9": "native-fd9",
-             "IO2": "i1io-table", "XRISIS": "isis-sheet-reader"}
+             "IO2": "i1io-table", "XRISIS": "isis-sheet-reader",
+             "B100XY": "barbieri-xy-table"}
 
 CASES = [(code, name, where, key)
          for code, devs in DEVICES.items() for name, where, key in devs]

@@ -154,6 +154,11 @@ def test_the_full_recipe_really_is_full():
         "isis_corner_labels", "isis_strip_letters",
         "isis_notes_band", "isis_notes_place", "isis_notes_height_mm",
         "isis_align",
+        # Barbieri recipes only (written only for a "B100XY" recipe, and the
+        # sample is an i1Pro's); their round trip through all four places:
+        # tests/test_barbieri_every_option_persists.py.
+        "barbieri_head", "barbieri_check_patches", "barbieri_marks",
+        "barbieri_size",
     }
     missing = [f.name for f in fields(LayoutRecipe)
                if f.name not in skip and f"{f.name}=" not in src]

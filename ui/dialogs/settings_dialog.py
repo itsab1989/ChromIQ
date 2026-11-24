@@ -4275,6 +4275,31 @@ class SettingsDialog(QDialog):
         _beta.addLayout(_isisrow)
         _beta.addWidget(self._isis_charts_restart_hint)
 
+        # Barbieri Spectro 100xy charts (ChromIQ's layout, measured in
+        # Barbieri's own program). Restart to apply, like the i1iSis
+        # (`workflow.barbieri.support`). Switching it ON asks first
+        # (`_on_barbieri_charts_clicked`).
+        self._barbieri_charts_check = QCheckBox(
+            tr("Barbieri Spectro 100xy (beta)"), self)
+        barbieri_tip = TooltipButton(
+            tr("Barbieri Spectro 100xy (beta)"), barbieri_charts_help(), self,
+            min_width=680)
+        self._barbieri_charts_restart_hint = QLabel(
+            tr("Takes effect after you restart ChromIQ."), self)
+        _ink(self._barbieri_charts_restart_hint, "#e6a23c",
+             " font-size: 11px;")
+        self._barbieri_charts_restart_hint.setVisible(False)
+        self._barbieri_charts_check.toggled.connect(
+            self._barbieri_charts_toggled)
+        self._barbieri_charts_check.clicked.connect(
+            self._on_barbieri_charts_clicked)
+        _barbrow = QHBoxLayout()
+        _barbrow.addWidget(self._barbieri_charts_check)
+        _barbrow.addStretch()
+        _barbrow.addWidget(barbieri_tip)
+        _beta.addLayout(_barbrow)
+        _beta.addWidget(self._barbieri_charts_restart_hint)
+
         # Custom page size in inches or pixels, and high resolution (#215).
         # Restart to apply, like the instrument Betas (`workflow.page_output.
         # support`): the panel's fields and ranges are built once.
@@ -6860,6 +6885,12 @@ class SettingsDialog(QDialog):
         from workflow.isis.support import THRESHOLD_LABEL, isis_enabled
         if isis_enabled():
             _margin_instruments.append(THRESHOLD_LABEL)
+        # …and the Barbieri Spectro 100xy (a Beta), the same way.
+        from workflow.barbieri.support import barbieri_enabled
+        if barbieri_enabled():
+            from workflow.barbieri.support import \
+                THRESHOLD_LABEL as _B_THRESHOLD_LABEL
+            _margin_instruments.append(_B_THRESHOLD_LABEL)
         self._margin_instr.addItems(_margin_instruments)
         sel.addWidget(self._margin_instr, 0, 1)
         sel.addWidget(QLabel(tr("Paper size:"), self), 0, 2)
@@ -7163,6 +7194,9 @@ class SettingsDialog(QDialog):
         self._isis_charts_check.setChecked(
             bool(s.get("isis_charts_beta", False)))
         self._isis_charts_toggled()
+        self._barbieri_charts_check.setChecked(
+            bool(s.get("barbieri_chart_beta", False)))
+        self._barbieri_charts_toggled()
         self._page_output_check.setChecked(
             bool(s.get("page_output_beta", False)))
         self._page_output_toggled()
@@ -7605,6 +7639,54 @@ class SettingsDialog(QDialog):
         from workflow.isis.support import isis_enabled
         self._isis_charts_restart_hint.setVisible(
             self._isis_charts_check.isChecked() != isis_enabled())
+
+    def _barbieri_charts_toggled(self, *_a) -> None:
+        """Barbieri charts are restart-to-apply (`workflow.barbieri.
+        support`): say so while the box differs from what THIS run of
+        ChromIQ is using."""
+        from workflow.barbieri.support import barbieri_enabled
+        self._barbieri_charts_restart_hint.setVisible(
+            self._barbieri_charts_check.isChecked() != barbieri_enabled())
+
+    def _on_barbieri_charts_clicked(self, checked: bool) -> None:
+        """Barbieri charts are switched on at the user's own risk, and the
+        window says so first, as for the i1iSis (`_on_isis_charts_clicked`):
+        no icon, "Keep it off" the default, the confirm marked as the risky
+        choice. Nothing is asked on switching off; switching on again asks
+        again."""
+        if not checked:
+            return
+        from PyQt6.QtWidgets import (QDialogButtonBox, QMessageBox,
+                                     QSizePolicy, QSpacerItem)
+        from PyQt6.QtGui import QFontMetrics
+        box = QMessageBox(self)
+        box.setWindowTitle(tr("Barbieri Spectro 100xy (beta)"))
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setText(barbieri_consent_text())
+        box.setStandardButtons(QMessageBox.StandardButton.Ok
+                               | QMessageBox.StandardButton.Cancel)
+        ok_btn = box.button(QMessageBox.StandardButton.Ok)
+        cancel_btn = box.button(QMessageBox.StandardButton.Cancel)
+        ok_btn.setText(tr("Turn it on"))
+        from ui.default_button import mark_destructive
+        mark_destructive(ok_btn)
+        cancel_btn.setText(tr("Keep it off"))
+        for b in (ok_btn, cancel_btn):
+            w = QFontMetrics(b.font()).horizontalAdvance(b.text()) + 44
+            b.setMinimumWidth(w)
+        bbox = box.findChild(QDialogButtonBox)
+        if bbox is not None:
+            bbox.setCenterButtons(True)
+        grid = box.layout()
+        if grid is not None:
+            grid.addItem(QSpacerItem(620, 1, QSizePolicy.Policy.Minimum,
+                                     QSizePolicy.Policy.Minimum),
+                         grid.rowCount(), 0, 1, grid.columnCount())
+        box.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        if box.exec() != QMessageBox.StandardButton.Ok:
+            self._barbieri_charts_check.setChecked(False)
 
     def _page_output_toggled(self, *_a) -> None:
         """Restart to apply (`workflow.page_output.support`): say so while
@@ -8954,6 +9036,12 @@ class SettingsDialog(QDialog):
             if abs(_f - _cf(s.get("i1io_table_row_speed_factor", 1.0))) > 1e-9:
                 s.set("i1io_table_row_speed_factor", _f)
         s.set("isis_charts_beta", self._isis_charts_check.isChecked())
+        # Written only when it differs from the store, so Preferences closed
+        # with OK leaves no new key behind for anyone who never ticks it.
+        if self._barbieri_charts_check.isChecked() != bool(
+                s.get("barbieri_chart_beta", False)):
+            s.set("barbieri_chart_beta",
+                  self._barbieri_charts_check.isChecked())
         # Written only when it differs from the store, so Preferences closed
         # with OK leaves no new key behind for anyone who never ticks it.
         if self._page_output_check.isChecked() != bool(
@@ -11481,6 +11569,91 @@ def page_output_help() -> str:
            "written as before."),
         tr("The change takes effect the next time you start ChromIQ."),
         tr("**Default:** off")))
+
+
+# ---- Barbieri Spectro 100xy charts (Beta) ------------------------------------
+#
+# ChromIQ MAKES the charts; Barbieri's own program measures them. The one
+# paragraph to change when the import arrives is the "Today" paragraph.
+
+def barbieri_charts_help() -> str:
+    """The (i) of Preferences > Beta > "Barbieri Spectro 100xy (beta)"."""
+    return "\n\n".join((
+        tr("The Barbieri Spectro 100xy is a measuring table: it carries a "
+           "spectrophotometer head from patch to patch over a chart that "
+           "lies on it. It does not look for the patches itself. Its own "
+           "program (Spectro32, or Barbieri's later Gateway) is told where "
+           "the patch grid is and how many patches it has, you aim the head "
+           "by hand, and the table then visits every patch in a fixed "
+           "order."),
+        tr("ChromIQ cannot talk to the instrument yet, and it sends nothing "
+           "to it. What this option adds is the chart: ChromIQ lays it out "
+           "with its own layout engine as a plain grid of patches sized for "
+           "the measuring opening, with marks to aim at, and shows the "
+           "numbers Spectro32 and Gateway ask for."),
+        tr("What turning this on adds, after a restart of ChromIQ:\n"
+           "  •  Create Chart: “Barbieri Spectro 100xy” in the Instrument "
+           "list of Guided and of Manual, with a choice of measuring opening "
+           "(3 mm reflection or transmission, 0.5 mm transmission, and 6 mm "
+           "reflection of the second model, untested). New charts start with "
+           "patches sized for the opening (6.5 mm for 3 mm, 1 mm for 0.5 mm) "
+           "and a 15 mm left border. Manual also has ready-made sizes (A4 and "
+           "Letter in one pass, Barbieri's standard 225 x 180 mm area, the "
+           "full reading area, and two film frames), and nearly every layout "
+           "option stays open, as for the other instruments.\n"
+           "  •  The chart: marks at the four corners of the patch grid on "
+           "every page (the upper-right one bold, where Spectro32 is aimed), "
+           "two thin ticks that cross at the centre of the upper-right patch, "
+           "a small square beside the first patch, and a few check patches "
+           "at the corners that will show a sheet laid mirrored, upside down "
+           "or one patch off. No labels inside the patch area.\n"
+           "  •  Beside the chart, the grid numbers: Spectro32's spans in "
+           "0.1 mm, Gateway's patch counts and area, the patch area, the "
+           "pages and the estimated reading time.\n"
+           "  •  Measure: when you press Start with such a chart, ChromIQ "
+           "explains, step by step, how to measure it in Spectro32."),
+        tr("Today the measurement cannot be brought back into ChromIQ yet: "
+           "that comes in a later version. Keep the files Spectro32 saves."),
+        tr("Please read this part carefully. Nobody on the ChromIQ team owns "
+           "a Spectro 100xy, and no ChromIQ chart has been read by one yet. "
+           "The numbers come from Barbieri's datasheets, from Barbieri's own "
+           "programs and from an owner's real measurement files. If you own "
+           "one, the most useful test is to print the default chart, measure "
+           "it in Spectro32 with the numbers ChromIQ shows and tell us in the "
+           "project's GitHub issues what happened, with a photo of the sheet "
+           "on the table. Using this beta is at your own risk."),
+        tr("If you turn this off again, a Barbieri chart stays as it is, and "
+           "when you press Start, ChromIQ tells you that it needs this "
+           "option."),
+        tr("With this off (the default), nothing else changes: the Barbieri "
+           "is not offered anywhere and ChromIQ works as before."),
+        tr("The change takes effect the next time you start ChromIQ."),
+        tr("**Default:** off")))
+
+
+def barbieri_consent_text() -> str:
+    """What the window asks when "Barbieri Spectro 100xy (beta)" is
+    ticked."""
+    return "\n\n".join((
+        tr("You are switching on charts for the Barbieri Spectro 100xy. Here "
+           "is what that means, in plain words."),
+        tr("ChromIQ makes the charts, and Barbieri's own program measures "
+           "them. ChromIQ sends nothing to the instrument."),
+        tr("•  The layout follows Barbieri's datasheets, the way Barbieri's "
+           "own programs describe a chart, and an owner's real measurement "
+           "files. All of it was checked carefully, but without an "
+           "instrument.\n\n"
+           "•  Nobody on the ChromIQ team owns a Spectro 100xy, so no ChromIQ "
+           "chart has been read by one yet. Owners who try it are the first "
+           "to test it.\n\n"
+           "•  You can switch this off again at any time, and ChromIQ then "
+           "works as before."),
+        tr("Please read this part carefully: this is a beta, and using it is "
+           "at your own risk. If Spectro32 or the instrument refuses a chart, "
+           "or anything behaves in a way you do not expect, please tell us "
+           "what you saw in the project's GitHub issues. Every report "
+           "helps."),
+        tr("Would you like to switch it on?")))
 
 
 def isis_consent_text() -> str:

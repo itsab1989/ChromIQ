@@ -23,6 +23,8 @@ EXPECTED = {
     "i1": True, "p3": True, "CM": True, "41": True, "51": True,
     # read by position or patch by patch
     "SS": False, "CR30": False, "FD9": False, "IO2": False, "XRISIS": False,
+    # the Barbieri Spectro 100xy (a Beta): the table moves to each patch
+    "B100XY": False,
 }
 
 
@@ -33,7 +35,7 @@ def _every_registered_instrument() -> set:
     keys |= set(ENGINE_INSTRUMENTS)
     keys |= {k for k, _ in LP.INSTRUMENTS}
     keys |= {LP.FD9_INSTRUMENT[0], LP.I1IO_INSTRUMENT[0],
-             LP.ISIS_INSTRUMENT[0]}
+             LP.ISIS_INSTRUMENT[0], LP.BARBIERI_INSTRUMENT[0]}
     return keys
 
 
