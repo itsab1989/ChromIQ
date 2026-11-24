@@ -808,6 +808,9 @@ class LayoutOptionsPanel(QWidget):
     def _barbieri_size_picked(self, index: int) -> None:
         self._barbieri_call("_barbieri_size_picked", index)
 
+    def _barbieri_values_edited(self, *_a) -> None:
+        self._barbieri_call("_barbieri_values_edited")
+
     # ---- the X-Rite i1iSis family (Beta): `ui.dialogs.isis_panel` -------
     # Thin calls, the module imported only while the Beta is on, so with it
     # off nothing of the i1iSis is loaded (tests/test_isis_off_changes_

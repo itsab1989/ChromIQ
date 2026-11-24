@@ -271,7 +271,26 @@ def _cap_columns(kw: dict, notes: list) -> dict:
     return out
 
 
-def option_notes(kw: dict, widest: "int | None" = None) -> "list[str]":
+def _rows_that_would_fit(kw: dict) -> int:
+    """Rows a page of *kw* would hold without Gateway's 99 (0 if unknown)."""
+    from dataclasses import replace as _rp
+    from workflow.layout_engine import geometry, instruments, papers
+    try:
+        w, h = papers.dimensions_mm(kw.get("paper") or "A4")
+        if kw.get("page_size"):
+            from workflow.page_output import support as _po
+            ps = _po.clean_page_size(kw.get("page_size"))
+            if ps is not None:
+                w, h = _po.page_mm(ps, kw.get("dpi") or ps.get("ppi") or 300)
+        g = _rp(instruments.geom_from_build_kwargs(fixed_build_kwargs(kw)),
+                mxpprow=1_000_000)
+        return int(geometry.compute(g, w, h, 10_000_000).steps_in_pass)
+    except Exception:   # noqa: BLE001 - a note, never a failure
+        return 0
+
+
+def option_notes(kw: dict, widest: "int | None" = None,
+                 tallest: "int | None" = None) -> "list[str]":
     """What the fixed settings changed or what the options risk, in words:
     a size rounded to 0.1 mm, columns beyond 99 (only when the chart really
     reaches the cap: *widest* is its widest page's column count), a patch
@@ -290,6 +309,13 @@ def option_notes(kw: dict, widest: "int | None" = None) -> "list[str]":
                                                        cap=note[2])
         if text not in out:
             out.append(text)
+    cap = int(F.MAX_PER_SIDE.value)
+    if tallest is not None and tallest >= cap:
+        # THE ROWS TOO (review N1): the engine stops a page at 99 rows
+        # (`mxpprow`); said as the columns are
+        rows = _rows_that_would_fit(kw)
+        if rows > cap:
+            out.append(tr(_mm._BARBIERI_ROW_CAP).format(rows=rows, cap=cap))
     head = head_of(kw.get(HEAD_KEY))
     smallest = min(float(fixed["patch_w"]), float(fixed["patch_h"]))
     need = head.aperture_mm + 2 * F.EDGE_ALLOWANCE_MM.value
@@ -560,6 +586,17 @@ class MarkPlan:
         default_factory=list)
     left_out: "list[str]" = field(default_factory=list)
     arm_mm: "dict[str, float]" = field(default_factory=dict)
+    #: What this page really carries (the Start steps describe only that):
+    #: the bold upper-right corner (both arms), the two aim ticks crossing
+    #: at the upper-right patch, the start square left of A1.
+    bold_corner: bool = False
+    aim_ticks: bool = False
+    start_square: bool = False
+
+    def record(self) -> dict:
+        return {"bold_corner": self.bold_corner, "aim_ticks": self.aim_ticks,
+                "start_square": self.start_square,
+                "sides_left_out": list(self.left_out)}
 
 
 def plan_marks(grid: PageGrid, *, letters_on_top: bool = False,
@@ -606,18 +643,30 @@ def plan_marks(grid: PageGrid, *, letters_on_top: bool = False,
         if hside in arm:          # the arm continuing the top / bottom edge
             g, a = gap[hside], arm[hside]
             add(cx + sx * g, cy, cx + sx * (g + a), cy + sy * w_)
+    plan.bold_corner = "top" in arm and "right" in arm
     xc, yc = grid.centre(grid.cols - 1, 0)
+    ticks = 0
     if "top" in arm and not letters_on_top:
         g, a = gap["top"], arm["top"]
         add(xc - t / 2.0, y0 - g, xc + t / 2.0, y0 - g - a)
+        ticks += 1
     if "right" in arm:
         g, a = gap["right"], arm["right"]
         add(x1 + g, yc - t / 2.0, x1 + g + a, yc + t / 2.0)
+        ticks += 1
+    plan.aim_ticks = ticks == 2
     if "left" in arm and not numbers_on_left:
         g = gap["left"]
-        s = min(F.START_MARK_MM.value, arm["left"], grid.patch_h * 0.8)
         _x, ya = grid.centre(0, 0)
-        add(x0 - g - s, ya - s / 2.0, x0 - g, ya + s / 2.0)
+        # CLEAR OF THE UPPER-LEFT CORNER MARK: its arm runs along the grid's
+        # top edge line, so the square keeps at least a line's width (and
+        # 0.2 mm) below that line; on 1 mm film patches it is drawn smaller
+        clear = max(t, 0.2)
+        s = min(F.START_MARK_MM.value, arm["left"], grid.patch_h * 0.8,
+                2.0 * (ya - y0 - clear))
+        if s >= 0.2:
+            add(x0 - g - s, ya - s / 2.0, x0 - g, ya + s / 2.0)
+            plan.start_square = True
     return plan
 
 
@@ -668,7 +717,12 @@ def marks_left_out_message(plans: "list[MarkPlan]") -> "str | None":
 # the side file and the numbers
 # ---------------------------------------------------------------------------
 
-def page_record(grid: PageGrid, patterns, checks: "list[dict]") -> dict:
+_NO_MARKS = {"bold_corner": False, "aim_ticks": False, "start_square": False,
+             "sides_left_out": []}
+
+
+def page_record(grid: PageGrid, patterns, checks: "list[dict]",
+                marks: "dict | None" = None) -> dict:
     names = reading_order(grid, patterns)
     aim = patch_name(grid.slot(grid.cols - 1, 0), grid.steps, patterns)
     gw = gateway_numbers(grid.cols, grid.rows, grid.pitch_x, grid.pitch_y)
@@ -686,6 +740,8 @@ def page_record(grid: PageGrid, patterns, checks: "list[dict]") -> dict:
         "first_patch": names[0] if names else "",
         "reading_order": names,
         "check_patches": checks,
+        # what this page really carries (the Start steps say only that)
+        "marks": dict(marks or _NO_MARKS),
     }
 
 
@@ -693,7 +749,8 @@ def write_side_file(path: Path, *, geom, layout, w: float, h: float,
                     grids: "list[PageGrid]", head: F.Head, patterns,
                     checks_by_page: "list[list[dict]]", check_on: bool,
                     marks_on: bool, designed: int, ti2_path: Path,
-                    paper: str, dpi: int, size_key: str = "") -> dict:
+                    paper: str, dpi: int, size_key: str = "",
+                    mark_plans: "list | None" = None) -> dict:
     """Write ``<stem>.barbieri.json`` and return what it holds."""
     try:
         digest = hashlib.sha256(Path(ti2_path).read_bytes()).hexdigest()
@@ -720,7 +777,10 @@ def write_side_file(path: Path, *, geom, layout, w: float, h: float,
         "ti2_sha256": digest,
         "pages_detail": [page_record(g, patterns,
                                      checks_by_page[i] if i < len(
-                                         checks_by_page) else [])
+                                         checks_by_page) else [],
+                                     (mark_plans[i].record()
+                                      if marks_on and mark_plans
+                                      and i < len(mark_plans) else None))
                          for i, g in enumerate(grids)],
     }
     Path(path).write_text(json.dumps(doc, indent=2), encoding="utf-8")
@@ -822,14 +882,35 @@ def guided_film_preset(paper: str) -> "SizePreset | None":
     return None
 
 
+def film_needs_page_beta_reason() -> str:
+    """Why a film frame is greyed while the page-output Beta is off (the
+    same words in Manual's ready-made sizes and in Guided's papers)."""
+    return tr("Needs the Beta “Custom page size in inches or pixels, and "
+              "high resolution” in Preferences > Beta, which makes pages in "
+              "inches and pixels.")
+
+
+def guided_paper_rows(head_key: str) -> "list[tuple[str, bool]]":
+    """Guided's sheets for an opening, as (paper code, offered). The 0.5 mm
+    opening reads film: Guided offers only the film frames (a sheet of
+    paper would hold thousands of 1 mm patches and hours of reading). A film
+    frame needs the page-output Beta for its exact pixels: while that is
+    off the frames are listed greyed (`film_needs_page_beta_reason`), as in
+    Manual, and the sheets are offered instead. Manual keeps every paper for
+    every opening."""
+    if head_of(head_key).key != F.HEAD_TRANSMISSION_05:
+        return [(c, True) for c in GUIDED_PAPERS]
+    films = [film_paper_code(k) for k in GUIDED_FILM_SIZES]
+    from workflow.page_output.support import page_output_enabled
+    if page_output_enabled():
+        return [(c, True) for c in films]
+    return [(c, True) for c in GUIDED_PAPERS] + [(c, False) for c in films]
+
+
 def guided_papers(head_key: str) -> "tuple[str, ...]":
-    """The sheets Guided offers for an opening. The 0.5 mm opening reads
-    film: Guided offers only the film frames (a sheet of paper would hold
-    thousands of 1 mm patches and hours of reading); Manual keeps every
-    paper for it."""
-    if head_of(head_key).key == F.HEAD_TRANSMISSION_05:
-        return tuple(film_paper_code(k) for k in GUIDED_FILM_SIZES)
-    return GUIDED_PAPERS
+    """The sheets Guided can build for an opening (`guided_paper_rows`,
+    the offered ones only)."""
+    return tuple(c for c, ok in guided_paper_rows(head_key) if ok)
 
 
 def guided_paper_label(paper: str) -> "str | None":
@@ -855,13 +936,14 @@ def guided_kwargs(paper: str, head_key: str) -> dict:
            "spacer_on": False, "spacer_mode": "none", "draw_indicators": False,
            "row_indicators": False, "patch_area_align": "top-left"}
     film = guided_film_preset(paper)
-    if film is not None:
+    from workflow.page_output.support import page_output_enabled
+    if film is not None and page_output_enabled():
+        # a film frame only with its exact page (`guided_paper_rows`: off,
+        # the frames are not offered)
+        from workflow.page_output import support as po
         out["margins"] = tuple(film.margins)
-        from workflow.page_output.support import page_output_enabled
-        if page_output_enabled():
-            from workflow.page_output import support as po
-            out.update(page_size=po.clean_page_size(film.page_size),
-                       dpi=int(film.dpi), tiff_res_unit="in")
+        out.update(page_size=po.clean_page_size(film.page_size),
+                   dpi=int(film.dpi), tiff_res_unit="in")
     if head.key != F.DEFAULT_HEAD:
         out[HEAD_KEY] = head.key
     return out

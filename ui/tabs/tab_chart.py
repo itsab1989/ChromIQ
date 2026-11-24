@@ -20608,12 +20608,15 @@ class TabChart(QWidget):
             # margins). Manual takes any paper.
             # With the 0.5 mm opening only the film frames (it reads film;
             # a sheet would hold thousands of 1 mm patches).
-            from workflow.barbieri.chart import guided_papers as _bgp
+            # A film frame needs the page-output Beta: off, it is listed
+            # greyed with the reason (`guided_paper_rows`).
+            from workflow.barbieri.chart import guided_paper_rows as _bgr
             _bbox = getattr(self, "_barbieri_head_combo", None)
-            sizes = list(_bgp(_bbox.currentData() if _bbox is not None
-                              else ""))
-            if current not in sizes:
-                current = sizes[0]
+            _brows = _bgr(_bbox.currentData() if _bbox is not None else "")
+            sizes = [c for c, _ok in _brows]
+            _boffered = [c for c, ok in _brows if ok]
+            if current not in _boffered:
+                current = _boffered[0]
         elif instr == "IO2":
             # The i1iO's sheets: landscape, inside the arm's reach
             # (`workflow.i1io.chart.GUIDED_PAPERS`). Only reachable with i1iO
@@ -20625,11 +20628,20 @@ class TabChart(QWidget):
         _label_code = (lambda c: c)
         if instr == "B100XY":
             # a film frame by its own name (a Beta)
-            from workflow.barbieri.chart import guided_paper_label as _bgl
-            for size in sizes:
-                if size not in excluded:
-                    self._paper_combo.addItem(
-                        _bgl(size) or paper_display_label(size), size)
+            from workflow.barbieri.chart import (
+                film_needs_page_beta_reason as _bwhy,
+                guided_paper_label as _bgl)
+            from PyQt6.QtGui import QStandardItemModel as _SIM
+            for size, ok in _brows:
+                if size in excluded:
+                    continue
+                self._paper_combo.addItem(
+                    _bgl(size) or paper_display_label(size), size)
+                _model = self._paper_combo.model()
+                if not ok and isinstance(_model, _SIM):
+                    _item = _model.item(self._paper_combo.count() - 1)
+                    _item.setEnabled(False)
+                    _item.setToolTip(_bwhy())
             sizes = []
         if instr == "IO2":
             # shown as the sheet is used: landscape, on the table

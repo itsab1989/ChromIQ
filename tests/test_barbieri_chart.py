@@ -215,7 +215,7 @@ def test_more_than_99_columns_are_capped_and_said(tmp_path):
     res2, doc2 = _build(tmp_path, 3000, patch_w=1.0, patch_h=1.0,
                         margins=(10.0, 10.0, 10.0, 15.0))
     assert doc2["pages_detail"][0]["columns"] < 99
-    assert not any("Gateway reads at most" in w for w in res2.warnings)
+    assert not any("columns would fit" in w for w in res2.warnings)
 
 
 def test_a_patch_too_small_for_the_opening_is_warned_not_refused(tmp_path):
@@ -355,8 +355,21 @@ def test_marks_fit_a_one_millimetre_margin():
         assert not (a < 37.0 and c > 1.0 and b < 24.0 and d > 1.0)
 
 
-def test_guided_offers_only_the_film_frames_for_the_half_millimetre_opening():
+@pytest.fixture
+def page_beta():
+    from workflow.page_output import support as po
+    before = po._latched
+
+    def _set(on):
+        po.set_enabled_for_this_process(on)
+    yield _set
+    po._latched = before
+
+
+def test_guided_offers_only_the_film_frames_for_the_half_millimetre_opening(
+        page_beta):
     from workflow.barbieri import chart as C
+    page_beta(True)
     films = C.guided_papers("transmission-0.5")
     assert films == tuple(C.film_paper_code(k) for k in C.GUIDED_FILM_SIZES)
     assert not set(films) & set(C.GUIDED_PAPERS)
@@ -366,18 +379,94 @@ def test_guided_offers_only_the_film_frames_for_the_half_millimetre_opening():
         assert C.guided_papers(head) == C.GUIDED_PAPERS
 
 
-def test_guided_kwargs_on_a_film_frame_take_the_frames_own_page():
+def test_guided_kwargs_on_a_film_frame_take_the_frames_own_page(page_beta):
     from workflow.barbieri import chart as C
-    from workflow.page_output import support as po
     code = C.film_paper_code("film_35")
-    before = po._latched
-    try:
-        po.set_enabled_for_this_process(True)
-        kw = C.guided_kwargs(code, "transmission-0.5")
-        assert kw["margins"] == (1.0, 1.0, 1.0, 1.0)
-        assert kw["page_size"]["w"] == [4096, "px"] and kw["dpi"] == 2731
-        assert kw["patch_w"] == 1.0
-        po.set_enabled_for_this_process(False)
-        assert "page_size" not in C.guided_kwargs(code, "transmission-0.5")
-    finally:
-        po._latched = before
+    page_beta(True)
+    kw = C.guided_kwargs(code, "transmission-0.5")
+    assert kw["margins"] == (1.0, 1.0, 1.0, 1.0)
+    assert kw["page_size"]["w"] == [4096, "px"] and kw["dpi"] == 2731
+    assert kw["patch_w"] == 1.0
+
+
+def test_without_the_page_beta_guided_greys_the_film_frames(page_beta):
+    """The spec: the two film frames need the page-output Beta and are
+    greyed with that reason without it, in Guided as in Manual. They are
+    never built as a few-hundred-pixel page under the frame's name."""
+    from workflow.barbieri import chart as C
+    page_beta(False)
+    rows = C.guided_paper_rows("transmission-0.5")
+    films = {C.film_paper_code(k) for k in C.GUIDED_FILM_SIZES}
+    assert {c for c, ok in rows if not ok} == films
+    assert [c for c, ok in rows if ok] == list(C.GUIDED_PAPERS)
+    assert not set(C.guided_papers("transmission-0.5")) & films
+    assert "Custom page size" in C.film_needs_page_beta_reason()
+
+
+def test_rows_beyond_99_are_said_too(tmp_path):
+    res, doc = _build(tmp_path, 3000, paper="A4", patch_w=1.0, patch_h=1.0,
+                      margins=(10.0, 10.0, 10.0, 15.0))
+    assert doc["pages_detail"][0]["rows"] == 99
+    assert any("Rows that would fit" in w for w in res.warnings), res.warnings
+
+
+def test_the_start_square_keeps_clear_of_the_corner_mark_on_a_film_frame():
+    from workflow.barbieri import chart as C
+    g = C.PageGrid(page=0, cols=36, rows=23, first_slot=0, steps=23,
+                   pitch_x=1.0, pitch_y=1.0, patch_w=1.0, patch_h=1.0,
+                   left=1.0, top=1.0, right=37.0, bottom=24.0, paper_w=38.1,
+                   paper_h=25.4)
+    plan = C.plan_marks(g)
+    assert plan.start_square
+    # the square: the one rectangle left of the grid that lies below its top
+    square = [r for r in plan.rects if r[2] <= 1.0 and 1.0 < r[1] < 2.0
+              and abs((r[2] - r[0]) - (r[3] - r[1])) < 1e-9]
+    assert len(square) == 1
+    t = min(C.F.MARK_LINE_MM.value, max(0.05, 1.0 * 0.15))
+    assert square[0][1] - 1.0 >= max(t, 0.2) - 1e-9
+
+
+def test_the_side_file_records_the_marks_each_page_carries(tmp_path):
+    _res, doc = _build(tmp_path, 120)
+    m = doc["pages_detail"][0]["marks"]
+    assert m == {"bold_corner": True, "aim_ticks": True, "start_square": True,
+                 "sides_left_out": []}
+    _res, doc = _build(tmp_path, 120, barbieri_marks=False)
+    m = doc["pages_detail"][0]["marks"]
+    assert not (m["bold_corner"] or m["aim_ticks"] or m["start_square"])
+    # row numbers on the left take the start square's place
+    _res, doc = _build(tmp_path, 120, draw_indicators=True,
+                       row_indicators=True)
+    m = doc["pages_detail"][0]["marks"]
+    assert m["bold_corner"] and not m["start_square"]
+
+
+@pytest.mark.parametrize("over,orient,ticks", [
+    ({}, "small black square", True),
+    ({"barbieri_marks": False}, "Check which way the sheet lies", False),
+    ({"draw_indicators": True, "row_indicators": True},
+     "is the top left one", False),
+])
+def test_the_start_steps_describe_only_what_is_printed(tmp_path, over, orient,
+                                                       ticks):
+    """Review S2: the steps window names a mark only when the chart has it."""
+    from ui.tabs.tab_measure import barbieri_steps_fields
+    _res, _doc = _build(tmp_path, 120, **over)
+    f = barbieri_steps_fields(tmp_path / "c.ti2")
+    assert orient in f["orient"], f["orient"]
+    if "small black square" not in orient:
+        assert "small black square" not in f["orient"]
+    if not over.get("barbieri_marks", True):
+        assert "bold corner" not in f["orient"]
+    # with letters on top the vertical tick gives way, so no "two ticks"
+    has_ticks = "two thin ticks" in f["aim_hint"]
+    assert has_ticks == (ticks or not over.get("draw_indicators", False)
+                         and over.get("barbieri_marks", True))
+    from workflow import measurement_messages as M
+    body = M.M_BARBIERI_STEPS.render(**f)[1]
+    assert f["orient"] in body and f["aim_hint"] in body
+
+
+def test_the_gateway_note_does_not_call_count_times_pitch_the_patch_area():
+    from workflow import measurement_messages as M
+    assert "patch area is" not in M._BARBIERI_STEPS_GATEWAY_INEXACT

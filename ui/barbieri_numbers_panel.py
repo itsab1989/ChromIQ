@@ -121,7 +121,9 @@ def numbers_help() -> str:
         "centre of the first patch to the centre of the last one, in 0.1 mm, "
         "then the number of columns and of rows. Barbieri Gateway asks "
         "instead for the patches across and down and the target size, the "
-        "patch area from edge to edge in whole millimetres, and is aimed at "
+        "number of patches times the pitch in whole millimetres (the patch "
+        "area from edge to edge when the patches have no gaps), and is aimed "
+        "at "
         "three corners of the patch area: the corner marks show them. A chart "
         "of several pages has one line per page. The reading time is worked "
         "out from the datasheet's pace of about 1.9 seconds a patch.")

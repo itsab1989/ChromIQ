@@ -211,10 +211,9 @@ class BarbieriPanelMixin:
                 if p is not None and p.needs_page_beta:
                     item = model.item(i)
                     item.setEnabled(False)
-                    item.setToolTip(tr(
-                        "Needs the Beta “Custom page size in inches or "
-                        "pixels, and high resolution” in Preferences > "
-                        "Beta, which makes pages in inches and pixels."))
+                    from workflow.barbieri.chart import \
+                        film_needs_page_beta_reason
+                    item.setToolTip(film_needs_page_beta_reason())
         put(tr("Ready-made size:"), self.barbieri_size, "size")
         self.barbieri_head = ElidingComboBox(g)
         fill_head_combo(self.barbieri_head)
@@ -236,6 +235,23 @@ class BarbieriPanelMixin:
             getattr(w, sig).connect(self._barbieri_option_changed)
         self.barbieri_head.currentIndexChanged.connect(
             self._barbieri_head_changed)
+        # A READY-MADE SIZE IS A RECORD OF WHERE THE VALUES CAME FROM, so a
+        # person's change to one of them makes the size their own again
+        # (review N2): the choice shows "Your own size" and the side file
+        # names no ready-made size
+        edited = [(self.barbieri_head, "currentIndexChanged")]
+        edited += [(b, "valueChanged") for b in (
+            getattr(self, "patch_x", None), getattr(self, "patch_y", None),
+            getattr(self, "dpi", None),
+            getattr(self, "inter_patch", None),
+            getattr(self, "strip_gap", None)) if b is not None]
+        edited += [(b, "valueChanged")
+                   for b in (getattr(self, "margins", None) or {}).values()]
+        if getattr(self, "paper", None) is not None:
+            edited.append((self.paper, "currentIndexChanged"))
+        for w, sig in edited:
+            getattr(w, sig).connect(self._barbieri_values_edited)
+        self._barbieri_applying = False
         g.setVisible(False)
         self._barbieri_group = g
         self._barbieri_saved = None
@@ -245,6 +261,19 @@ class BarbieriPanelMixin:
     def _barbieri_option_changed(self, *_a) -> None:
         if not getattr(self, "_loading", False):
             self._emit()
+
+    def _barbieri_values_edited(self, *_a) -> None:
+        """A value a ready-made size fills was changed by a person: the size
+        is the person's own from now on."""
+        if (getattr(self, "_loading", False)
+                or getattr(self, "_barbieri_applying", False)
+                or self._barbieri_saved is None):
+            return
+        box = getattr(self, "barbieri_size", None)
+        if box is not None and box.currentIndex() != 0:
+            box.blockSignals(True)
+            box.setCurrentIndex(0)
+            box.blockSignals(False)
 
     def _barbieri_head_changed(self, *_a) -> None:
         """A new opening: the patch size follows it while it is still the
@@ -292,7 +321,11 @@ class BarbieriPanelMixin:
         if p.dpi:
             changes["dpi"] = int(p.dpi)
         r = replace(r, **changes)
-        self.set_recipe(r)
+        self._barbieri_applying = True
+        try:
+            self.set_recipe(r)
+        finally:
+            self._barbieri_applying = False
         self._margins_chosen = True
         self._emit()
 

@@ -1147,7 +1147,8 @@ def build_chart(
                              + ((_b_chart.HEAD_KEYWORD, _b_head.key),))
         _b_warnings = _b_chart.option_notes(
             _geom_kw(len(target.patches)),
-            widest=max((g.cols for g in _b_grids), default=0))
+            widest=max((g.cols for g in _b_grids), default=0),
+            tallest=max((g.rows for g in _b_grids), default=0))
     # R7 (4.3.39): no near-black patch straight next to a near-white one on
     # a chart in fixed order. Through the same one slot list as the i1iO's
     # order, so the .ti2, the pages, the side files and the .cht agree; None
@@ -1290,6 +1291,7 @@ def build_chart(
                                    text_ctx=_ctx, crosses=_i1io_pages,
                                    text_style=_i1io_text_style,
                                    text_align=_i1io_chart.text_align_of(_f))
+    _b_plans: list = []
     if _barb and _b_marks:
         # The corner marks, the aim ticks and the start square, in the
         # margins only (`barbieri.chart.plan_marks`), on every page.
@@ -1437,7 +1439,7 @@ def build_chart(
             patterns=_b_patterns,
             checks_by_page=_b_chart.check_records(_b_grids, _b_slots, target,
                                                   _b_labs, _b_patterns),
-            check_on=_b_check_now, marks_on=_b_marks,
+            check_on=_b_check_now, marks_on=_b_marks, mark_plans=_b_plans,
             designed=len(target.patches), ti2_path=ti2_path, paper=paper,
             dpi=dpi, size_key=str(barbieri_size or ""))
 

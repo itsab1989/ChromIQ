@@ -1891,28 +1891,44 @@ _BARBIERI_STEPS_BODY = (
     "ChromIQ cannot talk to the Barbieri Spectro 100xy yet, so this chart is "
     "measured in Barbieri's own program, Spectro32. Nothing is wrong with "
     "the chart. Here is how, step by step:\n\n"
-    "1. Lay the printed sheet or film on the table the right way up: the "
-    "bold corner mark is at the upper right, and the small black square "
-    "sits left of the first patch, {first}. A reflective sheet needs free "
-    "paper on its left (the datasheets ask for 15 mm or 35 mm).\n"
+    "1. {orient} A reflective sheet needs free paper on its left (the "
+    "datasheets ask for 15 mm or 35 mm).\n"
     "2. In Spectro32 choose the measuring mode {mode} ({opening}).\n"
     "3. Enter the grid. The two spans run from the centre of the first patch "
     "to the centre of the last one, across and down, in 0.1 mm; then come "
     "the columns and the rows:\n{grid_lines}\n"
-    "4. Aim the head at the centre of the upper-right patch, {aim}: the two "
-    "thin ticks in the margin cross there. Save that position as the "
-    "starting point.\n"
+    "4. Aim the head at the centre of the upper-right patch, {aim}. "
+    "{aim_hint} Save that position as the starting point.\n"
     "5. Start the reading. The table reads row by row from the top, each row "
     "from the left: {first} first, then the patch to its right, and so on. "
     "At the datasheet's pace this takes about {minutes} min.\n"
     "6. Save the files Spectro32 writes, and keep them unchanged.\n\n"
     "If you use Barbieri Gateway instead, enter these numbers and aim at the "
-    "corner marks it asks for:\n{gateway_lines}\n\n"
+    "corners of the patch area it asks for:\n{gateway_lines}\n\n"
     "Bringing the measurement back into ChromIQ comes in a later version. "
     "Keep Spectro32's files and this chart's side file ({side}): the import "
     "will need both.\n\n"
     "This chart has not yet been read on a real Spectro 100xy. If Spectro32 "
     "or the instrument refuses it, please tell us on GitHub.")
+#: {orient} of M-BARBIERI-STEPS, by what the first page really carries
+#: (the side file's `marks` record): the bold corner and the start square,
+#: the bold corner only, or neither (marks off, or margins too narrow).
+_BARBIERI_ORIENT_MARKS_SQUARE = (
+    "Lay the printed sheet or film on the table the right way up: the bold "
+    "corner mark is at the upper right, and the small black square sits left "
+    "of the first patch, {first}.")
+_BARBIERI_ORIENT_MARKS = (
+    "Lay the printed sheet or film on the table the right way up: the bold "
+    "corner mark is at the upper right, and the first patch, {first}, is the "
+    "top left one.")
+_BARBIERI_ORIENT_PLAIN = (
+    "Lay the printed sheet or film on the table the right way up: the first "
+    "patch, {first}, is the top left one. Check which way the sheet lies by "
+    "its first row of patches.")
+#: {aim_hint}: the two aim ticks are printed, or they are not.
+_BARBIERI_AIM_TICKS = "The two thin ticks in the margin cross there."
+_BARBIERI_AIM_EYE = "Aim at the middle of that patch by eye."
+
 M_BARBIERI_STEPS = _m(
     "M-BARBIERI-STEPS",
     "Measuring with the Barbieri Spectro 100xy happens in Spectro32",
@@ -1927,8 +1943,8 @@ _BARBIERI_STEPS_GATEWAY_LINE = (
     "{gx} x {gy} mm")
 #: Added to a Gateway line when count x pitch is not a whole millimetre.
 _BARBIERI_STEPS_GATEWAY_INEXACT = (
-    " (the patch area is {ex} x {ey} mm: Gateway takes whole millimetres, "
-    "so its far patches may lie a little off)")
+    " (columns x pitch and rows x pitch come to {ex} x {ey} mm: Gateway "
+    "takes whole millimetres, so its far patches may lie a little off)")
 
 #: Start pressed on a Barbieri chart while the Beta is off.
 _BARBIERI_SUPPORT_OFF_TEXT = (
@@ -1948,6 +1964,11 @@ _BARBIERI_ROUNDED = (
     "{asked} mm was rounded to {got} mm: the Spectro 100xy moves in steps of "
     "0.1 mm, and Spectro32 takes the grid in 0.1 mm, so every patch size and "
     "gap is a whole number of 0.1 mm steps.")
+_BARBIERI_ROW_CAP = (
+    "Rows that would fit down this page: {rows}. Barbieri Gateway reads at "
+    "most {cap} patches down, so the chart has {cap} rows and the rest of "
+    "the height stays empty. Choose larger patches or a smaller page to use "
+    "it.")
 _BARBIERI_COLUMN_CAP = (
     "{cols} columns would fit across this page, but Barbieri Gateway reads at "
     "most {cap} patches across, so the chart has {cap} columns and the rest "

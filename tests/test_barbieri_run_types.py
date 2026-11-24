@@ -126,7 +126,7 @@ def test_profiling_and_verification_charts(win, qapp, qtbot, monkeypatch):
     title, body = _measure_refuses(w, run1.chart_ti2, monkeypatch)
     assert title == M.M_BARBIERI_STEPS.render(
         mode="", opening="", grid_lines="", aim="", first="", minutes=0,
-        gateway_lines="", side="")[0]
+        gateway_lines="", side="", orient="", aim_hint="")[0]
     pg = side["pages_detail"][0]
     assert pg["spectro32"] in body and pg["aim_patch"] in body
     assert "later version" in body
@@ -196,3 +196,30 @@ def test_guided_makes_a_barbieri_chart_with_its_opening(win, qapp, qtbot):
     assert side["head"] == "transmission-3"
     assert side["spectro32_mode"] == "MT"
     assert side["patch_mm"] == [6.5, 6.5]
+
+
+def test_guided_greys_the_film_frames_without_the_page_beta(win, qapp):
+    from workflow.page_output import support as po
+    before = po._latched
+    po.set_enabled_for_this_process(False)
+    try:
+        tc = win._tab_chart
+        tc._switch_mode("guided")
+        tc._instr_combo.setCurrentIndex(tc._instr_combo.findData("B100XY"))
+        qapp.processEvents()
+        box = tc._barbieri_head_combo
+        box.setCurrentIndex(box.findData("transmission-0.5"))
+        qapp.processEvents()
+        from workflow.barbieri.chart import (GUIDED_FILM_SIZES,
+                                             film_paper_code)
+        combo = tc._paper_combo
+        model = combo.model()
+        for key in GUIDED_FILM_SIZES:
+            i = combo.findData(film_paper_code(key))
+            assert i >= 0
+            item = model.item(i)
+            assert not item.isEnabled()
+            assert "Custom page size" in item.toolTip()
+        assert model.item(combo.currentIndex()).isEnabled()
+    finally:
+        po._latched = before

@@ -1836,12 +1836,27 @@ def barbieri_steps_fields(chart) -> dict:
                 ey=decimal_text(gw.get("size_y_exact_mm", 0)))
         gate.append(line)
     first = pages[0] if pages else {}
+    # ONLY WHAT IS PRINTED: the first page's own record of its marks (a
+    # side file from before the record: as such charts were drawn)
+    on = bool(side.get("marks_on", True))
+    marks = first.get("marks") or {"bold_corner": on, "aim_ticks": on,
+                                   "start_square": on}
+    if marks.get("bold_corner") and marks.get("start_square"):
+        orient = tr(M._BARBIERI_ORIENT_MARKS_SQUARE)
+    elif marks.get("bold_corner"):
+        orient = tr(M._BARBIERI_ORIENT_MARKS)
+    else:
+        orient = tr(M._BARBIERI_ORIENT_PLAIN)
+    orient = orient.format(first=first.get("first_patch", "?"))
+    aim_hint = tr(M._BARBIERI_AIM_TICKS if marks.get("aim_ticks")
+                  else M._BARBIERI_AIM_EYE)
     try:
         side_name = side_file_for(chart).name
     except Exception:      # noqa: BLE001
         side_name = "?"
     del _P
     return dict(
+        orient=orient, aim_hint=aim_hint,
         mode=head.spectro32 or "?", opening=head_label(head),
         grid_lines="\n".join(grid) or "?", aim=first.get("aim_patch", "?"),
         first=first.get("first_patch", "?"),

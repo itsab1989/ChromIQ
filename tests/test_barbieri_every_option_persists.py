@@ -152,3 +152,24 @@ def test_choosing_the_barbieri_greys_what_has_no_meaning_and_leaving_gives_it_ba
     finally:
         p.deleteLater()
         qapp.processEvents()
+
+
+def test_a_changed_value_makes_the_ready_made_size_the_persons_own(qapp):
+    """Review N2: the size is a record of where the values came from, so it
+    is not kept once a person changes one of them."""
+    from ui.dialogs.layout_options_panel import LayoutOptionsPanel
+    p = LayoutOptionsPanel(with_selectors=True)
+    try:
+        _choose(p, qapp, "B100XY")
+        i = p.barbieri_size.findData("a4")
+        p.barbieri_size.setCurrentIndex(i)
+        p.barbieri_size.activated.emit(i)
+        qapp.processEvents()
+        assert p.get_recipe().barbieri_size == "a4"
+        p.patch_x.setValue(7.0)
+        qapp.processEvents()
+        assert p.get_recipe().barbieri_size == ""
+        assert p.barbieri_size.currentIndex() == 0
+    finally:
+        p.deleteLater()
+        qapp.processEvents()
