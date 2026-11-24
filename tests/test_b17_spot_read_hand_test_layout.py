@@ -316,6 +316,8 @@ def _build_on_screen_of_width(qapp, monkeypatch, lang, width):
 def _rows_do_not_overlap(d):
     btns = [d._start_btn, d._read_btn, d._avg_btn, d._del_btn,
             d._clear_btn, d._save_btn, d._close_btn]
+    if d._cal_btn.isVisible():           # 4.3.60, item 41
+        btns.insert(2, d._cal_btn)
     for b in btns:
         assert b.width() >= b.minimumWidth(), b.text()
     for a, b in zip(btns, btns[1:]):
@@ -325,7 +327,10 @@ def _rows_do_not_overlap(d):
 
 
 @pytest.mark.parametrize("lang", _LANGS)
-@pytest.mark.parametrize("screen_w", [1280, 1440])
+# 1100: a Windows laptop at 1366x768 and 125 % has about 1093 logical px.
+# 1024: the narrowest work area 4.3.59 fitted in every language once the row
+# wrapped; the Calibrate button (4.3.60) must not take that away.
+@pytest.mark.parametrize("screen_w", [1024, 1100, 1280, 1440])
 def test_window_is_never_wider_than_its_screen(qapp, monkeypatch, lang, screen_w):
     d = _build_on_screen_of_width(qapp, monkeypatch, lang, screen_w)
     try:
@@ -361,5 +366,30 @@ def test_a_row_wider_than_the_screen_moves_save_and_close_to_a_second_row(
         # still right-aligned, Close last
         assert d._close_btn.geometry().right() > d._save_btn.geometry().right()
         _rows_do_not_overlap(d)
+    finally:
+        _close(d)
+
+
+@pytest.mark.parametrize("lang", _LANGS)
+def test_the_calibrate_button_costs_a_wrapped_row_nothing(qapp, monkeypatch, lang):
+    """4.3.60, item 41. Calibrate made the row 120 to 190 px wider, and on a
+    work area of about 1100 px French, Russian and Ukrainian no longer fitted
+    even after Save and Close had moved down (measured on screen). Calibrate
+    now moves down with them, so a wrapped row is as wide as it was without
+    the button, in every language and with any fonts."""
+    d = _build_on_screen_of_width(qapp, monkeypatch, lang, 600)   # always wraps
+    try:
+        assert d._row_wrapped
+        lay = d.layout()
+        lay.activate()
+        with_btn = lay.minimumSize().width()
+        d._cal_btn.setVisible(False)
+        lay.invalidate()
+        lay.activate()
+        without_btn = lay.minimumSize().width()
+        assert with_btn == without_btn, (lang, with_btn, without_btn)
+        d._cal_btn.setVisible(True)
+        QApplication.processEvents()
+        assert d._cal_btn.geometry().top() > d._start_btn.geometry().bottom()
     finally:
         _close(d)

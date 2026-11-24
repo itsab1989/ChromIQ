@@ -1374,7 +1374,12 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
 
     def _wrap_button_row(self) -> None:
         """Move Save and Close from the end of the button row to a row of
-        their own under it, right-aligned as before."""
+        their own under it, right-aligned as before.
+
+        Calibrate (4.3.60, item 41) goes down too, to the left of that row:
+        it is the newest and least used button, and moving it keeps the first
+        row exactly as wide as it was in 4.3.59, so every language fits a
+        1024 px work area again once the row wraps."""
         bottom = self._bottom
         for i in reversed(range(bottom.count())):
             item = bottom.itemAt(i)
@@ -1382,9 +1387,11 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
                 bottom.takeAt(i)
         bottom.removeWidget(self._save_btn)
         bottom.removeWidget(self._close_btn)
+        bottom.removeWidget(self._cal_btn)
         bottom.addStretch(1)
         second = QHBoxLayout()
         second.setSpacing(bottom.spacing())
+        second.addWidget(self._cal_btn)
         second.addStretch(1)
         second.addWidget(self._save_btn)
         second.addWidget(self._close_btn)
