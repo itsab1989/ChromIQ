@@ -944,6 +944,9 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         if elsewhere is not None:
             self._show_instrument_busy(elsewhere)
             return
+        # The CR30 is calibrated by ChromIQ's own windows at the start and has
+        # no calibration key: Calibrate is hidden, so it takes no room.
+        self._cal_btn.setVisible(False)
         self._set_session_running(True)
         self._show_log()
         self._log.clear()
@@ -1463,6 +1466,10 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         self._start_btn.setText(tr("Stop session") if running else tr("Start session"))
         if not running:
             self._set_read_enabled(False)
+            # back after a CR30 session, which hides it
+            cal = self.__dict__.get("_cal_btn")
+            if cal is not None:
+                cal.setVisible(True)
             self._apply_reader_capabilities()
             self._refresh_auto_choice()
         self._keep_auto_choice_fresh()
@@ -1554,6 +1561,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             self._cr30.take_reading()
             return
         if not getattr(self, "_misread", False):
+            self._hold_calibrate_until_ready()
             self._manager.take_reading()
             return
         # Two keypresses with a visible gap: the first leaves spotread's retry
@@ -1566,6 +1574,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         def _then_read() -> None:
             self._misread = False
             self._set_read_enabled(True)
+            self._hold_calibrate_until_ready()
             self._manager.take_reading()
 
         QTimer.singleShot(self._MISREAD_CLEAR_PAUSE_MS, _then_read)
@@ -2221,6 +2230,17 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             return
         log.info("spot read: calibration warning answered: calibrate again")
         self._calibrate_again()
+
+    def _hold_calibrate_until_ready(self) -> None:
+        """Calibrate is off from the reading key until spotread's next
+        prompt (item 41 challenge, S-A1). spotread reads no key while it is
+        measuring: a 'k' sent then waits, and if that reading misreads,
+        spotread empties its input and the 'k' is lost, after the window had
+        already said "Calibrating…". The next ready or misread prompt turns
+        it back on (`_set_read_enabled`)."""
+        cal = self.__dict__.get("_cal_btn")
+        if cal is not None:
+            cal.setEnabled(False)
 
     def _calibrate_again(self) -> None:
         """Ask spotread for a calibration now (the warning's "Calibrate

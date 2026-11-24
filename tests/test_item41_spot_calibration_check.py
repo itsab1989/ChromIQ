@@ -498,3 +498,60 @@ def test_the_status_keeps_the_warning_while_it_is_open(qapp, monkeypatch):
     assert "lighter than a print can be" in d.status_while_open
     assert d._status.text() == d._ready_text(), "put back after Carry on"
     d.deleteLater()
+
+
+# ---- 7. challenge round (S-A1, N-A3) ----------------------------------------
+_READY = "Hit ESC or Q to exit, any other key to take a reading: "
+
+
+def test_calibrate_is_off_while_a_reading_is_taken(qapp, monkeypatch):
+    """spotread reads no key while it measures; a 'k' sent then waits, and is
+    thrown away if that reading misreads. So Calibrate is off from the
+    reading key to the next prompt, and "Calibrating…" is never shown for it."""
+    d, sent = _dialog(monkeypatch, "Carry on measuring")
+    _feed(d._manager, [_READY])
+    assert d._cal_btn.isEnabled()
+    d._read_btn.click()
+    assert sent == [" "]
+    assert not d._cal_btn.isEnabled()
+    d._cal_btn.click()                      # a click on a disabled button
+    assert sent == [" "]
+    assert d._status.text() != __import__("core.i18n", fromlist=["tr"]).tr("Calibrating…")
+    _feed(d._manager, spotread_lines(yellow(), 1.0))
+    assert d._cal_btn.isEnabled(), "back at the next ready prompt"
+    d.deleteLater()
+
+
+def test_calibrate_is_off_while_a_misread_is_read_again(qapp, monkeypatch):
+    from PyQt6.QtTest import QTest
+    d, sent = _dialog(monkeypatch, "Carry on measuring")
+    _feed(d._manager, ["Spot read failed due to misread (Inconsistent readings)",
+                       "Hit Esc or Q to give up, any other key to retry:"])
+    d._read_btn.click()                     # Enter, a pause, then the reading
+    QTest.qWait(d._MISREAD_CLEAR_PAUSE_MS + 200)
+    assert sent == ["\r", " "]
+    assert not d._cal_btn.isEnabled()
+    _feed(d._manager, [_READY])
+    assert d._cal_btn.isEnabled()
+    d.deleteLater()
+
+
+def test_calibrate_takes_no_room_in_a_cr30_session(qapp, monkeypatch):
+    d, _sent = _dialog(monkeypatch, "Carry on measuring")
+    d.show()
+    QApplication.processEvents()
+    seen = {}
+    monkeypatch.setattr("core.instrument_lease.held_by_other", lambda r: None)
+
+    def _calibration():
+        seen["visible"] = d._cal_btn.isVisible()
+        return False                        # the CR30 calibration was cancelled
+
+    monkeypatch.setattr(d, "_run_cr30_calibration", _calibration)
+    monkeypatch.setattr(d, "_close_cr30_bridge", lambda: None)
+    d._start_cr30_session()
+    assert seen["visible"] is False
+    assert d._cal_btn.isVisible(), "back once the CR30 session is over"
+    d._manager.detach()
+    d.close()
+    d.deleteLater()
