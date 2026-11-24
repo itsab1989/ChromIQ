@@ -427,8 +427,20 @@ def test_a_wrong_guess_starts_again_and_says_so(qapp, monkeypatch):
     d._manager._restart_timer.timeout.emit()
     assert "-F" not in d.runs[1]
     _feed(d._manager, ["Instrument Type:   i1Pro 2", READY])
+    # the restarted session's Ready line does not wipe it out (seen on screen)
+    assert d._status.text().startswith(status)
     d._on_reading((40.0, 42.0, 35.0), (70.0, 1.0, 2.0))
     assert d._readings[0].condition is None
+    d._on_ready()
+    assert d._status.text().startswith(status)
+    d._on_session_ended(0)
+    # the instrument's report keeps winning over the USB guess (same cable):
+    # no row, and the next start is today's command line, no second detour
+    assert not _visible(d)
+    d._on_start_stop()
+    assert d.runs[-1] == ["-v", "-c", "1", "-s"]
+    _feed(d._manager, ["Instrument Type:   i1Pro 2", READY])
+    assert not d._status.text().startswith(status)   # a new session: gone
     d.deleteLater()
 
 

@@ -1009,6 +1009,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             condition=self._condition_for_start(),
         )
         self._session_condition = None
+        self._condition_note = ""
         #: what this start asked for (None: no -F)
         self._start_condition = params.condition
         self._set_session_running(True)
@@ -1607,6 +1608,14 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         # Knut, #130 2026-08-01: *"the 'Ready ….' message is inaccurate, as
         # using instrument button is also possible. Revise text."* Both ways of
         # reading are named now.
+        note = self.__dict__.get("_condition_note")
+        if note:
+            # Item 43: the session was started again without M1/M2. Said
+            # above the Ready line for the whole session; a status line that
+            # said it once was replaced within a second by the restarted
+            # session's own lines (seen on screen).
+            self._set_status(note + "\n" + self._ready_text())
+            return
         self._set_status(self._ready_text())
 
     @staticmethod
@@ -2067,6 +2076,9 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
     def _on_instrument_detected(self, model: str) -> None:
         """Remember what spotread says is attached (#130, Knut 2026-07-31)."""
         self._detected_instrument = model or ""
+        #: the USB list when it reported, so its report keeps winning over
+        #: the USB guess until a cable changes (item 43)
+        self._detected_fingerprint = usb_fingerprint_now()
         log.info("spot read: instrument reported as %s", model)
         if "_cond_row" not in self.__dict__:
             return
@@ -2103,7 +2115,10 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
     def _i1pro3_known(self) -> bool:
         """Whether the instrument a Start would open is an i1Pro 3.
 
-        Nothing is opened to find out. The USB list first: 0765:6009 is an
+        Nothing is opened to find out. What the instrument itself reported in
+        this window wins while the USB list has not changed since (a report
+        that contradicted the USB guess must not lead to the same wrong start
+        again). Otherwise the USB list: 0765:6009 is an
         i1Pro 3 (or 3 Plus) and nothing else, and an answer from it about any
         other instrument stands too. Only when the list cannot tell (it cannot
         be read, or several instruments are attached), what spotread reported
@@ -2111,6 +2126,10 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         (:meth:`_on_instrument_detected`, and the manager's restart without
         -F when it is not an i1Pro 3)."""
         from workflow.dual_scan import instrument_model as IM
+        reported = self.__dict__.get("_detected_instrument", "")
+        if reported and self.__dict__.get(
+                "_detected_fingerprint", ()) == usb_fingerprint_now():
+            return is_i1pro3(reported)
         family = IM.attached_family()
         if family == IM.FAMILY_I1PRO3:
             return True
@@ -2167,6 +2186,8 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         self._session_condition = None
         _title, body = M.M_SPOT_CONDITION_NOT_I1PRO3.render(
             model=model or tr("another instrument"))
+        #: kept above the Ready line for the rest of this session (_on_ready)
+        self._condition_note = body
         self._set_status(body)
         self._sync_condition_row()
 
