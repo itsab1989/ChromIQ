@@ -2682,6 +2682,101 @@ class ElidingComboBox(NoScrollComboBox):
         self._refresh_elide_tooltip()
 
 
+class FullTextComboBox(ElidingComboBox):
+    """A combo whose chosen text is ALWAYS fully readable, closed and open.
+
+    For a combo that offers whole sentences (the Barbieri ready-made sizes,
+    up to ~430 px in English, more in some languages) where trimming a name
+    with an ellipsis hides exactly the part that tells two entries apart.
+
+    * Closed: the text is word-wrapped inside the box, and the box grows in
+      height to the lines it needs. It keeps :class:`ElidingComboBox`'s small
+      minimum WIDTH, so it can never widen the locked pane.
+    * Open: the drop-down list is at least as wide as its widest entry (it
+      only ever grew to the box before), and never elides an entry.
+    """
+
+    #: Room the drop-down view needs beside the text: item padding + frame.
+    POPUP_SLACK = 28
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.currentIndexChanged.connect(self._text_changed)
+
+    def _text_changed(self, _index: int = 0) -> None:
+        self._sync_height()
+        self.update()
+
+    def _lines_height(self, avail: int) -> int:
+        fm = self.fontMetrics()
+        rect = fm.boundingRect(QRect(0, 0, max(avail, 20), 10000),
+                               int(Qt.TextFlag.TextWordWrap),
+                               self.currentText())
+        return max(fm.lineSpacing(), rect.height())
+
+    def _wrap_width(self) -> int:
+        from PyQt6.QtWidgets import QStyleOptionComboBox
+        opt = QStyleOptionComboBox()
+        self.initStyleOption(opt)
+        return self._edit_rect(opt).width() - 4
+
+    def _wanted_height(self, base_h: int) -> int:
+        avail = self._wrap_width() if self.width() > 0 else 0
+        if avail <= 0:
+            return base_h
+        one = self.fontMetrics().lineSpacing()
+        return base_h + max(0, self._lines_height(avail) - one)
+
+    def sizeHint(self) -> QSize:  # noqa: N802 (Qt override)
+        base = super().sizeHint()
+        return QSize(base.width(), self._wanted_height(base.height()))
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802 (Qt override)
+        base = super().minimumSizeHint()
+        return QSize(base.width(), self._wanted_height(base.height()))
+
+    def hasHeightForWidth(self) -> bool:  # noqa: N802 (Qt override)
+        return False
+
+    def _sync_height(self) -> None:
+        """Make the box as tall as the lines its text needs (an explicit
+        minimum: a layout does not always re-ask sizeHint in time)."""
+        h = ElidingComboBox.sizeHint(self).height()
+        want = self._wanted_height(h)
+        if want != self.minimumHeight():
+            self.setMinimumHeight(want)
+            self.updateGeometry()
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        super().resizeEvent(event)
+        self._sync_height()
+
+    def showEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        super().showEvent(event)
+        self._sync_height()
+
+    def paintEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        from PyQt6.QtWidgets import QStyleOptionComboBox, QStylePainter
+        painter = QStylePainter(self)
+        painter.setPen(self.palette().color(QPalette.ColorRole.Text))
+        opt = QStyleOptionComboBox()
+        self.initStyleOption(opt)
+        text = opt.currentText
+        opt.currentText = ""
+        painter.drawComplexControl(QStyle.ComplexControl.CC_ComboBox, opt)
+        edit = self._edit_rect(opt).adjusted(2, 0, -2, 0)
+        painter.drawText(edit, int(Qt.AlignmentFlag.AlignVCenter
+                                   | Qt.AlignmentFlag.AlignLeft
+                                   | Qt.TextFlag.TextWordWrap), text)
+
+    def showPopup(self) -> None:  # noqa: N802 (Qt override)
+        view = self.view()
+        view.setTextElideMode(Qt.TextElideMode.ElideNone)
+        view.setMinimumWidth(max(self.width(), self._widest_item()
+                                 + self.POPUP_SLACK))
+        super().showPopup()
+
+
 class ValueWidthComboBox(ElidingComboBox):
     """A combo sized by the value it is SHOWING, not by its longest entry.
 

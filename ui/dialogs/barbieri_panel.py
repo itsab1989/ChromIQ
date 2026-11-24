@@ -179,14 +179,25 @@ class BarbieriPanelMixin:
         from PyQt6.QtGui import QStandardItemModel
         from PyQt6.QtWidgets import QCheckBox, QGridLayout, QGroupBox, QLabel
         from ui.tooltip_button import TooltipButton
-        from ui.widgets import ElidingComboBox
+        from ui.widgets import ElidingComboBox, FullTextComboBox
         g = QGroupBox(tr("Barbieri Spectro 100xy chart (Beta)"), self)
         grid = QGridLayout(g)
         grid.setColumnStretch(1, 1)
         row = 0
 
-        def put(label, control, which, tip_title=""):
+        def put(label, control, which, tip_title="", wide=False):
             nonlocal row
+            if wide:
+                # the name is long: label and help button on one line, the
+                # box under them across the whole group (item 46)
+                grid.addWidget(QLabel(label, g), row, 0, 1, 2)
+                grid.addWidget(TooltipButton(
+                    tip_title or label.rstrip(":"),
+                    barbieri_option_help(which), g, min_width=560), row, 2)
+                row += 1
+                grid.addWidget(control, row, 0, 1, 3)
+                row += 1
+                return
             if label:
                 grid.addWidget(QLabel(label, g), row, 0)
                 grid.addWidget(control, row, 1)
@@ -199,7 +210,7 @@ class BarbieriPanelMixin:
 
         from workflow.barbieri.chart import SIZE_PRESETS
         from workflow.page_output.support import page_output_enabled
-        self.barbieri_size = ElidingComboBox(g)
+        self.barbieri_size = FullTextComboBox(g)
         self.barbieri_size.addItem(tr("Your own size"), "")
         for p in SIZE_PRESETS:
             self.barbieri_size.addItem(size_label(p.key), p.key)
@@ -214,7 +225,7 @@ class BarbieriPanelMixin:
                     from workflow.barbieri.chart import \
                         film_needs_page_beta_reason
                     item.setToolTip(film_needs_page_beta_reason())
-        put(tr("Ready-made size:"), self.barbieri_size, "size")
+        put(tr("Ready-made size:"), self.barbieri_size, "size", wide=True)
         self.barbieri_head = ElidingComboBox(g)
         fill_head_combo(self.barbieri_head)
         put(tr("Measuring opening:"), self.barbieri_head, "head")
