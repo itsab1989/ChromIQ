@@ -567,11 +567,15 @@ def plan_marks(grid: PageGrid, *, letters_on_top: bool = False,
     patch; a margin too narrow for a mark leaves that side's marks out (said
     by the build)."""
     plan = MarkPlan()
-    t = F.MARK_LINE_MM.value
-    tb = t * F.MARK_BOLD_FACTOR.value
     rooms = {"left": grid.left, "top": grid.top,
              "right": grid.paper_w - grid.right,
              "bottom": grid.paper_h - grid.bottom}
+    # THE MARKS SHRINK WITH THE MARGINS: a film frame with 1 mm margins
+    # still gets them, thinner (the bold corner never more than a quarter of
+    # the narrowest margin)
+    least = max(0.0, min(rooms.values()))
+    t = min(F.MARK_LINE_MM.value, max(0.05, least * 0.15))
+    tb = min(t * F.MARK_BOLD_FACTOR.value, max(t, least * 0.25))
     gap: dict = {}
     arm: dict = {}
     for side, room in rooms.items():
@@ -651,8 +655,8 @@ def marks_left_out_message(plans: "list[MarkPlan]") -> "str | None":
                 sides.append(side)
     if not sides:
         return None
-    names = {"left": tr("left"), "top": tr("top"), "right": tr("right"),
-             "bottom": tr("bottom")}
+    names = {"left": tr("Left"), "top": tr("Top"), "right": tr("Right"),
+             "bottom": tr("Bottom")}
     return tr(_mm._BARBIERI_MARKS_LEFT_OUT).format(
         sides=", ".join(names[s] for s in sides))
 

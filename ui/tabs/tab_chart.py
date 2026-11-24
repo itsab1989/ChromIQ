@@ -27523,6 +27523,16 @@ class TabChart(QWidget):
                         return (float(pm[0]), float(pm[1]), 0.0)
                 except Exception:  # noqa: BLE001 - the drawn size then
                     pass
+            if recipe.get("instrument") == "B100XY":
+                # a Barbieri chart (Beta): its nominal patch, from its side
+                # file, as Spectro32 is told it
+                try:
+                    from workflow.barbieri.support import read_side_file
+                    pm = (read_side_file(Path(ti2)) or {}).get("patch_mm")
+                    if pm:
+                        return (float(pm[0]), float(pm[1]), 0.0)
+                except Exception:  # noqa: BLE001 - the drawn size then
+                    pass
             if not rects or dpi <= 0:
                 return (0.0, 0.0, 0.0)
             r0 = rects[0]

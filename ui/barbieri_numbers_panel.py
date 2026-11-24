@@ -40,9 +40,14 @@ def numbers_html(side: dict) -> str:
         gw = pg.get("gateway") or {}
         area = pg.get("patch_area_mm") or [0, 0]
         page = int(pg.get("page") or 1)
-        line(tr("Page {page}, Spectro32").format(page=page),
-             "<span style='font-family: JetBrains Mono, Menlo, monospace'>"
-             f"<b>{html.escape(str(pg.get('spectro32', '?')))}</b></span>")
+        # ON ITS OWN LINE, under its name: the one value that must never be
+        # cut off in a narrow window
+        rows.append(
+            "<tr><td colspan='2' style='padding-top:4px'>"
+            f"<span style='color:#909090'>{html.escape(tr('Page {page}, Spectro32').format(page=page))}</span><br>"
+            "<span style='font-family: JetBrains Mono, Menlo, monospace'>"
+            f"<b>{html.escape(str(pg.get('spectro32', '?')))}</b></span>"
+            "</td></tr>")
         line(tr("Aim at"), html.escape(tr(
             "{aim}, the upper-right patch").format(aim=pg.get("aim_patch",
                                                              "?"))))

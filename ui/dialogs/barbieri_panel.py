@@ -283,7 +283,12 @@ class BarbieriPanelMixin:
             changes.update(paper=po.paper_code(w, h), page_size=ps,
                            tiff_res_unit="in")
         else:
-            changes.update(paper=p.paper, page_size=None)
+            changes.update(paper=p.paper, page_size=None, tiff_res_unit="cm")
+            # a paper size after a film frame: back from the film recorder's
+            # resolution to the usual one, or an A4 page would be drawn at
+            # 2731 ppi (400 megapixels); a person's own 600 dpi stays
+            if int(getattr(r, "dpi", 300) or 300) > 1200:
+                changes["dpi"] = 300
         if p.dpi:
             changes["dpi"] = int(p.dpi)
         r = replace(r, **changes)

@@ -296,6 +296,9 @@ def test_the_film_presets_need_and_use_the_page_beta(tmp_path, key, cols,
         assert (pg["columns"], pg["rows"]) == (cols, rows)
         assert pg["spectro32"] == "R0,0,350,220,36,23"
         assert doc["spectro32_mode"] == "M5"
+        # 1 mm margins still carry the corner marks, drawn thinner
+        assert doc["marks_on"] is True
+        assert not any("too narrow" in w for w in res.warnings), res.warnings
     finally:
         po._latched = before
 
@@ -332,3 +335,16 @@ def test_default_margins_keep_the_patch_area_in_the_reading_area():
     assert default_margins(297.0, 210.0) == (10.0, 47.0, 10.0, 15.0)
     t, r, b, l_ = default_margins(210.0, 297.0)
     assert l_ == 15.0 and 297.0 - t - b <= 200.0 + 1e-9
+
+
+def test_marks_fit_a_one_millimetre_margin():
+    from workflow.barbieri import chart as C
+    g = C.PageGrid(page=0, cols=36, rows=23, first_slot=0, steps=23,
+                   pitch_x=1.0, pitch_y=1.0, patch_w=1.0, patch_h=1.0,
+                   left=1.0, top=1.0, right=37.0, bottom=24.0, paper_w=38.1,
+                   paper_h=25.4)
+    plan = C.plan_marks(g)
+    assert plan.left_out == []
+    for (a, b, c, d) in plan.rects:
+        assert 0 <= a and 0 <= b and c <= 38.1 and d <= 25.4
+        assert not (a < 37.0 and c > 1.0 and b < 24.0 and d > 1.0)
