@@ -249,7 +249,7 @@ def test_only_the_switch_reaches_the_new_code():
     # (4.3.49, the record outlives an end; nothing for the table); 2026-11-20a:
     # lights_quiet and i1pro2_dual_blue (4.3.52, the lights Beta; nothing for the table);
     # 2026-11-20d: instrument_waits (4.3.53; the table passes none); 2026-11-21a:
-    # i1pro2_dual_fresh_start (4.3.54, issue 217; nothing for the table); 2026-11-24a:
+    # i1pro2_dual_fresh_start (4.3.54, issue 217; nothing for the table); 2026-11-24b:
     # spot_session (item 43, Read single patches; nothing for the table)
     assert caps and base and caps == [base[0].replace(
         '\\"margin_tolerance\\"]',

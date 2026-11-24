@@ -9921,5 +9921,7 @@
  "The calibration did not succeed": "校准未成功",
  "The instrument could not be calibrated. Nothing more is read until a calibration succeeds, so that no reading is made with a calibration that went wrong. Put the instrument flat on its white tile and click Calibrate to try again, or stop the session. Your readings in the list are kept.\n\nWhat the instrument reported: {reason}": "无法校准仪器。在校准成功之前不会再读取任何内容，以免用失败的校准进行读取。请把仪器平放在它的白色瓷砖上，然后点击「校准」重试，或者停止会话。列表中的读数会保留。\n\n仪器报告的内容：{reason}",
  "Show the readings in": "读数显示为",
- "Every reading of this list keeps M0, M1 and M2. Choose which one the list shows; nothing is measured again. A reading taken with one condition only keeps showing that one.": "此列表中的每个读数都保留 M0、M1 和 M2。选择列表显示哪一个；不会重新测量。只用一种条件测得的读数会继续显示该条件。"
+ "Every reading of this list keeps M0, M1 and M2. Choose which one the list shows; nothing is measured again. A reading taken with one condition only keeps showing that one.": "此列表中的每个读数都保留 M0、M1 和 M2。选择列表显示哪一个；不会重新测量。只用一种条件测得的读数会继续显示该条件。",
+ "M1 and M2 need the dual scan (Beta)": "M1 和 M2 需要双重扫描（测试版）",
+ "An i1Pro 2 measures M1 and M2 only with the dual scan, a Beta option: Preferences > Beta, “X-Rite i1Pro 2: also M1 and M2, by a dual scan”. Without it this window reads in the instrument's own lamp (M0).": "i1Pro 2 只有在双重扫描（一个测试版选项）下才测量 M1 和 M2：偏好设置 > 测试版，「X-Rite i1Pro 2：通过双重扫描也获得 M1 和 M2」。未开启时，此窗口使用仪器自身的灯 (M0) 测量。"
 }

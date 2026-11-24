@@ -1153,7 +1153,7 @@ i1pro2_startcal_test.c`). Helper 2026-11-23b (`+dual-startup-wavelength`).
 again; 3: an i1Pro 2 follows the dual scan's own "always / only for M1 or M2"). Never run on an
 instrument; a first try until a real i1Pro 2 has read a dual spot. NOT RELEASED: an independent
 safety review of the new helper mode comes first. Code: `native/chartread_helper/
-chromiq_spotsession.c` (helper 2026-11-24a, caps word `spot_session`),
+chromiq_spotsession.c` (helper 2026-11-24b, caps word `spot_session`),
 `workflow/helper_spot_manager.py`, `ui/dialogs/spot_read_dialog.py`, `workflow/spot_read_io.py`.
 Tests: `tests/test_spot_session_wire.py`, `tests/test_item43_steps23.py`. Texts §M-PROPOSED
 `M-SPOT-ALL-CONDITIONS` ... `M-SPOT-CAL-FAILED`.
@@ -1178,12 +1178,27 @@ Tests: `tests/test_spot_session_wire.py`, `tests/test_item43_steps23.py`. Texts 
   calibration (section 19), which is the patch-by-patch start request too, because the i1Pro 2
   driver wants a start calibration in every session not started with `-N`. `-N` and `-H` end the
   dual part before anything is sent (the window does not pass `-N` to a dual session and says
-  so: `M-SPOT-DUAL-SKIP-CAL`). The UV switch and the dual part are switched off on every way
-  out; the app gone (stdin closed) leaves the wait at once and closes the instrument.
+  so: `M-SPOT-DUAL-SKIP-CAL`). `--dual-table`, the lights, the ruler and the table modes are
+  refused in this mode.
+* **Why the UV light cannot stay on** (safety review S3, 2026-11-24). ArgyllCMS's `uv_en` and
+  the dual arm state are host-side flags. The i1Pro 2's UV LED lights only during one 0xD4
+  trigger with the UV flag (0x0200, 41 lamp clocks), timed by the instrument, and nothing is
+  ever written into the instrument. So however the helper ends, the LED cannot stay on beyond
+  that one bounded trigger. On every IN-PROCESS ending (quit, the end of stdin at the press
+  wait, a lost USB connection, a calibration error) the session also disarms, switches the dual
+  part off and closes the instrument itself (`cq_ss_end`). Two endings do not reach that, as
+  for the chart reader: the window's Stop and its close send quit and then kill the helper at
+  once; the end of stdin BEFORE the press wait (at the start calibration's prompt) ends the
+  process through the exit guard (`_exit` after 1.5 s).
+* **A failed start calibration** (the helper waits for retry or quit, `chromiq_cal.c`) is
+  answered: the chart reader's automatic attempts (`CAL_AUTO_RETRIES`), then quit, and the
+  window says why the instrument could not start, as stock spotread ends on a calibration
+  error. Calibrate is not offered there (nothing would read its command); after a failed
+  calibration asked for in the session the helper's lock does read Calibrate.
 * **Wire, on the fake USB layer** (the REAL helper through the real driver, both readers with
   the same presses): a fresh session with a calibration asked for in the middle, a session
   opened with a restored calibration, an unplug in the middle of a dual spot, Esc at the
-  calibration prompt and the app gone are request for request the patch-by-patch reader's
+  calibration prompt, a failed start calibration and the app gone are request for request the patch-by-patch reader's
   (the app gone: the session closes the instrument itself where patch by patch is ended by the
   exit guard); only the recorded request forms; `uv_en` 0 at every close; no UV request with
   `-N` or `-H`.
@@ -1200,6 +1215,10 @@ Tests: `tests/test_spot_session_wire.py`, `tests/test_item43_steps23.py`. Texts 
   the reason's sentence and `M-SPOT-DUAL-CALIBRATE` on the status line, Calibrate offered.
   A failed UV half: the reason's sentence, the patch is read again. A session-level end:
   `M-SPOT-CONDITIONS-ENDED`, M0 goes on, the list keeps what it has.
-* **Not built:** the one-line hint "M1 and M2 need the dual scan (Beta)" for an i1Pro 2 with
-  the conditions Beta on and the dual scan off (study 2.1); estimated M1 / M2 (`spotread -I`)
-  for other instruments (decision 4: not now).
+* **The hint** "M1 and M2 need the dual scan (Beta)" (`M-SPOT-DUAL-HINT`) for the i1Pro family
+  with the conditions Beta on and the dual scan off (study 2.1).
+* **i1Pro 3 stays gated** on "keep M0, M1 and M2" (the coordinator's decision after the safety
+  review, 2026-11-24); without it stock spotread `-F` as in step 1. Still to be checked on a
+  real i1Pro 3 (and 3 Plus): a USB capture or ArgyllCMS debug log of `spotread -s` against the
+  session with the same presses; M0 / M1 / M2 against `spotread` / `-F 5` / `-F u`.
+* **Not built:** estimated M1 / M2 (`spotread -I`) for other instruments (decision 4: not now).

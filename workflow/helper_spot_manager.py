@@ -183,6 +183,9 @@ class HelperSpotManager(QObject):
         self._model = ""
         self._conditions_live = False
         self._fallback = False
+        self._quit_sent = False
+        from workflow.measure_manager import CAL_AUTO_RETRIES
+        self._cal_retries_left = CAL_AUTO_RETRIES
         self._cal_check.reset()
         cwd = Path(helper).parent
         log.info("spot read (helper): %s %s", helper, " ".join(args))
@@ -213,6 +216,14 @@ class HelperSpotManager(QObject):
 
     # --- the window's controls ----------------------------------------
     def _send(self, **cmd) -> None:
+        # THE HELPER HOLDS ONE PENDING KEY (safety review N3): a command after
+        # quit would overwrite a quit not yet read. Nothing goes after quit.
+        if self.__dict__.get("_quit_sent"):
+            log.info("spot read (helper): %s not sent, the session is ending",
+                     cmd.get("cmd"))
+            return
+        if cmd.get("cmd") == "quit":
+            self._quit_sent = True
         self._runner.write_stdin(json.dumps(cmd) + "\n")
 
     def take_reading(self) -> None:
@@ -405,7 +416,29 @@ class HelperSpotManager(QObject):
                 self.inst_init_failed.emit(detail)
             else:
                 self.no_instrument.emit()
-        elif kind in ("spot_cal_failed", "cal_failed"):
-            self.calibration_failed.emit(detail)
+        elif kind == "cal_failed":
+            # the start calibration (or one ArgyllCMS asked for in the loop)
+            # failed, and the helper WAITS for a key: retry or quit
+            # (chromiq_cal.c). Never left unanswered (safety review S1): a few
+            # automatic attempts, as the chart reader makes
+            # (MeasureManager._handle_cal_failed), then the session ends with
+            # the reason, as stock spotread ends on a calibration error.
+            # Calibrate is not offered here: nothing would read its command.
+            if self._cal_retries_left > 0:
+                self._cal_retries_left -= 1
+                log.info("spot read (helper): calibration failed (%s); "
+                         "trying again automatically", detail or "unknown")
+                self._calib_announced = False
+                self._send(cmd="retry")
+            else:
+                log.warning("spot read (helper): calibration failed after "
+                            "every attempt (%s); ending the session",
+                            detail or "unknown")
+                self.inst_init_failed.emit(detail)
+                self._send(cmd="quit")
+        elif kind == "spot_cal_failed":
+            # the session's start calibration ended without a retry: the
+            # session ends (the helper ends it itself)
+            self.inst_init_failed.emit(detail)
         else:
             log.info("spot read (helper): %s %s", kind, detail)

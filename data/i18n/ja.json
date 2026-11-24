@@ -9921,5 +9921,7 @@
  "The calibration did not succeed": "キャリブレーションに失敗しました",
  "The instrument could not be calibrated. Nothing more is read until a calibration succeeds, so that no reading is made with a calibration that went wrong. Put the instrument flat on its white tile and click Calibrate to try again, or stop the session. Your readings in the list are kept.\n\nWhat the instrument reported: {reason}": "測定器をキャリブレーションできませんでした。失敗したキャリブレーションで読み取らないように、キャリブレーションが成功するまでは何も読み取りません。測定器を白色タイルの上に平らに置き、「キャリブレーションする」をクリックしてやり直すか、セッションを停止してください。リストの読み取りはそのまま残ります。\n\n測定器からの報告: {reason}",
  "Show the readings in": "表示する条件",
- "Every reading of this list keeps M0, M1 and M2. Choose which one the list shows; nothing is measured again. A reading taken with one condition only keeps showing that one.": "このリストのすべての読み取りは M0、M1、M2 を保持しています。リストに表示するものを選んでください。再測定は行いません。1 つの条件だけで読み取ったものは、その条件のまま表示されます。"
+ "Every reading of this list keeps M0, M1 and M2. Choose which one the list shows; nothing is measured again. A reading taken with one condition only keeps showing that one.": "このリストのすべての読み取りは M0、M1、M2 を保持しています。リストに表示するものを選んでください。再測定は行いません。1 つの条件だけで読み取ったものは、その条件のまま表示されます。",
+ "M1 and M2 need the dual scan (Beta)": "M1 と M2 にはデュアルスキャン (ベータ) が必要です",
+ "An i1Pro 2 measures M1 and M2 only with the dual scan, a Beta option: Preferences > Beta, “X-Rite i1Pro 2: also M1 and M2, by a dual scan”. Without it this window reads in the instrument's own lamp (M0).": "i1Pro 2 は、ベータオプションのデュアルスキャンでのみ M1 と M2 を測定します: 環境設定 > ベータ、「X-Rite i1Pro 2: デュアルスキャンで M1 と M2 も」。オフの場合、このウィンドウは測定器自身のランプ (M0) で測定します。"
 }

@@ -7084,6 +7084,18 @@ M_SPOT_CONDITION_FALLBACK = _m(
     "lost.",
     approved=False)
 
+#: A one-line hint in Read single patches for an i1Pro (2) while the Beta
+#: "keep M0, M1 and M2" is on and the dual scan is off: the line is the
+#: headline, the body is its tooltip.
+M_SPOT_DUAL_HINT = _m(
+    "M-SPOT-DUAL-HINT",
+    "M1 and M2 need the dual scan (Beta)",
+    "An i1Pro 2 measures M1 and M2 only with the dual scan, a Beta option: "
+    "Preferences > Beta, \u201cX-Rite i1Pro 2: also M1 and M2, by a dual "
+    "scan\u201d. Without it this window reads in the instrument's own lamp "
+    "(M0).",
+    approved=False)
+
 #: A calibration asked for in ChromIQ's own spot session failed. Nothing is
 #: read until one succeeds. {reason}: what the instrument reported.
 M_SPOT_CAL_FAILED = _m(
@@ -15413,7 +15425,7 @@ CATALOGUE = {m.id: m for m in (
     M_SPOT_CAL_CONDITION_M1, M_SPOT_SAVE_CONDITION_FILES,
     M_SPOT_ALL_CONDITIONS, M_SPOT_DUAL_CALIBRATE, M_SPOT_CONDITIONS_ENDED,
     M_SPOT_DUAL_SKIP_CAL, M_SPOT_DUAL_CAL_TILE, M_SPOT_CONDITION_FALLBACK,
-    M_SPOT_CAL_FAILED,
+    M_SPOT_CAL_FAILED, M_SPOT_DUAL_HINT,
     M_SCAN_REF_SHORT, M_SCAN_REF_DISAGREES, M_SCAN_CLIPPED,
     M_SCAN_LOADED, M_SCAN_DIAGNOSTIC,
     M_SCAN_SHOT_EMPTY, M_SCAN_TARGET_CHANGED,

@@ -43,11 +43,18 @@
  * (tests/spot_session_wire_test.c) and compares the two, request for
  * request.
  *
- * The UV light: lit only during a UV trigger inside cq_dd_spot, which
- * disarms on every way out of a reading; this file disarms once more, and
- * switches the dual part off, on every way out of the session (a stop, an
- * error, the end of stdin, a lost USB connection) before the instrument is
- * let go.
+ * The UV light. ArgyllCMS's uv_en and the dual arm state are HOST-side
+ * flags: the i1Pro 2's UV LED is lit only during one 0xD4 trigger with the
+ * UV flag (0x0200, 41 lamp clocks), timed by the instrument itself, and no
+ * state is ever written into the instrument. So however the process ends,
+ * the LED cannot stay on beyond that one bounded trigger. cq_ss_end
+ * additionally disarms and switches the dual part off on every IN-PROCESS
+ * ending (quit, the end of stdin at the press wait, a lost USB connection,
+ * a calibration error) before the instrument is closed. Two endings do not
+ * reach it, as for the chart reader: the app's Stop and window close send
+ * quit and then kill the helper at once, and the end of stdin BEFORE the
+ * press wait (at the start calibration's prompt) ends the process through
+ * the exit guard (_exit after 1.5 s).
  *
  * Events (one JSON object per line; "t" is this process's msec clock):
  *   spot_session_start {build}
@@ -62,6 +69,9 @@
  * Commands: {"cmd":"read"}, {"cmd":"calibrate"} (+ "ok" / "cal_cancel" at its
  * prompt), {"cmd":"quit"} or the end of stdin.
  * AGPL-3.0 like the rest of the helper (see ../instlib/License.txt). */
+
+/* the instrument whose dual part this session switched on (cq_ss_end) */
+static inst *cq_ss_dual_it = NULL;
 
 /* XYZ (0..100) to D50 L*a*b*, as spotread prints it */
 static void cq_ss_lab(const double xyz[3], double lab[3]) {
@@ -130,6 +140,7 @@ static void cq_ss_conditions(inst *it, int nocal, int highres) {
 			}
 		} else if ((why = cq_dd_start(it)) == NULL) {
 			cq_cond_dual = 1;
+			cq_ss_dual_it = it;
 			cq_cal_done_hook = cq_dd_cal_hook;
 		}
 	} else if (cq_replay_active()) {
@@ -190,8 +201,12 @@ static int cq_ss_emit_reading(int n, ipatch *val) {
 			            b->norm, b->spec);
 	}
 	cap = strlen(mb) + strlen(c1) + strlen(c2) + 256;
-	if ((out = (char *)malloc(cap)) == NULL)
+	if ((out = (char *)malloc(cap)) == NULL) {
+		/* never dropped in silence (safety review N4): said as a reading to
+		 * read again */
+		cq_emit_error("spot_misread", "reading lost (memory)");
 		return 0;
+	}
 	snprintf(out, cap, "{\"event\":\"spot_reading\",\"n\":%d,\"main\":\"M0\",%s"
 	         ",\"dual\":%s,\"conditions\":{%s%s%s%s%s%s%s}}",
 	         n, mb, cq_cond_active && cq_cond_dual ? "true" : "false",
@@ -218,14 +233,20 @@ static void cq_ss_coms(inst *it, inst_code rv) {
 	            (unsigned int)rv, esc, usb);
 }
 
-/* every way out: the UV state and the conditions off, then the instrument
+/* every in-process ending: the UV state and the conditions off, then the instrument
  * let go (the exit guard covers a signal in the middle of the close) */
 static int cq_ss_end(inst *it, icompaths *icmps, const char *why, int rc) {
-	if (cq_dd.on) {
-		i1pro2_cq_dual_arm(cq_dd.it, CQ_DUAL_PHASE_OFF);
-		(void)i1pro2_cq_dual_options(cq_dd.it, 0, NULL, NULL);
+	/* the dual part off, also when a reading ended it earlier in the session
+	 * (cq_cond_after_read clears cq_dd.on and disarms, but leaves the
+	 * driver's dual option on: host flags only, nothing is sent; safety
+	 * review N1) */
+	if (cq_dd.on || (cq_ss_dual_it != NULL && !cq_replay_active())) {
+		inst *d = cq_dd.on ? cq_dd.it : cq_ss_dual_it;
+		i1pro2_cq_dual_arm(d, CQ_DUAL_PHASE_OFF);
+		(void)i1pro2_cq_dual_options(d, 0, NULL, NULL);
 		cq_dd.on = 0;
 	}
+	cq_ss_dual_it = NULL;
 	cq_cal_done_hook = NULL;
 	if (it != NULL && !cq_replay_active() && it->dtype == instI1Pro3)
 		i1pro3_cq_cond_options(it, 0);
@@ -256,7 +277,7 @@ static int cq_run_spot_session(int comport, flow_control fc, int nocal, int high
 		return 1;
 	}
 	if (cq_i1pro2_lights || cq_ruler || cq_tscan_dir != NULL || cq_presswait
-	 || cq_button_test || cq_cond_dir != NULL) {
+	 || cq_button_test || cq_cond_dir != NULL || cq_dual_table) {
 		cq_emit_error("spot_options", "--spot-session cannot be combined with that option");
 		return 1;
 	}

@@ -694,3 +694,82 @@ def test_average_of_kept_readings_can_be_shown_in_any_condition(qapp, monkeypatc
     d._view.setCurrentIndex(1)
     assert avg.xyz == (42.0, 44.0, 38.0)
     d.deleteLater()
+
+
+# ================================== the safety review's round (2026-11-24)
+
+def test_s1_a_failed_start_calibration_is_answered_then_the_session_ends(qapp, monkeypatch):
+    """The helper waits for retry or quit after "cal_failed" (chromiq_cal.c):
+    never left unanswered. The chart reader's automatic attempts, then quit
+    and the reason, as stock spotread ends on a calibration error."""
+    from workflow.measure_manager import CAL_AUTO_RETRIES
+    m, r = _mgr(monkeypatch)
+    failed, calfail = [], []
+    m.inst_init_failed.connect(failed.append)
+    m.calibration_failed.connect(calfail.append)
+    for _ in range(CAL_AUTO_RETRIES):
+        m.handle_event({"event": "error", "kind": "cal_failed", "detail": "lamp"})
+    assert r.writes == [{"cmd": "retry"}] * CAL_AUTO_RETRIES and failed == []
+    m.handle_event({"event": "error", "kind": "cal_failed", "detail": "lamp"})
+    assert r.writes[-1] == {"cmd": "quit"} and failed == ["lamp"]
+    assert calfail == []           # Calibrate is never offered for it
+
+
+def test_s1_the_window_offers_no_calibrate_after_it(qapp, monkeypatch):
+    from workflow.dual_scan import instrument_model as IM
+    d = _dialog(monkeypatch, IM.FAMILY_I1PRO3, conditions_beta=True)
+    d._on_start_stop()
+    h = d._helper_mgr
+    for _ in range(4):
+        h.handle_event({"event": "error", "kind": "cal_failed", "detail": "x"})
+    assert not d._cal_btn.isEnabled() and not d._read_btn.isEnabled()
+    assert "x" in d._status.text()
+    d.deleteLater()
+
+
+def test_the_sessions_own_failed_calibration_ends_with_its_reason(qapp, monkeypatch):
+    m, _r = _mgr(monkeypatch)
+    failed = []
+    m.inst_init_failed.connect(failed.append)
+    m.handle_event({"event": "error", "kind": "spot_cal_failed", "detail": "white"})
+    assert failed == ["white"]
+
+
+def test_n3_nothing_is_sent_after_quit(qapp, monkeypatch):
+    """The helper holds one pending key: a command after quit would replace
+    the quit not yet read."""
+    m, r = _mgr(monkeypatch)
+    m.quit()
+    m.take_reading()
+    m.request_calibration()
+    m.send_key("\r")
+    assert r.writes == [{"cmd": "quit"}]
+
+
+@needs_helper
+def test_n2_the_spot_session_refuses_the_tables_dual_mode(tmp_path):
+    ev = _session(tmp_path, I1PRO3_SCRIPT, "i1pro2",
+                  flags=["--spot-conditions", "--dual-table", "--dual-scale", "1.1560"],
+                  cmds=[])
+    assert ev[0] == {"event": "error", "kind": "spot_options",
+                     "detail": "--spot-session cannot be combined with that option"}
+    assert not [e for e in ev if e["event"] == "spot_session_start"]
+
+
+@needs_helper
+@pytest.mark.parametrize("cond_beta,dual_beta,family,shown", [
+    (True, False, "i1pro_family", True),      # the hint's one case
+    (False, False, "i1pro_family", False),    # Betas off: 4.3.63's window
+    (True, True, "i1pro_family", False),      # the dual scan on: the row instead
+    (True, False, "i1pro3", False),           # an i1Pro 3: the row
+    (True, False, "other", False),
+])
+def test_the_dual_scan_hint(qapp, monkeypatch, cond_beta, dual_beta, family, shown):
+    from workflow import measurement_messages as M
+    d = _dialog(monkeypatch, family, conditions_beta=cond_beta, dual_beta=dual_beta)
+    assert (not d._dual_hint.isHidden()) is shown
+    assert d._dual_hint.text() == M.M_SPOT_DUAL_HINT.render()[0]
+    if shown:
+        d._mode.setCurrentIndex(1)                  # emissive: no hint
+        assert d._dual_hint.isHidden()
+    d.deleteLater()

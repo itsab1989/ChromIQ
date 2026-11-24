@@ -341,6 +341,15 @@ static inst_code fake_init_inst(inst *pp) {
 			return inst_internal_error;
 	}
 	p->inited = 1;
+	/* THIS FAKE HAS NO HIGH-RESOLUTION TABLES (safety review S2): the stock
+	 * high-res setup (i1pro_create_hr) reads EEPROM data invented nowhere
+	 * here and crashed at random. So the fake offers no high resolution:
+	 * -H is then the request ArgyllCMS drops for an instrument without that
+	 * mode, set_mode never builds the tables, and every run is the same. The
+	 * session's dual refusal for -H is decided from the flag itself
+	 * (cq_ss_conditions), before any capability, so the test still proves
+	 * "-H keeps the UV light off". */
+	p->cap &= ~inst_mode_highres;
 	return inst_ok;
 }
 

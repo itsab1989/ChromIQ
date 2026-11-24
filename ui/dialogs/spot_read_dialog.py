@@ -601,6 +601,17 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         cond_lay.addStretch(1)
         self._cond_row.setVisible(False)
         outer.addWidget(self._cond_row)
+        # Item 43 steps 2-3: an i1Pro (2) with the conditions Beta on and the
+        # dual scan off gets one line saying where M1 and M2 are switched on
+        # (study 2.1); everything else never sees it.
+        from workflow import measurement_messages as _MM
+        self._dual_hint = QLabel(_MM.M_SPOT_DUAL_HINT.render()[0], self)
+        self._dual_hint.setObjectName("spotDualHint")
+        self._dual_hint.setWordWrap(True)
+        self._dual_hint.setToolTip(_MM.M_SPOT_DUAL_HINT.render()[1])
+        set_ink(self._dual_hint, "#909090", level="dim")
+        self._dual_hint.setVisible(False)
+        outer.addWidget(self._dual_hint)
         #: The condition the running session reads under ("M0", "M1", "M2"),
         #: or None: not an i1Pro 3, not reflective, or not known yet.
         self._session_condition: "str | None" = None
@@ -2474,6 +2485,23 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             log.info("spot read: the measurement condition row is %s",
                      "shown (an i1Pro 3)" if show else "hidden")
         row.setVisible(show)
+        hint = self.__dict__.get("_dual_hint")
+        if hint is not None:
+            want = (not show and reflective and reader != "cr30"
+                    and self._instrument.isEnabled() and self._dual_hint_wanted())
+            hint.setVisible(want)
+
+    def _dual_hint_wanted(self) -> bool:
+        """The i1Pro family is known, "keep M0, M1 and M2" is on, and the dual
+        scan is not (item 43 steps 2-3: "M1 and M2 need the dual scan")."""
+        from workflow import i1pro3_conditions as C
+        from workflow.dual_scan import session as DS
+        try:
+            if not C.stored_value(self._settings) or DS.switched_on(self._settings):
+                return False
+        except Exception:      # noqa: BLE001 - a broken store means "off"
+            return False
+        return self._i1pro2_family_known()
 
     def _condition_for_start(self) -> "str | None":
         """The condition a Start asks spotread for: "M1" or "M2" when the

@@ -165,6 +165,7 @@ def run(exe: Path, cache: Path, mode: str, *, chart: "Path | None" = None,
     sent = 0
     cal_sent = False
     want_cal = False
+    cal_fails = 0
     end = time.monotonic() + timeout
     while p.poll() is None and time.monotonic() < end:
         with lock:
@@ -200,6 +201,10 @@ def run(exe: Path, cache: Path, mode: str, *, chart: "Path | None" = None,
                     send(cmd="quit")
             elif k == "error" and e.get("kind") == "misread" and mode == "patch":
                 send(cmd="retry")
+            elif k == "error" and e.get("kind") == "cal_failed":
+                # what both readers' managers do: a few attempts, then quit
+                cal_fails += 1
+                send(cmd="retry" if cal_fails <= 3 else "quit")
             elif k == "error" and e.get("kind") == "coms" and mode == "patch":
                 send(cmd="quit")
             elif k == "strip_interrupted":
@@ -335,6 +340,22 @@ def test_f_a_restored_calibration_changes_nothing(exe, chart, tmp_path):
     assert s.wire[-2:] == ["STATE uv_en 0 lit 0", "CLOSE"]
 
 
+def test_j_a_failed_start_calibration_is_answered_and_ends(exe, chart, tmp_path):
+    """The 4th trigger (in the start calibration) fails as an unplugged
+    instrument's would. The helper waits for retry or quit (chromiq_cal.c);
+    answered as the window's manager answers it (three attempts, then quit:
+    safety review S1), both readers end, with the same requests and the UV
+    switch off."""
+    s = run(exe, tmp_path / "s", "session", presses=2, fail_at=4, timeout=60)
+    p = run(exe, tmp_path / "p", "patch", chart=chart, presses=2, fail_at=4, timeout=60)
+    assert "D4-FAILED" in s.wire
+    assert len(s.kinds("error")) >= 4
+    assert not s.kinds("spot_reading")
+    assert s.wire == p.wire
+    assert s.wire[-2:] == ["STATE uv_en 0 lit 0", "CLOSE"]
+    assert s.kinds("spot_session_end")[-1]["why"] == "stopped"
+
+
 def test_i_the_app_gone_in_the_middle(exe, chart, tmp_path):
     """The app's end of the pipe closes after the first reading. Patch by
     patch the exit guard ends the process 1.5 s later (no close of its own,
@@ -359,6 +380,9 @@ def test_g_skip_calibration_or_high_resolution_keep_the_uv_light_off(exe, tmp_pa
     assert s.wire[-2:] == ["STATE uv_en 0 lit 0", "CLOSE"]
     assert all(not e["conditions"] for e in s.kinds("spot_reading"))
     assert s.kinds("spot_session_end")[-1]["why"] == "stopped"
+    # a crash of the fake (it once built ArgyllCMS's high-res tables from
+    # invented data, safety review S2) must never pass as a result
+    assert s.code == 0, s.code
 
 
 def test_h_without_the_dual_scan_a_session_is_a_plain_spot_reader(exe, chart, tmp_path):

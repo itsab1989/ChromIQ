@@ -1003,6 +1003,7 @@ AWAITING_APPROVAL: "set[str]" = {
                                  "M-SPOT-DUAL-CAL-TILE",
                                  "M-SPOT-CONDITION-FALLBACK",
                                  "M-SPOT-CAL-FAILED",
+                                 "M-SPOT-DUAL-HINT",
                                  # (beta 17: M-SPOT-CR30-GONE, the CR30
                                  # stopped answering in a spot session, was
                                  # APPROVED by Basti, 2026-10-10, and left
