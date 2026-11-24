@@ -55,6 +55,7 @@ from ui.widgets import (NoScrollComboBox, TailFollowLog, reserve_button_labels,
 from workflow.spot_read_io import (MixedConditions, SpotReading, average_readings,
                                    write_csv, write_ti3_files)
 from workflow.spot_read_manager import SpotReadManager, SpotReadParams, is_i1pro3
+from workflow.helper_spot_manager import HelperSpotManager, HelperSpotParams
 
 import logging
 import re
@@ -370,6 +371,17 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         super().__init__(parent)
         self._settings = settings
         self._manager = SpotReadManager(runner, self)
+        #: Item 43 steps 2-3: the two ArgyllCMS readers. stock spotread (one
+        #: condition per reading) and ChromIQ's own spot session, which keeps
+        #: M0, M1 and M2 of every reading (an i1Pro 3 with the conditions
+        #: Beta, an i1Pro 2 with the dual scan Beta). Both have the same
+        #: signals; `_manager` is the one the running (or last) session uses.
+        self._spotread = self._manager
+        self._helper_mgr = HelperSpotManager(runner, self)
+        #: every condition of the reading whose `reading_ready` comes next
+        self._pending_conds: "dict | None" = None
+        #: shown once above the Ready line of a session (item 43 steps 2-3)
+        self._session_note = ""
         #: ChromIQ's own reader, built only when a CR30 session actually
         #: starts. A user who has no CR30 never reaches any of it, and while
         #: this is None every route through this window is the one that has
@@ -601,6 +613,31 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         set_ink(self._status, "#909090", level="faint")
         outer.addWidget(self._status)
 
+        # --- Show the readings in (item 43 steps 2-3) ----------------------
+        # ONLY WHILE A READING IN THE LIST KEEPS SEVERAL CONDITIONS. ChromIQ's
+        # own spot session keeps M0, M1 and M2 of every reading; this switches
+        # the whole list between them without measuring again. A reading
+        # that has only one condition keeps showing its own.
+        self._view_row = QWidget(self)
+        self._view_row.setObjectName("spotViewRow")
+        view_lay = QHBoxLayout(self._view_row)
+        view_lay.setContentsMargins(0, 0, 0, 0)
+        view_lay.setSpacing(10)
+        view_lay.addWidget(QLabel(tr("Show the readings in"), self._view_row))
+        self._view = NoScrollComboBox(self._view_row)
+        for _key in _CONDITION_KEYS:
+            self._view.addItem(
+                filter_choice_label(_CONDITION_FILTER_CODES[_key]), _key)
+        self._view.setToolTip(tr(
+            "Every reading of this list keeps M0, M1 and M2. Choose which one "
+            "the list shows; nothing is measured again. A reading taken with "
+            "one condition only keeps showing that one."))
+        self._view.currentIndexChanged.connect(self._on_view_changed)
+        view_lay.addWidget(self._view)
+        view_lay.addStretch(1)
+        self._view_row.setVisible(False)
+        outer.addWidget(self._view_row)
+
         # --- Results table -------------------------------------------------
         self._table = QTableWidget(0, 9, self)
         self._table.setHorizontalHeaderLabels([
@@ -776,23 +813,30 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         tint_dialog_primary(self, _ACCENT)
 
         # --- Manager signals ----------------------------------------------
-        m = self._manager
-        m.reading_ready.connect(self._on_reading)
-        m.ready_to_read.connect(self._on_ready)
-        m.instrument_detected.connect(self._on_instrument_detected)
-        m.calibration_prompt.connect(self._on_calibration_prompt)
-        m.calibration_finished.connect(self._on_calibration_finished)
-        m.calibration_position_wrong.connect(self._on_calibration_position_wrong)
-        m.misread.connect(self._on_misread)
-        m.calibration_suspect.connect(self._on_calibration_suspect)
-        m.sensor_wrong_position.connect(self._on_sensor_wrong_position)
-        m.no_instrument.connect(self._on_no_instrument)
-        m.device_busy.connect(self._on_device_busy)
-        m.instrument_disconnected.connect(self._on_disconnected)
-        m.coms_init_failed.connect(lambda s: self._on_init_failed(s))
-        m.inst_init_failed.connect(lambda s: self._on_init_failed(s))
-        m.session_ended.connect(self._on_session_ended)
-        m.condition_dropped.connect(self._on_condition_dropped)
+        # Both ArgyllCMS readers speak the same signals (item 43 steps 2-3).
+        for m in (self._spotread, self._helper_mgr):
+            m.reading_ready.connect(self._on_reading)
+            m.ready_to_read.connect(self._on_ready)
+            m.instrument_detected.connect(self._on_instrument_detected)
+            m.calibration_prompt.connect(self._on_calibration_prompt)
+            m.calibration_finished.connect(self._on_calibration_finished)
+            m.calibration_position_wrong.connect(self._on_calibration_position_wrong)
+            m.misread.connect(self._on_misread)
+            m.calibration_suspect.connect(self._on_calibration_suspect)
+            m.sensor_wrong_position.connect(self._on_sensor_wrong_position)
+            m.no_instrument.connect(self._on_no_instrument)
+            m.device_busy.connect(self._on_device_busy)
+            m.instrument_disconnected.connect(self._on_disconnected)
+            m.coms_init_failed.connect(self._on_init_failed)
+            m.inst_init_failed.connect(self._on_init_failed)
+            m.session_ended.connect(self._on_session_ended)
+            m.condition_dropped.connect(self._on_condition_dropped)
+        h = self._helper_mgr
+        h.reading_conditions.connect(self._on_reading_conditions)
+        h.conditions_ended.connect(self._on_conditions_ended)
+        h.dual_spot_refused.connect(self._on_dual_spot_refused)
+        h.calibration_failed.connect(self._on_helper_calibration_failed)
+        h.fallback_requested.connect(self._on_helper_fallback)
 
         # Name the settled reader before the window is ever shown, so it is
         # right in the first frame and in a `.grab()` that never shows it.
@@ -1013,9 +1057,16 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         self._condition_note = ""
         self._start_condition = None
         self._detected_this_session = False
+        self._session_note = ""
+        self._pending_conds = None
         if self._chosen_reader() == "cr30":
             self._start_cr30_session()
             return
+        plan = self._helper_plan()
+        if plan is not None:
+            self._start_helper_session(plan)
+            return
+        self._manager = self._spotread
         params = SpotReadParams(
             mode=self._MODE_KEYS[self._mode.currentIndex()],
             disable_initial_cal=self._skip_cal.isChecked(),
@@ -1026,6 +1077,187 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         self._set_session_running(True)
         self._set_status(tr("Starting instrument…"))
         self._manager.start(params, lambda _line: None)
+
+    # ------------------------------------------------------------------
+    # ChromIQ's own spot session: M0, M1 and M2 of every reading (item 43
+    # steps 2-3)
+    # ------------------------------------------------------------------
+    def _i1pro2_family_known(self) -> bool:
+        """The instrument a Start would open is of the i1Pro family (an
+        i1Pro or an i1Pro 2: the USB id cannot tell them apart), or reported
+        itself as an i1Pro 2 in this window while the USB list is unchanged.
+        The helper itself starts the dual spot only on a real i1Pro 2 as its
+        driver identifies it; anything else is handed to spotread before a
+        reading is made."""
+        from core.measure_pace import model_key
+        reported = self.__dict__.get("_detected_instrument", "")
+        if reported and self.__dict__.get(
+                "_detected_fingerprint", ()) == usb_fingerprint_now():
+            return model_key(reported) == "i1pro2"
+        from workflow.dual_scan import instrument_model as IM
+        return IM.attached_family() == IM.FAMILY_I1PRO
+
+    def _dual_offered(self) -> bool:
+        """Preferences > Beta: the i1Pro 2 dual scan is on (with the
+        conditions Beta it belongs to) and the helper can read a dual spot
+        in its spot session."""
+        from workflow.dual_scan import session as DS
+        from workflow.helper_spot_manager import helper_can_spot
+        if not DS.switched_on(self._settings) or not helper_can_spot():
+            return False
+        try:
+            from workflow.chartread_engine import helper_caps, helper_path
+            return DS.helper_can(helper_caps(helper_path()))
+        except Exception:      # noqa: BLE001 - no helper: no dual scan
+            return False
+
+    def _i1pro3_all_offered(self) -> bool:
+        """Preferences > Beta, "X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and
+        M2 from every scan", and the helper's spot session."""
+        from workflow import i1pro3_conditions as C
+        from workflow.helper_spot_manager import helper_can_spot
+        try:
+            on = bool(C.stored_value(self._settings))
+        except Exception:      # noqa: BLE001 - a broken store means "off"
+            on = False
+        return on and helper_can_spot()
+
+    def _helper_plan(self) -> "HelperSpotParams | None":
+        """Which reader a Start uses (item 43 steps 2-3). ChromIQ's own spot
+        session, keeping M0, M1 and M2 of every reading, only when:
+
+        * an i1Pro 3 is known and the conditions Beta is on; or
+        * an i1Pro (2) is known, the dual scan Beta is on, and its own rule
+          says the dual scan runs: "always", or "only for M1 or M2" with M1
+          or M2 chosen here (decision 3 of the study, 2026-11-24).
+
+        Everything else is stock spotread, exactly as before (step 1's -F for
+        an i1Pro 3 with the Beta off). Reflective, ArgyllCMS only."""
+        if self._MODE_KEYS[self._mode.currentIndex()] != "reflective":
+            return None
+        if _INSTRUMENT_KEYS[self._instrument.currentIndex()] == "cr30":
+            return None
+        row = self.__dict__.get("_cond_row")
+        chosen = (self._condition.currentData() or "M0") if (
+            row is not None and not row.isHidden()) else "M0"
+        if self._i1pro3_known():
+            if not self._i1pro3_all_offered():
+                return None
+            return HelperSpotParams(
+                disable_initial_cal=self._skip_cal.isChecked(), chosen=chosen)
+        if self._i1pro2_family_known() and self._dual_offered():
+            from workflow.dual_scan import session as DS, storage
+            from workflow.dual_scan.scale import ScaleChoice
+            if DS.mode(self._settings) == DS.MODE_M1_M2 and chosen == "M0":
+                log.info("spot read: dual scan only for M1 or M2, and M0 is "
+                         "chosen: an ordinary spot reading")
+                return None
+            return HelperSpotParams(
+                disable_initial_cal=self._skip_cal.isChecked(), chosen=chosen,
+                dual_args=storage.helper_args(ScaleChoice.standard(),
+                                              "instrument", chosen))
+        return None
+
+    def _start_helper_session(self, plan: "HelperSpotParams") -> None:
+        from workflow import measurement_messages as M
+        self._manager = self._helper_mgr
+        log.info("spot read: ChromIQ's own spot session, every reading keeps "
+                 "M0, M1 and M2%s; shown first: %s",
+                 " (i1Pro 2 dual spot)" if plan.dual else "", plan.chosen)
+        self._show_view(plan.chosen)
+        notes = []
+        if plan.dual and plan.disable_initial_cal:
+            notes.append(M.M_SPOT_DUAL_SKIP_CAL.render()[1])
+        notes.append(M.M_SPOT_ALL_CONDITIONS.render()[1])
+        self._session_note = "\n".join(notes)
+        self._set_session_running(True)
+        self._set_status(tr("Starting instrument…"))
+        self._helper_mgr.start(plan, lambda _line: None)
+
+    def _on_helper_fallback(self) -> None:
+        """The instrument gave no other condition (the guess before Start was
+        wrong): stock spotread, as before, before anything was read."""
+        from workflow import measurement_messages as M
+        model = self.__dict__.get("_detected_instrument", "") or tr("another instrument")
+        _title, body = M.M_SPOT_CONDITION_FALLBACK.render(model=model)
+        self._condition_note = body
+        self._session_note = ""
+        self._session_condition = None
+        self._start_condition = None
+        self._manager = self._spotread
+        self._set_status(body)
+        self._spotread.start(SpotReadParams(
+            mode="reflective",
+            disable_initial_cal=self._skip_cal.isChecked(), condition=None),
+            lambda _line: None)
+
+    def _on_reading_conditions(self, conds) -> None:
+        self._pending_conds = dict(conds) if conds else None
+
+    def _on_conditions_ended(self, sentence: str) -> None:
+        from workflow import measurement_messages as M
+        _title, body = M.M_SPOT_CONDITIONS_ENDED.render(reason=sentence)
+        self._session_note = body
+        self._set_status(body)
+
+    def _on_dual_spot_refused(self, why: str, calibrate: bool) -> None:
+        """An i1Pro 2 dual spot was refused: nothing was kept, the patch is
+        read again (after a calibration when that mends it)."""
+        from workflow import measurement_messages as M
+        from workflow.dual_scan.session import reason_sentence
+        self._misread = True
+        self._set_read_enabled(True)
+        text = reason_sentence(why)
+        if calibrate:
+            text += "\n" + M.M_SPOT_DUAL_CALIBRATE.render()[1]
+        self._set_status(text)
+
+    def _on_helper_calibration_failed(self, detail: str) -> None:
+        from workflow import measurement_messages as M
+        _title, body = M.M_SPOT_CAL_FAILED.render(reason=detail or tr("unknown"))
+        log.info("spot read (helper): calibration failed: %s", detail)
+        self._set_read_enabled(False)
+        cal = self.__dict__.get("_cal_btn")
+        if cal is not None:
+            cal.setEnabled(True)
+        self._set_status(body)
+
+    def _show_view(self, key: str) -> None:
+        """Put *key* in the view switch without re-showing the list."""
+        self._view.blockSignals(True)
+        try:
+            self._view.setCurrentIndex(
+                _CONDITION_KEYS.index(key) if key in _CONDITION_KEYS else 0)
+        finally:
+            self._view.blockSignals(False)
+
+    def _sync_view_row(self) -> None:
+        show = any(getattr(r, "keeps_several", False) for r in self._readings)
+        self._view_row.setVisible(show)
+
+    def _on_view_changed(self, _index: int) -> None:
+        """Show the whole list in another condition (item 43 steps 2-3).
+        Nothing is measured; a reading with one condition keeps its own."""
+        key = self._view.currentData() or "M0"
+        changed = sum(1 for r in self._readings if r.show(key))
+        log.info("spot read: the list now shows %s (%d readings changed)",
+                 key, changed)
+        if changed:
+            rows = self._selected_rows()
+            self._table.blockSignals(True)
+            try:
+                self._table.setRowCount(0)
+            finally:
+                self._table.blockSignals(False)
+            for r in self._readings:
+                self._append_row(r)
+            from PyQt6.QtCore import QItemSelectionModel
+            sel = self._table.selectionModel()
+            for row in rows:
+                if 0 <= row < self._table.rowCount():
+                    sel.select(self._table.model().index(row, 0),
+                               QItemSelectionModel.SelectionFlag.Select
+                               | QItemSelectionModel.SelectionFlag.Rows)
 
     # ------------------------------------------------------------------
     # The CR30 — ChromIQ's own reader, for the one instrument ArgyllCMS
@@ -1619,7 +1851,8 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         # Knut, #130 2026-08-01: *"the 'Ready ….' message is inaccurate, as
         # using instrument button is also possible. Revise text."* Both ways of
         # reading are named now.
-        note = self.__dict__.get("_condition_note")
+        note = self.__dict__.get("_condition_note") or self.__dict__.get(
+            "_session_note")
         if note:
             # Item 43: the session was started again without M1/M2. Said
             # above the Ready line for the whole session; a status line that
@@ -1728,18 +1961,33 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             # came (spotread prints it only for some drivers): the reading
             # was taken under the filter that was asked for (review S3)
             cond = self._start_condition
+        conds, self._pending_conds = self.__dict__.get("_pending_conds"), None
+        if conds:
+            # item 43 steps 2-3: ChromIQ's own spot session gave every
+            # condition of this reading; the list shows the one chosen in
+            # "Show the readings in" when the reading has it, else M0
+            view = self._view.currentData() or "M0"
+            cond = view if view in conds else ("M0" if "M0" in conds else None)
+            if cond is not None:
+                xyz, lab = conds[cond]
         reading = SpotReading(name=name, xyz=tuple(xyz), lab=tuple(lab),
-                              condition=cond)
-        if cond:
+                              condition=cond,
+                              conditions=dict(conds) if conds and len(conds) > 1
+                              else None)
+        if conds:
+            log.info("spot read: %s read, keeps %s, shown in %s", name,
+                     ", ".join(sorted(conds)), cond)
+        elif cond:
             log.info("spot read: %s read in %s", name, cond)
         self._readings.append(reading)
         self._append_row(reading)
+        self._sync_view_row()
         self._unsaved = True
         self._save_btn.setEnabled(True)
         self._forget_undo()
         self._set_status(
             tr("Read {name}: L* {l:.1f}  a* {a:.1f}  b* {b:.1f}").format(
-                name=name, l=lab[0], a=lab[1], b=lab[2])
+                name=name, l=reading.lab[0], a=reading.lab[1], b=reading.lab[2])
         )
 
     def _append_row(self, r: SpotReading, row: "int | None" = None) -> None:
@@ -1942,6 +2190,8 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
     def _sync_clear_btn(self) -> None:
         self._clear_btn.setText(self._clear_button_text())
         self._clear_btn.setEnabled(bool(self._readings) or bool(self._cleared))
+        if "_view_row" in self.__dict__:
+            self._sync_view_row()
 
     def _forget_undo(self) -> None:
         """A new reading replaces what Undo would put back."""
@@ -2133,6 +2383,14 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         log.info("spot read: instrument reported as %s", model)
         if "_cond_row" not in self.__dict__:
             return
+        if self.__dict__.get("_manager") is self.__dict__.get("_helper_mgr") \
+                and self.__dict__.get("_helper_mgr") is not None:
+            # Item 43 steps 2-3: ChromIQ's own spot session records every
+            # condition per reading (_on_reading_conditions); the row keeps
+            # the choice it was started with
+            self._session_condition = None
+            self._sync_condition_row()
+            return
         # Item 43: the instrument's own report wins over the USB guess. An
         # i1Pro 3 reads under the condition this start asked for (M0 without
         # -F); anything else records none, exactly as before.
@@ -2200,11 +2458,18 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         if not self._instrument.isEnabled():
             # a session owns the instrument: nothing is asked of the device
             # list, and the instrument's own report decides
+            from core.measure_pace import model_key
+            reported = self.__dict__.get("_detected_instrument", "")
             show = (reflective and reader != "cr30"
-                    and is_i1pro3(self.__dict__.get("_detected_instrument", "")))
+                    and (is_i1pro3(reported)
+                         or (model_key(reported) == "i1pro2"
+                             and self._dual_offered())))
         else:
             self._cond_fingerprint = usb_fingerprint_now()
-            show = reflective and reader != "cr30" and self._i1pro3_known()
+            show = reflective and reader != "cr30" and (
+                self._i1pro3_known()
+                # item 43 steps 2-3: an i1Pro 2 with the dual scan Beta
+                or (self._dual_offered() and self._i1pro2_family_known()))
         if show != (not row.isHidden()):
             log.info("spot read: the measurement condition row is %s",
                      "shown (an i1Pro 3)" if show else "hidden")
@@ -2215,6 +2480,10 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         row is shown and set to it, else None (no -F, today's command line)."""
         row = self.__dict__.get("_cond_row")
         if row is None or row.isHidden():
+            return None
+        if not self._i1pro3_known():
+            # the row is shown for an i1Pro 2's dual scan (steps 2-3), whose
+            # driver refuses every -F: a stock start sends none
             return None
         key = self._condition.currentData()
         return key if key in ("M1", "M2") else None
@@ -2590,7 +2859,13 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         from ui.ti2_loader import calibration_instructions_html
         outer = lay          # the buttons stay on the dialog, not in the text column
         lay = self._dial_column(dlg, lay, "calibrate")
-        msg = QLabel(calibration_instructions_html(self._instrument_family()), dlg)
+        html = calibration_instructions_html(self._instrument_family())
+        if (self.__dict__.get("_manager") is self.__dict__.get("_helper_mgr")
+                and self._helper_mgr.dual):
+            # item 43 steps 2-3: the dual calibration reads the tile again
+            from workflow import measurement_messages as M
+            html += "<br><br>" + M.M_SPOT_DUAL_CAL_TILE.render()[1]
+        msg = QLabel(html, dlg)
         msg.setWordWrap(True)
         msg.setTextFormat(Qt.TextFormat.RichText)
         lay.addWidget(msg)

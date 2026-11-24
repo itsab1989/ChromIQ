@@ -7021,6 +7021,81 @@ M_SPOT_SAVE_CONDITION_FILES = _m(
     "readings in it.",
     approved=False)
 
+# --- PROPOSED: item 43 steps 2-3, every condition per reading --------------
+#: ChromIQ's own spot session keeps M0, M1 and M2 of every reading (an i1Pro 3
+#: with the conditions Beta; an i1Pro 2 with the dual scan Beta). Shown once
+#: above the Ready line of such a session; the headline is not shown.
+M_SPOT_ALL_CONDITIONS = _m(
+    "M-SPOT-ALL-CONDITIONS",
+    "Every reading keeps M0, M1 and M2",
+    "This session keeps M0, M1 and M2 of every reading. Use \u201cShow the "
+    "readings in\u201d above the list to switch the whole list between them "
+    "at any time. Nothing is measured again.",
+    approved=False)
+
+#: An i1Pro 2 dual spot was refused because the calibration cannot give M1
+#: and M2 (no UV reading of the tile, the UV light dark, another exposure).
+#: Added after the reason's own sentence on the status line.
+M_SPOT_DUAL_CALIBRATE = _m(
+    "M-SPOT-DUAL-CALIBRATE",
+    "Calibrate, then read this patch again",
+    "Click Calibrate and put the instrument on its white tile. The "
+    "calibration also reads the tile with the UV light, which M1 and M2 "
+    "need. Then read the patch again.",
+    approved=False)
+
+#: M1 and M2 ended for the rest of a dual session; M0 goes on. {reason} is
+#: the dual scan's own sentence for why (workflow/dual_scan/reasons.py).
+M_SPOT_CONDITIONS_ENDED = _m(
+    "M-SPOT-CONDITIONS-ENDED",
+    "M1 and M2 ended for this session",
+    "{reason}\n\nThe readings go on in M0, the instrument's own lamp. "
+    "Readings already in the list keep their M1 and M2. Stop the session and "
+    "start it again to get M1 and M2 back.",
+    approved=False)
+
+#: "Skip initial calibration" ticked for an i1Pro 2 dual session: not used.
+M_SPOT_DUAL_SKIP_CAL = _m(
+    "M-SPOT-DUAL-SKIP-CAL",
+    "This session calibrates first",
+    "M1 and M2 of an i1Pro 2 need a calibration that also reads the white "
+    "tile with the UV light. So this session calibrates first, even though "
+    "\u201cSkip initial calibration\u201d is ticked.",
+    approved=False)
+
+#: A paragraph in Calibration Required for an i1Pro 2 dual session.
+M_SPOT_DUAL_CAL_TILE = _m(
+    "M-SPOT-DUAL-CAL-TILE",
+    "The tile is also read with the UV light",
+    "For M1 and M2 the instrument also reads the tile with its UV light, "
+    "which takes about a second longer. Keep it on the tile until the "
+    "calibration is done.",
+    approved=False)
+
+#: The session was started for M0, M1 and M2 and the instrument gives no
+#: other condition (the guess before Start was wrong). Started again as a
+#: plain session before anything was read. {model}: the instrument's name.
+M_SPOT_CONDITION_FALLBACK = _m(
+    "M-SPOT-CONDITION-FALLBACK",
+    "This instrument measures in its normal light only",
+    "The instrument reported itself as \u201c{model}\u201d, which gives "
+    "no M1 or M2 here. So ChromIQ started the session again in the "
+    "instrument's normal light. Nothing had been read yet, so nothing was "
+    "lost.",
+    approved=False)
+
+#: A calibration asked for in ChromIQ's own spot session failed. Nothing is
+#: read until one succeeds. {reason}: what the instrument reported.
+M_SPOT_CAL_FAILED = _m(
+    "M-SPOT-CAL-FAILED",
+    "The calibration did not succeed",
+    "The instrument could not be calibrated. Nothing more is read until a "
+    "calibration succeeds, so that no reading is made with a calibration "
+    "that went wrong. Put the instrument flat on its white tile and click "
+    "Calibrate to try again, or stop the session. Your readings in the list "
+    "are kept.\n\nWhat the instrument reported: {reason}",
+    approved=False)
+
 # --- PROPOSED: the reference file covers only part of the target -----------
 #: Review 5, 2026-09-03, finding D. A reference file holding the first 48 rows
 #: of the target's own correct 288-row reference builds a profile from a sixth
@@ -15336,6 +15411,9 @@ CATALOGUE = {m.id: m for m in (
     M_SPOT_CAL_TOO_LIGHT, M_SPOT_CAL_SATURATED, M_SPOT_CAL_TIP,
     M_SPOT_CONDITION_NOT_I1PRO3, M_SPOT_AVERAGE_CONDITIONS,
     M_SPOT_CAL_CONDITION_M1, M_SPOT_SAVE_CONDITION_FILES,
+    M_SPOT_ALL_CONDITIONS, M_SPOT_DUAL_CALIBRATE, M_SPOT_CONDITIONS_ENDED,
+    M_SPOT_DUAL_SKIP_CAL, M_SPOT_DUAL_CAL_TILE, M_SPOT_CONDITION_FALLBACK,
+    M_SPOT_CAL_FAILED,
     M_SCAN_REF_SHORT, M_SCAN_REF_DISAGREES, M_SCAN_CLIPPED,
     M_SCAN_LOADED, M_SCAN_DIAGNOSTIC,
     M_SCAN_SHOT_EMPTY, M_SCAN_TARGET_CHANGED,

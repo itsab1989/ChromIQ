@@ -994,6 +994,15 @@ AWAITING_APPROVAL: "set[str]" = {
                                  "M-SPOT-AVERAGE-CONDITIONS",
                                  "M-SPOT-CAL-CONDITION-M1",
                                  "M-SPOT-SAVE-CONDITION-FILES",
+                                 # item 43 steps 2-3: every condition per
+                                 # reading (ChromIQ's own spot session)
+                                 "M-SPOT-ALL-CONDITIONS",
+                                 "M-SPOT-DUAL-CALIBRATE",
+                                 "M-SPOT-CONDITIONS-ENDED",
+                                 "M-SPOT-DUAL-SKIP-CAL",
+                                 "M-SPOT-DUAL-CAL-TILE",
+                                 "M-SPOT-CONDITION-FALLBACK",
+                                 "M-SPOT-CAL-FAILED",
                                  # (beta 17: M-SPOT-CR30-GONE, the CR30
                                  # stopped answering in a spot session, was
                                  # APPROVED by Basti, 2026-10-10, and left

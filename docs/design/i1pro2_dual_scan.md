@@ -1145,3 +1145,61 @@ i1pro2_startcal_test.c`). Helper 2026-11-23b (`+dual-startup-wavelength`).
   (`inst_calt_needed`) and are untouched. A calibration asked for during the session (the
   Calibrate button) already asked for everything available. A session started with "no
   calibration" (`-N`) still does not calibrate.
+
+### 20. ⏳ Awaiting confirmation: Read single patches keeps M0, M1 and M2 of every reading (2026-11-24, item 43 steps 2-3)
+
+**Confirmed by:** *nobody yet.* Built on the decisions Basti gave for the item 43 study on
+2026-11-24 (2: every reading keeps all three conditions, the list switches without measuring
+again; 3: an i1Pro 2 follows the dual scan's own "always / only for M1 or M2"). Never run on an
+instrument; a first try until a real i1Pro 2 has read a dual spot. NOT RELEASED: an independent
+safety review of the new helper mode comes first. Code: `native/chartread_helper/
+chromiq_spotsession.c` (helper 2026-11-24a, caps word `spot_session`),
+`workflow/helper_spot_manager.py`, `ui/dialogs/spot_read_dialog.py`, `workflow/spot_read_io.py`.
+Tests: `tests/test_spot_session_wire.py`, `tests/test_item43_steps23.py`. Texts §M-PROPOSED
+`M-SPOT-ALL-CONDITIONS` ... `M-SPOT-CAL-FAILED`.
+
+* **Which reader.** Tools > Read single patches, Reflective, ArgyllCMS (never the CR30):
+  * an i1Pro 3 (USB 0765:6009, or its own report) with "X-Rite i1Pro 3 and i1Pro 2: keep M0,
+    M1 and M2 from every scan" on: ChromIQ's own spot session, every reading keeps all three
+    (the driver works them out of the one reading it always makes, nothing new sent);
+  * the i1Pro family (USB 0971:2000: an i1Pro or an i1Pro 2) with this dual scan on: the
+    session's dual spot when the dual scan runs by its own rule ("always", or "only for M1 or
+    M2" with M1 or M2 chosen in the window's Measurement condition row, which is shown for it);
+  * everything else, and both Betas off: stock spotread exactly as in 4.3.63 (step 1's `-F` for
+    an i1Pro 3; never `-F` to an i1Pro 2).
+  A wrong guess (the helper finds another model, an i1Pro without UV light, an i1Pro 2 without
+  the factory tables) ends that session before anything is read and starts stock spotread in
+  the instrument's normal light, once (`M-SPOT-CONDITION-FALLBACK`).
+* **The helper's spot session** (`--spot-session --spot-conditions`, and for the dual spot the
+  same `--dual-*` arguments as a dual measurement). No chart, no file. Every press goes through
+  `cq_spot_read_once`, the chart's patch-by-patch block moved out unchanged and shared by both
+  readers; the start calibration, the trigger mode and a calibration asked for are the chart
+  reader's calls. A dual session with no dual tile yet asks for the dual strip reader's start-up
+  calibration (section 19), which is the patch-by-patch start request too, because the i1Pro 2
+  driver wants a start calibration in every session not started with `-N`. `-N` and `-H` end the
+  dual part before anything is sent (the window does not pass `-N` to a dual session and says
+  so: `M-SPOT-DUAL-SKIP-CAL`). The UV switch and the dual part are switched off on every way
+  out; the app gone (stdin closed) leaves the wait at once and closes the instrument.
+* **Wire, on the fake USB layer** (the REAL helper through the real driver, both readers with
+  the same presses): a fresh session with a calibration asked for in the middle, a session
+  opened with a restored calibration, an unplug in the middle of a dual spot, Esc at the
+  calibration prompt and the app gone are request for request the patch-by-patch reader's
+  (the app gone: the session closes the instrument itself where patch by patch is ended by the
+  exit guard); only the recorded request forms; `uv_en` 0 at every close; no UV request with
+  `-N` or `-H`.
+* **The list.** Each reading keeps M0 (the reading itself; none when the instrument reads
+  through a fitted filter) and M1 / M2 when the session gave them. "Show the readings in"
+  above the list (shown only while a reading keeps several) switches the whole list; a reading
+  with one condition keeps showing its own. Average selected needs one shown condition (step 1)
+  and averages every condition all selected readings keep, each within itself. Save writes the
+  CSV as the list shows it and, when any reading keeps several conditions, one `.ti3` per
+  condition (`<name>-M0.ti3`, `-M1`, `-M2`, each with every reading that has it, the same files
+  whatever is shown); otherwise as in step 1.
+* **The calibration check of item 41** judges the M0 reading (the lamp) in a helper session.
+* **Dual spot refused** (no dual calibration, UV light dark, another exposure): nothing kept,
+  the reason's sentence and `M-SPOT-DUAL-CALIBRATE` on the status line, Calibrate offered.
+  A failed UV half: the reason's sentence, the patch is read again. A session-level end:
+  `M-SPOT-CONDITIONS-ENDED`, M0 goes on, the list keeps what it has.
+* **Not built:** the one-line hint "M1 and M2 need the dual scan (Beta)" for an i1Pro 2 with
+  the conditions Beta on and the dual scan off (study 2.1); estimated M1 / M2 (`spotread -I`)
+  for other instruments (decision 4: not now).
