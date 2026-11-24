@@ -6449,15 +6449,18 @@ M_SPOT_CR30_EARLY_PRESS = _m(
 M_SPOT_CAL_TOO_LIGHT = _m(
     "M-SPOT-CAL-TOO-LIGHT",
     "This reading is lighter than a print can be",
-    "The patch you just read reflects about {percent} % of the light between "
-    "green and red. A printed colour or a paper cannot reflect more than "
-    "100 % there, so the reading is very likely too light.\n\n"
+    "The patch you just read comes out at about {percent} % of a perfect "
+    "white surface. A printed colour or a paper cannot go above 100 % here, "
+    "so the reading is very likely too light. Paper brighteners do not "
+    "explain it either: they add almost nothing to this figure.\n\n"
     "The likeliest cause is the calibration: the instrument may not have been "
-    "flat on its white tile during the calibration. Then every reading of "
-    "this session comes out too light by the same amount.\n\n"
-    "Choose \u201cCalibrate again\u201d, hold the instrument flat on its white "
-    "tile, and then read the patch once more. The reading you just took stays "
-    "in the list as it is; you can delete it afterwards.\n\n"
+    "fully in its calibration position while it calibrated, for example not "
+    "lying flat on its white tile, or with its dial not turned all the way. "
+    "Then every reading of this session comes out too light by the same "
+    "amount.\n\n"
+    "Choose \u201cCalibrate again\u201d and follow the calibration window "
+    "that comes next, then read the patch once more. The reading you just "
+    "took stays in the list as it is; you can delete it afterwards.\n\n"
     "If this patch really is that bright (a fluorescent ink, for example), "
     "choose \u201cCarry on measuring\u201d. You will not be asked again until "
     "the next calibration.",
@@ -6470,24 +6473,27 @@ M_SPOT_CAL_SATURATED = _m(
     "saturated, which means more light came back than it is set up for. "
     "Nothing was added to the list.\n\n"
     "After a good calibration a printed patch never does this. The likeliest "
-    "cause is the calibration: the instrument may not have been flat on its "
-    "white tile during the calibration. Then the readings of this session "
-    "come out too light, or not at all.\n\n"
-    "Choose \u201cCalibrate again\u201d, hold the instrument flat on its white "
-    "tile, and then read the patch once more.\n\n"
+    "cause is the calibration: the instrument may not have been fully in its "
+    "calibration position while it calibrated, for example not lying flat on "
+    "its white tile, or with its dial not turned all the way. Then the "
+    "readings of this session come out too light, or not at all.\n\n"
+    "Choose \u201cCalibrate again\u201d and follow the calibration window "
+    "that comes next, then read the patch once more.\n\n"
     "To go on without calibrating, choose \u201cCarry on measuring\u201d. You "
     "will not be asked again until the next calibration.",
     approved=False)
 
 #: The short tip in the Calibration Complete window of Read single patches.
 #: It covers what the check above cannot see: a calibration only a little too
-#: weak, which leaves every reading below 100 % but still too light.
+#: weak, which leaves every reading below 100 % but still too light. It names
+#: the window's Calibrate button, because stopping and starting the session
+#: does not calibrate again with "Skip initial calibration" ticked.
 M_SPOT_CAL_TIP = _m(
     "M-SPOT-CAL-TIP",
     "Check the calibration on the bare paper",
     "Tip: read the bare paper first. It should not read lighter than it did "
-    "in earlier sessions. If it does, stop the session and start it again, "
-    "which calibrates the instrument again.",
+    "in earlier sessions. If it does, click Calibrate to calibrate the "
+    "instrument once more.",
     approved=False)
 
 # --- PROPOSED: the reference file covers only part of the target -----------

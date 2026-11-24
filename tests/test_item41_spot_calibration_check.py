@@ -412,3 +412,89 @@ def test_a_queued_restart_dies_with_the_window(qapp, monkeypatch):
     mgr.detach()
     QApplication.processEvents()
     assert len(runner.runs) == 1
+
+
+# S2a: a real way to calibrate again, in the window itself.
+def test_the_window_has_a_calibrate_button(qapp, monkeypatch):
+    d, sent = _dialog(monkeypatch, "Carry on measuring")
+    assert not d._cal_btn.isEnabled(), "nothing to calibrate before a session"
+    _feed(d._manager, ["Hit ESC or Q to exit, any other key to take a reading: "])
+    assert d._cal_btn.isEnabled()
+    d._cal_btn.click()
+    assert sent == ["k"]
+    assert not d._read_btn.isEnabled() and not d._cal_btn.isEnabled()
+    d.deleteLater()
+
+
+def test_the_calibrate_button_leaves_a_misread_prompt_first(qapp, monkeypatch):
+    d, sent = _dialog(monkeypatch, "Carry on measuring")
+    _feed(d._manager, ["Spot read failed due to misread (Inconsistent readings)",
+                       "Hit Esc or Q to give up, any other key to retry:"])
+    d._cal_btn.click()
+    assert sent == ["\r"]
+    _feed(d._manager, ["Hit ESC or Q to exit, any other key to take a reading: "])
+    assert sent == ["\r", "k"]
+    d.deleteLater()
+
+
+def test_the_tip_names_the_calibrate_button(qapp):
+    from workflow import measurement_messages as M
+    from core.i18n import tr
+    tip = M.M_SPOT_CAL_TIP.render()[1]
+    assert tr("Calibrate") in tip
+    assert "stop the session" not in tip, "no help with Skip initial calibration"
+
+
+# S2b + N3: wording that fits every instrument and the Y fallback.
+@pytest.mark.parametrize("msg", ["M_SPOT_CAL_TOO_LIGHT", "M_SPOT_CAL_SATURATED"])
+def test_the_advice_fits_every_instrument(qapp, msg):
+    from workflow import measurement_messages as M
+    body = getattr(M, msg).render(percent="110")[1]
+    assert "dial" in body and "white tile" in body
+    assert "follow the calibration window" in body
+    assert "hold the instrument flat" not in body
+
+
+def test_the_number_is_not_tied_to_a_wavelength_range(qapp):
+    from workflow import measurement_messages as M
+    body = M.M_SPOT_CAL_TOO_LIGHT.render(percent="110")[1]
+    assert "between green and red" not in body
+    assert "perfect white surface" in body
+
+
+# N2: a pending "Calibrate again" belongs to its own session.
+def test_a_pending_recalibration_ends_with_the_session(qapp, monkeypatch):
+    d, sent = _dialog(monkeypatch, "Calibrate again")
+    _feed(d._manager, ["Spot read failed due to misread (Sensor is saturated)"])
+    assert sent == ["\r"] and d._recalibrate_pending
+    d._on_session_ended(1)
+    assert not d._recalibrate_pending
+    _feed(d._manager, ["Hit ESC or Q to exit, any other key to take a reading: "])
+    assert sent == ["\r"], "an unasked calibration key"
+    d.deleteLater()
+
+
+# N4: the ready prompt that follows the reading does not hide the warning.
+class _FeedsWhileOpen(_Answering):
+    def _ask(self, box):
+        self._manager._handle_line(
+            "Hit ESC or Q to exit, any other key to take a reading: ",
+            lambda _l: None)
+        self.status_while_open = self._status.text()
+        return super()._ask(box)
+
+
+def test_the_status_keeps_the_warning_while_it_is_open(qapp, monkeypatch):
+    from core.argyll_runner import ArgyllRunner
+    from core.settings import AppSettings
+    s = AppSettings()
+    d = _FeedsWhileOpen(ArgyllRunner(s), s)
+    d.asked, d.answer = [], "Carry on measuring"
+    monkeypatch.setattr(d._manager._runner, "write_stdin", lambda t: None)
+    monkeypatch.setattr("core.instrument_port.refused_port", lambda *a: None)
+    monkeypatch.setattr(d._manager._runner, "run", lambda *a, **k: None)
+    d._manager.start(SpotReadParams(), lambda _l: None)
+    _feed(d._manager, spotread_lines(yellow(), 1.62)[:4])
+    assert "lighter than a print can be" in d.status_while_open
+    assert d._status.text() == d._ready_text(), "put back after Carry on"
+    d.deleteLater()

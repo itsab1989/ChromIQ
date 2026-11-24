@@ -6816,10 +6816,10 @@ end of a session is still one click.*
 *New for 4.3.60 (item 41, 2026-11-24). ArgyllCMS accepts a white calibration
 that is too weak: its check looks only at the spectral shape of the tile
 reading, normalised at 550 nm, so a calibration taken with the instrument not
-flat on its white tile passes, and every reading of the session is then too
-light by one factor. A tester's logs show it in 2 of 37 calibrations (a session
-x1.08 to x1.12 too light; a yellow read x1.33, then x1.62, then "Sensor is
-saturated").*
+fully in its calibration position passes, and every reading of the session is
+then too light by one factor. A tester's logs show it in 2 of 37 calibrations
+(a session x1.08 to x1.12 too light; a yellow read x1.33, then x1.62, then
+"Sensor is saturated").*
 
 *The check (`workflow/spot_calibration_check.py`): spotread is asked for each
 reflective reading's spectrum (`-s`), and the mean reflectance between 530 and
@@ -6827,19 +6827,24 @@ reflective reading's spectrum (`-s`), and the mean reflectance between 530 and
 diffuser (100 %); paper brighteners emit below about 520 nm, so a brightened
 paper read in M0 is not mistaken for this; 2 % covers the tile's reference
 values and the repeatability of one reading. Without a spectrum the same limit
-is applied to Y. Shown at most once per calibration; the reading is never
+is applied to Y, which is why the text names "a perfect white surface" and no
+wavelength range. Shown at most once per calibration; the reading is never
 changed or dropped.*
+
+*The advice is worded for every instrument (a white tile for the i1Pro family,
+a dial for the ColorMunki) and hands over to the calibration window that
+follows, which already carries each instrument's own instructions.*
 
 *Buttons: **Calibrate again** (default: sends spotread's calibration key, and
 the usual Calibration Required window follows) and **Carry on measuring**.*
 
 > **This reading is lighter than a print can be**
 >
-> The patch you just read reflects about {percent} % of the light between green and red. A printed colour or a paper cannot reflect more than 100 % there, so the reading is very likely too light.
+> The patch you just read comes out at about {percent} % of a perfect white surface. A printed colour or a paper cannot go above 100 % here, so the reading is very likely too light. Paper brighteners do not explain it either: they add almost nothing to this figure.
 >
-> The likeliest cause is the calibration: the instrument may not have been flat on its white tile during the calibration. Then every reading of this session comes out too light by the same amount.
+> The likeliest cause is the calibration: the instrument may not have been fully in its calibration position while it calibrated, for example not lying flat on its white tile, or with its dial not turned all the way. Then every reading of this session comes out too light by the same amount.
 >
-> Choose “Calibrate again”, hold the instrument flat on its white tile, and then read the patch once more. The reading you just took stays in the list as it is; you can delete it afterwards.
+> Choose “Calibrate again” and follow the calibration window that comes next, then read the patch once more. The reading you just took stays in the list as it is; you can delete it afterwards.
 >
 > If this patch really is that bright (a fluorescent ink, for example), choose “Carry on measuring”. You will not be asked again until the next calibration.
 
@@ -6854,9 +6859,9 @@ once-per-calibration rule, same buttons.*
 >
 > That patch could not be read: the instrument’s sensor was saturated, which means more light came back than it is set up for. Nothing was added to the list.
 >
-> After a good calibration a printed patch never does this. The likeliest cause is the calibration: the instrument may not have been flat on its white tile during the calibration. Then the readings of this session come out too light, or not at all.
+> After a good calibration a printed patch never does this. The likeliest cause is the calibration: the instrument may not have been fully in its calibration position while it calibrated, for example not lying flat on its white tile, or with its dial not turned all the way. Then the readings of this session come out too light, or not at all.
 >
-> Choose “Calibrate again”, hold the instrument flat on its white tile, and then read the patch once more.
+> Choose “Calibrate again” and follow the calibration window that comes next, then read the patch once more.
 >
 > To go on without calibrating, choose “Carry on measuring”. You will not be asked again until the next calibration.
 
@@ -6865,11 +6870,14 @@ once-per-calibration rule, same buttons.*
 *New for 4.3.60 (item 41). The check above cannot see a calibration only a
 little too weak (the tester's x1.11 session never crossed 100 %); a bare
 paper read lighter than in earlier sessions can. One paragraph at the end of
-the Calibration Complete window; the headline is not shown.*
+the Calibration Complete window; the headline is not shown. It names the
+window's **Calibrate** button (new in the same release, beside Take reading,
+enabled while a spotread session is ready), because stopping and starting the
+session does not calibrate again when "Skip initial calibration" is ticked.*
 
 > **Check the calibration on the bare paper**
 >
-> Tip: read the bare paper first. It should not read lighter than it did in earlier sessions. If it does, stop the session and start it again, which calibrates the instrument again.
+> Tip: read the bare paper first. It should not read lighter than it did in earlier sessions. If it does, click Calibrate to calibrate the instrument once more.
 
 ### M-SCAN-WP-DEFAULT · PROPOSED · the scanner white-point default moved, and existing settings moved with it — Tools ▸ Build profile with scanner or camera
 

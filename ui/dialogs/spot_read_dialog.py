@@ -619,6 +619,20 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         # cased, so the shared code needs no branch.
         self._stop_btn = self._read_btn
 
+        # Item 41 (4.3.60): a way to calibrate again in the middle of a
+        # session. ArgyllCMS can accept a calibration that was too weak, and
+        # the person may only notice later (the bare paper reads lighter than
+        # it used to); stopping and starting the session again does not help
+        # with "Skip initial calibration" ticked. Sends spotread's own
+        # calibration key; the usual Calibration Required window follows.
+        self._cal_btn = QPushButton(tr("Calibrate"), self)
+        self._cal_btn.setEnabled(False)
+        self._cal_btn.setToolTip(tr(
+            "Calibrate the instrument again without ending the session, for "
+            "example when the bare paper reads lighter than it used to."))
+        self._cal_btn.clicked.connect(self._calibrate_again)
+        bottom.addWidget(self._cal_btn)
+
         self._avg_btn = QPushButton(tr("Average selected"), self)
         self._avg_btn.setEnabled(False)
         self._avg_btn.setToolTip(
@@ -1228,6 +1242,11 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             table.setFocus(Qt.FocusReason.OtherFocusReason)
             self._focus_parked = True
         btn.setEnabled(on)
+        cal = self.__dict__.get("_cal_btn")
+        if cal is not None:
+            # spotread sessions only: the CR30 is calibrated by ChromIQ's own
+            # windows at its start, and has no calibration key to send.
+            cal.setEnabled(bool(on) and self.__dict__.get("_cr30") is None)
         # AFTER the enable, never before: a disabled widget cannot take focus,
         # so handing it back first silently did nothing at all.
         if on and parked:
@@ -1449,6 +1468,9 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         self._keep_auto_choice_fresh()
 
     def _on_session_ended(self, code: int) -> None:
+        # A "Calibrate again" still waiting for its ready prompt belongs to
+        # the session that ended, never to the next one.
+        self._recalibrate_pending = False
         self._set_session_running(False)
         self._set_status(tr("Session ended."))
 
@@ -1465,12 +1487,21 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             self._set_status(tr("Calibrating…"))
             return
         self._set_read_enabled(True)
+        if self.__dict__.get("_cal_suspect_open"):
+            # The calibration warning is open and its headline is on the
+            # status line; the prompt that follows the reading must not
+            # replace it with "Ready".
+            return
         # Knut, #130 2026-08-01: *"the 'Ready ….' message is inaccurate, as
         # using instrument button is also possible. Revise text."* Both ways of
         # reading are named now.
-        self._set_status(tr("Ready — place the instrument on a colour, then "
-                            "click Take reading or press the button on the "
-                            "instrument."))
+        self._set_status(self._ready_text())
+
+    @staticmethod
+    def _ready_text() -> str:
+        return tr("Ready — place the instrument on a colour, then "
+                  "click Take reading or press the button on the "
+                  "instrument.")
 
     # ------------------------------------------------------------------
     # Misread recovery
@@ -2182,8 +2213,20 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             self._cal_suspect_open = False
         if chosen is not again:
             log.info("spot read: calibration warning answered: carry on")
+            # Put back what the status line said before the warning took it.
+            if getattr(self, "_misread", False):
+                self._on_misread()
+            elif self._read_btn.isEnabled():
+                self._set_status(self._ready_text())
             return
         log.info("spot read: calibration warning answered: calibrate again")
+        self._calibrate_again()
+
+    def _calibrate_again(self) -> None:
+        """Ask spotread for a calibration now (the warning's "Calibrate
+        again" and the Calibrate button). The usual Calibration Required and
+        Calibration Complete windows follow."""
+        log.info("spot read: calibration asked for by the user")
         self._set_read_enabled(False)
         self._set_status(tr("Calibrating…"))
         if getattr(self, "_misread", False):
