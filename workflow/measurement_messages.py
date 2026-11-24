@@ -2108,8 +2108,8 @@ _BARB_IMPORT_OTHER_CHART = (
     "most likely belongs to another chart or to another page. Check that "
     "you chose the measurement of this chart.")
 _BARB_IMPORT_ARRANGED = (
-    "The readings in {name} fit this chart only if the sheet lay {how} on "
-    "the table. ChromIQ never moves readings around to make them fit, "
+    "The readings in {name} fit this chart only if the sheet lay on the "
+    "table {how}. ChromIQ never moves readings around to make them fit, "
     "because a reading put on the wrong patch cannot be noticed later. "
     "Please lay the sheet or film on the table as Start Measurement "
     "describes, with the first patch, {first}, at the top left, aim at the "
