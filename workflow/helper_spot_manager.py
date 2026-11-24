@@ -281,6 +281,11 @@ class HelperSpotManager(QObject):
 
     def handle_event(self, ev: dict) -> None:
         k = ev.get("event")
+        if self._fallback:
+            # this session is ending for spotread: nothing it still says is
+            # for the window (a calibration window opened now would send its
+            # key to the spotread that follows; seen on screen)
+            return
         if k == "instrument":
             self._model = str(ev.get("model") or "")
             self.instrument_detected.emit(self._model)
@@ -309,8 +314,6 @@ class HelperSpotManager(QObject):
         elif k == "cal_done":
             self._cal_check.reset()
         elif k == "spot_ready":
-            if self._fallback:
-                return
             if self._after_misread:
                 return                    # the misread stays on screen
             if self._calib_announced:

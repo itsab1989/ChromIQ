@@ -218,7 +218,11 @@ def test_an_instrument_without_other_conditions_goes_to_spotread(qapp, monkeypat
     m.handle_event({"event": "conditions", "active": False, "why": "instrument"})
     assert dropped == ["X-Rite ColorMunki"]
     assert r.writes[-1] == {"cmd": "quit"}
+    prompts = []
+    m.calibration_prompt.connect(lambda: prompts.append(1))
+    m.handle_event({"event": "cal_required", "cond": "man_ref_white", "id": ""})
     m.handle_event({"event": "spot_ready", "n": 1})    # not offered to the window
+    assert prompts == []          # its key would reach the spotread that follows
     m._on_finish(0)
     assert fb == [1] and ended == []
 
