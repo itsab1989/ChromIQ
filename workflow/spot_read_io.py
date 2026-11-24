@@ -23,10 +23,17 @@ from workflow.colverify_runner import write_reference_ti3
 
 @dataclass
 class SpotReading:
-    """One spot reading: a name plus its measured XYZ and D50 Lab."""
+    """One spot reading: a name plus its measured XYZ and D50 Lab.
+
+    *condition* (item 43) is the ISO 13655 measurement condition the reading
+    was taken under ("M0", "M1", "M2"), recorded only where ChromIQ knows it:
+    an i1Pro 3, whose spotread session was started with or without ``-F``.
+    None for every other instrument, which is what every reading was before,
+    and then nothing about the saved files changes."""
     name: str
     xyz: tuple[float, float, float]
     lab: tuple[float, float, float]
+    condition: "str | None" = None
 
     @property
     def hex(self) -> str:
@@ -77,13 +84,43 @@ def average_readings(readings: list["SpotReading"], name: str) -> "SpotReading":
     Lab (used for the on-screen swatch) are averaged component-wise — spotread
     reports both for every reading, so the mean Lab is taken straight from the
     measured Labs rather than reconstructed from XYZ (whose scale we don't pin).
-    Raises ``ValueError`` if ``readings`` is empty."""
+    Raises ``ValueError`` if ``readings`` is empty.
+
+    ONLY WITHIN ONE MEASUREMENT CONDITION (item 43): the same patch read in
+    M0 and in M1 gives two different colours on purpose (the brighteners'
+    glow), and their mean is a colour no light shows. Readings of different
+    conditions raise :class:`MixedConditions`; the average carries the
+    condition of its readings."""
     if not readings:
         raise ValueError("no readings to average")
+    conditions = conditions_of(readings)
+    if len(conditions) > 1:
+        raise MixedConditions(conditions)
     n = len(readings)
     xyz = tuple(sum(r.xyz[i] for r in readings) / n for i in range(3))
     lab = tuple(sum(r.lab[i] for r in readings) / n for i in range(3))
-    return SpotReading(name=name, xyz=xyz, lab=lab)
+    return SpotReading(name=name, xyz=xyz, lab=lab,
+                       condition=readings[0].condition)
+
+
+class MixedConditions(ValueError):
+    """Readings of more than one measurement condition were to be averaged."""
+
+    def __init__(self, conditions: "list[str | None]") -> None:
+        super().__init__("readings of different measurement conditions: "
+                         + ", ".join(c or "none" for c in conditions))
+        self.conditions = conditions
+
+
+def conditions_of(readings: "list[SpotReading]") -> "list[str | None]":
+    """The distinct conditions of *readings*, in first-seen order (None for
+    readings without one)."""
+    out: "list[str | None]" = []
+    for r in readings:
+        c = getattr(r, "condition", None)
+        if c not in out:
+            out.append(c)
+    return out
 
 
 def _mul(m: tuple, v: tuple[float, float, float]) -> tuple[float, float, float]:
@@ -119,21 +156,81 @@ def xyz_d50_to_srgb(X: float, Y: float, Z: float) -> tuple[int, int, int]:
 # --- File output ------------------------------------------------------------
 
 
+def csv_needs_condition(readings: "list[SpotReading]") -> bool:
+    """Whether the CSV carries a ``condition`` column (item 43): only when a
+    reading was taken in M1 or M2. A list read in the instrument's own light
+    (M0, or no condition known) is written exactly as before."""
+    return any(getattr(r, "condition", None) not in (None, "M0")
+               for r in readings)
+
+
 def write_csv(path: Path, readings: list[SpotReading]) -> Path:
-    """Write readings to a CSV: ``name,L,a,b,X,Y,Z,sRGB_hex`` (one row each)."""
+    """Write readings to a CSV: ``name,L,a,b,X,Y,Z,sRGB_hex`` (one row each),
+    plus a last ``condition`` column when :func:`csv_needs_condition`."""
+    with_condition = csv_needs_condition(readings)
     with path.open("w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
-        w.writerow(["name", "L", "a", "b", "X", "Y", "Z", "sRGB_hex"])
+        head = ["name", "L", "a", "b", "X", "Y", "Z", "sRGB_hex"]
+        if with_condition:
+            head.append("condition")
+        w.writerow(head)
         for r in readings:
-            w.writerow([
+            row = [
                 r.name,
                 f"{r.lab[0]:.4f}", f"{r.lab[1]:.4f}", f"{r.lab[2]:.4f}",
                 f"{r.xyz[0]:.4f}", f"{r.xyz[1]:.4f}", f"{r.xyz[2]:.4f}",
                 r.hex,
-            ])
+            ]
+            if with_condition:
+                row.append(r.condition or "")
+            w.writerow(row)
     return path
 
 
 def write_ti3(path: Path, readings: list[SpotReading]) -> Path:
-    """Write readings to an Argyll CGATS ``.ti3`` (XYZ measurement set)."""
-    return write_reference_ti3(path, [r.xyz for r in readings], space="XYZ")
+    """Write readings to an Argyll CGATS ``.ti3`` (XYZ measurement set).
+
+    When the readings share one known condition (item 43) the header names it
+    (``MEASUREMENT_CONDITION``, as a chart measurement does; M0 from an i1Pro
+    3 without ``-F`` is marked as the instrument's normal mode), so the FWA
+    gate treats the file like any other. Readings without a condition are
+    written exactly as before. Raises :class:`MixedConditions` for a mixed
+    list: use :func:`write_ti3_files`."""
+    conditions = conditions_of(readings)
+    if len(conditions) > 1:
+        raise MixedConditions(conditions)
+    out = write_reference_ti3(path, [r.xyz for r in readings], space="XYZ")
+    cond = conditions[0] if conditions else None
+    if cond:
+        from workflow.measurement_condition import (
+            SOURCE_INSTRUMENT_DEFAULT, record_condition)
+        record_condition(out, cond, source=(SOURCE_INSTRUMENT_DEFAULT
+                                            if cond == "M0" else None))
+    return out
+
+
+def ti3_groups(base: "str | Path", readings: "list[SpotReading]"
+               ) -> "list[tuple[Path, list[SpotReading]]]":
+    """Where each condition's readings go: ONE CONDITION PER ``.ti3``.
+
+    A list of one condition (or of none) is one file, ``<base>.ti3``, as
+    always. A mixed list is split: ``<base>-M1.ti3`` and so on, each reading
+    in the file of its own condition, in list order; readings without a
+    condition keep ``<base>.ti3``."""
+    from core.stem_paths import artefact
+    conditions = conditions_of(readings)
+    if len(conditions) <= 1:
+        return [(artefact(base, ".ti3"), list(readings))]
+    groups = []
+    for cond in conditions:
+        stem = f"{base}-{cond}" if cond else str(base)
+        groups.append((artefact(stem, ".ti3"),
+                       [r for r in readings
+                        if getattr(r, "condition", None) == cond]))
+    return groups
+
+
+def write_ti3_files(base: "str | Path", readings: "list[SpotReading]"
+                    ) -> "list[Path]":
+    """Write the readings as one ``.ti3`` per condition (:func:`ti3_groups`)."""
+    return [write_ti3(path, group) for path, group in ti3_groups(base, readings)]

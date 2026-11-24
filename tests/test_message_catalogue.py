@@ -981,6 +981,11 @@ AWAITING_APPROVAL: "set[str]" = {
                                  # when a calibration was probably too weak.
                                  "M-SPOT-CAL-TOO-LIGHT", "M-SPOT-CAL-SATURATED",
                                  "M-SPOT-CAL-TIP",
+                                 # item 43: the measurement condition in
+                                 # Read single patches (i1Pro 3)
+                                 "M-SPOT-CONDITION-NOT-I1PRO3",
+                                 "M-SPOT-AVERAGE-CONDITIONS",
+                                 "M-SPOT-CAL-CONDITION-M1",
                                  # (beta 17: M-SPOT-CR30-GONE, the CR30
                                  # stopped answering in a spot session, was
                                  # APPROVED by Basti, 2026-10-10, and left

@@ -65,6 +65,26 @@ _INIT_INST_FAIL_RE = re.compile(r"Initialising instrument failed with message\s+
 # a reflective-only instrument, the "(ignored)" notes), so only the pair counts.
 _NEED_SPECTRAL_RE  = re.compile(r"Need spectral information",                   re.IGNORECASE)
 _NO_SPECTRAL_RE    = re.compile(r"instrument doesn't support it",               re.IGNORECASE)
+# spotread's refusal of -F on an instrument whose driver has no filter choice
+# (spotread.c, Argyll 3.5.0: "Setting requested filter not supported by
+# instrument", then it exits). Item 43 sends -F only to an i1Pro 3; this is
+# the net under that rule.
+_FILTER_REFUSED_RE = re.compile(r"requested filter not supported",             re.IGNORECASE)
+
+#: Item 43: the measurement conditions Read single patches can ask an i1Pro 3
+#: for, and spotread's -F value for each. M0 is the instrument's normal mode:
+#: no -F at all, so the command line is the one it has always been.
+CONDITION_FILTERS = {"M1": "5", "M2": "u"}
+
+
+def is_i1pro3(model: "str | None") -> bool:
+    """Whether spotread's "Instrument Type:" names an i1Pro 3 (or 3 Plus),
+    the only instrument whose M1 and M2 stock ArgyllCMS measures (the driver
+    computes all three from every reading and returns the one -F asks for)."""
+    if not model:
+        return False
+    from core.measure_pace import model_key
+    return model_key(model) in ("i1pro3", "i1pro3plus")
 
 
 @dataclass
@@ -77,6 +97,9 @@ class SpotReadParams:
     #: Ask spotread for each reflective reading's spectrum (-s), which is what
     #: the calibration check looks at (workflow/spot_calibration_check.py).
     spectrum: bool = True
+    #: Item 43: "M1" or "M2" asks an i1Pro 3 for that measurement condition
+    #: (spotread -F 5 / -F u), reflective only. None or "M0" adds nothing.
+    condition: "str | None" = None
 
 
 class SpotReadManager(QObject):
@@ -110,6 +133,11 @@ class SpotReadManager(QObject):
     # probably too weak. A spot_calibration_check.Verdict, at most once per
     # calibration. The reading itself has already gone out unchanged.
     calibration_suspect     = pyqtSignal(object)
+    # Item 43: -F went to an instrument that is not an i1Pro 3 (its report
+    # said so, or spotread refused the filter). The session is started again
+    # without it before anything was read; the argument is the reported
+    # model ("" when only the refusal was seen).
+    condition_dropped       = pyqtSignal(str)
 
     def __init__(self, runner: "ArgyllRunner", parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -138,6 +166,13 @@ class SpotReadManager(QObject):
         self._restart_timer.setInterval(0)
         self._restart_timer.timeout.connect(self._restart_without_spectrum)
         self._restart_params: "SpotReadParams | None" = None
+        #: Item 43: the model that made this start's -F wrong, or "" when
+        #: spotread only refused it; None while nothing is wrong.
+        self._filter_wrong: "str | None" = None
+        #: True when this start passed -F
+        self._asked_filter = False
+        #: True once the wrong start was asked to quit at a prompt
+        self._quit_sent = False
 
     # ------------------------------------------------------------------
     def start(self, params: SpotReadParams, on_line: Callable[[str], None]) -> None:
@@ -152,6 +187,13 @@ class SpotReadManager(QObject):
         self._spectrum_refused = False
         self._asked_spectrum = "-s" in args
         self._need_spectral_seen = False
+        self._filter_wrong = None
+        self._quit_sent = False
+        self._asked_filter = "-F" in args
+        if self._asked_filter:
+            log.info("spot read: measurement condition %s asked for (spotread"
+                     " -F %s)", params.condition,
+                     CONDITION_FILTERS.get(str(params.condition), "?"))
         # The session reads with a calibration in force from its first
         # reading on (the start-up one, or the stored one with -N).
         self._cal_check.reset()
@@ -175,6 +217,19 @@ class SpotReadManager(QObject):
         )
 
     def _on_finish(self, code: int) -> None:
+        if (self._filter_wrong is not None and self._params is not None
+                and not self._detached):
+            # Item 43: -F reached an instrument that is not an i1Pro 3. Start
+            # again without it, once (the new start has no condition, so it
+            # cannot be wrong again); nothing was read under the wrong start.
+            model, self._filter_wrong = self._filter_wrong, None
+            log.info("spot read: -F was for an i1Pro 3 and the instrument is "
+                     "%s; starting again without it", model or "another one")
+            from dataclasses import replace
+            self._restart_params = replace(self._params, condition=None)
+            self.condition_dropped.emit(model)
+            self._restart_timer.start()
+            return
         if (self._spectrum_refused and self._asked_spectrum
                 and self._params is not None and not self._detached):
             # This instrument has no spectral data, so spotread refused -s and
@@ -190,6 +245,7 @@ class SpotReadManager(QObject):
         self.session_ended.emit(code)
 
     def _restart_without_spectrum(self) -> None:
+        # (also the restart without -F, item 43: the same one-shot timer)
         params, self._restart_params = self._restart_params, None
         if params is None or self._detached:
             return
@@ -256,6 +312,11 @@ class SpotReadManager(QObject):
             args.append("-H")
         if p.disable_initial_cal:
             args.append("-N")
+        # Item 43: M1 / M2 on an i1Pro 3, reflective only. M0 and None add
+        # nothing, so the command line stays the one it always was.
+        flt = CONDITION_FILTERS.get(str(p.condition or "").upper())
+        if flt and p.mode == "reflective":
+            args += ["-F", flt]
         extra = shlex.split(p.extra_args) if p.extra_args else []
         args += extra
         # The spectrum is what the calibration check reads (item 41). Only for
@@ -271,6 +332,17 @@ class SpotReadManager(QObject):
 
     def _handle_line(self, line: str, on_line: Callable[[str], None]) -> None:
         on_line(line)
+        if self._filter_wrong is not None:
+            # Item 43: this start is ending because of its -F; nothing it
+            # still prints is for the window. Every driver but the i1Pro 3's
+            # (and the Spectrolino's, whose filters are physical) refuses -F
+            # and spotread exits by itself; one that took it reaches a prompt,
+            # and is asked to quit there, the way Stop leaves spotread.
+            if (not self._quit_sent and (_CALIB_CONTINUE_RE.search(line)
+                                         or _READY_RE.search(line))):
+                self._quit_sent = True
+                self._runner.write_stdin("q")
+            return
 
         from workflow import spot_calibration_check as SCC
         if self._spectrum_head is not None:
@@ -307,7 +379,25 @@ class SpotReadManager(QObject):
 
         m = _INST_TYPE_RE.search(line)
         if m:
-            self.instrument_detected.emit(m.group(1).strip())
+            model = m.group(1).strip()
+            if (self._asked_filter and self._filter_wrong is None
+                    and not is_i1pro3(model)):
+                # Item 43: -F is for an i1Pro 3, and the instrument's own
+                # report says this is not one. Nothing has been read yet
+                # (spotread names the instrument while it opens it, before it
+                # sets the filter): this start ends (above), and _on_finish
+                # starts again without -F.
+                self._filter_wrong = model
+                log.info("spot read: the instrument reported itself as %s, "
+                         "not an i1Pro 3, while -F was asked for; ending this "
+                         "start before anything is read", model)
+                self.instrument_detected.emit(model)
+                return
+            self.instrument_detected.emit(model)
+            return
+        if _FILTER_REFUSED_RE.search(line) and self._asked_filter:
+            if self._filter_wrong is None:
+                self._filter_wrong = ""
             return
 
         if _READY_RE.search(line):

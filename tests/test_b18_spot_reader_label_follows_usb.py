@@ -144,9 +144,19 @@ def test_a_quiet_tick_asks_only_the_cheap_question(dialog, qapp, usb):
 
 
 def test_a_reader_chosen_by_hand_is_not_probed(dialog, qapp, usb):
+    """The full question (ioreg) is never asked for a reader chosen by hand.
+    Item 43: for ArgyllCMS chosen by hand the tick still asks the cheap one,
+    because the i1Pro 3's Measurement condition row follows the cable; the
+    CR30 has no such row, and its tick asks nothing at all."""
     dialog.show()
     qapp.processEvents()
     dialog._instrument.setCurrentIndex(1)
+    full = usb.full_asks
+    dialog._on_auto_tick()
+    usb.colormunki = True
+    dialog._on_auto_tick()
+    assert usb.full_asks == full
+    dialog._instrument.setCurrentIndex(2)
     asked = usb.fingerprint_asks
     dialog._on_auto_tick()
     assert usb.fingerprint_asks == asked

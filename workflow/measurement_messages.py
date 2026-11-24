@@ -6631,6 +6631,47 @@ M_SPOT_CAL_TIP = _m(
     "instrument once more.",
     approved=False)
 
+# --- PROPOSED: the measurement condition in Read single patches (item 43) ---
+#: An i1Pro 3 measures M0, M1 and M2 from every reading; stock spotread -F
+#: chooses the one it returns. The row offering it is shown only for an
+#: i1Pro 3. These three say what the row cannot be seen saying. New for item
+#: 43, shown as proposed in the betas.
+#:
+#: -F was asked for, and the instrument's own report says it is not an i1Pro
+#: 3 (or spotread refused the filter). Nothing has been read; the session
+#: starts again in the instrument's normal light. Shown on the status line.
+M_SPOT_CONDITION_NOT_I1PRO3 = _m(
+    "M-SPOT-CONDITION-NOT-I1PRO3",
+    "This instrument measures in its normal light only",
+    "The instrument reported itself as \u201c{model}\u201d. Only an i1Pro 3 "
+    "can measure in M1 or M2 here, so ChromIQ is starting the session again "
+    "in the instrument's normal light. Nothing had been read yet, so nothing "
+    "is lost.",
+    approved=False)
+
+#: Average selected with readings of different conditions. The same patch
+#: in M0 and in M1 gives two different colours on purpose, and their mean is
+#: a colour no light shows. Shown on the status line; nothing is added.
+M_SPOT_AVERAGE_CONDITIONS = _m(
+    "M-SPOT-AVERAGE-CONDITIONS",
+    "These readings were taken in different conditions",
+    "The selected readings were taken in different measurement conditions "
+    "({conditions}), so they were not averaged. Select readings of one "
+    "condition only, then click Average selected again.",
+    approved=False)
+
+#: A paragraph added to M-SPOT-CAL-TOO-LIGHT when the session reads in M1:
+#: the check judges the M1 spectrum, and under M1 a fluorescent ink glows
+#: more than under the lamp alone.
+M_SPOT_CAL_CONDITION_M1 = _m(
+    "M-SPOT-CAL-CONDITION-M1",
+    "This session measures in M1",
+    "This session measures in M1, light like daylight with its ultraviolet "
+    "part. A fluorescent ink or paper glows more in M1 than under the "
+    "instrument's own lamp, so a patch like that can come out this light "
+    "even after a good calibration.",
+    approved=False)
+
 # --- PROPOSED: the reference file covers only part of the target -----------
 #: Review 5, 2026-09-03, finding D. A reference file holding the first 48 rows
 #: of the target's own correct 288-row reference builds a profile from a sixth
@@ -14941,6 +14982,8 @@ CATALOGUE = {m.id: m for m in (
     M_CAL_REPLACE_CHART, M_CAL_REPLACE_MEASURED, M_CAL_ARCHIVED_HERE,
     M_SPOT_CLEAR, M_SPOT_UNSAVED, M_SPOT_CR30_GONE, M_SPOT_CR30_EARLY_PRESS,
     M_SPOT_CAL_TOO_LIGHT, M_SPOT_CAL_SATURATED, M_SPOT_CAL_TIP,
+    M_SPOT_CONDITION_NOT_I1PRO3, M_SPOT_AVERAGE_CONDITIONS,
+    M_SPOT_CAL_CONDITION_M1,
     M_SCAN_REF_SHORT, M_SCAN_REF_DISAGREES, M_SCAN_CLIPPED,
     M_SCAN_LOADED, M_SCAN_DIAGNOSTIC,
     M_SCAN_SHOT_EMPTY, M_SCAN_TARGET_CHANGED,

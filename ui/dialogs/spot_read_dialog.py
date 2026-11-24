@@ -52,8 +52,9 @@ from ui.tab_header import dialog_masthead
 from ui.warning_sign import inform, set_warning_icon, warn
 from ui.widgets import (NoScrollComboBox, TailFollowLog, reserve_button_labels,
                         set_ink, tint_dialog_primary)
-from workflow.spot_read_io import SpotReading, average_readings, write_csv, write_ti3
-from workflow.spot_read_manager import SpotReadManager, SpotReadParams
+from workflow.spot_read_io import (MixedConditions, SpotReading, average_readings,
+                                   write_csv, write_ti3_files)
+from workflow.spot_read_manager import SpotReadManager, SpotReadParams, is_i1pro3
 
 import logging
 import re
@@ -156,6 +157,14 @@ class _SwatchCellDelegate(QStyledItemDelegate):
 #: here would be offering a choice ChromIQ cannot act on. There are exactly two
 #: readers, and the CR30 is the one ArgyllCMS has never heard of.
 _INSTRUMENT_KEYS = ("auto", "argyll", "cr30")
+
+#: Item 43: the measurement conditions the row offers an i1Pro 3, in list
+#: order, with the -F value whose entry (already in the Measure tab's
+#: "Spectral filter type (-F)" list, and translated) names each.
+_CONDITION_KEYS = ("M0", "M1", "M2")
+_CONDITION_FILTER_CODES = {"M0": "n", "M1": "5", "M2": "u"}
+#: where the chosen condition is remembered (across sessions and app runs)
+_CONDITION_SETTING = "spot_read_condition"
 
 
 def _instrument_labels() -> "list[str]":
@@ -294,6 +303,26 @@ def usb_fingerprint_now() -> "tuple | None":
     except Exception:      # noqa: BLE001 — a change detector, never an error
         log.debug("could not fingerprint the USB devices", exc_info=True)
         return None
+
+#: Item 43: the help of the Measurement condition row (its tooltip and its
+#: (i) button). Plain words for each condition, and the one rule the row has.
+_CONDITION_HELP = tr(
+    "Which light the i1Pro 3 measures each colour with. It can measure the "
+    "same patch in three ways, called M0, M1 and M2 (an ISO standard).\n\n"
+    "M0: the instrument's own lamp, as it is. This is how ChromIQ has always "
+    "measured here, and how most profiles are measured.\n\n"
+    "M1: light like daylight, with its ultraviolet part. Paper brighteners "
+    "and fluorescent inks glow as they do in daylight, so a bright white "
+    "paper reads a little bluer and brighter than in M0.\n\n"
+    "M2: the ultraviolet part left out. Brighteners do not glow at all, so "
+    "you see the paper and the inks without that glow.\n\n"
+    "Choose the condition before you click Start session. Every reading of "
+    "the session is taken in it, and the list shows it beside each reading. "
+    "To measure in another condition, stop the session, choose it here and "
+    "start again. Saving writes one .ti3 file per condition, so readings of "
+    "different conditions are never mixed, and Average selected only "
+    "averages readings of one condition.")
+
 
 _HELP = tr(
     "Read individual colour patches with your measuring instrument, off any "
@@ -529,16 +558,55 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         controls.addStretch(1)
         outer.addLayout(controls)
 
+        # --- Measurement condition (item 43) ------------------------------
+        # ONE ROW, ONLY FOR AN i1PRO 3. Its driver computes M0, M1 and M2 from
+        # every reading (lamp and UV light in turn) and stock spotread -F
+        # chooses which one comes back. Nothing else ArgyllCMS drives can do
+        # that, so for every other instrument the row is not there and the
+        # command line and the saved files are the ones they always were.
+        # Default M0, the instrument's normal light.
+        self._cond_row = QWidget(self)
+        self._cond_row.setObjectName("spotConditionRow")
+        cond_lay = QHBoxLayout(self._cond_row)
+        cond_lay.setContentsMargins(0, 0, 0, 0)
+        cond_lay.setSpacing(10)
+        cond_lay.addWidget(QLabel(tr("Measurement condition"), self._cond_row))
+        self._condition = NoScrollComboBox(self._cond_row)
+        from workflow.measurement_condition import filter_choice_label
+        for _key in _CONDITION_KEYS:
+            self._condition.addItem(
+                filter_choice_label(_CONDITION_FILTER_CODES[_key]), _key)
+        _stored_cond = str(settings.get(_CONDITION_SETTING, "M0") or "M0")
+        self._condition.setCurrentIndex(
+            _CONDITION_KEYS.index(_stored_cond)
+            if _stored_cond in _CONDITION_KEYS else 0)
+        self._condition.setToolTip(_CONDITION_HELP)
+        self._condition.currentIndexChanged.connect(self._on_condition_changed)
+        cond_lay.addWidget(self._condition)
+        cond_lay.addWidget(TooltipButton(
+            tr("About the measurement condition"), _CONDITION_HELP,
+            self._cond_row, color=_ACCENT))
+        cond_lay.addStretch(1)
+        self._cond_row.setVisible(False)
+        outer.addWidget(self._cond_row)
+        #: The condition the running session reads under ("M0", "M1", "M2"),
+        #: or None: not an i1Pro 3, not reflective, or not known yet.
+        self._session_condition: "str | None" = None
+        #: The USB list the row was last decided against (_on_auto_tick).
+        self._cond_fingerprint: "tuple | None" = None
+        self._mode.currentIndexChanged.connect(self._on_mode_changed)
+
         self._status = QLabel(tr("Idle — click Start session to begin."), self)
         self._status.setWordWrap(True)
         set_ink(self._status, "#909090", level="faint")
         outer.addWidget(self._status)
 
         # --- Results table -------------------------------------------------
-        self._table = QTableWidget(0, 8, self)
+        self._table = QTableWidget(0, 9, self)
         self._table.setHorizontalHeaderLabels([
             tr("Name"), tr("L*"), tr("a*"), tr("b*"),
             tr("X"), tr("Y"), tr("Z"), tr("Colour"),
+            tr("Condition"),
         ])
         self._table.verticalHeader().setVisible(False)
         # Taller rows so each cell — especially the Colour swatch — has more
@@ -556,6 +624,10 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             self._table.setColumnWidth(c, 50)
         hdr.setSectionResizeMode(7, QHeaderView.ResizeMode.Interactive)
         self._table.setColumnWidth(7, 128)          # Colour swatch (bigger)
+        # Item 43: the condition each reading was taken under ("M1"), shown
+        # only once a reading has one; for every other list it is not there.
+        hdr.setSectionResizeMode(8, QHeaderView.ResizeMode.ResizeToContents)
+        self._table.setColumnHidden(8, True)
         self._table.itemChanged.connect(self._on_item_changed)
         self._table.itemSelectionChanged.connect(self._update_average_btn)
         # A reading can be deleted from where it is: right-click, as well as
@@ -720,6 +792,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         m.coms_init_failed.connect(lambda s: self._on_init_failed(s))
         m.inst_init_failed.connect(lambda s: self._on_init_failed(s))
         m.session_ended.connect(self._on_session_ended)
+        m.condition_dropped.connect(self._on_condition_dropped)
 
         # Name the settled reader before the window is ever shown, so it is
         # right in the first frame and in a `.grab()` that never shows it.
@@ -733,6 +806,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         # the one moment nothing had made it.
         self._apply_reader_capabilities()
         self._refresh_auto_choice()
+        self._sync_condition_row()
 
     # ------------------------------------------------------------------
     # Session lifecycle
@@ -838,6 +912,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             log.debug("could not store the spot-read instrument", exc_info=True)
         self._apply_reader_capabilities()
         self._refresh_auto_choice()
+        self._sync_condition_row()
 
     def _apply_reader_capabilities(self) -> None:
         cr30 = _INSTRUMENT_KEYS[self._instrument.currentIndex()] == "cr30"
@@ -885,12 +960,21 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         A cheap in-process look at the USB list (`usb_fingerprint_now`); the
         `ioreg` run behind :meth:`_refresh_auto_choice` follows only when a
         device was plugged in or pulled out. Nothing at all while a session
-        owns the instrument or a reader is chosen by hand.
+        owns the instrument or the CR30 is chosen by hand. With ArgyllCMS
+        chosen by hand the label is not refreshed, but the cheap look still
+        runs, because the i1Pro 3's Measurement condition row (item 43)
+        follows the cable too.
         """
-        if (_INSTRUMENT_KEYS[self._instrument.currentIndex()] != "auto"
-                or not self._instrument.isEnabled()):
+        if not self._instrument.isEnabled():
             return
-        if usb_fingerprint_now() != self._usb_fingerprint:
+        if _INSTRUMENT_KEYS[self._instrument.currentIndex()] == "cr30":
+            return
+        fp = usb_fingerprint_now()
+        if fp != self.__dict__.get("_cond_fingerprint"):
+            self._sync_condition_row()
+        if _INSTRUMENT_KEYS[self._instrument.currentIndex()] != "auto":
+            return
+        if fp != self._usb_fingerprint:
             self._refresh_auto_choice()
 
     def _keep_auto_choice_fresh(self) -> None:
@@ -922,7 +1006,11 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         params = SpotReadParams(
             mode=self._MODE_KEYS[self._mode.currentIndex()],
             disable_initial_cal=self._skip_cal.isChecked(),
+            condition=self._condition_for_start(),
         )
+        self._session_condition = None
+        #: what this start asked for (None: no -F)
+        self._start_condition = params.condition
         self._set_session_running(True)
         self._set_status(tr("Starting instrument…"))
         self._manager.start(params, lambda _line: None)
@@ -1470,6 +1558,10 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         self._instrument.setEnabled(not running)
         self._mode.setEnabled(not running)
         self._skip_cal.setEnabled(not running)
+        cond = self.__dict__.get("_condition")
+        if cond is not None:
+            # one condition per session: chosen before Start, like Mode
+            cond.setEnabled(not running)
         self._start_btn.setText(tr("Stop session") if running else tr("Start session"))
         if not running:
             self._set_read_enabled(False)
@@ -1479,6 +1571,12 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
                 cal.setVisible(True)
             self._apply_reader_capabilities()
             self._refresh_auto_choice()
+            if "_cond_row" in self.__dict__:
+                stored = str(self._settings.get(_CONDITION_SETTING, "M0")
+                             or "M0")
+                if self._condition.currentData() != stored:
+                    self._show_condition(stored)
+                self._sync_condition_row()
         self._keep_auto_choice_fresh()
 
     def _on_session_ended(self, code: int) -> None:
@@ -1603,7 +1701,11 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
 
     def _on_reading(self, xyz: tuple, lab: tuple) -> None:
         name = tr("Patch {n}").format(n=self._next_patch_number())
-        reading = SpotReading(name=name, xyz=tuple(xyz), lab=tuple(lab))
+        cond = self.__dict__.get("_session_condition")
+        reading = SpotReading(name=name, xyz=tuple(xyz), lab=tuple(lab),
+                              condition=cond)
+        if cond:
+            log.info("spot read: %s read in %s", name, cond)
         self._readings.append(reading)
         self._append_row(reading)
         self._unsaved = True
@@ -1643,6 +1745,18 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         swatch.setForeground(QColor(_ink_on(r.hex)))
         swatch.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         self._table.setItem(row, 7, swatch)
+
+        cond = getattr(r, "condition", None)
+        if self._table.columnCount() > 8:
+            tag = QTableWidgetItem(cond or "")
+            tag.setFlags(tag.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            tag.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            if cond:
+                from workflow.measurement_condition import condition_name
+                tag.setToolTip(condition_name(cond))
+            self._table.setItem(row, 8, tag)
+            if cond and self._table.isColumnHidden(8):
+                self._table.setColumnHidden(8, False)
 
         self._table.blockSignals(False)
         if at_bottom:
@@ -1771,7 +1885,19 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         rows = self._selected_rows()
         if len(rows) < 2:
             return
-        averaged = average_readings([self._readings[r] for r in rows], tr("Average"))
+        try:
+            averaged = average_readings([self._readings[r] for r in rows],
+                                        tr("Average"))
+        except MixedConditions as exc:
+            # Item 43: only readings of one condition make an average.
+            from workflow import measurement_messages as M
+            _title, body = M.M_SPOT_AVERAGE_CONDITIONS.render(
+                conditions=", ".join(c or "?" for c in exc.conditions))
+            log.info("spot read: average refused, the selected readings are "
+                     "of different measurement conditions (%s)",
+                     ", ".join(c or "none" for c in exc.conditions))
+            self._set_status(body)
+            return
         self._readings.append(averaged)
         self._append_row(averaged)
         self._unsaved = True
@@ -1917,15 +2043,21 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         base = without_ext(without_ext(chosen, ".csv"), ".ti3")
         try:
             csv_path = write_csv(artefact(base, ".csv"), self._readings)
-            ti3_path = write_ti3(artefact(base, ".ti3"), self._readings)
+            # one .ti3 per measurement condition (item 43); a list of one
+            # condition, or of none, is the one file it always was
+            ti3_paths = write_ti3_files(base, self._readings)
         except OSError as exc:
             warn(self, tr("Save failed"), str(exc))
             return False
         self._unsaved = False
+        if len(ti3_paths) > 1:
+            log.info("spot read: saved one .ti3 per measurement condition: %s",
+                     ", ".join(p.name for p in ti3_paths))
         inform(
             self, tr("Saved"),
             tr("Readings saved to:\n{csv}\n{ti3}").format(
-                csv=csv_path.name, ti3=ti3_path.name),
+                csv=csv_path.name,
+                ti3="\n".join(p.name for p in ti3_paths)),
         )
         return True
 
@@ -1936,6 +2068,107 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         """Remember what spotread says is attached (#130, Knut 2026-07-31)."""
         self._detected_instrument = model or ""
         log.info("spot read: instrument reported as %s", model)
+        if "_cond_row" not in self.__dict__:
+            return
+        # Item 43: the instrument's own report wins over the USB guess. An
+        # i1Pro 3 reads under the condition this start asked for (M0 without
+        # -F); anything else records none, exactly as before.
+        reflective = self._MODE_KEYS[self._mode.currentIndex()] == "reflective"
+        if is_i1pro3(model) and reflective:
+            asked = self.__dict__.get("_start_condition") or "M0"
+            self._session_condition = asked
+            log.info("spot read: readings of this session are recorded as %s",
+                     asked)
+            # The row may appear only now (the USB list could not tell): it
+            # shows what this session reads under, not a choice it did not
+            # make. The remembered choice comes back when the session ends.
+            if self._condition.currentData() != asked:
+                self._show_condition(asked)
+        else:
+            self._session_condition = None
+        self._sync_condition_row()
+
+    def _show_condition(self, key: str) -> None:
+        """Put *key* in the list without storing it as the choice."""
+        self._condition.blockSignals(True)
+        try:
+            self._condition.setCurrentIndex(
+                _CONDITION_KEYS.index(key) if key in _CONDITION_KEYS else 0)
+        finally:
+            self._condition.blockSignals(False)
+
+    # ------------------------------------------------------------------
+    # The measurement condition (item 43)
+    # ------------------------------------------------------------------
+    def _i1pro3_known(self) -> bool:
+        """Whether the instrument a Start would open is an i1Pro 3.
+
+        Nothing is opened to find out. The USB list first: 0765:6009 is an
+        i1Pro 3 (or 3 Plus) and nothing else, and an answer from it about any
+        other instrument stands too. Only when the list cannot tell (it cannot
+        be read, or several instruments are attached), what spotread reported
+        in this window. After Start the instrument's own report decides
+        (:meth:`_on_instrument_detected`, and the manager's restart without
+        -F when it is not an i1Pro 3)."""
+        from workflow.dual_scan import instrument_model as IM
+        family = IM.attached_family()
+        if family == IM.FAMILY_I1PRO3:
+            return True
+        if family is not None:
+            return False
+        return is_i1pro3(self.__dict__.get("_detected_instrument", ""))
+
+    def _sync_condition_row(self) -> None:
+        """Show the row only for an i1Pro 3, read through ArgyllCMS, in
+        Reflective mode. While a session runs the instrument's report
+        decides; while idle the USB list (:meth:`_i1pro3_known`)."""
+        row = self.__dict__.get("_cond_row")
+        if row is None:
+            return
+        reader = _INSTRUMENT_KEYS[self._instrument.currentIndex()]
+        reflective = self._MODE_KEYS[self._mode.currentIndex()] == "reflective"
+        if not self._instrument.isEnabled():
+            # a session owns the instrument: nothing is asked of the device
+            # list, and the instrument's own report decides
+            show = (reflective and reader != "cr30"
+                    and is_i1pro3(self.__dict__.get("_detected_instrument", "")))
+        else:
+            self._cond_fingerprint = usb_fingerprint_now()
+            show = reflective and reader != "cr30" and self._i1pro3_known()
+        if show != (not row.isHidden()):
+            log.info("spot read: the measurement condition row is %s",
+                     "shown (an i1Pro 3)" if show else "hidden")
+        row.setVisible(show)
+
+    def _condition_for_start(self) -> "str | None":
+        """The condition a Start asks spotread for: "M1" or "M2" when the
+        row is shown and set to it, else None (no -F, today's command line)."""
+        row = self.__dict__.get("_cond_row")
+        if row is None or row.isHidden():
+            return None
+        key = self._condition.currentData()
+        return key if key in ("M1", "M2") else None
+
+    def _on_condition_changed(self, _index: int) -> None:
+        key = self._condition.currentData() or "M0"
+        log.info("spot read: measurement condition chosen: %s", key)
+        try:
+            self._settings.set(_CONDITION_SETTING, key)
+        except Exception:      # noqa: BLE001 — remembering is never worth a crash
+            log.debug("could not store the spot-read condition", exc_info=True)
+
+    def _on_mode_changed(self, _index: int) -> None:
+        self._sync_condition_row()
+
+    def _on_condition_dropped(self, model: str) -> None:
+        """M-SPOT-CONDITION-NOT-I1PRO3: -F reached an instrument that is not
+        an i1Pro 3, and the session starts again without it."""
+        from workflow import measurement_messages as M
+        self._session_condition = None
+        _title, body = M.M_SPOT_CONDITION_NOT_I1PRO3.render(
+            model=model or tr("another instrument"))
+        self._set_status(body)
+        self._sync_condition_row()
 
     def _instrument_family(self) -> "str | None":
         """Which instrument's wording to use, or None for the generic text.
@@ -2210,6 +2443,9 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         else:
             title, body = M.M_SPOT_CAL_TOO_LIGHT.render(
                 percent=f"{verdict.percent:.0f}")
+        if self.__dict__.get("_session_condition") == "M1":
+            # item 43: more UV light, more glow from a fluorescent ink
+            body += "\n\n" + M.M_SPOT_CAL_CONDITION_M1.render()[1]
         self._set_status(title)
         box = QMessageBox(self)
         set_warning_icon(box)
