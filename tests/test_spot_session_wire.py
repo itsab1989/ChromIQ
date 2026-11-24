@@ -128,7 +128,7 @@ def run(exe: Path, cache: Path, mode: str, *, chart: "Path | None" = None,
     if fail_at:
         env["CQ_WIRE_FAIL_AT"] = str(fail_at)
     p = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                         stderr=subprocess.PIPE, text=True, cwd=work, env=env)
+                         stderr=subprocess.PIPE, text=True, encoding="utf-8", cwd=work, env=env)
     events: list = []
     wire: list = []
     lock = threading.Lock()

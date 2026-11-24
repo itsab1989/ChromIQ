@@ -233,7 +233,9 @@ def test_eight_files_skip_wholesale_without_it():
     # tests/test_the_app_log_says_where_the_conditions_went.py)
     # 42 with item 17 (4.3.58, helper 23a): a refused first pass of a dual strip asks for no
     # second pass (tests/test_dual_refused_pass_one_asks_no_second.py)
-    assert len(whole) == 10 and len(partial) == 42, (
+    # 43 with item 43 steps 2-3 (helper 24a): the spot session's replay tests
+    # (test_item43_steps23.py; its manager and window tests run without the helper)
+    assert len(whole) == 10 and len(partial) == 43, (
         "the number of files gated on the chart-reading helper has changed "
         f"({len(whole)} wholesale, {len(partial)} in part) -> update the "
         f"header in tests/conftest.py. wholesale={whole} partial={partial}")

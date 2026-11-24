@@ -63,15 +63,18 @@ HELPER_C = (Path(__file__).resolve().parent.parent
 # asks for no second pass, inserted above these lines (a move, nothing else changed)
 # +1 on 2026-11-23 (4.3.58, helper 23b, item 40): the #include of chromiq_dualcal.h above these
 # lines (a move, nothing else changed)
+# +59 on 2026-11-24 (helper 24a, item 43 steps 2-3): the spot session's flag and the test-only
+# instrument seam's declaration above these lines, and the patch loop's per-press block moved
+# into cq_spot_read_once (a move, nothing else changed)
 HELPER_LINES = {
     "capability":  ("Need reflection spot, strip, xy or chart reading capability,",
-                    "Need reflection spot, strip, xy or chart reading capability", 3633),
+                    "Need reflection spot, strip, xy or chart reading capability", 3692),
     "ccmx_set":    ("Setting Colorimeter Correction Matrix failed with error :'x' (0x1)",
-                    "Setting Colorimeter Correction Matrix failed with error", 3692),
+                    "Setting Colorimeter Correction Matrix failed with error", 3751),
     "ccmx_read":   ("Reading CCMX/CCSS File 'x.ccmx' failed with error 2:'nope'",
-                    "Reading CCMX/CCSS File", 3714),
+                    "Reading CCMX/CCSS File", 3773),
     "mode_set":    ("Setting instrument mode failed with error :'unsupported' (0x2)",
-                    "Setting instrument mode failed with error", 4060),
+                    "Setting instrument mode failed with error", 4119),
     "init_fail":   ("Initialising instrument failed with message 'Communications failure'",
                     None, None),
     "coms_fail":   ("Establishing communications with instrument failed with message 'timeout'",

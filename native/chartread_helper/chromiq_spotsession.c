@@ -57,7 +57,7 @@
  *   spot_ready {n}         waiting for a press (or {"cmd":"read"})
  *   spot_reading {n, XYZ, Lab, spec, main, conditions{M1,M2}}
  *   dual_pass_result       an i1Pro 2 dual spot's verdict (cq_dd_result)
- *   error {kind, detail}   misread (read again), coms (the session ends)
+ *   error {kind, detail}   spot_misread (read again), spot_coms (the session ends)
  *   spot_session_end {why}
  * Commands: {"cmd":"read"}, {"cmd":"calibrate"} (+ "ok" / "cal_cancel" at its
  * prompt), {"cmd":"quit"} or the end of stdin.
@@ -175,7 +175,7 @@ static int cq_ss_emit_reading(int n, ipatch *val) {
 	int have = cq_cond_active && cq_vx_valid && cq_vx_n == 1 && cq_vx != NULL;
 	mb[0] = c1[0] = c2[0] = '\0';
 	if (!val->XYZ_v) {
-		cq_emit_error("misread", "no XYZ");
+		cq_emit_error("spot_misread", "no XYZ");
 		return 0;
 	}
 	cq_ss_value(mb, sizeof(mb), val->XYZ, val->sp.spec_n, val->sp.spec_wl_short,
@@ -201,6 +201,21 @@ static int cq_ss_emit_reading(int n, ipatch *val) {
 	cq_emit_raw("%s", out);
 	free(out);
 	return 1;
+}
+
+/* The session's own error kinds, "spot_misread", "spot_coms" and
+ * "spot_cal_failed": unlike the chart reader's "misread" / "coms" /
+ * "cal_failed" they ask no question (the session reads
+ * the same spot again at once, or ends), so the app never waits to answer
+ * them (tests/i1io_table/test_4347_a_failed_autosave_is_not_a_question.py). */
+static void cq_ss_coms(inst *it, inst_code rv) {
+	char usb[1600], esc[512];
+	cq_usbwatch_json(usb, sizeof(usb));
+	cq_json_escape(esc, sizeof(esc),
+	               it != NULL && it->interp_error != NULL ? it->interp_error(it, rv) : "");
+	cq_emit_raw("{\"event\":\"error\",\"kind\":\"spot_coms\",\"detail\":\"\","
+	            "\"inst_code\":\"0x%08X\",\"driver\":\"%s\"%s}",
+	            (unsigned int)rv, esc, usb);
 }
 
 /* every way out: the UV state and the conditions off, then the instrument
@@ -327,7 +342,7 @@ static int cq_run_spot_session(int comport, flow_control fc, int nocal, int high
 		rv = cq_handle_calibrate(it, inst_calt_needed, inst_calc_none, 0);
 	if (rv != inst_ok) {
 		if ((rv & inst_mask) != inst_user_abort)
-			cq_emit_error("cal_failed", it->inst_interp_error(it, rv));
+			cq_emit_error("spot_cal_failed", it->inst_interp_error(it, rv));
 		return cq_ss_end(it, icmps, (rv & inst_mask) == inst_user_abort ? "stopped"
 		                                                                 : "calibration", 1);
 	}
@@ -384,11 +399,11 @@ static int cq_run_spot_session(int comport, flow_control fc, int nocal, int high
 			continue;
 		}
 		if ((rv & inst_mask) == inst_coms_fail) {
-			cq_emit_coms_error(it, rv);
+			cq_ss_coms(it, rv);
 			return cq_ss_end(it, icmps, "coms", 1);
 		}
 		/* a misread (a dual spot whose half failed is one too) or another
 		 * error: nothing is kept, the same spot is read again */
-		cq_emit_error("misread", it->interp_error(it, rv));
+		cq_emit_error("spot_misread", it->interp_error(it, rv));
 	}
 }

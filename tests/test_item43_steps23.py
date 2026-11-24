@@ -249,7 +249,7 @@ def test_a_refused_dual_spot_asks_for_a_calibration_and_holds_ready(qapp, monkey
     m.misread.connect(lambda: misread.append(1))
     m.handle_event({"event": "dual_pass_result", "what": "spot", "ok": False,
                     "why": "no_dual_calibration", "calibrate": True})
-    m.handle_event({"event": "error", "kind": "misread", "detail": "x"})
+    m.handle_event({"event": "error", "kind": "spot_misread", "detail": "x"})
     m.handle_event({"event": "spot_ready", "n": 1})
     assert refused == [("no_dual_calibration", True)] and misread == [] and ready == []
     m.send_key("\r")                                   # the window leaves the misread
@@ -296,7 +296,7 @@ def _session(tmp_path, script: str, inst: str, *, flags=(), cmds=(), env=None,
     p = subprocess.Popen([str(HELPER), "--json", "--spot-session", *flags,
                           "--replay", str(rp)], stdin=subprocess.PIPE,
                          stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                         text=True, cwd=tmp_path, env=e)
+                         text=True, encoding="utf-8", cwd=tmp_path, env=e)
     import threading
     events: list = []
 
@@ -386,7 +386,7 @@ def test_a_misread_is_read_again_and_a_calibration_can_be_asked_for(tmp_path):
                         ("spot_reading", {"cmd": "quit"})])
     kinds = [e["event"] for e in ev]
     assert kinds.index("error") < kinds.index("cal_required") < kinds.index("spot_reading")
-    assert [e for e in ev if e["event"] == "error"][0]["kind"] == "misread"
+    assert [e for e in ev if e["event"] == "error"][0]["kind"] == "spot_misread"
     assert [e for e in ev if e["event"] == "cal_required"][0]["requested"] is True
     assert [e for e in ev if e["event"] == "cal_result"][0]["result"] == "done"
     rd = [e for e in ev if e["event"] == "spot_reading"]
@@ -403,7 +403,7 @@ def test_the_end_of_stdin_ends_the_session(tmp_path):
     e["CHROMIQ_REPLAY_INSTRUMENT"] = "i1pro3"
     t0 = time.monotonic()
     r = subprocess.run([str(HELPER), "--json", "--spot-session", "--spot-conditions",
-                        "--replay", str(rp)], input="", capture_output=True, text=True,
+                        "--replay", str(rp)], input="", capture_output=True, text=True, encoding="utf-8",
                        timeout=20, env=e, cwd=tmp_path)
     assert time.monotonic() - t0 < 10
     assert '"spot_reading"' not in r.stdout

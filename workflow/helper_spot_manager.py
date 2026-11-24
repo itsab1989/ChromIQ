@@ -385,7 +385,7 @@ class HelperSpotManager(QObject):
     def _on_error(self, ev: dict) -> None:
         kind = str(ev.get("kind") or "")
         detail = str(ev.get("detail") or "")
-        if kind == "misread":
+        if kind in ("spot_misread", "misread"):
             refusal = self.__dict__.get("_pending_refusal")
             self._pending_refusal = None
             self._after_misread = True
@@ -398,14 +398,14 @@ class HelperSpotManager(QObject):
                 verdict = self._cal_check.on_saturated()
                 if verdict is not None:
                     self.calibration_suspect.emit(verdict)
-        elif kind == "coms":
+        elif kind in ("spot_coms", "coms"):
             self.instrument_disconnected.emit()
         elif kind == "no_instrument":
             if detail:
                 self.inst_init_failed.emit(detail)
             else:
                 self.no_instrument.emit()
-        elif kind == "cal_failed":
+        elif kind in ("spot_cal_failed", "cal_failed"):
             self.calibration_failed.emit(detail)
         else:
             log.info("spot read (helper): %s %s", kind, detail)
