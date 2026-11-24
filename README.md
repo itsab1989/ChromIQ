@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-4.3.62-7c5cff">
+  <img alt="Version" src="https://img.shields.io/badge/version-4.3.63-7c5cff">
   <img alt="Downloads" src="https://img.shields.io/endpoint?url=https://itsab1989.github.io/github-traffic-downloads-dashboard/assets/badges/itsab1989_ChromIQ-downloads.json">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2a9d8f">
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-blue">
@@ -725,6 +725,17 @@ ways:
 > numbers to type into Barbieri's Spectro32 or Gateway; measuring is done in
 > Barbieri's own software, and bringing the measurement back into ChromIQ comes
 > in a later version. Nothing has been tested on a real Spectro 100xy yet.
+
+> **New in 4.3.63: bring Spectro32's measurement back into ChromIQ (Beta).**
+> With the Barbieri Beta on, the Measure tab can IMPORT the measurement files
+> that Spectro32 writes, for a Barbieri chart run (profile and verification
+> runs). ChromIQ matches the readings to the patches by reading order, keeps
+> the spectra and works out the colour the way ArgyllCMS does, then checks it
+> against Spectro32's own values. It also checks how the sheet lay: mirrored,
+> upside down, turned or aimed one patch off is refused with the reason. When
+> it cannot be told, ChromIQ asks you (Cancel is the default). Tested with
+> synthetic files and the geometry of one real reflective run; not yet with a
+> real transmission file or a multi-page run.
 
 Why it may be worth it all the same: X-Rite has ended support for these
 tables. i1Profiler 3.8.7 removed the i1Pro 2 and the i1iO 2, and 3.8.6 is the

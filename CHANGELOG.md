@@ -1,5 +1,27 @@
 # Changelog
 
+## v4.3.63
+
+**Barbieri Spectro 100xy (Beta): import Spectro32's measurement files in the Measure tab.**
+
+### New
+
+- **Import Spectro32's measurement files (Beta, off by default).** With the Barbieri Spectro 100xy Beta on, the Measure tab can IMPORT the files Spectro32 writes, for a Barbieri chart run. It works for profile runs and for verification runs.
+- **Readings are matched to the patches by reading order.** ChromIQ keeps the spectra, works out the colour the way ArgyllCMS does, and cross-checks it against the values Spectro32 wrote itself.
+- **ChromIQ checks how the sheet lay.** A sheet that was mirrored, upside down, turned, or aimed one patch off is refused, and the reason is shown. When ChromIQ cannot tell, it asks you. Cancel is the default, and if you answer Import, that answer is recorded in the file.
+- **Transmission imports preselect the Media Type "Transparent" in Build Profile.**
+
+### Internal
+
+- The website deploy now runs in two steps (build, then deploy), as GitHub's own template does, because the single step sometimes failed to find its own upload.
+- The file reading is adapted from the converter shared by the device owner (credit: LVTguru, GPL-3.0).
+
+### Known issues
+
+- This is a Beta. It was tested with synthetic files and the geometry of one real reflective run, not yet with a real transmission file or a multi-page run.
+- Gateway files and averaging several imports come in later versions.
+- The new texts of this version are shown as proposed texts and may still be reworded.
+
 ## v4.3.62
 
 **Tools > Read single patches: choose the measurement condition (M0, M1 or M2) for the X-Rite i1Pro 3.**
