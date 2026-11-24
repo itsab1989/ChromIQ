@@ -986,6 +986,7 @@ AWAITING_APPROVAL: "set[str]" = {
                                  "M-SPOT-CONDITION-NOT-I1PRO3",
                                  "M-SPOT-AVERAGE-CONDITIONS",
                                  "M-SPOT-CAL-CONDITION-M1",
+                                 "M-SPOT-SAVE-CONDITION-FILES",
                                  # (beta 17: M-SPOT-CR30-GONE, the CR30
                                  # stopped answering in a spot session, was
                                  # APPROVED by Basti, 2026-10-10, and left
@@ -1446,6 +1447,7 @@ WINDOW_SOURCES = [
     ("ui.dialogs.spot_read_dialog", "SpotReadDialog", "_on_calibration_suspect"),
     ("ui.dialogs.spot_read_dialog", "SpotReadDialog", "_may_close"),
     ("ui.dialogs.spot_read_dialog", "SpotReadDialog", "_on_cr30_lost"),
+    ("ui.dialogs.spot_read_dialog", "SpotReadDialog", "_may_write_condition_files"),
     # Auto align. Not a modal window but the window's own log, which is where
     # a placement message belongs — and the same two rules apply: the text is
     # the catalogue's, and the method writes no prose of its own. That second

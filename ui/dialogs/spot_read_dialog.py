@@ -1000,6 +1000,19 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             active.quit()
             active.abort()
             return
+        if self._cr30 is None and self._manager.restart_pending():
+            # Stop between a start that ended and its queued restart (the
+            # -F or -s restart): nothing runs, so the restart is called off
+            # and the session ends here, instead of a second spotread.
+            self._manager.cancel_restart()
+            return
+        # Item 43: nothing of an earlier session's condition is carried into
+        # the next one, whichever reader it uses (review S1: a CR30 session
+        # showed an ArgyllCMS restart note on every Ready line).
+        self._session_condition = None
+        self._condition_note = ""
+        self._start_condition = None
+        self._detected_this_session = False
         if self._chosen_reader() == "cr30":
             self._start_cr30_session()
             return
@@ -1008,8 +1021,6 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             disable_initial_cal=self._skip_cal.isChecked(),
             condition=self._condition_for_start(),
         )
-        self._session_condition = None
-        self._condition_note = ""
         #: what this start asked for (None: no -F)
         self._start_condition = params.condition
         self._set_session_running(True)
@@ -1711,6 +1722,12 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
     def _on_reading(self, xyz: tuple, lab: tuple) -> None:
         name = tr("Patch {n}").format(n=self._next_patch_number())
         cond = self.__dict__.get("_session_condition")
+        if (cond is None and self.__dict__.get("_start_condition")
+                and not self.__dict__.get("_detected_this_session")):
+            # -F was asked for and accepted, and no "Instrument Type:" line
+            # came (spotread prints it only for some drivers): the reading
+            # was taken under the filter that was asked for (review S3)
+            cond = self._start_condition
         reading = SpotReading(name=name, xyz=tuple(xyz), lab=tuple(lab),
                               condition=cond)
         if cond:
@@ -1901,7 +1918,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             # Item 43: only readings of one condition make an average.
             from workflow import measurement_messages as M
             _title, body = M.M_SPOT_AVERAGE_CONDITIONS.render(
-                conditions=", ".join(c or "?" for c in exc.conditions))
+                conditions=", ".join(c or tr("unknown") for c in exc.conditions))
             log.info("spot read: average refused, the selected readings are "
                      "of different measurement conditions (%s)",
                      ", ".join(c or "none" for c in exc.conditions))
@@ -2050,6 +2067,8 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         # A typed save name is a NAME: "readings.v2" has no extension to strip
         # (core/stem_paths.py). Remove only a .csv/.ti3 the user actually typed.
         base = without_ext(without_ext(chosen, ".csv"), ".ti3")
+        if not self._may_write_condition_files(base):
+            return False
         try:
             csv_path = write_csv(artefact(base, ".csv"), self._readings)
             # one .ti3 per measurement condition (item 43); a list of one
@@ -2070,12 +2089,44 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         )
         return True
 
+    def _may_write_condition_files(self, base) -> bool:
+        """M-SPOT-SAVE-CONDITION-FILES (item 43): the folder already holds
+        ``<base>-M0/M1/M2.ti3`` from an earlier save of the same name. The
+        file dialog asked about the CSV only; these are replaced silently
+        otherwise, and one this list does not write again would stay beside
+        the new files with older readings, unmentioned (review). Asked once;
+        nothing is deleted."""
+        existing = [artefact(f"{base}-{c}", ".ti3") for c in _CONDITION_KEYS]
+        existing = [p for p in existing if p.exists()]
+        if not existing:
+            return True
+        from workflow import measurement_messages as M
+        title, body = M.M_SPOT_SAVE_CONDITION_FILES.render(
+            files=", ".join(p.name for p in existing))
+        box = QMessageBox(self)
+        set_warning_icon(box)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        replace = box.addButton(tr("Replace"),
+                                QMessageBox.ButtonRole.DestructiveRole)
+        cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(cancel)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        ok = self._ask(box) is replace
+        log.info("spot read: earlier condition files %s: %s",
+                 ", ".join(p.name for p in existing),
+                 "replace" if ok else "save cancelled")
+        return ok
+
     # ------------------------------------------------------------------
     # Calibration + error pop-ups
     # ------------------------------------------------------------------
     def _on_instrument_detected(self, model: str) -> None:
         """Remember what spotread says is attached (#130, Knut 2026-07-31)."""
         self._detected_instrument = model or ""
+        self._detected_this_session = True
         #: the USB list when it reported, so its report keeps winning over
         #: the USB guess until a cable changes (item 43)
         self._detected_fingerprint = usb_fingerprint_now()
@@ -2120,9 +2171,8 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         that contradicted the USB guess must not lead to the same wrong start
         again). Otherwise the USB list: 0765:6009 is an
         i1Pro 3 (or 3 Plus) and nothing else, and an answer from it about any
-        other instrument stands too. Only when the list cannot tell (it cannot
-        be read, or several instruments are attached), what spotread reported
-        in this window. After Start the instrument's own report decides
+        other instrument stands too. When the list cannot tell (it cannot be
+        read, nothing or several instruments are attached), no row. After Start the instrument's own report decides
         (:meth:`_on_instrument_detected`, and the manager's restart without
         -F when it is not an i1Pro 3)."""
         from workflow.dual_scan import instrument_model as IM
@@ -2133,9 +2183,10 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         family = IM.attached_family()
         if family == IM.FAMILY_I1PRO3:
             return True
-        if family is not None:
-            return False
-        return is_i1pro3(self.__dict__.get("_detected_instrument", ""))
+        # Not readable, nothing attached, or several instruments: a report
+        # counts only while the USB list is the one it was made with (above),
+        # so an i1Pro 3 unplugged since takes its row with it.
+        return False
 
     def _sync_condition_row(self) -> None:
         """Show the row only for an i1Pro 3, read through ArgyllCMS, in
@@ -2184,6 +2235,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         an i1Pro 3, and the session starts again without it."""
         from workflow import measurement_messages as M
         self._session_condition = None
+        self._start_condition = None
         _title, body = M.M_SPOT_CONDITION_NOT_I1PRO3.render(
             model=model or tr("another instrument"))
         #: kept above the Ready line for the rest of this session (_on_ready)
@@ -2464,9 +2516,9 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         else:
             title, body = M.M_SPOT_CAL_TOO_LIGHT.render(
                 percent=f"{verdict.percent:.0f}")
-        if self.__dict__.get("_session_condition") == "M1":
-            # item 43: more UV light, more glow from a fluorescent ink
-            body += "\n\n" + M.M_SPOT_CAL_CONDITION_M1.render()[1]
+            if self.__dict__.get("_session_condition") == "M1":
+                # item 43: more UV light, more glow from a fluorescent ink
+                body += "\n\n" + M.M_SPOT_CAL_CONDITION_M1.render()[1]
         self._set_status(title)
         box = QMessageBox(self)
         set_warning_icon(box)

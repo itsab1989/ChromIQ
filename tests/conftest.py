@@ -589,6 +589,20 @@ def _every_file_starts_in_english():
 
 
 @pytest.fixture(autouse=True)
+def _the_usb_bus_is_not_read(monkeypatch):
+    """No test reads the real USB bus through `instrument_model.attached_family`
+    (item 43 review T2). Read single patches shows its Measurement condition
+    row when that says "an i1Pro 3", and the Measure tab asks it too: on a Mac
+    with an i1Pro 3 plugged in, unrelated window tests would otherwise grow a
+    row and measure another layout. "Cannot tell" (None) is what a machine
+    with no instrument gives; a test that needs another answer patches it
+    itself, after this."""
+    import workflow.dual_scan.instrument_model as _im
+    monkeypatch.setattr(_im, "attached_family", lambda: None)
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _the_ui_language_is_put_back():
     """Give every test back the UI language it started with.
 

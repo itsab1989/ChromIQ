@@ -74,6 +74,15 @@ def _feed(mgr, lines):
         mgr._handle_line(ln, lambda _l: None)
 
 
+def _let_the_timer_fire(mgr):
+    """The queued restart runs from the event loop, as in the app."""
+    import time
+    end = time.monotonic() + 2
+    while mgr._restart_timer.isActive() and time.monotonic() < end:
+        QApplication.processEvents()
+    assert not mgr._restart_timer.isActive()
+
+
 def _args(**kw):
     return SpotReadManager(_StubRunner())._build_args(SpotReadParams(**kw))
 
@@ -129,7 +138,8 @@ def test_another_instrument_ends_the_start_and_starts_again_without_f(
     mgr._on_finish(255)
     assert got["dropped"] == ["i1Pro 2"]
     assert got["ended"] == []          # the window's session goes on
-    mgr._restart_timer.timeout.emit()
+    assert mgr._restart_timer.isActive()      # the restart is really queued
+    _let_the_timer_fire(mgr)
     assert len(runner.runs) == 2
     assert "-F" not in runner.runs[1][1]
     assert runner.runs[1][1] == ["-v", "-c", "1", "-s"]
@@ -140,7 +150,8 @@ def test_the_refusal_alone_is_enough(qapp, monkeypatch):
     _feed(mgr, ["Setting requested filter not supported by instrument"])
     mgr._on_finish(255)
     assert got["dropped"] == [""]
-    mgr._restart_timer.timeout.emit()
+    assert mgr._restart_timer.isActive()      # the restart is really queued
+    _let_the_timer_fire(mgr)
     assert "-F" not in runner.runs[1][1]
 
 
@@ -157,7 +168,8 @@ def test_the_restart_happens_once(qapp, monkeypatch):
     mgr, runner, got = _started(monkeypatch, "M1")
     _feed(mgr, ["Instrument Type:   ColorMunki"])
     mgr._on_finish(255)
-    mgr._restart_timer.timeout.emit()
+    assert mgr._restart_timer.isActive()      # the restart is really queued
+    _let_the_timer_fire(mgr)
     _feed(mgr, ["Instrument Type:   ColorMunki"])
     mgr._on_finish(0)
     assert got["dropped"] == ["ColorMunki"]
@@ -424,7 +436,8 @@ def test_a_wrong_guess_starts_again_and_says_so(qapp, monkeypatch):
     assert "i1Pro 2" in status
     assert status == M.M_SPOT_CONDITION_NOT_I1PRO3.render(model="i1Pro 2")[1]
     assert not _visible(d)
-    d._manager._restart_timer.timeout.emit()
+    assert d._manager._restart_timer.isActive()
+    _let_the_timer_fire(d._manager)
     assert "-F" not in d.runs[1]
     _feed(d._manager, ["Instrument Type:   i1Pro 2", READY])
     # the restarted session's Ready line does not wipe it out (seen on screen)
@@ -513,4 +526,148 @@ def test_the_check_still_works_and_names_m1(qapp, monkeypatch, cond,
     assert d.asked[0][0] == M.M_SPOT_CAL_TOO_LIGHT.render(percent="0")[0]
     m1_note = M.M_SPOT_CAL_CONDITION_M1.render()[1]
     assert (m1_note in d.asked[0][1]) is note
+    d.deleteLater()
+
+
+# ---- 7. the review's fix round ---------------------------------------------
+def test_a_cr30_session_carries_no_restart_note(qapp, monkeypatch):
+    """Review S1: the note and the condition of an earlier ArgyllCMS session
+    are reset at EVERY start, the CR30's included."""
+    from workflow.dual_scan import instrument_model as IM
+    d = _dialog(monkeypatch, IM.FAMILY_I1PRO3)
+    d._condition.setCurrentIndex(1)
+    d._on_start_stop()
+    _feed(d._manager, ["Instrument Type:   i1Pro 2",
+                       "Setting requested filter not supported by instrument"])
+    d._manager._on_finish(255)
+    assert d._condition_note
+    d._manager._restart_timer.stop()
+    d._on_session_ended(0)
+    started: list = []
+    monkeypatch.setattr(d, "_chosen_reader", lambda: "cr30")
+    monkeypatch.setattr(d, "_start_cr30_session", lambda: started.append(1))
+    d._on_start_stop()
+    assert started == [1]
+    assert d._condition_note == "" and d._session_condition is None
+    assert d._start_condition is None
+    d._on_ready()
+    assert d._status.text() == d._ready_text()
+    d.deleteLater()
+
+
+def test_the_m1_paragraph_is_only_on_the_too_light_warning(qapp, monkeypatch):
+    """Review S2: never under the saturation warning, and it does not blame
+    a paper brightener (its glow ends below 530 nm)."""
+    from workflow import measurement_messages as M
+    from workflow.dual_scan import instrument_model as IM
+    note = M.M_SPOT_CAL_CONDITION_M1.render()[1]
+    assert "paper" not in note
+    d = _dialog(monkeypatch, IM.FAMILY_I1PRO3)
+    d._condition.setCurrentIndex(1)
+    _start(d, "i1Pro3")
+    _feed(d._manager, ["", "Spot read failed due to misread (Sensor is saturated)"])
+    assert len(d.asked) == 1
+    assert d.asked[0][0] == M.M_SPOT_CAL_SATURATED.render()[0]
+    assert note not in d.asked[0][1]
+    d.deleteLater()
+
+
+def test_a_reading_without_a_condition_is_named_in_words(qapp, monkeypatch):
+    from workflow.dual_scan import instrument_model as IM
+    d = _dialog(monkeypatch, IM.FAMILY_I1PRO3)
+    for r in _readings(None, "M0"):
+        d._readings.append(r)
+        d._append_row(r)
+    d._table.selectAll()
+    d._on_average_selected()
+    assert "(unknown, M0)" in d._status.text() and "?" not in d._status.text()
+    d.deleteLater()
+
+
+def _save_setup(d, monkeypatch, tmp_path):
+    import ui.widgets
+    import ui.dialogs.spot_read_dialog as SRD
+    monkeypatch.setattr(ui.widgets, "save_file_dialog",
+                        lambda *a, **k: str(tmp_path / "spots.csv"))
+    monkeypatch.setattr(SRD, "inform", lambda *a, **k: None)
+    for r in _readings("M1", "M2"):
+        d._readings.append(r)
+        d._append_row(r)
+
+
+@pytest.mark.parametrize("answer,written", [("Cancel", False), ("Replace", True)])
+def test_save_asks_before_replacing_earlier_condition_files(
+        qapp, monkeypatch, tmp_path, answer, written):
+    from workflow import measurement_messages as M
+    from workflow.dual_scan import instrument_model as IM
+    d = _dialog(monkeypatch, IM.FAMILY_I1PRO3)
+    _save_setup(d, monkeypatch, tmp_path)
+    (tmp_path / "spots-M1.ti3").write_text("old M1", encoding="utf-8")
+    (tmp_path / "spots-M0.ti3").write_text("old M0", encoding="utf-8")
+
+    def _ask(box):
+        d.asked.append((box.text(), box.informativeText()))
+        return next(b for b in box.buttons() if b.text() == answer)
+    monkeypatch.setattr(d, "_ask", _ask)
+    assert d._on_save() is written
+    title, body = M.M_SPOT_SAVE_CONDITION_FILES.render(
+        files="spots-M0.ti3, spots-M1.ti3")
+    assert d.asked == [(title, body)]
+    m1 = (tmp_path / "spots-M1.ti3").read_text(encoding="utf-8")
+    assert (m1 != "old M1") is written
+    # nothing is deleted: the earlier M0 file stays, and the text said so
+    assert (tmp_path / "spots-M0.ti3").read_text(encoding="utf-8") == "old M0"
+    d.deleteLater()
+
+
+def test_save_without_earlier_condition_files_asks_nothing(
+        qapp, monkeypatch, tmp_path):
+    from workflow.dual_scan import instrument_model as IM
+    d = _dialog(monkeypatch, IM.FAMILY_I1PRO3)
+    _save_setup(d, monkeypatch, tmp_path)
+    assert d._on_save()
+    assert d.asked == []
+    d.deleteLater()
+
+
+def test_the_row_goes_when_the_i1pro3_is_unplugged(qapp, monkeypatch):
+    import ui.dialogs.spot_read_dialog as SRD
+    bus = {"fp": ((0x0765, 0x6009, 1),)}
+    monkeypatch.setattr(SRD, "usb_fingerprint_now", lambda: bus["fp"])
+    d = _dialog(monkeypatch, None)          # the list cannot name it
+    _start(d, "i1Pro3")
+    d._on_session_ended(0)
+    assert _visible(d)                       # its own report, same cable
+    bus["fp"] = ()                           # unplugged
+    d._sync_condition_row()
+    assert not _visible(d)
+    d.deleteLater()
+
+
+def test_stop_between_a_start_and_its_restart_starts_nothing(qapp, monkeypatch):
+    from workflow.dual_scan import instrument_model as IM
+    d = _dialog(monkeypatch, IM.FAMILY_I1PRO3)
+    d._condition.setCurrentIndex(1)
+    d._on_start_stop()
+    _feed(d._manager, ["Setting requested filter not supported by instrument"])
+    d._manager._on_finish(255)
+    assert d._manager.restart_pending()
+    d._on_start_stop()                       # Stop, in the gap
+    assert not d._manager.restart_pending()
+    assert d._start_btn.text() == "Start session"
+    qapp.processEvents()
+    assert len(d.runs) == 1
+    d.deleteLater()
+
+
+def test_a_filter_accepted_without_a_report_still_records_it(qapp, monkeypatch):
+    """Review S3: -F accepted and no "Instrument Type:" line (spotread prints
+    it only for some drivers): the reading was taken under the filter."""
+    from workflow.dual_scan import instrument_model as IM
+    d = _dialog(monkeypatch, IM.FAMILY_I1PRO3)
+    d._condition.setCurrentIndex(2)
+    d._on_start_stop()
+    _feed(d._manager, [READY])
+    d._on_reading((40.0, 42.0, 35.0), (70.0, 1.0, 2.0))
+    assert d._readings[0].condition == "M2"
     d.deleteLater()

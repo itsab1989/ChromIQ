@@ -6644,9 +6644,9 @@ M_SPOT_CONDITION_NOT_I1PRO3 = _m(
     "M-SPOT-CONDITION-NOT-I1PRO3",
     "This instrument measures in its normal light only",
     "The instrument reported itself as \u201c{model}\u201d. Only an i1Pro 3 "
-    "can measure in M1 or M2 here, so ChromIQ is starting the session again "
-    "in the instrument's normal light. Nothing had been read yet, so nothing "
-    "is lost.",
+    "can measure in M1 or M2 here, so ChromIQ started the session again in "
+    "the instrument's normal light. Nothing had been read yet, so nothing "
+    "was lost.",
     approved=False)
 
 #: Average selected with readings of different conditions. The same patch
@@ -6667,9 +6667,21 @@ M_SPOT_CAL_CONDITION_M1 = _m(
     "M-SPOT-CAL-CONDITION-M1",
     "This session measures in M1",
     "This session measures in M1, light like daylight with its ultraviolet "
-    "part. A fluorescent ink or paper glows more in M1 than under the "
-    "instrument's own lamp, so a patch like that can come out this light "
-    "even after a good calibration.",
+    "part. A fluorescent ink glows more in M1 than under the instrument's own "
+    "lamp, so a patch printed with one can come out this light even after a "
+    "good calibration.",
+    approved=False)
+
+#: Save, when the folder already holds condition files (<name>-M1.ti3 ...)
+#: from an earlier save of the same name. The file dialog asks about the CSV
+#: only. Buttons: Replace / Cancel (the default). Nothing is deleted.
+M_SPOT_SAVE_CONDITION_FILES = _m(
+    "M-SPOT-SAVE-CONDITION-FILES",
+    "Files of this name are already there",
+    "This folder already holds {files} from an earlier save with the same "
+    "name. Saving now replaces each of these files that this list writes "
+    "again. A file this list does not write stays as it is, with the earlier "
+    "readings in it.",
     approved=False)
 
 # --- PROPOSED: the reference file covers only part of the target -----------
@@ -14983,7 +14995,7 @@ CATALOGUE = {m.id: m for m in (
     M_SPOT_CLEAR, M_SPOT_UNSAVED, M_SPOT_CR30_GONE, M_SPOT_CR30_EARLY_PRESS,
     M_SPOT_CAL_TOO_LIGHT, M_SPOT_CAL_SATURATED, M_SPOT_CAL_TIP,
     M_SPOT_CONDITION_NOT_I1PRO3, M_SPOT_AVERAGE_CONDITIONS,
-    M_SPOT_CAL_CONDITION_M1,
+    M_SPOT_CAL_CONDITION_M1, M_SPOT_SAVE_CONDITION_FILES,
     M_SCAN_REF_SHORT, M_SCAN_REF_DISAGREES, M_SCAN_CLIPPED,
     M_SCAN_LOADED, M_SCAN_DIAGNOSTIC,
     M_SCAN_SHOT_EMPTY, M_SCAN_TARGET_CHANGED,

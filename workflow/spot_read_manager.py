@@ -251,6 +251,20 @@ class SpotReadManager(QObject):
             return
         self.start(params, self._on_line or (lambda _l: None))
 
+    def restart_pending(self) -> bool:
+        """True between a start that ended for -F or -s and its queued
+        restart: no process runs, and the session is not over."""
+        t = self.__dict__.get("_restart_timer")
+        return bool(t is not None and t.isActive())
+
+    def cancel_restart(self) -> None:
+        """Stop pressed in that gap: the restart is called off and the
+        session ends, as if spotread had ended."""
+        self._restart_timer.stop()
+        self._restart_params = None
+        log.info("spot read: Stop before the queued restart; not restarting")
+        self.session_ended.emit(0)
+
     def request_calibration(self) -> None:
         """Ask spotread for a calibration from its ready prompt ('k')."""
         self._runner.write_stdin("k")
