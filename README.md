@@ -600,6 +600,14 @@ resolution into the chart image in pixels per inch. Step-by-step instructions
 with pictures, for 35 mm and 9.25 x 7.75 inch film recorder frames:
 [Charts for a film recorder](docs/film_recorder_pages.md).
 
+### Charts for the Barbieri Spectro 100xy (beta)
+With **Preferences → Beta → Barbieri Spectro 100xy (beta)** switched on,
+"Barbieri Spectro 100xy" is an instrument in Create Chart: a plain grid with
+corner marks and aim ticks, ready-made sizes, and the numbers to type into
+Spectro32 or Gateway. Measuring happens in Barbieri's own program, and the
+Measure tab can IMPORT Spectro32's files. Step-by-step instructions with
+pictures: [Charts for the Barbieri Spectro 100xy](docs/barbieri_spectro100xy.md).
+
 ### Measuring with an X-Rite i1iO 2 table (beta)
 The X-Rite i1iO 2 is a motorised measuring table: an i1Pro 2 clicks into a
 holder on its arm, the printed chart lies on the table, and the arm moves the
