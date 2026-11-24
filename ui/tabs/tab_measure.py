@@ -17402,9 +17402,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         """
         # THROUGH THE TAB STRIP'S OWN NUMBERED KEY (review D of beta 12), as
         # ui/help_card_print.py::_tab_name does. tr("Build Profile") is the
-        # BUTTON's key: Russian «Собрать профиль» and Ukrainian «Побудувати
-        # профіль» name a button, while the tab says «Сборка профиля» and
-        # «Створити профіль», and German "Calibration & Profiling" is
+        # BUTTON's key: Russian and Ukrainian named the button «Собрать
+        # профиль» / «Побудувати профіль» while the tab says «Сборка профиля»
+        # / «Створити профіль» (since item 45, 2026-11-24, the button takes
+        # the tab's words), and German "Calibration & Profiling" is
         # "Kalibrierung & Profilerstellung" against the tab's "Kalibrierung &
         # Profil". "Go to {tab} Tab" then named a tab that does not exist.
         import re

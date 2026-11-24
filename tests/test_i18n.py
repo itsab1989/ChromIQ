@@ -1615,7 +1615,8 @@ def test_ukrainian_loads_and_translates():
     i18n.set_language("uk")
     assert i18n.current_language() == "uk"
     assert i18n.tr("Cancel") == "Скасувати"
-    assert i18n.tr("Build Profile") == "Побудувати профіль"
+    # item 45 (2026-11-24): the button takes the tab's words
+    assert i18n.tr("Build Profile") == "Створити профіль"
 
 
 def test_ukrainian_parameter_overlay_merges():

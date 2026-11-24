@@ -48,6 +48,25 @@ def test_the_bare_tab_names_match_the_tab_bar(lang):
         assert cat[bare] == _title(cat, full), (lang, bare, cat[bare])
 
 
+@pytest.mark.parametrize("lang", ["ru", "uk"])
+def test_the_build_profile_button_says_what_the_tab_says(lang):
+    """Item 45 (2026-11-24): in Russian and Ukrainian the "Build Profile" key
+    (the tab's own button, and the name strings quote) said «Собрать профиль»
+    / «Побудувати профіль» while the tab said «Сборка профиля» / «Створити
+    профіль». The tab's words win: 74 of 85 Russian and 75 of 85 Ukrainian
+    strings that name it already used them. Every string that quotes the
+    button follows."""
+    cat = _cat(lang)
+    tab = _title(cat, "4. Build Profile")
+    assert cat["Build Profile"] == tab
+    assert cat["BUILD PROFILE"] == tab.upper()
+    old = {"ru": "Собрать профиль", "uk": "Побудувати профіль"}[lang]
+    for key, value in cat.items():
+        if isinstance(value, str):
+            for q1, q2 in (("<b>", "</b>"), ("<i>", "</i>"), ('"', '"'), ("«", "»")):
+                assert q1 + old + q2 not in value, key[:60]
+
+
 # Old names that drifted, and the phrase that introduces a tab in that language.
 # Review D widened every intro: a capital ("Karta Pomiar" in five pl strings),
 # bold markup between the word "tab" and its name ("вкладке <b>Собрать
