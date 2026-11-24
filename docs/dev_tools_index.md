@@ -144,7 +144,7 @@ you are changing, read it, and copy its pattern. Their names say the round they 
 
 <!-- BEGIN GENERATED: python scripts/make_tools_index.py -->
 
-Every file in `scripts/` (568 in all), by topic. TOOL: reusable, kept working. example: a one-off check kept as a worked pattern; it may need adapting, and one marked "maintainer's paths" will not run unchanged on another machine. "needs" is read from the source by a heuristic. Read a script before you run it, and set CHROMIQ_SETTINGS_FILE first (scripts/README.md).
+Every file in `scripts/` (569 in all), by topic. TOOL: reusable, kept working. example: a one-off check kept as a worked pattern; it may need adapting, and one marked "maintainer's paths" will not run unchanged on another machine. "needs" is read from the source by a heuristic. Read a script before you run it, and set CHROMIQ_SETTINGS_FILE first (scripts/README.md).
 
 ### Driven instruments and recordings (13)
 
@@ -549,7 +549,7 @@ Every file in `scripts/` (568 in all), by topic. TOOL: reusable, kept working. e
 | `scripts/prove_neutral_control_faults.py` | example | The three faults the owner reported by eye: pictured and MEASURED. | settings sandbox |
 | `scripts/prove_neutral_icons.py` | example | Grab, at REAL SIZE, every icon this branch changed -- and hash whole windows. | settings sandbox |
 
-### Driving and photographing the app (137)
+### Driving and photographing the app (138)
 
 | file | kind | what it does | needs |
 |---|---|---|---|
@@ -624,6 +624,7 @@ Every file in `scripts/` (568 in all), by topic. TOOL: reusable, kept working. e
 | `scripts/drive_b8_1591_nothing_moves_before_generate.py` | example | B8-1591 (a maintainer, #182 5858874320): no setting of the Measurement Report window changes the page before Generate Report is pressed. Driven ON SCREEN in the real app. | display, settings sandbox |
 | `scripts/drive_b8_1700_pharmacist_431.py` | example | B8-1700 on screen: the five "by Pharmacist" charts of 4.3.1. | display, settings sandbox, ArgyllCMS |
 | `scripts/drive_b8_matrix.py` | example | Every combination of the two misread tests, ON SCREEN in the real app (#182, 4.3.5 beta 8; UMM 10.12 and its 35-row table). | display, settings sandbox |
+| `scripts/drive_barbieri_import_onscreen.py` | example | Drive the Barbieri Beta's Spectro32 IMPORT ON SCREEN, in the real window. | display, settings sandbox |
 | `scripts/drive_beta12_c_preview_switch.py` | example | On screen: the preview's indicator as a switch (beta 12 build C, the owner). | display, settings sandbox |
 | `scripts/drive_beta29_the_window_fits.py` | example | B8-547 and B8-548 on screen: the window fits, and the ISO half says a sentence. | display, settings sandbox, maintainer's paths: adapt first |
 | `scripts/drive_beta39_g7.py` | example | #182 beta 39, G7, driven ON SCREEN: Generate report across profile runs and across projects, in Verification, Profiling and Calibration. | display, settings sandbox |

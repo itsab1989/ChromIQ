@@ -19156,7 +19156,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # judged and paired by the order the table read it, here, before
         # anything is written (`workflow.barbieri.spectro32_import`). Every
         # other file is converted exactly as before.
-        if chart is not None and self._barbieri_import_chart(run) is not None:
+        from workflow.measurement_import import barbieri_route_applies
+        if chart is not None and barbieri_route_applies(chart):
             from workflow.barbieri.spectro32_import import \
                 looks_like_spectro32
             if looks_like_spectro32(path):

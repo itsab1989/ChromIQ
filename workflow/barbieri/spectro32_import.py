@@ -129,8 +129,8 @@ OTHER_SETTINGS = (("D65", "1931_2"), ("D50", "1964_10"), ("D65", "1964_10"),
 #: The arrangement check (the fit of expected colours to the readings).
 #: Medians of the residual divided by the readings' spread, measured on the
 #: owner's real chart (`probe/fit_probe.py`): the sheet as it lay 0.15, every
-#: mirrored, flipped, turned or shifted arrangement 0.98 to 1.0. The i1iO
-#: import uses the same three numbers (`workflow.i1io.measure_chart`).
+#: mirrored, flipped, turned or shifted arrangement 0.98 to 1.0. The table
+#: import of another instrument Beta uses the same three numbers.
 FIT_RATIO = 0.6
 FIT_ABSURD = 0.5
 QUADRATIC_FROM = 64
