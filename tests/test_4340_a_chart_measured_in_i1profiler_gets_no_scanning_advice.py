@@ -118,7 +118,8 @@ def every_beta(request):
     from workflow.fd9 import support as fd9
     from workflow.i1io import support as io
     from workflow.isis import support as isis
-    mods = (fd9, io, isis)
+    from workflow.barbieri import support as barbieri
+    mods = (fd9, io, isis, barbieri)
     before = [m._latched for m in mods]
     on = getattr(request, "param", True)
     for m in mods:
@@ -145,7 +146,7 @@ def test_every_instrument_gets_the_strip_clause_only_where_it_applies(
     name = TARGET_INSTRUMENT_NAME[key]
     measure_tab.set_ti1_path(_chart(tmp_path, name))
     line = _instrument_line(measure_tab)
-    beta_key = key in ("FD9", "IO2", "XRISIS")
+    beta_key = key in ("FD9", "IO2", "XRISIS", "B100XY")
     if beta_key and not every_beta:
         # the Beta off: exactly 4.3.39's line
         assert "→ using Argyll's default strip recognition." in line, line

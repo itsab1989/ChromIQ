@@ -186,9 +186,13 @@ def test_guided_makes_a_barbieri_chart_with_its_opening(win, qapp, qtbot):
     qapp.processEvents()
     box = tc._barbieri_head_combo
     assert box.isVisibleTo(tc)
-    box.setCurrentIndex(box.findData("transmission-0.5"))
+    # the 3 mm transmission opening: the 0.5 mm one fills an A4 sheet with
+    # about 9800 patches of 1 mm, whose patch set takes targen long enough to
+    # raise the "taking longer than usual" window on a loaded machine
+    box.setCurrentIndex(box.findData("transmission-3"))
     qapp.processEvents()
     _generate(w, qapp, qtbot, run1.chart_ti2)
     side = _assert_a_barbieri_chart(run1.chart_ti2)
-    assert side["head"] == "transmission-0.5"
-    assert side["patch_mm"] == [1.0, 1.0]
+    assert side["head"] == "transmission-3"
+    assert side["spectro32_mode"] == "MT"
+    assert side["patch_mm"] == [6.5, 6.5]

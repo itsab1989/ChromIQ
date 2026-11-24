@@ -10850,7 +10850,7 @@
  "patches {cols} x {rows}, target size {gx} x {gy} mm": "патчи {cols} x {rows}, целевой размер {gx} x {gy} мм",
  "{aim}, the upper-right patch": "{aim}, правый верхний патч",
  "{asked} mm was rounded to {got} mm: the Spectro 100xy moves in steps of 0.1 mm, and Spectro32 takes the grid in 0.1 mm, so every patch size and gap is a whole number of 0.1 mm steps.": "{asked} мм округлено до {got} мм: Spectro 100xy перемещается шагами по 0,1 мм, а Spectro32 принимает сетку в 0,1 мм, поэтому каждый размер патча и каждый промежуток составляют целое число шагов по 0,1 мм.",
- "{cols} columns would fit across this page, but Barbieri Gateway reads at most {cap} patches across, so the chart has {cap} columns and the rest of the width stays empty. Choose larger patches or a smaller page to use it.": "На этой странице поместилось бы столбцов: {cols}, но Barbieri Gateway читает не более {cap} патчей по горизонтали, поэтому у мишени {cap} столбцов, а остальная ширина остаётся пустой. Выберите патчи покрупнее или страницу поменьше, чтобы её использовать.",
+ "{cols} columns would fit across this page, but Barbieri Gateway reads at most {cap} patches across, so the chart has {cap} columns and the rest of the width stays empty. Choose larger patches or a smaller page to use it.": "На этой странице поместилось бы столбцов: {cols}, но Barbieri Gateway читает по горизонтали не больше патчей, чем {cap}. Поэтому число столбцов мишени равно {cap}, а остальная ширина остаётся пустой. Выберите патчи покрупнее или страницу поменьше, чтобы её использовать.",
  "{opening} (Spectro32 {code})": "{opening} (Spectro32 {code})",
  "{w} x {h} mm": "{w} x {h} мм",
  "{x} x {y} mm": "{x} x {y} мм",

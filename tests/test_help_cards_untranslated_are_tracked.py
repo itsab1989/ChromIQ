@@ -1106,27 +1106,27 @@ _BUDGET = {
     # of a chart in fixed order, "[ChromIQ layout engine] {patches}
     # ({steps}×{passes}), {pages}", is only filled-in parts and reads the same
     # (ja and zh_CN take their own brackets and commas). BOTH ledgers.
-    "de": 11,
-    "es": 11,
+    "de": 13,  # +2 2026-11-24, the Barbieri chart Beta: "Barbieri Spectro 100xy (Beta)" / "(beta)" (a product name with the Beta tag) and "{opening} (Spectro32 {code})" read the same where this language writes them so; RE-MEASURED off the tree
+    "es": 14,  # +3 2026-11-24, the Barbieri chart Beta: "Barbieri Spectro 100xy (Beta)" / "(beta)" (a product name with the Beta tag) and "{opening} (Spectro32 {code})" read the same where this language writes them so; RE-MEASURED off the tree
     # +1 for French on 2026-10-26 (4.3.16): the patch set editor's image
     # filter, "Images (*.png *.jpg *.jpeg *.tif *.tiff *.bmp *.webp)", now
     # goes through tr(), and "Images" is the French word too.
-    "fr": 12,
-    "it": 11,
-    "ja": 7,
-    "nl": 12,
-    "no": 11,
-    "pl": 11,
-    "pt": 11,
-    "ru": 9,
-    "sv": 11,
+    "fr": 13,  # +1 2026-11-24, the Barbieri chart Beta: "Barbieri Spectro 100xy (Beta)" / "(beta)" (a product name with the Beta tag) and "{opening} (Spectro32 {code})" read the same where this language writes them so; RE-MEASURED off the tree
+    "it": 14,  # +3 2026-11-24, the Barbieri chart Beta: "Barbieri Spectro 100xy (Beta)" / "(beta)" (a product name with the Beta tag) and "{opening} (Spectro32 {code})" read the same where this language writes them so; RE-MEASURED off the tree
+    "ja": 8,  # +1 2026-11-24, the Barbieri chart Beta: "Barbieri Spectro 100xy (Beta)" / "(beta)" (a product name with the Beta tag) and "{opening} (Spectro32 {code})" read the same where this language writes them so; RE-MEASURED off the tree
+    "nl": 13,  # +1 2026-11-24, the Barbieri chart Beta: "Barbieri Spectro 100xy (Beta)" / "(beta)" (a product name with the Beta tag) and "{opening} (Spectro32 {code})" read the same where this language writes them so; RE-MEASURED off the tree
+    "no": 14,  # +3 2026-11-24, the Barbieri chart Beta: "Barbieri Spectro 100xy (Beta)" / "(beta)" (a product name with the Beta tag) and "{opening} (Spectro32 {code})" read the same where this language writes them so; RE-MEASURED off the tree
+    "pl": 14,  # +3 2026-11-24, the Barbieri chart Beta: "Barbieri Spectro 100xy (Beta)" / "(beta)" (a product name with the Beta tag) and "{opening} (Spectro32 {code})" read the same where this language writes them so; RE-MEASURED off the tree
+    "pt": 14,  # +3 2026-11-24, the Barbieri chart Beta: "Barbieri Spectro 100xy (Beta)" / "(beta)" (a product name with the Beta tag) and "{opening} (Spectro32 {code})" read the same where this language writes them so; RE-MEASURED off the tree
+    "ru": 10,  # +1 2026-11-24, the Barbieri chart Beta: "Barbieri Spectro 100xy (Beta)" / "(beta)" (a product name with the Beta tag) and "{opening} (Spectro32 {code})" read the same where this language writes them so; RE-MEASURED off the tree
+    "sv": 14,  # +3 2026-11-24, the Barbieri chart Beta: "Barbieri Spectro 100xy (Beta)" / "(beta)" (a product name with the Beta tag) and "{opening} (Spectro32 {code})" read the same where this language writes them so; RE-MEASURED off the tree
     "zh_CN": 8,
     # +2 on 2026-10-02 (b740e16e): "reports/Quality_Check_N_{name}.txt,
     # reports/Refine_Strips_N_{name}.txt" and "reports/Verify_Reference_N_
     # {name}.txt" are file paths, wrongly translated as "звіти/" (a folder that
     # does not exist), and now equal their key as in every other language. The
     # same two that test_i18n's _IDENTICAL_TO_KEY["uk"] already counts.
-    "uk": 8,
+    "uk": 9,  # +1 2026-11-24, the Barbieri chart Beta: "Barbieri Spectro 100xy (Beta)" / "(beta)" (a product name with the Beta tag) and "{opening} (Spectro32 {code})" read the same where this language writes them so; RE-MEASURED off the tree
 }
 
 

@@ -238,7 +238,7 @@ def test_a_chart_read_patch_by_patch_gets_no_note():
     and never look for a patch edge, so the note's "the instrument may find
     that patch edge less easily" says nothing true about them."""
     from workflow.layout_engine import instruments
-    assert instruments.READ_PATCH_BY_PATCH == {"SS", "CR30"}
+    assert instruments.READ_PATCH_BY_PATCH == {"SS", "CR30", "B100XY"}  # the Barbieri table moves to each patch (a Beta)
     assert contrast.drawn_low_contrast_passes(
         [MID, DARK, LIGHT, MID], 4, spacer_mode="bw", spacers_drawn=True,
         edge_spacers=True, reads_strips=False) == []

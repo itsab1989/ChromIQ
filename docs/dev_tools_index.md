@@ -144,7 +144,7 @@ you are changing, read it, and copy its pattern. Their names say the round they 
 
 <!-- BEGIN GENERATED: python scripts/make_tools_index.py -->
 
-Every file in `scripts/` (567 in all), by topic. TOOL: reusable, kept working. example: a one-off check kept as a worked pattern; it may need adapting, and one marked "maintainer's paths" will not run unchanged on another machine. "needs" is read from the source by a heuristic. Read a script before you run it, and set CHROMIQ_SETTINGS_FILE first (scripts/README.md).
+Every file in `scripts/` (568 in all), by topic. TOOL: reusable, kept working. example: a one-off check kept as a worked pattern; it may need adapting, and one marked "maintainer's paths" will not run unchanged on another machine. "needs" is read from the source by a heuristic. Read a script before you run it, and set CHROMIQ_SETTINGS_FILE first (scripts/README.md).
 
 ### Driven instruments and recordings (13)
 
@@ -461,7 +461,7 @@ Every file in `scripts/` (567 in all), by topic. TOOL: reusable, kept working. e
 | `scripts/survey_ppd_no_cm.py` | example | Survey vendor PPDs for "no colour management" options. | - |
 | `scripts/uia_print_dialog.ps1` | example | The Windows 11 print dialog (the WinUI "modern" one Windows shows for a Win32 app's PrintDlgEx since 24H2), read and answered by UI Automation (#205). It is a window of its own (ApplicationFrameWindow, hosted outside ... | - |
 
-### Charts and layout (59)
+### Charts and layout (60)
 
 | file | kind | what it does | needs |
 |---|---|---|---|
@@ -490,6 +490,7 @@ Every file in `scripts/` (567 in all), by topic. TOOL: reusable, kept working. e
 | `scripts/drive_b8_1590_patch_scale.py` | example | B8-1590 on screen: the patch scale in "Prioritise chart area". | display, settings sandbox |
 | `scripts/drive_b8_1650_output_labels_fit.py` | example | B8-1650 on screen: the Output labels of Create Chart fit their text. | display, settings sandbox |
 | `scripts/drive_b8_run6_similar_patches.py` | example | a maintainer's run 6 replayed ON SCREEN in the real app (#182, 4.3.5 beta 8). | display, settings sandbox |
+| `scripts/drive_barbieri_chart_onscreen.py` | example | Drive the Barbieri Spectro 100xy chart Beta ON SCREEN, in the real window. | display, settings sandbox |
 | `scripts/drive_beta147_labels.py` | example | On-screen check of a maintainer's beta.144 report: the two label rules and the help card. | - |
 | `scripts/drive_beta39_demo_package.py` | example | #182 K29, driven ON SCREEN: a sample of the release demo package. | display, settings sandbox |
 | `scripts/drive_chal35_a_newer_row_leaks_between_targets.py` | example | Challenge round 35: a per-target setting the stored blob has never heard of. | display, settings sandbox, ArgyllCMS |

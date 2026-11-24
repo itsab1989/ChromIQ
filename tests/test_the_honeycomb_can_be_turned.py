@@ -708,6 +708,11 @@ def test_no_reader_outside_the_engine_asks_the_flag_raw():
                # the i1iSis panel (a Beta) names the box only to grey it
                # ("The i1iSis needs straight rows"); it reads no flag
                "ui/dialogs/isis_panel.py",
+               # the Barbieri panel (a Beta) names the box only to grey it,
+               # and the Barbieri chart only ever WRITES False (its grid is
+               # never a honeycomb); neither reads the flag
+               "ui/dialogs/barbieri_panel.py",
+               "workflow/barbieri/chart.py",
                # The scanner marquee holds the orientation as its OWN state, on
                # the GridSpec, the way the preview holds `_hex_flat_top`. It is
                # fed from `recipe_is_flat_top` at the one call site, which the

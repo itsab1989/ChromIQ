@@ -30,7 +30,7 @@ def _build(tmp_path, n=896, **over):
     kw = presets.default_recipe("B100XY", paper).build_kwargs()
     kw.update(over)
     res = build_chart(ti1, tmp_path / "c", **kw)
-    doc = json.loads((tmp_path / "c.barbieri.json").read_text())
+    doc = json.loads((tmp_path / "c.barbieri.json").read_text(encoding="utf-8"))
     return res, doc
 
 
@@ -83,7 +83,7 @@ def test_reading_order_is_row_by_row_and_names_match_the_ti2(tmp_path):
     order = pg["reading_order"]
     cols, rows = pg["columns"], pg["rows"]
     assert len(order) == cols * rows == len(set(order))
-    strips = json.loads((tmp_path / "c.strips.json").read_text())
+    strips = json.loads((tmp_path / "c.strips.json").read_text(encoding="utf-8"))
     at = {p["loc"]: (p["x"], p["y"]) for p in strips["patches"]}
     pos = [at[name] for name in order]
     for r in range(rows):
@@ -94,7 +94,7 @@ def test_reading_order_is_row_by_row_and_names_match_the_ti2(tmp_path):
             assert row[0][1] > pos[(r - 1) * cols][1], "rows go down"
     assert order[:3] == ["A1", "B1", "C1"]
     assert order[cols] == "A2"
-    ti2 = (tmp_path / "c.ti2").read_text()
+    ti2 = (tmp_path / "c.ti2").read_text(encoding="utf-8")
     for name in order:
         assert f' "{name}" ' in ti2
 
@@ -172,7 +172,7 @@ def test_check_patches_are_in_their_places_and_the_set_is_unchanged(tmp_path):
     assert checks["lower_left"]["lab"][0] == pytest.approx(
         max(L[0] for L in labs), abs=0.01)
     # only positions moved: the .ti2 holds exactly the .ti1's patches
-    text = (tmp_path / "c.ti2").read_text()
+    text = (tmp_path / "c.ti2").read_text(encoding="utf-8")
     body = text.split("BEGIN_DATA\n", 1)[1].split("END_DATA", 1)[0]
     rows = [ln.split() for ln in body.strip().splitlines()]
     got = sorted(tuple(round(float(v), 3) for v in r[2:5]) for r in rows)
@@ -233,9 +233,9 @@ def test_side_file_holds_the_ti2_checksum_and_the_opening(tmp_path):
     assert doc["ti2_sha256"] == digest
     assert doc["head"] == "transmission-3"
     assert doc["spectro32_mode"] == "MT"
-    assert "CHROMIQ_BARBIERI_HEAD" in (tmp_path / "c.ti2").read_text()
+    assert "CHROMIQ_BARBIERI_HEAD" in (tmp_path / "c.ti2").read_text(encoding="utf-8")
     assert 'TARGET_INSTRUMENT "Barbieri Spectro 100xy"' in (
-        tmp_path / "c.ti2").read_text()
+        tmp_path / "c.ti2").read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize("key,cols,rows", [

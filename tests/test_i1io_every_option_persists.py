@@ -117,6 +117,11 @@ NOT_AN_I1IO_OPTION = {
                      "isis_notes_band", "isis_notes_place",
                      "isis_notes_height_mm", "isis_align"),
                     "the i1iSis chart's own option; not the i1iO's"),
+    # the Barbieri Spectro 100xy's own options (a Beta), written only for a
+    # "B100XY" recipe; tests/test_barbieri_every_option_persists.py
+    **dict.fromkeys(("barbieri_head", "barbieri_check_patches",
+                     "barbieri_marks", "barbieri_size"),
+                    "the Barbieri chart's own option; not the i1iO's"),
     "instrument": "the instrument itself, set by its own selector",
     "seed": "the shuffle seed of one build, not a setting",
     "seed_fixed": "kept by the randomisation row; walked for every "

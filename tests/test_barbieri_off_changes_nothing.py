@@ -233,9 +233,9 @@ def test_an_ss_chart_gets_no_barbieri_side_file_and_keeps_its_top_band(
               draw_indicators=False, row_indicators=False)
     build_chart(ti1, tmp_path / "s", **kw)
     assert not (tmp_path / "s.barbieri.json").exists()
-    text = (tmp_path / "s.ti2").read_text()
+    text = (tmp_path / "s.ti2").read_text(encoding="utf-8")
     assert "CHROMIQ_BARBIERI" not in text
-    strips = json.loads((tmp_path / "s.strips.json").read_text())
+    strips = json.loads((tmp_path / "s.strips.json").read_text(encoding="utf-8"))
     top_px = min(p["y"] for p in strips["patches"])
     assert top_px * 25.4 / strips["dpi"] > 7.5      # the 6 + 2 mm band
 

@@ -100,6 +100,11 @@ _MIN_LEN = 80
 #: and placeholders" — and it is exactly the kind of clever rule that quietly
 #: stops matching. Both are dominated by things that must not be translated:
 _NEAR_ENGLISH_OK = (
+    # The Barbieri chart's two log lines (a Beta, 2026-11-24): a product and
+    # program names ("Barbieri Spectro 100xy", "Spectro32", "Gateway"),
+    # filled-in parts and units; only a few short words are translatable.
+    "Barbieri Spectro 100xy chart (Beta): opening {opening}",
+    "Barbieri page {page}: grid {cols} x {rows}",
     "{name}.ti1, {name}.ti2",          # a file listing: placeholders + extensions
     "Built on ArgyllCMS by Graeme Gill",   # the credits line: proper nouns
     # The version/author line: proper nouns plus the website anchor's HTML —

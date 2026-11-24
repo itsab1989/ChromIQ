@@ -10856,7 +10856,7 @@
  "patches {cols} x {rows}, target size {gx} x {gy} mm": "pola {cols} x {rows}, rozmiar docelowy {gx} x {gy} mm",
  "{aim}, the upper-right patch": "{aim}, pole w prawym górnym rogu",
  "{asked} mm was rounded to {got} mm: the Spectro 100xy moves in steps of 0.1 mm, and Spectro32 takes the grid in 0.1 mm, so every patch size and gap is a whole number of 0.1 mm steps.": "{asked} mm zaokrąglono do {got} mm: Spectro 100xy porusza się krokami po 0,1 mm, a Spectro32 przyjmuje siatkę w 0,1 mm, więc każdy rozmiar pola i każdy odstęp to pełna liczba kroków po 0,1 mm.",
- "{cols} columns would fit across this page, but Barbieri Gateway reads at most {cap} patches across, so the chart has {cap} columns and the rest of the width stays empty. Choose larger patches or a smaller page to use it.": "Na tej stronie zmieściłoby się kolumn: {cols}, ale Barbieri Gateway czyta najwyżej {cap} pól w poziomie, więc wzorzec ma {cap} kolumn, a reszta szerokości pozostaje pusta. Wybierz większe pola lub mniejszą stronę, aby ją wykorzystać.",
+ "{cols} columns would fit across this page, but Barbieri Gateway reads at most {cap} patches across, so the chart has {cap} columns and the rest of the width stays empty. Choose larger patches or a smaller page to use it.": "Na tej stronie zmieściłoby się kolumn: {cols}, ale Barbieri Gateway czyta w poziomie najwyżej tyle pól: {cap}. Dlatego wzorzec ma tyle kolumn: {cap}, a reszta szerokości pozostaje pusta. Wybierz większe pola lub mniejszą stronę, aby ją wykorzystać.",
  "{opening} (Spectro32 {code})": "{opening} (Spectro32 {code})",
  "{w} x {h} mm": "{w} x {h} mm",
  "{x} x {y} mm": "{x} x {y} mm",
