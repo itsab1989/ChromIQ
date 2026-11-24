@@ -1,5 +1,20 @@
 # Changelog
 
+## v4.3.64
+
+**i1iO table (Beta) with the i1Pro 2 dual scan (Beta): rows are no longer refused for a calibration that was not found again.**
+
+### Fixed
+
+- **Every row was refused with "calibration not kept".** The reading program for a row could not find the UV calibration it had just made, because a clock value is only known after a first reading in a new process. ChromIQ now finds it, still only for the same white, mode and integration.
+- **A refused calibration now names its reason in the app log.**
+- **The misleading "calibration is about to run out" sentence is replaced** by one that says the reading program could not find the calibration again and that the instrument is calibrated again first.
+- Tested on a simulated instrument and table; not yet on a real table.
+
+### Known issues
+
+- The new texts of this version are shown as proposed texts and may still be reworded.
+
 ## v4.3.63
 
 **Barbieri Spectro 100xy (Beta): import Spectro32's measurement files in the Measure tab.**

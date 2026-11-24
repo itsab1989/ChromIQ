@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-4.3.63-7c5cff">
+  <img alt="Version" src="https://img.shields.io/badge/version-4.3.64-7c5cff">
   <img alt="Downloads" src="https://img.shields.io/endpoint?url=https://itsab1989.github.io/github-traffic-downloads-dashboard/assets/badges/itsab1989_ChromIQ-downloads.json">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2a9d8f">
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-blue">
@@ -726,6 +726,13 @@ ways:
 >   no longer refused for a small move, a large move is asked about again, a
 >   START no longer changes the Measure settings, and the button of the
 >   instrument is offered only once ChromIQ is listening for it.
+> - New in 4.3.64: with the i1Pro 2 dual scan (Beta) on, every row was refused
+>   with "calibration not kept", because the reading program for a row could
+>   not find the UV calibration it had just made. ChromIQ now finds it, still
+>   only for the same white, mode and integration. A refused calibration now
+>   names its reason in the app log, and the misleading "calibration is about
+>   to run out" sentence is replaced. Tested on a simulated instrument and
+>   table, not yet on a real table.
 > - The option is off by default, and with it off nothing changes.
 
 > **New in 4.3.61: charts for the Barbieri Spectro 100xy (Beta, off by default).**
