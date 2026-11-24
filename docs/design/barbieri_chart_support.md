@@ -94,3 +94,65 @@ project owns a Spectro 100xy; no ChromIQ chart has been read by one.*
   lines with the grid numbers.
 * The side file `<stem>.barbieri.json`: every page's grid in mm, the numbers,
   the reading order, the check patches and the `.ti2`'s SHA-256.
+
+## ⏳ Awaiting confirmation: the Spectro32 import (step 2, 2026-11-24)
+
+**Confirmed by:** *nobody yet.*
+
+*Written from Basti's brief of 2026-11-24 ("work on the import with what he
+gave us"). What the app does, verified by tests on synthetic files of the
+owner's 896-patch geometry and on screen without an instrument. No transmission
+file from a real Spectro 100xy has been seen.*
+
+* **Where:** the Measure tab's IMPORT module, for a profiling or a verification
+  run whose chart is a Barbieri chart with its side file, while the Beta is on
+  (`workflow/barbieri/spectro32_import.py`; the door is
+  `TabMeasure._convert_barbieri_import`, the rule `measurement_import.assess`).
+  START MEASUREMENT keeps showing the Spectro32 steps (ChromIQ cannot drive the
+  100xy yet); their paragraph on bringing the measurement back now says how.
+* **Files taken:** Spectro32's `_measurements.txt`, `_VAL.txt` or
+  `_spectrum.txt` (tabs, CRLF, cp1252 or UTF-8, a decimal comma accepted), one
+  per page; a chart of several pages needs every page's file at once, each
+  matched to its page by its colours. The same run's `_VAL.txt`, `_XYZ.txt`
+  and `_LAB.txt` beside it add Spectro32's colour setting and its own colours.
+* **Pairing:** reading k is the k-th patch of the page's `reading_order` in the
+  side file (rows from the top, each from the left). The side file must hold
+  the `.ti2`'s SHA-256. The filed copy has the `.ti2`'s rows in its own order
+  with their SAMPLE_ID, SAMPLE_LOC and device values, XYZ computed from the
+  spectra by ArgyllCMS's method (D50, 1931 2 degree), and the 41 bands in
+  percent, as chartread writes them; `CHROMIQ_PAIRED_BY_BARBIERI_ORDER`,
+  `CHROMIQ_BARBIERI_MODE`, `CHROMIQ_BARBIERI_HEAD`, `CHROMIQ_MEASURED` (the
+  file's date) and `TARGET_INSTRUMENT "Barbieri Spectro 100xy"`.
+* **Refused, nothing written (M-IMPORT-BARBIERI-REFUSED):** not a Spectro32
+  file; colours only; no readings; not 41 bands; a line of another length; a
+  value that is not a finite number (a failed reading); reading numbers with a
+  gap; spectra above 2 or below -0.05; a count other than the page's cells; the
+  wrong number of files; a file that fits no page clearly or two files for one
+  page; a side file missing or of another version of the chart; readings that
+  fit no arrangement; a sheet mirrored, upside down or turned half round, or a
+  head aimed one patch beside the aim patch (named in the reason).
+* **The arrangement check:** the chart's expected colours (the `.ti2`'s XYZ)
+  are fitted to the readings for the sheet as it should lie and for each wrong
+  arrangement (median residual over the readings' spread; owner's real chart:
+  0.15 right, 0.98 to 1.0 wrong). Where the fit cannot tell, the check patches
+  decide, each predicted from the other patches (right 12 to 13 dE76, wrong 34
+  to 48 on the tests' printer); where they cannot either, the person is asked
+  (M-IMPORT-BARBIERI-CANNOT-CHECK, Cancel the default).
+* **Spectro32's own colours:** compared with the spectra (owner's run: 0.014
+  dE76 at most; limit 0.5). Another Spectro32 illuminant / observer that
+  explains them is only noted; an unexplained difference is asked about
+  (M-IMPORT-BARBIERI-COLOURS-DIFFER, Cancel the default).
+* **Transmission:** filed exactly like reflection (ArgyllCMS's chartread writes
+  no keyword for it); the "done" window and the log say to set Media Type
+  (-Z t) to Transparent (and the polarity for a negative) in Build Profile.
+* **Log:** every file with its SHA-256, kind, template line and setting; every
+  page's grid, first and last patch, the fit numbers and what decided; the
+  colour comparison; every refusal and answer.
+* **Not in this step:** Gateway's CGATS files; several reads of one chart
+  averaged on import; the Spectro32 template `.TXT` export; Build Profile
+  setting Media Type by itself.
+
+*Provenance: the reading of Spectro32's files follows `barbieri_to_ti3.py` 1.1
+by LVTguru (archives Barbieri-to-TI3-1.1 and Barbieri-Chart-Tools-1.0, issue
+215, offered under ChromIQ's GPL-3.0 licence); what was taken and what was not
+is listed in the module's docstring.*

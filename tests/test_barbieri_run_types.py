@@ -129,7 +129,7 @@ def test_profiling_and_verification_charts(win, qapp, qtbot, monkeypatch):
         gateway_lines="", side="", orient="", aim_hint="")[0]
     pg = side["pages_detail"][0]
     assert pg["spectro32"] in body and pg["aim_patch"] in body
-    assert "later version" in body
+    assert "choose IMPORT on this tab" in body   # step 2: the import exists
     # the numbers beside the chart in the preview
     panel = getattr(tc, "_barbieri_numbers", None)
     assert panel is not None

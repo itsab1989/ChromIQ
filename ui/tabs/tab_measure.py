@@ -18305,6 +18305,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
 
         grp = QGroupBox(tr("Measurement File (from i1Profiler)"), left)
         grp.setFlat(True)
+        # renamed for a Barbieri chart (the Beta): its file is Spectro32's
+        self._import_group = grp
         g = QVBoxLayout(grp)
         g.setContentsMargins(8, 6, 8, 8)
         row = QHBoxLayout()
@@ -18421,6 +18423,34 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             "Your original file is never moved or changed. Afterwards you can "
             "build a profile from it on the Build Profile tab, exactly as "
             "if the chart had been read here.")
+
+    @staticmethod
+    def _barbieri_import_help_body() -> str:
+        """The ⓘ of the IMPORT module for a Barbieri chart (the Barbieri
+        Beta): measured on the Spectro 100xy in Spectro32. One text for both
+        run types: it names "this run's chart"."""
+        return tr(
+            "Use this after you have measured this run's chart on the "
+            "Barbieri Spectro 100xy in Barbieri's program Spectro32.\n\n"
+            "What to pick: the file Spectro32 saved with "
+            "“_measurements.txt” at the end of its name (its “_VAL.txt” or "
+            "“_spectrum.txt” file works too). For a chart of several pages, "
+            "choose the files of all pages at once.\n\n"
+            "What happens when you press Import Measurement:\n"
+            "1. ChromIQ puts every reading on its patch by the order the "
+            "table reads them: the top left patch first, then the rest of "
+            "the top row from the left, then row by row. The chart's side "
+            "file (it ends in “.barbieri.json”) says which patch that is.\n"
+            "2. It checks every value, the number of readings, and from the "
+            "colours that the sheet lay the right way and the head was "
+            "aimed at the right patch. A file that does not fit is refused "
+            "before anything is written; where the colours cannot tell, "
+            "ChromIQ asks you.\n"
+            "3. It works out the colours from the spectra as ArgyllCMS "
+            "does and compares them with the values Spectro32 saved.\n"
+            "4. It files a copy as this run's measurement, together with a "
+            "copy of the chart.\n\n"
+            "Your original files are never moved or changed.")
 
     def _apply_import_box_style(self) -> None:
         """Paint the import info box in the Measure tab's green — readable in
@@ -18555,13 +18585,40 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # once at construction time describes whichever run type happened to be
         # on the bar when the tab was built, which for a restored session is
         # not the one on screen.
+        # A BARBIERI CHART (the Barbieri Beta): the measurement comes from
+        # Spectro32, so the panel says so. With the Beta off, or for any
+        # other chart, nothing here is read and the panel is as it was.
+        barb_chart = self._barbieri_import_chart(self._guard_run())
+        grp = getattr(self, "_import_group", None)
+        if grp is not None:
+            grp.setTitle(tr("Measurement File (from Spectro32)")
+                         if barb_chart is not None
+                         else tr("Measurement File (from i1Profiler)"))
         help_btn = getattr(self, "_import_help_btn", None)
         if help_btn is not None:
-            help_btn.set_content(
-                tr("Import a measurement made in i1Profiler"),
-                self._import_help_body(verifying=self._is_verification_run()))
+            if barb_chart is not None:
+                help_btn.set_content(
+                    tr("Import a measurement made in Spectro32"),
+                    self._barbieri_import_help_body())
+            else:
+                help_btn.set_content(
+                    tr("Import a measurement made in i1Profiler"),
+                    self._import_help_body(
+                        verifying=self._is_verification_run()))
         path = getattr(self, "_import_path", None)
-        if path is None:
+        if path is None and barb_chart is not None:
+            self._import_file_lbl.setText(tr("No file chosen yet"))
+            from workflow.barbieri.spectro32_import import page_count
+            pages = page_count(barb_chart)
+            parts.append(tr(
+                "Press the green folder button above and choose the file "
+                "Spectro32 saved for this chart: its name ends in "
+                "“_measurements.txt”.") if pages <= 1 else tr(
+                "Press the green folder button above and choose the files "
+                "Spectro32 saved for this chart, one for each of its {pages} "
+                "pages, all at once: their names end in "
+                "“_measurements.txt”.").format(pages=pages))
+        elif path is None:
             self._import_file_lbl.setText(tr("No file chosen yet"))
             parts.append(tr(
                 "Press the green folder button above and choose the "
@@ -18612,7 +18669,22 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                         ext = ".cxf"
                 except Exception:      # noqa: BLE001 - a notice only
                     pass
-            if ext in (".mxf", ".cxf"):
+            spectro32 = False
+            if barb_chart is not None and ext == ".txt":
+                from workflow.barbieri.spectro32_import import \
+                    looks_like_spectro32
+                spectro32 = looks_like_spectro32(path)
+            if spectro32:
+                from workflow.barbieri.support import side_file_for
+                parts.append(tr(
+                    "{name} is a Spectro32 measurement. ChromIQ puts every "
+                    "reading on its patch by the order the table read them, "
+                    "using this chart's side file ({side}), and checks the "
+                    "values, the count and, from the colours, that the sheet "
+                    "lay the right way.").format(
+                        name=Path(path).name,
+                        side=side_file_for(barb_chart).name))
+            elif ext in (".mxf", ".cxf"):
                 parts.append(tr(
                     "{name} is an i1Profiler measurement (CxF3) — ChromIQ "
                     "reads it directly, no export step needed.").format(
@@ -18830,6 +18902,39 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._update_import_panel()
 
     def _import_takes_pages(self, run) -> bool:
+        """True when the folder button takes several files at once: the
+        i1iO Beta's chart of several pages (`_i1io_takes_pages`), or a
+        Barbieri chart of several pages (the Barbieri Beta: Spectro32 saves
+        one file per page; both run types)."""
+        if self._i1io_takes_pages(run):
+            return True
+        return self._barbieri_pages(run) > 1
+
+    def _barbieri_import_chart(self, run) -> "Path | None":
+        """The run's chart when the Barbieri Beta's Spectro32 route applies
+        to it (`measurement_import.barbieri_route_applies`), else None. The
+        switch is read first, so with the Beta off nothing is opened."""
+        if run is None:
+            return None
+        from workflow.barbieri.support import barbieri_enabled
+        if not barbieri_enabled():
+            return None
+        try:
+            chart = self._import_chart_for(run)
+            from workflow.measurement_import import barbieri_route_applies
+            return chart if barbieri_route_applies(chart) else None
+        except Exception:      # noqa: BLE001 - the ordinary import goes on
+            log.debug("Barbieri import: could not tell", exc_info=True)
+            return None
+
+    def _barbieri_pages(self, run) -> int:
+        chart = self._barbieri_import_chart(run)
+        if chart is None:
+            return 0
+        from workflow.barbieri.spectro32_import import page_count
+        return page_count(chart)
+
+    def _i1io_takes_pages(self, run) -> bool:
         """True for the i1iO Beta's chart of several pages in a PROFILING
         run (`workflow.i1io.pages.applies`). The switch is read first, so
         with the Beta off nothing more is looked at."""
@@ -19047,6 +19152,15 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             from ui.measurement_filing import refuse_it_does_not_belong
             refuse_it_does_not_belong(self, tr(CHART_NOT_A_MEASUREMENT))
             return None
+        # A SPECTRO32 MEASUREMENT OF A BARBIERI CHART (the Barbieri Beta):
+        # judged and paired by the order the table read it, here, before
+        # anything is written (`workflow.barbieri.spectro32_import`). Every
+        # other file is converted exactly as before.
+        if chart is not None and self._barbieri_import_chart(run) is not None:
+            from workflow.barbieri.spectro32_import import \
+                looks_like_spectro32
+            if looks_like_spectro32(path):
+                return self._convert_barbieri_import(run, Path(path), chart)
         # WHICH READINGS OF AN i1Profiler CxF (4.3.23): asked before anything
         # is converted, when the file holds more than one measurement
         # condition (M-IMPORT-CXF-CONDITION). Cancel imports nothing.
@@ -19107,6 +19221,96 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             self._log.ensureCursorVisible()
         return Path(converted)
 
+    def _convert_barbieri_import(self, run, path: Path,
+                                 chart: Path) -> "Path | None":
+        """A Spectro32 measurement of this Barbieri chart (the Barbieri Beta),
+        as a ``.ti3`` in the run's cache, or None (refused or cancelled, and
+        already said). Every file the person chose is read: one per page.
+
+        The checks and their numbers go to the app log whatever happens
+        (app-log rule); a refusal is shown under M-IMPORT-BARBIERI-REFUSED;
+        what ChromIQ cannot check is ASKED, Cancel the default (§I.17)."""
+        from workflow import measurement_messages as M
+        from workflow.barbieri import spectro32_import as S
+        paths = [Path(p) for p in (getattr(self, "_import_paths", None)
+                                   or [path])]
+        self._barbieri_done_notes = []
+        verdict = S.assess_files(paths, chart)
+        for line in S.log_lines(verdict):
+            log.info("%s", line)
+        if not verdict.ok:
+            log.info("Barbieri import refused (%s): %s", verdict.code,
+                     verdict.reason)
+            title, _b = M.M_IMPORT_BARBIERI_REFUSED.render(
+                reason=verdict.reason)
+            self._log.appendPlainText("\n[WARNING] " + title + "\n" +
+                                      verdict.reason)
+            self._show_import_refusal(M.M_IMPORT_BARBIERI_REFUSED,
+                                      reason=verdict.reason)
+            return None
+        if verdict.ask_why:
+            ok = self._ask_import_question(
+                M.M_IMPORT_BARBIERI_CANNOT_CHECK, tr("Import"),
+                first=verdict.first, aim=verdict.aim,
+                why=M.barbieri_why(verdict.ask_why))
+            log.info("Barbieri import: the colours cannot tell (%s); the "
+                     "person answered %s", verdict.ask_why,
+                     "Import" if ok else "Cancel")
+            if not ok:
+                self._log.appendPlainText("\n" + tr(
+                    "[INFO] The import was cancelled. Nothing has been "
+                    "changed."))
+                return None
+        differ = verdict.xyz_ask is not None
+        if differ:
+            xc = verdict.xyz_ask
+            name = next((p.file.name for p in verdict.pages
+                         if p.xyz_check is xc), paths[0].name)
+            ok = self._ask_import_question(
+                M.M_IMPORT_BARBIERI_COLOURS_DIFFER, tr("Import"),
+                name=name, median=f"{xc.median:.2f}",
+                largest=f"{xc.largest:.2f}")
+            log.info("Barbieri import: Spectro32's colours differ from the "
+                     "spectra (median %.3f, max %.3f dE76); the person "
+                     "answered %s", xc.median, xc.largest,
+                     "Import" if ok else "Cancel")
+            if not ok:
+                self._log.appendPlainText("\n" + tr(
+                    "[INFO] The import was cancelled. Nothing has been "
+                    "changed."))
+                return None
+        try:
+            converted = S.write_ti3(verdict, chart,
+                                    run.ensure_cache_dir() / "import")
+        except (OSError, ValueError) as exc:
+            log.warning("Barbieri import: could not write the copy",
+                        exc_info=True)
+            self._say_on_screen(tr("The file could not be converted"),
+                                str(exc))
+            return None
+        log.info("Barbieri import: paired copy written to %s", converted)
+        self._log.appendPlainText("\n" + tr(M._BARB_LOG_FILED).format(
+            count=verdict.n_cells, chart=chart.name, first=verdict.first))
+        notes = M.barbieri_notes(verdict, colours_differ_imported=differ)
+        for note in notes:
+            self._log.appendPlainText("\n[INFO] " + note)
+        self._barbieri_done_notes = notes
+        return Path(converted)
+
+    def _add_barbieri_notes(self, dlg, lay) -> None:
+        """Below the approved text of a "done" window: the notes of a
+        Spectro32 import (M-IMPORT-BARBIERI-NOTES). Said once, then
+        forgotten."""
+        notes = getattr(self, "_barbieri_done_notes", None)
+        self._barbieri_done_notes = []
+        if not notes:
+            return
+        from PyQt6.QtWidgets import QLabel
+        label = QLabel("\n\n".join(notes), dlg)
+        label.setWordWrap(True)
+        label.setObjectName("barbieri_import_notes")
+        lay.addWidget(label)
+
     def _on_import_measurement(self) -> None:
         """The whole import, through the same doors a native read uses:
         guards → convert → validate → the run's own filing → say where it went.
@@ -19121,6 +19325,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         """
         # an earlier import's note never reaches this import's window
         self._i1io_aim_note = None
+        self._barbieri_done_notes = []
         if self._runner.is_running:
             return
         ctl = getattr(self, "_target_ctl", None)
@@ -19152,7 +19357,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if not self._is_verification_run():
             # AN i1iO CHART OF SEVERAL PAGES (the i1iO Beta): one file per
             # sheet, the page of each worked out (`_import_i1io_pages`).
-            if self._import_takes_pages(run):
+            if self._i1io_takes_pages(run):
                 self._import_i1io_pages(
                     ctl, run, list(getattr(self, "_import_paths", None)
                                    or [Path(path)]))
@@ -19199,6 +19404,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             self._show_import_refusal(
                 M.M_IMPORT_I1IO_REFUSED if getattr(verdict, "i1io_refusal",
                                                    False)
+                else M.M_IMPORT_BARBIERI_REFUSED if getattr(
+                    verdict, "barbieri_refusal", False)
                 else M.M_IMPORT_MISMATCH, reason=reason)
             return
 
@@ -19384,6 +19591,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             if getattr(verdict, "i1io_refusal", False):
                 from workflow import measurement_messages as M
                 self._show_import_refusal(M.M_IMPORT_I1IO_REFUSED,
+                                          reason=verdict.reason)
+                return
+            if getattr(verdict, "barbieri_refusal", False):
+                from workflow import measurement_messages as M
+                self._show_import_refusal(M.M_IMPORT_BARBIERI_REFUSED,
                                           reason=verdict.reason)
                 return
             refuse_it_does_not_belong(self, verdict.reason)
@@ -20131,6 +20343,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         msg.setWordWrap(True)
         lay.addWidget(msg)
         self._add_i1io_aim_note(dlg, lay)
+        self._add_barbieri_notes(dlg, lay)
         row = QHBoxLayout()
         row.addStretch(1)
         close_btn = QPushButton(tr("Close"), dlg)
@@ -20177,6 +20390,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         msg.setWordWrap(True)
         lay.addWidget(msg)
         self._add_i1io_aim_note(dlg, lay)
+        self._add_barbieri_notes(dlg, lay)
         row = QHBoxLayout()
         row.addStretch(1)
         close_btn = QPushButton(tr("Close"), dlg)

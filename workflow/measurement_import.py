@@ -97,6 +97,9 @@ class ImportVerdict:
     #: doors show it under M-IMPORT-I1IO-REFUSED, whose title does not say
     #: "another chart" (review m3).
     i1io_refusal: bool = False
+    #: True when the Barbieri Beta's Spectro32 route refused the file: the
+    #: doors show it under M-IMPORT-BARBIERI-REFUSED.
+    barbieri_refusal: bool = False
 
     @property
     def patches_read(self) -> int:
@@ -189,6 +192,15 @@ def assess(ti3: Path, chart_ti2: "Path | None",
     # Nothing is read for it unless the Beta is on and the chart is an i1iO
     # chart with its side file.
     route = _i1io_route(ti3, chart_ti2, source)
+    if route is not None:
+        return route
+
+    # A SPECTRO32 MEASUREMENT OF A BARBIERI CHART (the Barbieri Beta, step
+    # 2). The Measure tab's door judged and paired it while converting it
+    # (`workflow.barbieri.spectro32_import`); here the copy must say so.
+    # Nothing is read for it unless the Beta is on, the chart is a Barbieri
+    # chart with its side file and the picked file is Spectro32's.
+    route = _barbieri_route(ti3, chart_ti2, source)
     if route is not None:
         return route
 
@@ -507,6 +519,56 @@ def _i1io_route(ti3: Path, chart_ti2: "Path | None",
         return ImportVerdict(False, MM.i1io_import_reason("other-door"),
                              n_chart=n_chart or 0)
     return None
+
+
+def barbieri_route_applies(chart_ti2: "Path | None") -> bool:
+    """True when the Barbieri Beta is on and *chart_ti2* is a Barbieri chart
+    with its side file (`spectro32_import.route_applies`). Reads the switch
+    first, so with the Beta off nothing is opened at all."""
+    if chart_ti2 is None:
+        return False
+    from workflow.barbieri.support import barbieri_enabled
+    if not barbieri_enabled():
+        return False
+    from workflow.barbieri.spectro32_import import route_applies
+    return route_applies(chart_ti2)
+
+
+def _barbieri_route(ti3: Path, chart_ti2: "Path | None",
+                    source: "Path | None") -> "ImportVerdict | None":
+    """The Barbieri Beta's import route, or None: the ordinary import
+    judges. A Spectro32 file is converted only by the Measure tab, which
+    judges it there and writes the paired copy (`spectro32_import.
+    write_ti3`); a copy that does not carry the pairing, or does not hold
+    every patch of the chart, is refused here."""
+    if source is None or not barbieri_route_applies(chart_ti2):
+        return None
+    from workflow.barbieri import spectro32_import as S
+    if not S.looks_like_spectro32(source):
+        return None
+    n_chart = _chart_patch_count(chart_ti2) or 0
+    from workflow import measurement_messages as MM
+    try:
+        with open(ti3, "r", encoding="utf-8", errors="replace") as fh:
+            head = fh.read(8192)
+    except OSError:
+        head = ""
+    if S.PAIRED_KEYWORD not in head:
+        return ImportVerdict(False, MM.barbieri_import_reason(
+            "not-spectro32", name=Path(source).name), n_chart=n_chart,
+            barbieri_refusal=True)
+    from workflow.ti3_analysis import Ti3ParseError, parse_ti3
+    try:
+        n = parse_ti3(Path(ti3)).n_patches
+    except (Ti3ParseError, OSError):
+        n = 0
+    if not n or (n_chart and n != n_chart):
+        return ImportVerdict(False, MM.barbieri_import_reason(
+            "side", side=Path(str(chart_ti2)[:-4] + ".barbieri.json").name),
+            n_chart=n_chart, n_measured=n, barbieri_refusal=True)
+    log.info("import: a Spectro32 measurement paired by reading order with "
+             "%s (%d patches)", Path(chart_ti2).name, n)
+    return ImportVerdict(True, "", n_chart=n_chart, n_measured=n)
 
 
 def _has_readings(ti3: Path) -> bool:

@@ -1905,9 +1905,11 @@ _BARBIERI_STEPS_BODY = (
     "6. Save the files Spectro32 writes, and keep them unchanged.\n\n"
     "If you use Barbieri Gateway instead, enter these numbers and aim at the "
     "corners of the patch area it asks for:\n{gateway_lines}\n\n"
-    "Bringing the measurement back into ChromIQ comes in a later version. "
-    "Keep Spectro32's files and this chart's side file ({side}): the import "
-    "will need both.\n\n"
+    "To bring the measurement back, choose IMPORT on this tab and pick the "
+    "file Spectro32 saved (its name ends in “_measurements.txt”; one file "
+    "for each page). ChromIQ finds every patch by the order the table read "
+    "them, using this chart's side file ({side}), so keep that file beside "
+    "the chart.\n\n"
     "This chart has not yet been read on a real Spectro 100xy. If Spectro32 "
     "or the instrument refuses it, please tell us on GitHub.")
 #: {orient} of M-BARBIERI-STEPS, by what the first page really carries
@@ -2011,6 +2013,318 @@ M_BARBIERI_PRINT_NOTE = (
     "Print this chart at 100 % without scaling: Spectro32 and Gateway are "
     "told the patch positions in millimetres, so the printed size must be "
     "exact.")
+
+# ---- the Spectro32 import of a Barbieri chart (the Beta, step 2,
+# `workflow.barbieri.spectro32_import`) ------------------------------------
+
+#: The {reason} of M-IMPORT-BARBIERI-REFUSED, one per refusal code. Each is a
+#: whole paragraph ending in a full stop.
+_BARB_IMPORT_NOT_S32 = (
+    "{name} does not look like a measurement file from Spectro32. ChromIQ "
+    "reads the file Spectro32 saves with “_measurements.txt” at the end of "
+    "its name, or its “_VAL.txt” or “_spectrum.txt” file: one line for "
+    "every patch, with 41 spectral values from 380 to 780 nm. Choose one of "
+    "those files.")
+_BARB_IMPORT_COLOURS_ONLY = (
+    "{name} holds colour values only (XYZ, Lab or densities), and no "
+    "spectra. ChromIQ builds the profile from the spectra, so choose the "
+    "file of the same measurement whose name ends in “_measurements.txt” "
+    "(or “_VAL.txt” or “_spectrum.txt”). ChromIQ then finds this file "
+    "beside it by itself and uses it to double-check the colours.")
+_BARB_IMPORT_EMPTY = (
+    "{name} holds no readings. Choose the file Spectro32 saved after the "
+    "whole chart had been read.")
+_BARB_IMPORT_BANDS = (
+    "{name} holds {count} spectral values for each reading, but a Spectro "
+    "100xy reading has 41 values, from 380 to 780 nm in steps of 10 nm. The "
+    "file may have been changed or may come from another program. Choose "
+    "the file exactly as Spectro32 saved it.")
+_BARB_IMPORT_ROW = (
+    "Line {line} of {name} does not have the same number of values as the "
+    "lines above it, so ChromIQ cannot tell which value is which. The file "
+    "may have been cut short or edited. Choose the file exactly as Spectro32 "
+    "saved it.")
+_BARB_IMPORT_FAILED = (
+    "Reading {reading} in {name} has no valid number: in the column "
+    "“{column}” it says “{text}”. Spectro32 writes text like this when a "
+    "reading failed, for example when the head was not over the chart. "
+    "ChromIQ never fills in a failed reading, so please measure the chart "
+    "again and import the new file.")
+_BARB_IMPORT_NUMBERS = (
+    "The readings in {name} are not numbered 1, 2, 3 and so on without a "
+    "gap: after reading {previous} comes reading {reading}. ChromIQ finds "
+    "each patch by the order of the readings, so it cannot use a file with "
+    "readings missing, repeated or moved. Choose the file exactly as "
+    "Spectro32 saved it.")
+_BARB_IMPORT_SCALE = (
+    "The spectral values in {name} go up to {top}. Spectro32 writes them as "
+    "fractions from 0 to 1 (a white paper reads about 0.9), so these numbers "
+    "are on another scale, perhaps percent. ChromIQ does not guess a scale. "
+    "Choose the file exactly as Spectro32 saved it.")
+_BARB_IMPORT_NEGATIVE = (
+    "Reading {reading} in {name} has a spectral value of {value}, far below "
+    "zero. Spectro32 writes values from 0 to 1, so this reading failed or "
+    "the file was changed. Please measure the chart again and import the "
+    "new file.")
+_BARB_IMPORT_COUNT = (
+    "Page {page} of this chart has {cells} patches ({cols} across and {rows} "
+    "down), and Spectro32 saves one line for every patch it reads, but "
+    "{name} holds {got} readings. Fewer readings mean the reading stopped "
+    "part way; more mean the file holds another chart, or two runs one "
+    "after the other. ChromIQ finds each patch by the order of the "
+    "readings, so it cannot tell which reading belongs to which patch. "
+    "Please measure the whole page again in one run, with the grid numbers "
+    "that Start Measurement shows for this chart.")
+_BARB_IMPORT_PAGES_ONE = (
+    "This chart has {pages} pages, and Spectro32 saves one file for each "
+    "page, so ChromIQ needs the files of all {pages} pages together, but you "
+    "chose one file. Press the green folder button again and choose the "
+    "files of every page at once (hold down Cmd or Ctrl to choose several).")
+_BARB_IMPORT_PAGES_MANY = (
+    "This chart has {pages} pages, and Spectro32 saves one file for each "
+    "page, so ChromIQ needs exactly {pages} files, one for every page, but "
+    "you chose {files}. Press the green folder button again and choose the "
+    "file of every page once.")
+_BARB_IMPORT_ONE_PAGE = (
+    "This chart has one page, so its measurement is one Spectro32 file, but "
+    "you chose {files} files. Choose only the file of this measurement.")
+_BARB_IMPORT_WHICH_PAGE = (
+    "ChromIQ could not tell which page of this chart {name} belongs to: its "
+    "readings fit no page clearly better than another. Check that the file "
+    "is a measurement of this chart.")
+_BARB_IMPORT_SAME_PAGE = (
+    "{name} and {other} both look like measurements of page {page}. Every "
+    "page is measured once, so choose one file for each page.")
+_BARB_IMPORT_SIDE = (
+    "This chart's side file ({side}) is missing, or it was written for "
+    "another version of the chart (the chart was made again or changed "
+    "after it). The side file says which patch the table reads first and in "
+    "which order it reads the rest, so ChromIQ cannot pair the readings "
+    "without it. Make the chart again with Generate Chart, which writes "
+    "both files, then print, measure and import that one.")
+_BARB_IMPORT_OTHER_CHART = (
+    "The readings in {name} do not fit this chart's colours, neither with "
+    "the sheet lying as it should nor turned, mirrored or shifted. The file "
+    "most likely belongs to another chart or to another page. Check that "
+    "you chose the measurement of this chart.")
+_BARB_IMPORT_ARRANGED = (
+    "The readings in {name} fit this chart only if the sheet lay {how} on "
+    "the table. ChromIQ never moves readings around to make them fit, "
+    "because a reading put on the wrong patch cannot be noticed later. "
+    "Please lay the sheet or film on the table as Start Measurement "
+    "describes, with the first patch, {first}, at the top left, aim at the "
+    "centre of {aim} again and measure again.")
+_BARB_IMPORT_AIMED = (
+    "The readings in {name} fit this chart only if the head was aimed {where} "
+    "instead of at the centre of {aim}, so every reading belongs to the "
+    "patch next to the one it was taken for. ChromIQ never moves readings "
+    "around to make them fit. Please aim at the centre of {aim} again, save "
+    "that position as the starting point and measure again.")
+#: {how} of _BARB_IMPORT_ARRANGED
+_BARB_HOW_MIRRORED = ("mirrored, with its left and right sides swapped (a "
+                      "film laid with the wrong side up does this)")
+_BARB_HOW_UPSIDE_DOWN = "upside down, with its top and bottom swapped"
+_BARB_HOW_TURNED = "turned half round"
+#: {where} of _BARB_IMPORT_AIMED
+_BARB_WHERE_RIGHT = "one patch to the right of {aim}"
+_BARB_WHERE_LEFT = "one patch to the left of {aim}"
+_BARB_WHERE_UP = "one patch above {aim}"
+_BARB_WHERE_DOWN = "one patch below {aim}"
+
+M_IMPORT_BARBIERI_REASONS = _m(
+    "M-IMPORT-BARBIERI-REASONS",
+    "A Spectro32 measurement of a Barbieri chart: the reasons",
+    "\n".join((_BARB_IMPORT_NOT_S32, _BARB_IMPORT_COLOURS_ONLY,
+               _BARB_IMPORT_EMPTY, _BARB_IMPORT_BANDS, _BARB_IMPORT_ROW,
+               _BARB_IMPORT_FAILED, _BARB_IMPORT_NUMBERS, _BARB_IMPORT_SCALE,
+               _BARB_IMPORT_NEGATIVE, _BARB_IMPORT_COUNT,
+               _BARB_IMPORT_PAGES_ONE, _BARB_IMPORT_PAGES_MANY,
+               _BARB_IMPORT_ONE_PAGE, _BARB_IMPORT_WHICH_PAGE,
+               _BARB_IMPORT_SAME_PAGE, _BARB_IMPORT_SIDE,
+               _BARB_IMPORT_OTHER_CHART, _BARB_IMPORT_ARRANGED,
+               _BARB_IMPORT_AIMED, _BARB_HOW_MIRRORED, _BARB_HOW_UPSIDE_DOWN,
+               _BARB_HOW_TURNED, _BARB_WHERE_RIGHT, _BARB_WHERE_LEFT,
+               _BARB_WHERE_UP, _BARB_WHERE_DOWN)),
+    approved=False)
+
+_BARB_REASON_TEXT = {
+    "not-spectro32": _BARB_IMPORT_NOT_S32,
+    "colours-only": _BARB_IMPORT_COLOURS_ONLY,
+    "empty": _BARB_IMPORT_EMPTY,
+    "bands": _BARB_IMPORT_BANDS,
+    "row-shape": _BARB_IMPORT_ROW,
+    "failed-value": _BARB_IMPORT_FAILED,
+    "numbering": _BARB_IMPORT_NUMBERS,
+    "scale": _BARB_IMPORT_SCALE,
+    "negative": _BARB_IMPORT_NEGATIVE,
+    "count": _BARB_IMPORT_COUNT,
+    "pages-one": _BARB_IMPORT_PAGES_ONE,
+    "pages-many": _BARB_IMPORT_PAGES_MANY,
+    "one-page": _BARB_IMPORT_ONE_PAGE,
+    "which-page": _BARB_IMPORT_WHICH_PAGE,
+    "same-page": _BARB_IMPORT_SAME_PAGE,
+    "side": _BARB_IMPORT_SIDE,
+    "other-chart": _BARB_IMPORT_OTHER_CHART,
+}
+_BARB_HOW_TEXT = {"mirrored": _BARB_HOW_MIRRORED,
+                  "upside-down": _BARB_HOW_UPSIDE_DOWN,
+                  "turned": _BARB_HOW_TURNED}
+_BARB_WHERE_TEXT = {"right": _BARB_WHERE_RIGHT, "left": _BARB_WHERE_LEFT,
+                    "up": _BARB_WHERE_UP, "down": _BARB_WHERE_DOWN}
+
+
+class _Blank(dict):
+    def __missing__(self, key):
+        return ""
+
+
+def barbieri_import_reason(code: str, **kw) -> str:
+    """The {reason} of M-IMPORT-BARBIERI-REFUSED for a refusal *code* of
+    `workflow.barbieri.spectro32_import` (translated, filled)."""
+    if code.startswith("arranged-"):
+        how = tr(_BARB_HOW_TEXT.get(code[len("arranged-"):],
+                                    _BARB_HOW_TURNED))
+        return tr(_BARB_IMPORT_ARRANGED).format_map(_Blank(kw, how=how))
+    if code.startswith("aimed-"):
+        where = tr(_BARB_WHERE_TEXT.get(code[len("aimed-"):],
+                                        _BARB_WHERE_RIGHT)
+                   ).format(aim=kw.get("aim", ""))
+        return tr(_BARB_IMPORT_AIMED).format_map(_Blank(kw, where=where))
+    text = _BARB_REASON_TEXT.get(code, _BARB_IMPORT_NOT_S32)
+    return tr(text).format_map(_Blank(kw))
+
+
+#: The window of a refused Spectro32 import, both doors of the Measure tab.
+#: {reason}: one of M-IMPORT-BARBIERI-REASONS.
+M_IMPORT_BARBIERI_REFUSED = _m(
+    "M-IMPORT-BARBIERI-REFUSED",
+    "This Spectro32 measurement was not imported",
+    "Before filing anything, ChromIQ checks a Spectro32 measurement of a "
+    "Barbieri chart against the chart, and this one was not filed:\n\n"
+    "{reason}\n\n"
+    "Nothing has been imported and nothing has been changed. Your files are "
+    "untouched where they are.",
+    approved=False)
+
+#: The chart's colours cannot tell whether the sheet lay the right way:
+#: Import / Cancel (Cancel the default). {why}: one of the parts below.
+_BARB_WHY_NO_CHECKS = "the check patches are switched off for this chart"
+_BARB_WHY_SIMILAR = ("many of its patches are very similar, or its colours "
+                     "run in order across the sheet")
+_BARB_WHY_NO_COLOURS = ("ChromIQ cannot work out which colours this chart "
+                        "should have")
+_BARB_WHY_FEW = "it has only a few patches"
+M_IMPORT_BARBIERI_CANNOT_CHECK = _m(
+    "M-IMPORT-BARBIERI-CANNOT-CHECK",
+    "ChromIQ cannot check this sheet from its colours",
+    "ChromIQ puts every Spectro32 reading on its patch by the order the "
+    "table reads them: {first} first, then the rest of the top row from the "
+    "left, then row by row. Before it does, it normally checks from the "
+    "colours that the sheet lay the right way and that the head was aimed "
+    "at the right patch. On this chart the colours cannot show that, "
+    "because {why}.\n\n"
+    "ChromIQ has checked what it can: every value in the file, the number of "
+    "readings, and that the readings do not fit a mirrored, upside-down, "
+    "turned or shifted sheet clearly better. The import is right only if the "
+    "sheet lay on the table as Start Measurement describes, with {first} at "
+    "the top left, and the head was aimed at the centre of {aim}.\n\n"
+    "Import the measurement?",
+    approved=False)
+M_IMPORT_BARBIERI_CANNOT_CHECK_PARTS = _m(
+    "M-IMPORT-BARBIERI-CANNOT-CHECK-PARTS",
+    "ChromIQ cannot check this sheet from its colours: the reasons",
+    "\n".join((_BARB_WHY_NO_CHECKS, _BARB_WHY_SIMILAR, _BARB_WHY_NO_COLOURS,
+               _BARB_WHY_FEW)),
+    approved=False)
+_BARB_WHY_TEXT = {"no-checks": _BARB_WHY_NO_CHECKS,
+                  "similar": _BARB_WHY_SIMILAR,
+                  "no-colours": _BARB_WHY_NO_COLOURS,
+                  "few": _BARB_WHY_FEW}
+
+
+def barbieri_why(why: str) -> str:
+    """The {why} of M-IMPORT-BARBIERI-CANNOT-CHECK (translated)."""
+    return tr(_BARB_WHY_TEXT.get(why, _BARB_WHY_SIMILAR))
+
+
+#: Spectro32's own colour values disagree with its spectra and no usual
+#: Spectro32 setting explains it: Import / Cancel (Cancel the default).
+M_IMPORT_BARBIERI_COLOURS_DIFFER = _m(
+    "M-IMPORT-BARBIERI-COLOURS-DIFFER",
+    "Spectro32's colour values do not match its spectra",
+    "ChromIQ works out the colour of every patch from the spectra in the "
+    "file, the way ArgyllCMS does (D50, 2 degree observer), and compares it "
+    "with the colour values Spectro32 saved beside them. Normally the two "
+    "agree to a few hundredths of a ΔE. In {name} they differ by {median} ΔE "
+    "on average and by up to {largest} ΔE, and no usual Spectro32 setting "
+    "explains that.\n\n"
+    "It can mean that the file was edited, or that its spectra are not in "
+    "the order ChromIQ expects (380 to 780 nm in steps of 10 nm). A profile "
+    "built from shifted spectra would be wrong in every colour.\n\n"
+    "Import the measurement anyway? ChromIQ would use the spectra, not "
+    "Spectro32's colour values.",
+    approved=False)
+
+#: The notes under the "done" window of a Spectro32 import (and in the log).
+_BARB_NOTE_TRANSMISSION = (
+    "This chart was measured in transmission ({opening}). ChromIQ filed the "
+    "readings the way ArgyllCMS files a transmission measurement. A profile "
+    "is only marked as being for film when you say so: on the Build Profile "
+    "tab, in Manual, set “Media Type (-Z t)” to “Transparent”, and for a "
+    "negative film also “Media Polarity (-Z n)” to “Negative”. No "
+    "transmission measurement from a real Spectro 100xy has reached ChromIQ "
+    "yet, so please tell us on GitHub how it went.")
+_BARB_NOTE_SETTING = (
+    "Spectro32 was set to {setting} when it saved its own colour values. "
+    "That does not matter: ChromIQ works out the colours from the spectra "
+    "itself, for D50 and the 2 degree observer as ArgyllCMS does, and Build "
+    "Profile can use another illuminant from the same spectra.")
+_BARB_SETTING_FORMAT = "{illuminant} with the {observer} degree observer"
+_BARB_NOTE_UNCHECKED = (
+    "ChromIQ could not check from the colours that this sheet lay the right "
+    "way, because {why}. If the profile looks wrong, compare the sheet with "
+    "the chart preview and measure again.")
+_BARB_NOTE_COLOURS_DIFFER = (
+    "Spectro32's own colour values did not match its spectra ({median} ΔE on "
+    "average), and you chose to import the measurement anyway. ChromIQ used "
+    "the spectra.")
+M_IMPORT_BARBIERI_NOTES = _m(
+    "M-IMPORT-BARBIERI-NOTES",
+    "Notes on a Spectro32 import",
+    "\n".join((_BARB_NOTE_TRANSMISSION, _BARB_NOTE_SETTING,
+               _BARB_SETTING_FORMAT, _BARB_NOTE_UNCHECKED,
+               _BARB_NOTE_COLOURS_DIFFER)),
+    approved=False)
+
+#: The Measure tab's log line of a filed Spectro32 import.
+_BARB_LOG_FILED = (
+    "[OK] ChromIQ put each of the {count} Spectro32 readings on its patch of "
+    "{chart} by the order the table read them ({first} first, then row by "
+    "row), checked them, and worked out their colours from the spectra "
+    "(D50, 2 degree observer, as ArgyllCMS does).")
+
+
+def barbieri_notes(verdict, *, colours_differ_imported: bool = False
+                   ) -> "list[str]":
+    """The notes of a filed Spectro32 import (translated), for the "done"
+    window and the log; empty when there is nothing to add."""
+    out = []
+    if verdict.mode == "transmission":
+        from workflow.barbieri import chart, chart_facts as F
+        head = F.HEADS.get(verdict.head)
+        out.append(tr(_BARB_NOTE_TRANSMISSION).format(
+            opening=chart.head_label(head) if head else verdict.head))
+    for illum, obs in verdict.settings_noted:
+        setting = tr(_BARB_SETTING_FORMAT).format(illuminant=illum,
+                                                   observer=obs)
+        out.append(tr(_BARB_NOTE_SETTING).format(setting=setting))
+    if verdict.ask_why:
+        out.append(tr(_BARB_NOTE_UNCHECKED).format(
+            why=barbieri_why(verdict.ask_why)))
+    if colours_differ_imported and verdict.xyz_ask is not None:
+        out.append(tr(_BARB_NOTE_COLOURS_DIFFER).format(
+            median=f"{verdict.xyz_ask.median:.2f}"))
+    return out
 
 #: Start pressed and no address has been entered in "FD-9 setup…".
 M_FD9_NO_ADDRESS = _m(
@@ -14975,6 +15289,9 @@ CATALOGUE = {m.id: m for m in (
     M_ISIS_NOT_YET, M_ISIS_SUPPORT_OFF, M_ISIS_SHEET_CHECK, M_ISIS_NO_TXF,
     M_ISIS_ROW_NUMBERS_NO_ROOM,
     M_BARBIERI_STEPS, M_BARBIERI_SUPPORT_OFF,
+    M_IMPORT_BARBIERI_REASONS, M_IMPORT_BARBIERI_REFUSED,
+    M_IMPORT_BARBIERI_CANNOT_CHECK, M_IMPORT_BARBIERI_CANNOT_CHECK_PARTS,
+    M_IMPORT_BARBIERI_COLOURS_DIFFER, M_IMPORT_BARBIERI_NOTES,
     M_GUIDED_SET_PAGES,
     M_I1IO_AIM_CROSSES, M_I1IO_AIM_CORNERS, M_I1IO_AIM_CORNERS_UNLABELLED,
     M_I1IO_AIM_UNKNOWN, M_I1IO_AIM_PAGE_PARTS,

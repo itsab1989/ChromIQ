@@ -260,6 +260,7 @@ HOOKED_FILES = {
     "workflow/chart_creator.py",     # engine-only; Guided kwargs; log lines
     "workflow/chart_import.py",      # .barbieri.json companion
     "workflow/measurement_messages.py",  # M-BARBIERI-* (texts only)
+    "workflow/measurement_import.py",  # the Spectro32 route; switch-gated
     "workflow/layout_engine/chart.py",
     "workflow/layout_engine/instruments.py",
     "workflow/layout_engine/presets.py",

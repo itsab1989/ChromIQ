@@ -915,6 +915,13 @@ AWAITING_APPROVAL: "set[str]" = {
                                  # chart Beta (charts measured in Spectro32):
                                  # Start's two windows.
                                  "M-BARBIERI-STEPS", "M-BARBIERI-SUPPORT-OFF",
+                                 # 2026-11-24: its Spectro32 import (step 2)
+                                 "M-IMPORT-BARBIERI-REASONS",
+                                 "M-IMPORT-BARBIERI-REFUSED",
+                                 "M-IMPORT-BARBIERI-CANNOT-CHECK",
+                                 "M-IMPORT-BARBIERI-CANNOT-CHECK-PARTS",
+                                 "M-IMPORT-BARBIERI-COLOURS-DIFFER",
+                                 "M-IMPORT-BARBIERI-NOTES",
                                  "M-GUIDED-SET-PAGES",
                                  # the same for a verification or a
                                  # calibration chart made for the table
