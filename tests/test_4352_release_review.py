@@ -90,9 +90,8 @@ def test_the_entry_names_things_as_the_app_shows_them():
 
 def test_readme_and_site_say_what_4352_changes_and_that_it_ran_only_simulated():
     readme = " ".join((ROOT / "README.md").read_text(encoding="utf-8").replace(">", " ").split())
-    site = " ".join((ROOT / "docs/index.html").read_text(encoding="utf-8").split())
-    assert readme.count("New in 4.3.52") == 2 and site.count("New in 4.3.52") == 2
+    # The site (docs/index.html) is a feature overview since 2026-11-24 and
+    # carries no "New in" history; tests/test_the_site_is_a_feature_overview.py pins that.
+    assert readme.count("New in 4.3.52") == 2
     assert "has run on a real table yet" in readme.split("New in 4.3.52", 1)[1][:700]
     assert "have not been tried on a real instrument yet" in readme.split("New in 4.3.52")[2][:500]
-    assert "neither has run on a real table yet" in site.split("New in 4.3.52", 1)[1][:400]
-    assert "not been tried on a real instrument yet" in site.split("New in 4.3.52")[2][:400]

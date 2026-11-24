@@ -91,9 +91,8 @@ def test_the_entry_names_things_as_the_app_shows_them():
 
 def test_readme_and_site_say_what_4354_changes_and_that_it_ran_only_simulated():
     readme = " ".join((ROOT / "README.md").read_text(encoding="utf-8").replace(">", " ").split())
-    site = " ".join((ROOT / "docs/index.html").read_text(encoding="utf-8").split())
+    # The site (docs/index.html) is a feature overview since 2026-11-24 and
+    # carries no "New in" history; tests/test_the_site_is_a_feature_overview.py pins that.
     assert "New in 4.3.54: every row read in one move is checked against its own" in readme
     assert "New in 4.3.54: a dual scan starts also in a run" in readme
     assert "This fix has not run on a real instrument yet." in readme
-    assert "New in 4.3.54: every row read in one move is checked" in site
-    assert "this fix has not run on a real instrument yet" in site

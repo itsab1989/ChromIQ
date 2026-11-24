@@ -79,8 +79,8 @@ def test_the_entry_names_things_as_the_app_shows_them():
 
 def test_readme_and_site_no_longer_say_no_chart_was_read_on_a_real_table():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    site = (ROOT / "docs/index.html").read_text(encoding="utf-8")
+    # The site (docs/index.html) is a feature overview since 2026-11-24 and
+    # carries no "New in" history; tests/test_the_site_is_a_feature_overview.py pins that.
     assert "has not yet read a chart on a real one" not in readme
-    assert "has not yet\n          read a chart on a real one" not in site
-    assert "New in 4.3.50" in readme and "New in 4.3.50" in site
+    assert "New in 4.3.50" in readme
     assert "all or none" not in readme

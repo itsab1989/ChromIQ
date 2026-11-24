@@ -98,6 +98,7 @@ To build a profile you need three things:
    |------|-----------|----------------|
    | `FD9` | Konica Minolta FD-9, an automatic chart reader that measures the whole sheet by itself, over your network (Ethernet), with ChromIQ's own driver and no Konica Minolta software. Tested on one FD-9 on macOS so far: your report helps | [lessbones](https://github.com/lessbones), thank you! |
    | `IO2` | X-Rite i1iO 2, a measuring table that moves an i1Pro 2 over the chart by itself ("i1iO 2 + i1Pro 2" in Create Chart). Measure the chart in X-Rite i1Profiler and bring it back with IMPORT, or, new in 4.3.45, let ChromIQ drive the table itself. A first beta: the app's own drive has read one complete page on a real table, patch by patch, and the rest of it has run only against a simulated table, see [Measuring with an X-Rite i1iO 2 table](#measuring-with-an-x-rite-i1io-2-table-beta) | Built by the project, on recordings and test runs by [crismi2](https://github.com/crismi2) on his own table, thank you! |
+   | `B100XY` | Barbieri Spectro 100xy, a measuring table for reflective prints and film. ChromIQ makes the chart and shows the numbers for Barbieri's Spectro32 or Gateway; you measure there and IMPORT Spectro32's files. Not yet tried on a real Spectro 100xy: see [Charts for the Barbieri Spectro 100xy](docs/barbieri_spectro100xy.md) | Built by the project, asked for in [issue 215](https://github.com/itsab1989/ChromIQ/issues/215) |
 
    Your instrument is not listed? See
    [Adding an instrument](docs/adding_an_instrument.md).

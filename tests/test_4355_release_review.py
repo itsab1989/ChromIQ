@@ -102,8 +102,7 @@ def test_the_entry_names_things_as_the_app_shows_them():
 
 def test_readme_and_site_say_what_4355_changes_and_that_it_ran_only_replayed():
     readme = " ".join((ROOT / "README.md").read_text(encoding="utf-8").replace(">", " ").split())
-    site = " ".join((ROOT / "docs/index.html").read_text(encoding="utf-8").split())
+    # The site (docs/index.html) is a feature overview since 2026-11-24 and
+    # carries no "New in" history; tests/test_the_site_is_a_feature_overview.py pins that.
     assert "New in 4.3.55: the second pass is lined up with the first" in readme
     assert "tested by replaying recorded passes, not yet on a real instrument" in readme
-    assert "New in 4.3.55: the second pass is lined up with the first" in site
-    assert "tested by replaying recorded passes, not yet on a real instrument" in site

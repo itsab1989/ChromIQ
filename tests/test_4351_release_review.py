@@ -75,7 +75,7 @@ def test_the_entry_names_things_as_the_app_shows_them():
 
 def test_readme_and_site_say_what_4351_changes_and_that_it_ran_only_simulated():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    site = (ROOT / "docs/index.html").read_text(encoding="utf-8")
-    assert "New in 4.3.51" in readme and "New in 4.3.51" in site
+    # The site (docs/index.html) is a feature overview since 2026-11-24 and
+    # carries no "New in" history; tests/test_the_site_is_a_feature_overview.py pins that.
+    assert "New in 4.3.51" in readme
     assert "None of this has run on\n>   a real table yet" in readme
-    assert "has run only on a simulated table" in site.split("New in 4.3.51", 1)[1][:400]

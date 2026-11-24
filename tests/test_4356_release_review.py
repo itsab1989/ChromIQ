@@ -92,9 +92,8 @@ def test_the_entry_names_things_as_the_app_shows_them():
 
 def test_readme_and_site_say_what_4356_changes_and_that_it_ran_only_simulated():
     readme = " ".join((ROOT / "README.md").read_text(encoding="utf-8").replace(">", " ").split())
-    site = " ".join((ROOT / "docs/index.html").read_text(encoding="utf-8").split())
+    # The site (docs/index.html) is a feature overview since 2026-11-24 and
+    # carries no "New in" history; tests/test_the_site_is_a_feature_overview.py pins that.
     assert "cannot start a new measurement on it until the arm is home" not in readme
     assert "New in 4.3.56: a measurement that replaced an earlier one" in readme
     assert "This has run only on a simulated table." in readme
-    assert "New in 4.3.56: a table left in its aiming mode is put right at the next START" in site
-    assert "this has run only on a simulated table" in site

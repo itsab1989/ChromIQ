@@ -87,12 +87,11 @@ def test_the_entry_names_things_as_the_app_shows_them():
 
 def test_readme_and_site_say_what_4353_changes_and_that_it_ran_only_simulated():
     readme = " ".join((ROOT / "README.md").read_text(encoding="utf-8").replace(">", " ").split())
-    site = " ".join((ROOT / "docs/index.html").read_text(encoding="utf-8").split())
+    # The site (docs/index.html) is a feature overview since 2026-11-24 and
+    # carries no "New in" history; tests/test_the_site_is_a_feature_overview.py pins that.
     assert "New in 4.3.53: rows are read as rows wherever the chart lies" in readme
     assert "None of this has run on a real table yet." in readme
     assert "the blue light blinks on the side the second pass moves towards" in readme
-    assert "New in 4.3.53: rows are read as rows wherever the chart lies" in site
-    assert "not run on a real table yet" in site
 
 
 def test_the_entry_says_the_speeds_the_border_allows_and_what_changes_with_the_betas_off():
