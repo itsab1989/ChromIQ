@@ -136,21 +136,31 @@ file from a real Spectro 100xy has been seen.*
   arrangement (median residual over the readings' spread; owner's real chart:
   0.15 right, 0.98 to 1.0 wrong). Where the fit cannot tell, the check patches
   decide, each predicted from the other patches (right 12 to 13 dE76, wrong 34
-  to 48 on the tests' printer); where they cannot either, the person is asked
-  (M-IMPORT-BARBIERI-CANNOT-CHECK, Cancel the default).
+  to 48 on the tests' printer): they can rule arrangements out, but never
+  refuse a sheet on their own; when they point at another arrangement, or
+  cannot decide, the person is asked with it named
+  (M-IMPORT-BARBIERI-CANNOT-CHECK, Cancel the default). A chart under 64
+  cells (fitted by a straight line only) whose readings fit loosely while no
+  other arrangement fits better is asked about, not refused. Among
+  arrangements that fit about equally, the one covering every cell is named.
+  An answer "Import" is kept in the filed copy
+  (`CHROMIQ_BARBIERI_IMPORTED_UNVERIFIED`); the copy is written whole or not at
+  all (temporary file, then renamed). On a chart of several pages each file
+  finds its page by its best arrangement, and a count that fits no page names
+  the page nearest in size.
 * **Spectro32's own colours:** compared with the spectra (owner's run: 0.014
   dE76 at most; limit 0.5). Another Spectro32 illuminant / observer that
   explains them is only noted; an unexplained difference is asked about
   (M-IMPORT-BARBIERI-COLOURS-DIFFER, Cancel the default).
 * **Transmission:** filed exactly like reflection (ArgyllCMS's chartread writes
-  no keyword for it); the "done" window and the log say to set Media Type
-  (-Z t) to Transparent (and the polarity for a negative) in Build Profile.
+  no keyword for it); Build Profile preselects Media Type (-Z t) "Transparent"
+  in Manual for such a measurement (visible, changeable, the polarity left
+  alone), and the "done" window and the log say so.
 * **Log:** every file with its SHA-256, kind, template line and setting; every
   page's grid, first and last patch, the fit numbers and what decided; the
   colour comparison; every refusal and answer.
 * **Not in this step:** Gateway's CGATS files; several reads of one chart
-  averaged on import; the Spectro32 template `.TXT` export; Build Profile
-  setting Media Type by itself.
+  averaged on import; the Spectro32 template `.TXT` export.
 
 *Provenance: the reading of Spectro32's files follows `barbieri_to_ti3.py` 1.1
 by LVTguru (archives Barbieri-to-TI3-1.1 and Barbieri-Chart-Tools-1.0, issue

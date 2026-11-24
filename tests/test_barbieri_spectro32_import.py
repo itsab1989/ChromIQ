@@ -408,7 +408,10 @@ def test_the_check_patches_decide_what_the_fit_cannot(arrangement):
     j = judge_page(E, _measured(E, "straight", 36, 28), 36, 28, checks)
     assert j.status == "ok" and j.decided_by == "check patches"
     j = judge_page(E, _measured(E, arrangement, 36, 28), 36, 28, checks)
-    assert j.status == "refuse" and j.how == arrangement
+    # review 2026-11-24 (B): five check patches alone never refuse a sheet;
+    # the person is asked, the suspected arrangement named
+    assert j.status == "ask" and j.how == arrangement
+    assert j.why == "checks-" + arrangement
 
 
 def test_without_check_patches_the_person_is_asked():
@@ -614,3 +617,155 @@ def test_the_door_asks_and_cancel_changes_nothing(tmp_path, owner, qapp,
     run, seen = _door(tmp_path / "w", monkeypatch, ti2, [f], answer=False)
     assert seen["asked"] == ["M-IMPORT-BARBIERI-COLOURS-DIFFER"]
     assert not seen["done"] and not run.measurement_ti3.exists()
+
+
+# ---- the review of 2026-11-24 ----------------------------------------------
+
+def test_a_small_chart_printed_with_strong_tone_distortion_is_asked_about(
+        tmp_path):
+    """(A) A correctly laid 24-patch chart, printed with gamma 3: a small
+    chart fits only a straight line, so the fit is loose, and no other
+    arrangement fits better. Asked (Cancel the default), never refused as
+    another chart."""
+    ti2, side = _chart(tmp_path / "small", 24)
+    pg = side["pages_detail"][0]
+    assert pg["columns"] * pg["rows"] < 64
+    sp = readings_for(ti2, side, gamma=3.0)
+    f = write_spectro32(tmp_path / "s_measurements.txt", sp)
+    v = _assess(f, ti2)
+    assert v.ok, v.reason
+    assert v.ask_why == "loose"
+    from workflow import measurement_messages as M
+    assert "only loosely" in M.barbieri_why("loose")
+
+
+def test_the_check_patch_question_names_the_suspected_arrangement():
+    """(B) The question's reason names how the check patches say the sheet
+    lay, or where the head was aimed."""
+    from workflow import measurement_messages as M
+    assert "mirrored" in M.barbieri_why("checks-mirrored", "AF1")
+    text = M.barbieri_why("checks-right", "AF1")
+    assert "AF1" in text and "{" not in text
+
+
+def test_a_mirrored_two_column_chart_is_named_mirrored(tmp_path):
+    """On two columns "aimed one patch right" covers half the cells and fits
+    a mirrored sheet as well as "mirrored"; the arrangement that covers
+    every cell is named."""
+    ti2, side = _chart(tmp_path / "two", 40)
+    pg = side["pages_detail"][0]
+    assert pg["columns"] == 2
+    f, _sp = _file(tmp_path, ti2, side, arrangement="mirrored")
+    v = _assess(f, ti2)
+    assert not v.ok and v.code == "arranged-mirrored", v.code
+
+
+def test_the_filed_copy_is_written_whole_or_not_at_all(tmp_path, owner,
+                                                       monkeypatch):
+    import os
+    from workflow.barbieri import spectro32_import as S
+    ti2, side = owner
+    f, _sp = _file(tmp_path, ti2, side)
+    v = _assess(f, ti2)
+    out_dir = tmp_path / "out"
+    real = os.fdopen
+
+    class Boom:
+        def __init__(self, fh):
+            self.fh = fh
+
+        def __enter__(self):
+            return self
+
+        def write(self, text):
+            self.fh.write(text[:100])
+            raise OSError("disk full")
+
+        def __exit__(self, *a):
+            self.fh.close()
+
+    monkeypatch.setattr(os, "fdopen", lambda *a, **k: Boom(real(*a, **k)))
+    with pytest.raises(OSError):
+        S.write_ti3(v, ti2, out_dir)
+    assert list(out_dir.iterdir()) == []
+
+
+def test_a_short_file_of_a_two_page_chart_names_the_page_it_was_for(
+        tmp_path, two_pages):
+    ti2, side = two_pages
+    p2 = side["pages_detail"][1]
+    sp = readings_for(ti2, side, 1)[:-1]
+    a = write_spectro32(tmp_path / "a_measurements.txt",
+                        readings_for(ti2, side, 0))
+    b = write_spectro32(tmp_path / "b_measurements.txt", sp)
+    v = _assess([a, b], ti2)
+    assert not v.ok and v.code == "count"
+    assert f"Page 2 of this chart has {p2['columns'] * p2['rows']}" \
+        in v.reason
+
+
+def test_a_two_page_file_laid_wrong_is_refused_by_how_it_lay(tmp_path):
+    """Two pages of the same size: a file whose sheet lay turned fits
+    neither page as it should lie, so the page is found by its best
+    arrangement and the refusal says how it lay, not "which page"."""
+    first, _s = _chart(tmp_path / "probe", 1500)
+    one = _s["pages_detail"][0]
+    ti2, side = _chart(tmp_path / "even", 2 * one["columns"] * one["rows"])
+    a, b = side["pages_detail"]
+    assert (a["columns"], a["rows"]) == (b["columns"], b["rows"])
+    files = [write_spectro32(tmp_path / f"p{p}_measurements.txt",
+                             readings_for(ti2, side, p, arrangement="turned"))
+             for p in (0, 1)]
+    v = _assess(files, ti2)
+    assert not v.ok and v.code == "arranged-turned", v.code
+
+
+def test_an_answered_question_is_kept_in_the_filed_copy(
+        tmp_path, owner, qapp, monkeypatch):
+    from workflow.barbieri.spectro32_import import (ANSWERS_KEYWORD,
+                                                    spectra_xyz)
+    ti2, side = owner
+    sp = readings_for(ti2, side)
+    shifted = np.hstack([sp[:, 1:], sp[:, -1:]])
+    f = write_spectro32(tmp_path / "x_measurements.txt", shifted,
+                        xyz_override=spectra_xyz(sp))
+    run, seen = _door(tmp_path / "w", monkeypatch, ti2, [f], answer=True)
+    assert seen["asked"] == ["M-IMPORT-BARBIERI-COLOURS-DIFFER"]
+    text = run.measurement_ti3.read_text(encoding="utf-8")
+    assert ANSWERS_KEYWORD in text and "answered Import" in text
+
+
+def test_build_profile_preselects_transparent_for_a_transmission_import(
+        tmp_path, qapp):
+    from PyQt6.QtCore import QSettings
+    from core.argyll_runner import ArgyllRunner
+    from core.settings import AppSettings
+    from ui.tabs.tab_profile import TabProfile
+    from workflow.barbieri.spectro32_import import write_ti3
+    ti2, side = _chart(tmp_path / "t", 300, barbieri_head="transmission-3")
+    f, _sp = _file(tmp_path, ti2, side)
+    film = write_ti3(_assess(f, ti2), ti2, tmp_path / "film")
+    ti2r, sider = _chart(tmp_path / "r", 300)
+    fr, _sp = _file(tmp_path, ti2r, sider, name="r_measurements.txt")
+    paper = write_ti3(_assess(fr, ti2r), ti2r, tmp_path / "paper")
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "p.ini"), QSettings.Format.IniFormat)
+    tab = TabProfile(ArgyllRunner(s), s)
+    try:
+        combo, pol = tab._m_z_media_type_combo, tab._m_z_polarity_combo
+        tab.set_ti3_path(paper, propagate=False)
+        assert combo.currentData() == ""             # reflection: untouched
+        tab.set_ti3_path(film, propagate=False)
+        assert combo.currentData() == "t"            # film: Transparent
+        assert pol.currentData() == ""               # polarity untouched
+        assert "Transparent" in tab._log.toPlainText()
+        combo.setCurrentIndex(combo.findData(""))    # and changeable
+        assert combo.currentData() == ""
+        # a target with nothing stored puts the defaults back: the
+        # preselection follows them (found on screen, 2026-11-24)
+        tab.set_ti3_path(film, propagate=False)
+        tab._restore_defaults()
+        tab._preselect_for_loaded_film()
+        assert combo.currentData() == "t"
+    finally:
+        tab.deleteLater()

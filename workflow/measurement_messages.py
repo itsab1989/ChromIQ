@@ -2214,6 +2214,18 @@ _BARB_WHY_SIMILAR = ("many of its patches are very similar, or its colours "
 _BARB_WHY_NO_COLOURS = ("ChromIQ cannot work out which colours this chart "
                         "should have")
 _BARB_WHY_FEW = "it has only a few patches"
+#: review 2026-11-24 (A): a small chart, fitted by a straight line only
+_BARB_WHY_LOOSE = (
+    "on a chart this small its readings fit the chart's expected colours "
+    "only loosely, which strong colour changes in the print can cause, but "
+    "so can a measurement of another chart")
+#: review 2026-11-24 (B): only the check patches point at another way
+_BARB_WHY_CHECKS_ARRANGED = (
+    "its check patches at the corners fit better if the sheet lay on the "
+    "table {how}")
+_BARB_WHY_CHECKS_AIMED = (
+    "its check patches at the corners fit better if the head was aimed "
+    "{where}")
 M_IMPORT_BARBIERI_CANNOT_CHECK = _m(
     "M-IMPORT-BARBIERI-CANNOT-CHECK",
     "ChromIQ cannot check this sheet from its colours",
@@ -2234,16 +2246,26 @@ M_IMPORT_BARBIERI_CANNOT_CHECK_PARTS = _m(
     "M-IMPORT-BARBIERI-CANNOT-CHECK-PARTS",
     "ChromIQ cannot check this sheet from its colours: the reasons",
     "\n".join((_BARB_WHY_NO_CHECKS, _BARB_WHY_SIMILAR, _BARB_WHY_NO_COLOURS,
-               _BARB_WHY_FEW)),
+               _BARB_WHY_FEW, _BARB_WHY_LOOSE, _BARB_WHY_CHECKS_ARRANGED,
+               _BARB_WHY_CHECKS_AIMED)),
     approved=False)
 _BARB_WHY_TEXT = {"no-checks": _BARB_WHY_NO_CHECKS,
                   "similar": _BARB_WHY_SIMILAR,
                   "no-colours": _BARB_WHY_NO_COLOURS,
-                  "few": _BARB_WHY_FEW}
+                  "few": _BARB_WHY_FEW,
+                  "loose": _BARB_WHY_LOOSE}
 
 
-def barbieri_why(why: str) -> str:
-    """The {why} of M-IMPORT-BARBIERI-CANNOT-CHECK (translated)."""
+def barbieri_why(why: str, aim: str = "") -> str:
+    """The {why} of M-IMPORT-BARBIERI-CANNOT-CHECK (translated); *aim* the
+    aim patch, for a "checks-..." reason that names where the head was."""
+    if why.startswith("checks-"):
+        how = why[len("checks-"):]
+        if how in _BARB_WHERE_TEXT:
+            where = tr(_BARB_WHERE_TEXT[how]).format(aim=aim)
+            return tr(_BARB_WHY_CHECKS_AIMED).format(where=where)
+        return tr(_BARB_WHY_CHECKS_ARRANGED).format(
+            how=tr(_BARB_HOW_TEXT.get(how, _BARB_HOW_TURNED)))
     return tr(_BARB_WHY_TEXT.get(why, _BARB_WHY_SIMILAR))
 
 
@@ -2268,10 +2290,11 @@ M_IMPORT_BARBIERI_COLOURS_DIFFER = _m(
 #: The notes under the "done" window of a Spectro32 import (and in the log).
 _BARB_NOTE_TRANSMISSION = (
     "This chart was measured in transmission ({opening}). ChromIQ filed the "
-    "readings the way ArgyllCMS files a transmission measurement. A profile "
-    "is only marked as being for film when you say so: on the Build Profile "
-    "tab, in Manual, set “Media Type (-Z t)” to “Transparent”, and for a "
-    "negative film also “Media Polarity (-Z n)” to “Negative”. No "
+    "readings the way ArgyllCMS files a transmission measurement, and on the "
+    "Build Profile tab, in Manual, “Media Type (-Z t)” is now set to "
+    "“Transparent”, which marks the profile as one for film. You can change "
+    "it there; for a negative film, also set “Media Polarity (-Z n)” to "
+    "“Negative”. No "
     "transmission measurement from a real Spectro 100xy has reached ChromIQ "
     "yet, so please tell us on GitHub how it went.")
 _BARB_NOTE_SETTING = (
@@ -2320,7 +2343,7 @@ def barbieri_notes(verdict, *, colours_differ_imported: bool = False
         out.append(tr(_BARB_NOTE_SETTING).format(setting=setting))
     if verdict.ask_why:
         out.append(tr(_BARB_NOTE_UNCHECKED).format(
-            why=barbieri_why(verdict.ask_why)))
+            why=barbieri_why(verdict.ask_why, verdict.aim)))
     if colours_differ_imported and verdict.xyz_ask is not None:
         out.append(tr(_BARB_NOTE_COLOURS_DIFFER).format(
             median=f"{verdict.xyz_ask.median:.2f}"))

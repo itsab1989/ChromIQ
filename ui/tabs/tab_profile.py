@@ -3571,6 +3571,9 @@ class TabProfile(QWidget):
                     self._restore_defaults()
                 if hasattr(self, "_load_build_from"):
                     self._load_build_from(None)
+                # a film measurement on a target with nothing stored: the
+                # defaults put Reflective back, so the preselection follows
+                self._preselect_for_loaded_film()
                 return False
             with setting_source(f"the target's stored settings ({_where})"):
                 self._m_apply_preset_data(stored)
@@ -3585,6 +3588,9 @@ class TabProfile(QWidget):
                 self._apply_guided_profile_fields(stored)
             if hasattr(self, "_load_build_from"):
                 self._load_build_from(stored)
+            if "z_media_type" not in stored:
+                # stored before this field was kept: nobody chose it here
+                self._preselect_for_loaded_film()
             return True
         except Exception:      # noqa: BLE001
             log.warning("Could not apply the target's Build Profile settings",
@@ -5645,6 +5651,40 @@ class TabProfile(QWidget):
     # Public
     # ------------------------------------------------------------------
 
+    def _preselect_for_loaded_film(self) -> None:
+        """`_preselect_transparent_for_film` for the measurement on screen,
+        after a target's settings were loaded without a Media Type of their
+        own (a target's stored choice always wins)."""
+        path = getattr(self, "_ti3_path", None)
+        if path:
+            try:
+                self._preselect_transparent_for_film(Path(path))
+            except Exception:      # noqa: BLE001 - a preselection only
+                log.debug("film preselection skipped", exc_info=True)
+
+    def _preselect_transparent_for_film(self, path: Path) -> None:
+        """A Spectro32 import read in transmission (the Barbieri Beta):
+        Manual's "Media Type (-Z t)" is preselected as "Transparent", visibly
+        and changeably; the polarity is left alone (Basti's coordinator,
+        2026-11-24). The switch is read first: with the Beta off nothing is
+        opened."""
+        from workflow.barbieri.support import barbieri_enabled
+        if not barbieri_enabled():
+            return
+        from workflow.barbieri.spectro32_import import measured_in_transmission
+        if not measured_in_transmission(path):
+            return
+        combo = self._m_z_media_type_combo
+        i = combo.findData("t")
+        if i < 0 or combo.currentIndex() == i:
+            return
+        combo.setCurrentIndex(i)
+        self._log.appendPlainText("\n" + tr(
+            "[INFO] This measurement was read in transmission, so “Media Type "
+            "(-Z t)” in Manual is now set to “Transparent”. You can change it "
+            "there; for a negative film, also set “Media Polarity (-Z n)” to "
+            "“Negative”."))
+
     def set_ti3_path(self, path: Path, propagate: bool = True) -> None:
         self._ti3_path = path
         self._schedule_argyll_commands()
@@ -5736,6 +5776,7 @@ class TabProfile(QWidget):
         # nothing to compose a description from yet.
         self._apply_profile_description_default(fallback=path.stem)
         self._detect_instrument(path)
+        self._preselect_transparent_for_film(path)
         if hasattr(self, "_refresh_build_from"):
             self._refresh_build_from()
         if propagate:

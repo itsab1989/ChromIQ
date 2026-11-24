@@ -256,6 +256,7 @@ HOOKED_FILES = {
     "ui/dialogs/layout_options_panel.py",  # Manual's panel (the mixin)
     "ui/tabs/tab_chart.py",          # Guided entry and opening, papers, numbers
     "ui/tabs/tab_measure.py",        # the two Start windows
+    "ui/tabs/tab_profile.py",        # Transparent preselected for film
     "ui/tabs/tab_print.py",          # the print note; switch-gated
     "workflow/chart_creator.py",     # engine-only; Guided kwargs; log lines
     "workflow/chart_import.py",      # .barbieri.json companion

@@ -95,7 +95,7 @@ def ti2_rows(ti2: Path):
 
 
 def readings_for(ti2: Path, side: dict, page: int = 0, *,
-                 arrangement: str = "straight"):
+                 arrangement: str = "straight", gamma: float = 1.0):
     """The spectra a Spectro 100xy would read from page *page* of a chart,
     in reading order, with the sheet laid as *arrangement* says
     (`spectro32_import.arrangement_cells`; a reading outside the grid reads
@@ -109,8 +109,10 @@ def readings_for(ti2: Path, side: dict, page: int = 0, *,
     cells = arrangement_cells(arrangement, cols, rows)
     out = []
     for c in cells:
-        out.append(printer_spectrum((100, 100, 100)) if c is None
-                   else printer_spectrum(dev[names[c]]))
+        d = (100, 100, 100) if c is None else dev[names[c]]
+        # *gamma*: a print with strong tone distortion
+        out.append(printer_spectrum(tuple(100.0 * (v / 100.0) ** gamma
+                                          for v in d)))
     return np.asarray(out)
 
 

@@ -19253,7 +19253,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             ok = self._ask_import_question(
                 M.M_IMPORT_BARBIERI_CANNOT_CHECK, tr("Import"),
                 first=verdict.first, aim=verdict.aim,
-                why=M.barbieri_why(verdict.ask_why))
+                why=M.barbieri_why(verdict.ask_why, verdict.aim))
             log.info("Barbieri import: the colours cannot tell (%s); the "
                      "person answered %s", verdict.ask_why,
                      "Import" if ok else "Cancel")
@@ -19262,6 +19262,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                     "[INFO] The import was cancelled. Nothing has been "
                     "changed."))
                 return None
+            # kept with the data, not only in the log (review 2026-11-24)
+            verdict.answers.append(
+                f"sheet not verified ({verdict.ask_why}), answered Import")
         differ = verdict.xyz_ask is not None
         if differ:
             xc = verdict.xyz_ask
@@ -19280,6 +19283,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                     "[INFO] The import was cancelled. Nothing has been "
                     "changed."))
                 return None
+            verdict.answers.append(
+                f"Spectro32 colours differ from the spectra (median "
+                f"{xc.median:.2f}, max {xc.largest:.2f} dE76), answered "
+                f"Import")
         try:
             converted = S.write_ti3(verdict, chart,
                                     run.ensure_cache_dir() / "import")

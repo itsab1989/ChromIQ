@@ -4416,12 +4416,17 @@ jobs, which is allowed and should be.*
 
 *New 2026-11-24. By the reason: check patches off, similar or ordered colours, no expected colours in the chart, too few patches.*
 
+*Revised 2026-11-24 after the review (A, B): two more reasons. A chart under 64 cells, which ChromIQ can fit only by a straight line, whose readings fit loosely while no other arrangement fits better, is ASKED about instead of refused as another chart; and when only the check patches point at another arrangement, the person is asked with that arrangement named (`{how}` from M-IMPORT-BARBIERI-REASONS, `{where}` with the aim patch), instead of the sheet being refused.*
+
 > **ChromIQ cannot check this sheet from its colours: the reasons**
 >
 > the check patches are switched off for this chart
 > many of its patches are very similar, or its colours run in order across the sheet
 > ChromIQ cannot work out which colours this chart should have
 > it has only a few patches
+> on a chart this small its readings fit the chart's expected colours only loosely, which strong colour changes in the print can cause, but so can a measurement of another chart
+> its check patches at the corners fit better if the sheet lay on the table {how}
+> its check patches at the corners fit better if the head was aimed {where}
 
 ### M-IMPORT-BARBIERI-COLOURS-DIFFER · PROPOSED · Spectro32's own XYZ or Lab disagree with its spectra and no usual setting explains it: Import / Cancel, Measure tab import
 
@@ -4439,9 +4444,11 @@ jobs, which is allowed and should be.*
 
 *New 2026-11-24. Each that applies, as a paragraph under the approved "done" text: the chart was read in transmission (`{opening}` the opening in words); Spectro32 was set to another illuminant / observer (`{setting}`, built from the third line); the colours could not tell and the person chose Import (`{why}`); Spectro32's colours disagreed and the person chose Import (`{median}`).*
 
+*Revised 2026-11-24 (coordinator's decision on the open question): for a transmission import Build Profile preselects Media Type (-Z t) "Transparent" in Manual, visibly and changeably, polarity untouched; the transmission note says so. The Build Profile log line: "[INFO] This measurement was read in transmission, so “Media Type (-Z t)” in Manual is now set to “Transparent”. You can change it there; for a negative film, also set “Media Polarity (-Z n)” to “Negative”." A question answered with Import is also recorded in the filed `.ti3` (`CHROMIQ_BARBIERI_IMPORTED_UNVERIFIED`).*
+
 > **Notes on a Spectro32 import**
 >
-> This chart was measured in transmission ({opening}). ChromIQ filed the readings the way ArgyllCMS files a transmission measurement. A profile is only marked as being for film when you say so: on the Build Profile tab, in Manual, set “Media Type (-Z t)” to “Transparent”, and for a negative film also “Media Polarity (-Z n)” to “Negative”. No transmission measurement from a real Spectro 100xy has reached ChromIQ yet, so please tell us on GitHub how it went.
+> This chart was measured in transmission ({opening}). ChromIQ filed the readings the way ArgyllCMS files a transmission measurement, and on the Build Profile tab, in Manual, “Media Type (-Z t)” is now set to “Transparent”, which marks the profile as one for film. You can change it there; for a negative film, also set “Media Polarity (-Z n)” to “Negative”. No transmission measurement from a real Spectro 100xy has reached ChromIQ yet, so please tell us on GitHub how it went.
 > Spectro32 was set to {setting} when it saved its own colour values. That does not matter: ChromIQ works out the colours from the spectra itself, for D50 and the 2 degree observer as ArgyllCMS does, and Build Profile can use another illuminant from the same spectra.
 > {illuminant} with the {observer} degree observer
 > ChromIQ could not check from the colours that this sheet lay the right way, because {why}. If the profile looks wrong, compare the sheet with the chart preview and measure again.

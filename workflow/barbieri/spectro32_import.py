@@ -101,6 +101,9 @@ PAIRED_KEYWORD = "CHROMIQ_PAIRED_BY_BARBIERI_ORDER"
 MODE_KEYWORD = "CHROMIQ_BARBIERI_MODE"
 #: Header keyword: the opening (`chart_facts.Head.key`).
 HEAD_KEYWORD = "CHROMIQ_BARBIERI_HEAD"
+#: Header keyword: the questions the person answered with Import (the
+#: arrangement or Spectro32's colours could not be verified).
+ANSWERS_KEYWORD = "CHROMIQ_BARBIERI_IMPORTED_UNVERIFIED"
 #: How the XYZ was computed (as `reference_convert.XYZ_METHOD_ARGYLL`).
 XYZ_METHOD = "ArgyllCMS xspect, D50, 1931 2 degree, 1 nm"
 
@@ -763,14 +766,28 @@ def judge_page(E: "np.ndarray | None", M: np.ndarray, cols: int, rows: int,
     better = [(name, f) for name, f, _sd in alts
               if f.rel <= FIT_ABSURD and f.rel < FIT_RATIO * straight.rel]
     if better:
+        # an arrangement that explains EVERY cell comes before one that
+        # explains only part: on a chart of two columns "one patch right"
+        # covers half the cells and can fit a mirrored sheet even a little
+        # better than "mirrored" (review 2026-11-24)
+        whole = [(n_, f) for n_, f in better if f.cells >= straight.cells]
+        better = whole or better
         top = min(f.rel for _n, f in better)
         near = [(n, f) for n, f in better if f.rel <= top / FIT_RATIO]
         name = min(near, key=lambda nf: (
+            -nf[1].cells,
             nf[1].check_res if nf[1].check_res is not None else 1e9,
             nf[1].rel))[0]
         j.status, j.code, j.how = "refuse", "arranged", name
         return j
     if straight.rel > FIT_ABSURD:
+        if n < QUADRATIC_FROM:
+            # A SMALL CHART FITS ONLY A STRAIGHT LINE (review 2026-11-24, A):
+            # a correctly laid 24-patch chart printed with strong tone
+            # distortion left 0.71 of the spread. No arrangement fits better,
+            # so the person is asked, never refused.
+            j.status, j.why = "ask", "loose"
+            return j
         j.status, j.code = "refuse", "other-chart"
         return j
     unclear = [(name, f, sd) for name, f, sd in alts
@@ -797,7 +814,11 @@ def judge_page(E: "np.ndarray | None", M: np.ndarray, cols: int, rows: int,
             continue
         left.append(name)
     if better:
-        j.status, j.code, j.how = "refuse", "arranged", min(better)[1]
+        # FIVE PATCHES THROUGH AN EXTRAPOLATION DO NOT REFUSE A SHEET (review
+        # 2026-11-24, B): the person is asked, with the arrangement they
+        # suggest named, Cancel the default.
+        j.status, j.how = "ask", min(better)[1]
+        j.why = "checks-" + j.how
         j.decided_by = "check patches"
         return j
     if left:
@@ -839,6 +860,10 @@ class Verdict:
     first: str = "A1"
     aim: str = ""
     n_cells: int = 0
+    #: questions answered with Import, recorded in the filed copy
+    answers: "list[str]" = field(default_factory=list)
+    #: the arrangement a "checks-..." question names
+    ask_how: str = ""
 
     @property
     def settings_noted(self) -> "list[tuple[str, str]]":
@@ -941,14 +966,28 @@ def assess_files(paths, chart_ti2) -> Verdict:
                     M = measured[fi][1]
                     spread = float(np.median(np.linalg.norm(
                         M - M.mean(axis=0), axis=1)))
-                    fit = _fit(E, M, arrangement_cells("straight", cols,
-                                                       rows), [],
-                               cols * rows >= QUADRATIC_FROM, spread)
-                    fits.append((fit.rel if fit else 1.0, pi))
+                    # the best fit over every arrangement, so a page laid
+                    # wrong still finds its page and is then refused by its
+                    # arrangement, not as "which page" (review 2026-11-24)
+                    best = 1.0
+                    for name in ("straight",) + ARRANGEMENTS:
+                        cells = arrangement_cells(name, cols, rows)
+                        if sum(c is not None for c in cells) < len(cells) / 2:
+                            continue
+                        fit = _fit(E, M, cells, [],
+                                   cols * rows >= QUADRATIC_FROM, spread)
+                        if fit is not None:
+                            best = min(best, fit.rel)
+                    fits.append((best, pi))
                 if not fits:
-                    pg = pages[0]
+                    # named by the page whose grid is nearest in size: the
+                    # page the file was most likely meant for
+                    pi = min(range(len(pages)), key=lambda i: (
+                        abs(int(pages[i]["columns"]) * int(pages[i]["rows"])
+                            - f.n), i))
+                    pg = pages[pi]
                     raise Spectro32Refused(
-                        "count", name=f.name, page=1,
+                        "count", name=f.name, page=pi + 1,
                         cells=int(pg["columns"]) * int(pg["rows"]),
                         cols=int(pg["columns"]), rows=int(pg["rows"]),
                         got=f.n)
@@ -990,6 +1029,7 @@ def assess_files(paths, chart_ti2) -> Verdict:
             return v
         if j.status == "ask" and not verdict.ask_why:
             verdict.ask_why = j.why
+            verdict.ask_how = j.how
         if xc.available and not xc.agree and verdict.xyz_ask is None:
             verdict.xyz_ask = xc
     return verdict
@@ -1042,6 +1082,9 @@ def write_ti3(verdict: Verdict, chart_ti2, out_dir) -> Path:
               f'{PAIRED_KEYWORD} "{verdict.side_name}; {sources}"',
               f'KEYWORD "{MODE_KEYWORD}"', f'{MODE_KEYWORD} "{verdict.mode}"',
               f'KEYWORD "{HEAD_KEYWORD}"', f'{HEAD_KEYWORD} "{verdict.head}"',
+              *([f'KEYWORD "{ANSWERS_KEYWORD}"',
+                 f'{ANSWERS_KEYWORD} "' + "; ".join(verdict.answers) + '"']
+                if verdict.answers else []),
               'KEYWORD "CHROMIQ_XYZ_METHOD"',
               f'CHROMIQ_XYZ_METHOD "{XYZ_METHOD}"',
               f'SPECTRAL_BANDS "{BANDS}"',
@@ -1068,8 +1111,31 @@ def write_ti3(verdict: Verdict, chart_ti2, out_dir) -> Path:
     stem = Path(chart_ti2).name
     stem = stem[:-4] if stem.lower().endswith(".ti2") else stem
     out = out_dir / f"{stem}.spectro32.ti3"
-    out.write_text("\n".join(lines), encoding="utf-8")
+    # written whole or not at all: a temporary file beside it, then renamed
+    import os
+    import tempfile
+    fd, tmp = tempfile.mkstemp(prefix=".spectro32-", suffix=".tmp",
+                               dir=str(out_dir))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write("\n".join(lines))
+        os.replace(tmp, out)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
     return out
+
+
+def measured_in_transmission(ti3) -> bool:
+    """True when *ti3* is a filed Spectro32 import read in transmission
+    (its ``CHROMIQ_BARBIERI_MODE``). Reads the header only; never raises."""
+    try:
+        with open(ti3, "r", encoding="utf-8", errors="replace") as fh:
+            head = fh.read(8192).split("BEGIN_DATA_FORMAT", 1)[0]
+    except (OSError, TypeError, ValueError):
+        return False
+    return bool(re.search(rf'^{MODE_KEYWORD}\s+"transmission"\s*$', head,
+                          re.M))
 
 
 def log_lines(verdict: Verdict) -> "list[str]":
