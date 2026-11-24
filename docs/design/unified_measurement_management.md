@@ -6869,7 +6869,7 @@ the Calibration Complete window; the headline is not shown.*
 
 > **Check the calibration on the bare paper**
 >
-> Tip: read the bare paper first. It should not read lighter than it did in earlier sessions. If it does, calibrate again.
+> Tip: read the bare paper first. It should not read lighter than it did in earlier sessions. If it does, stop the session and start it again, which calibrates the instrument again.
 
 ### M-SCAN-WP-DEFAULT · PROPOSED · the scanner white-point default moved, and existing settings moved with it — Tools ▸ Build profile with scanner or camera
 

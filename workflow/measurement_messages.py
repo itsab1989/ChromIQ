@@ -6486,7 +6486,8 @@ M_SPOT_CAL_TIP = _m(
     "M-SPOT-CAL-TIP",
     "Check the calibration on the bare paper",
     "Tip: read the bare paper first. It should not read lighter than it did "
-    "in earlier sessions. If it does, calibrate again.",
+    "in earlier sessions. If it does, stop the session and start it again, "
+    "which calibrates the instrument again.",
     approved=False)
 
 # --- PROPOSED: the reference file covers only part of the target -----------
