@@ -479,6 +479,14 @@ def build_chart(
     #: chart that does not use the Beta (`LayoutRecipe.build_kwargs`).
     page_size: "dict | None" = None,
     tiff_res_unit: str = "cm",
+    #: Barbieri Spectro 100xy only (a Beta, `workflow.barbieri.chart`): the
+    #: measuring opening, the check patches at the corners and the corner
+    #: marks (None / "" = the chart's own defaults), and the ready-made size
+    #: the recipe came from (a record only). No other instrument reads them.
+    barbieri_head: str = "",
+    barbieri_check_patches: "bool | None" = None,
+    barbieri_marks: "bool | None" = None,
+    barbieri_size: str = "",
 ) -> ChartResult:
     """Full chart build: write ``out_base.ti2`` + page TIFF(s) + strip geometry.
 
@@ -698,6 +706,23 @@ def build_chart(
             "strip_label_offset_mm",
             "strip_label_offset_x_mm", "indicator_rotation",
             "row_indicator_rotation"))
+    # A Barbieri Spectro 100xy chart (a Beta): the engine's own grid with
+    # what the chart fixes (`workflow.barbieri.chart.fixed_build_kwargs`,
+    # applied to the geometry in `instruments.geom_from_build_kwargs`), plus
+    # its marks, check patches and side file. Off, the engine refuses
+    # "B100XY" as an unknown instrument.
+    from workflow.barbieri.support import barbieri_enabled, is_barbieri_code
+    _barb = is_barbieri_code(instrument) and barbieri_enabled()
+    if _barb:
+        from workflow.barbieri import chart as _b_chart
+        _b_check = (True if barbieri_check_patches is None
+                    else bool(barbieri_check_patches))
+        _b_marks = True if barbieri_marks is None else bool(barbieri_marks)
+        # what the chart never has, for the renderer as for the geometry
+        (spacer_on, spacer_mode, edge_spacers, helper_markers, hflag,
+         hex_flat_top, cm_stagger, density, layout_mode,
+         use_instrument_margins) = (False, "none", False, False, False,
+                                    False, False, 1, "patch_first", True)
     if instrument == "FD9" and fd9_enabled():
         from workflow.fd9.chart import build_chart as build_fd9
         return build_fd9(ti1_path, out_base, paper=paper, dpi=dpi,
@@ -741,7 +766,10 @@ def build_chart(
     # area-first sizes the patches from it and the calibration ramps below
     # change it.
     def _geom_for(npat: int):
-        return instruments.geom_from_build_kwargs({
+        return instruments.geom_from_build_kwargs(_geom_kw(npat))
+
+    def _geom_kw(npat: int) -> dict:
+        return ({
         # the i1iO's labels as asked for, past the fixed settings above
         **({_i1io_chart.LABELS_KEY: _i1io_labels,
             _i1io_chart.ALIGN_KEY: patch_area_align,
@@ -851,7 +879,11 @@ def build_chart(
            {"clip_border_free_space": False}),
         # an i1iSis chart's own options LAST, as the person asked for them
         # (patch size, layout mode, labels), so the margins hold its grid
-        **({**_isis_kw, "area_target_count": npat} if _isis else {})})
+        **({**_isis_kw, "area_target_count": npat} if _isis else {}),
+        # a Barbieri chart's opening (its default patch size) and its page
+        # (the column cap measures the page the build draws)
+        **({_b_chart.HEAD_KEY: barbieri_head, "page_size": page_size}
+           if _barb else {})})
     w_mm, h_mm = papers.dimensions_mm(paper)
     if _page_px is not None:
         # A side typed in pixels IS its pixel count: the page in millimetres
@@ -1092,6 +1124,30 @@ def build_chart(
         from dataclasses import replace as _replace
         _ti2_geom = _replace(geom, extra_keywords=tuple(geom.extra_keywords) + (
             (_isis_chart.MODEL_KEYWORD, _isis_sheet.opts.model),))
+    # A Barbieri chart: its grid per page, the check patches moved into their
+    # places (only positions move, `barbieri.chart.check_order`), and the
+    # opening recorded in the .ti2. Not on a calibration chart whose ramps
+    # each take a column: they keep their order, and a ramp shows which way
+    # the sheet lay anyway.
+    _b_grids: list = []
+    _b_warnings: list = []
+    _b_check_now = False
+    if _barb:
+        from dataclasses import replace as _replace
+        _b_grids = _b_chart.page_grids(geom, layout, w_mm, h_mm)
+        _b_head = _b_chart.head_of(barbieri_head)
+        _b_labs = _b_chart.patch_labs(target)
+        _b_check_now = bool(_b_check and not ramps_per_strip)
+        if _b_check_now:
+            _slots = _b_chart.check_order(
+                permutation.location_permutation(layout.total_patches, seed,
+                                                 randomize),
+                _b_labs, len(target.patches), _b_grids)
+        _ti2_geom = _replace(geom, extra_keywords=tuple(geom.extra_keywords)
+                             + ((_b_chart.HEAD_KEYWORD, _b_head.key),))
+        _b_warnings = _b_chart.option_notes(
+            _geom_kw(len(target.patches)),
+            widest=max((g.cols for g in _b_grids), default=0))
     # R7 (4.3.39): no near-black patch straight next to a near-white one on
     # a chart in fixed order. Through the same one slot list as the i1iO's
     # order, so the .ti2, the pages, the side files and the .cht agree; None
@@ -1234,6 +1290,16 @@ def build_chart(
                                    text_ctx=_ctx, crosses=_i1io_pages,
                                    text_style=_i1io_text_style,
                                    text_align=_i1io_chart.text_align_of(_f))
+    if _barb and _b_marks:
+        # The corner marks, the aim ticks and the start square, in the
+        # margins only (`barbieri.chart.plan_marks`), on every page.
+        _b_plans = _b_chart.draw_marks(
+            render, _b_grids, dpi, letters_on_top=bool(draw_indicators),
+            numbers_on_left=bool(draw_indicators
+                                 and float(getattr(geom, "rlwi", 0) or 0) > 0))
+        _b_left = _b_chart.marks_left_out_message(_b_plans)
+        if _b_left:
+            _b_warnings.append(_b_left)
     _isis_warnings: list = []
     if _isis:
         # The bar, the diamonds, the arrows, the outline, the labels, the
@@ -1360,6 +1426,21 @@ def build_chart(
             patterns=(strip_pattern, patch_pattern, label_rule),
             designed=len(target.patches))
 
+    if _barb:
+        _b_patterns = (strip_pattern, patch_pattern, label_rule)
+        _b_slots = (_slots if _slots is not None else
+                    permutation.location_permutation(layout.total_patches,
+                                                     seed, randomize))
+        _b_chart.write_side_file(
+            artefact(stem, ".barbieri.json"), geom=geom, layout=layout,
+            w=w_mm, h=h_mm, grids=_b_grids, head=_b_head,
+            patterns=_b_patterns,
+            checks_by_page=_b_chart.check_records(_b_grids, _b_slots, target,
+                                                  _b_labs, _b_patterns),
+            check_on=_b_check_now, marks_on=_b_marks,
+            designed=len(target.patches), ti2_path=ti2_path, paper=paper,
+            dpi=dpi, size_key=str(barbieri_size or ""))
+
     cht_paths: list[Path] | None = None
     if emit_cht:
         from . import cht_writer
@@ -1397,7 +1478,8 @@ def build_chart(
         chart_date=_ctx["date"],
         ramp_whites_added=ramps_arranged,
         warnings=(tuple(_i1io_warnings) if _i1io
-                  else tuple(_isis_warnings) if _isis else ()),
+                  else tuple(_isis_warnings) if _isis
+                  else tuple(_b_warnings) if _barb else ()),
         neighbour_moves=tuple(_nb_moves), neighbour_pairs_left=_nb_left,
         neighbour_patches_moved=_nb_count,
         slots=(list(_slots) if _slots is not None else None),

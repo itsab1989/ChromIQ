@@ -25,6 +25,7 @@ BETA_SWITCHES: "tuple[str, ...]" = (
     "fd9_support_beta",
     "i1io_support_beta",
     "isis_charts_beta",
+    "barbieri_chart_beta",
     "page_output_beta",
     "splash_classic",
 )

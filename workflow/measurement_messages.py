@@ -1877,6 +1877,107 @@ def isis_sheet_check_text(reason: str, recipe=None) -> str:
 M_ISIS_PRINT_NOTE = ("Feed this sheet into the i1iSis with the black bar "
                      "first, against the left guide. {cut_or_not}")
 
+# ---- Barbieri Spectro 100xy charts (a Beta, `workflow.barbieri`) ----------
+
+#: Start pressed on a Barbieri Spectro 100xy chart while the Beta "Barbieri
+#: Spectro 100xy" is on: ChromIQ cannot talk to the instrument yet, so the
+#: chart is measured in Barbieri's own program. Filled from the chart's side
+#: file: {mode} the Spectro32 command of the opening (MR, MT, M5) and
+#: {opening} its words, {grid_lines} one line per page with the numbers,
+#: {aim} the upper-right patch, {first} the first patch read, {minutes} the
+#: estimated reading time, {gateway_lines} the same grid in Gateway's
+#: numbers, {side} the side file's name.
+_BARBIERI_STEPS_BODY = (
+    "ChromIQ cannot talk to the Barbieri Spectro 100xy yet, so this chart is "
+    "measured in Barbieri's own program, Spectro32. Nothing is wrong with "
+    "the chart. Here is how, step by step:\n\n"
+    "1. Lay the printed sheet or film on the table the right way up: the "
+    "bold corner mark is at the upper right, and the small black square "
+    "sits left of the first patch, {first}. A reflective sheet needs free "
+    "paper on its left (the datasheets ask for 15 mm or 35 mm).\n"
+    "2. In Spectro32 choose the measuring mode {mode} ({opening}).\n"
+    "3. Enter the grid. The two spans run from the centre of the first patch "
+    "to the centre of the last one, across and down, in 0.1 mm; then come "
+    "the columns and the rows:\n{grid_lines}\n"
+    "4. Aim the head at the centre of the upper-right patch, {aim}: the two "
+    "thin ticks in the margin cross there. Save that position as the "
+    "starting point.\n"
+    "5. Start the reading. The table reads row by row from the top, each row "
+    "from the left: {first} first, then the patch to its right, and so on. "
+    "At the datasheet's pace this takes about {minutes} min.\n"
+    "6. Save the files Spectro32 writes, and keep them unchanged.\n\n"
+    "If you use Barbieri Gateway instead, enter these numbers and aim at the "
+    "corner marks it asks for:\n{gateway_lines}\n\n"
+    "Bringing the measurement back into ChromIQ comes in a later version. "
+    "Keep Spectro32's files and this chart's side file ({side}): the import "
+    "will need both.\n\n"
+    "This chart has not yet been read on a real Spectro 100xy. If Spectro32 "
+    "or the instrument refuses it, please tell us on GitHub.")
+M_BARBIERI_STEPS = _m(
+    "M-BARBIERI-STEPS",
+    "Measuring with the Barbieri Spectro 100xy happens in Spectro32",
+    _BARBIERI_STEPS_BODY,
+    approved=False)
+
+#: One page's line of {grid_lines} and {gateway_lines} (M-BARBIERI-STEPS).
+_BARBIERI_STEPS_GRID_LINE = "Page {page}: {r}  ({cols} columns, {rows} rows)"
+_BARBIERI_STEPS_GATEWAY_LINE = (
+    "Page {page}: {cols} patches across, {rows} down, target size "
+    "{gx} x {gy} mm")
+#: Added to a Gateway line when count x pitch is not a whole millimetre.
+_BARBIERI_STEPS_GATEWAY_INEXACT = (
+    " (the patch area is {ex} x {ey} mm: Gateway takes whole millimetres, "
+    "so its far patches may lie a little off)")
+
+#: Start pressed on a Barbieri chart while the Beta is off.
+_BARBIERI_SUPPORT_OFF_TEXT = (
+    "This chart was made for the Barbieri Spectro 100xy with the Beta "
+    "option “Barbieri Spectro 100xy”. Switch it on in Preferences > Beta "
+    "to work with this chart.")
+M_BARBIERI_SUPPORT_OFF = _m(
+    "M-BARBIERI-SUPPORT-OFF",
+    "Turn on Barbieri charts to work with this chart",
+    _BARBIERI_SUPPORT_OFF_TEXT + "\n\n"
+    "Nothing is wrong with the chart, and nothing you have already measured "
+    "is changed.",
+    approved=False)
+
+#: Create Chart log lines and warnings of a Barbieri chart.
+_BARBIERI_ROUNDED = (
+    "{asked} mm was rounded to {got} mm: the Spectro 100xy moves in steps of "
+    "0.1 mm, and Spectro32 takes the grid in 0.1 mm, so every patch size and "
+    "gap is a whole number of 0.1 mm steps.")
+_BARBIERI_COLUMN_CAP = (
+    "{cols} columns would fit across this page, but Barbieri Gateway reads at "
+    "most {cap} patches across, so the chart has {cap} columns and the rest "
+    "of the width stays empty. Choose larger patches or a smaller page to "
+    "use it.")
+_BARBIERI_PATCH_SMALL = (
+    "The patches ({patch} mm) are smaller than the measuring opening "
+    "({opening} mm) with 0.25 mm of room on each side ({need} mm). The head "
+    "may then read part of a neighbouring patch. The chart is made as you "
+    "asked; choose larger patches if the readings look mixed.")
+_BARBIERI_MARKS_LEFT_OUT = (
+    "The margin on the {sides} side is too narrow for the corner marks, so "
+    "they were left out there. Make that margin a little wider (about 1 mm "
+    "is enough) to have them printed.")
+_BARBIERI_LOG_CHART = (
+    "Barbieri Spectro 100xy chart (Beta): opening {opening} (Spectro32 "
+    "{code}), pitch {px} x {py} mm, pages: {pages}.")
+_BARBIERI_LOG_PAGE = (
+    "Barbieri page {page}: {cols} x {rows} patches; Spectro32 {r}; Gateway "
+    "{cols} x {rows} in {gx} x {gy} mm; aim at {aim}, first patch read "
+    "{first}.")
+_BARBIERI_LOG_TIME = (
+    "Barbieri: {cells} patches to read, about {minutes} min at the "
+    "datasheet's pace.")
+
+#: The Print tab's note for a loaded Barbieri chart.
+M_BARBIERI_PRINT_NOTE = (
+    "Print this chart at 100 % without scaling: Spectro32 and Gateway are "
+    "told the patch positions in millimetres, so the printed size must be "
+    "exact.")
+
 #: Start pressed and no address has been entered in "FD-9 setup…".
 M_FD9_NO_ADDRESS = _m(
     "M-FD9-NO-ADDRESS",
@@ -14786,6 +14887,7 @@ CATALOGUE = {m.id: m for m in (
     M_PROFILE_I1IO_PAGES_MISSING, M_I1IO_PAGES_PANEL,
     M_ISIS_NOT_YET, M_ISIS_SUPPORT_OFF, M_ISIS_SHEET_CHECK, M_ISIS_NO_TXF,
     M_ISIS_ROW_NUMBERS_NO_ROOM,
+    M_BARBIERI_STEPS, M_BARBIERI_SUPPORT_OFF,
     M_GUIDED_SET_PAGES,
     M_I1IO_AIM_CROSSES, M_I1IO_AIM_CORNERS, M_I1IO_AIM_CORNERS_UNLABELLED,
     M_I1IO_AIM_UNKNOWN, M_I1IO_AIM_PAGE_PARTS,

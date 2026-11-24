@@ -110,6 +110,10 @@ TARGET_INSTRUMENT_NAME: dict[str, str] = {
     # i1iSis, i1iSis 2 and their XL models (`workflow.isis.support`); the
     # model width is recorded in the side file and a .ti2 keyword.
     "XRISIS": "X-Rite i1iSis",
+    # Barbieri Spectro 100xy (a Beta, Preferences > Beta): an XY table read
+    # by coordinates in Barbieri's own program (`workflow.barbieri.support`);
+    # the measuring opening is recorded in the side file and a .ti2 keyword.
+    "B100XY": "Barbieri Spectro 100xy",
 }
 
 #: WHETHER AN INSTRUMENT FINDS ITS PATCHES BY COLOUR EDGES ALONG A STRIP, by
@@ -140,11 +144,14 @@ TARGET_INSTRUMENT_NAME: dict[str, str] = {
 #:   corner patches (workflow/i1io);
 #: * "XRISIS" i1iSis family: reads by position from its bar and diamond
 #:   markers (workflow/isis).
+#: * "B100XY" Barbieri Spectro 100xy: the table moves the head to every patch
+#:   from one aimed patch and the grid numbers (workflow/barbieri).
 #: `READ_PATCH_BY_PATCH` / `reads_along_strips` below answer a different,
 #: older question for the renderer's contrast note and are left as they are.
 FINDS_PATCHES_BY_EDGES: dict[str, bool] = {
     "i1": True, "p3": True, "CM": True, "41": True, "51": True,
     "SS": False, "CR30": False, "FD9": False, "IO2": False, "XRISIS": False,
+    "B100XY": False,
 }
 
 
@@ -178,6 +185,13 @@ def _isis_on() -> bool:
     an instrument the layout engine does not know."""
     from workflow.isis.support import isis_enabled
     return isis_enabled()
+
+
+def _barbieri_on() -> bool:
+    """Barbieri charts (Preferences > Beta). Off, a Barbieri chart is a chart
+    for an instrument the layout engine does not know."""
+    from workflow.barbieri.support import barbieri_enabled
+    return barbieri_enabled()
 
 
 def _inch(mm: float) -> float:
@@ -433,7 +447,7 @@ def is_hexagonal(geom) -> bool:
 #: along a strip: the SpectroScan's table moves its head to each patch from the
 #: chart's reference points, and a CR30 is set down on each patch by hand. They
 #: never look for the edge between a patch and the spacer beside it.
-READ_PATCH_BY_PATCH = frozenset({"SS", "CR30"})
+READ_PATCH_BY_PATCH = frozenset({"SS", "CR30", "B100XY"})
 
 
 def reads_along_strips(geom) -> bool:
@@ -492,6 +506,7 @@ _MARGIN_LABEL_TO_KEY = {
     "i1Pro": "i1", "i1Pro 3+": "p3", "ColorMunki": "CM", "SpectroScan": "SS",
     "CR30": "CR30",   # friendly label == device key (#159)
     "i1iSis (Beta)": "XRISIS",   # the i1iSis family (a Beta)
+    "Barbieri 100xy (Beta)": "B100XY",   # the Barbieri Spectro 100xy (a Beta)
 }
 
 
@@ -834,6 +849,11 @@ def geom_from_build_kwargs(kw: dict) -> Geom:
         # for the build (`workflow.isis.chart.fixed_build_kwargs`).
         from workflow.isis.chart import fixed_build_kwargs as _isis_fixed
         kw = _isis_fixed(kw)
+    if kw.get("instrument") == "B100XY" and _barbieri_on():
+        # What a Barbieri chart fixes, for the capacity estimate exactly as
+        # for the build (`workflow.barbieri.chart.fixed_build_kwargs`).
+        from workflow.barbieri.chart import fixed_build_kwargs as _b_fixed
+        kw = _b_fixed(kw)
     if kw.get("instrument") == "FD9" and _fd9_on():
         from workflow.fd9.chart import patch_dimensions
         w, h, gap = patch_dimensions(kw.get("patch_w") or 8.0, kw.get("patch_h"),
@@ -1010,6 +1030,30 @@ def _build_base(
                        plen=_p, pwid=_p, rrsp=_p, pspa=0.0, tspa=0.0,
                        lcar=0.0, txhisl=0.0, rlwi=0.0, padlrow=False,
                        extra_keywords=(("CHROMIQ_ISIS_LAYOUT", "1"),))
+    if key == "B100XY" and not _barbieri_on():
+        # Barbieri charts (Preferences > Beta) are off: no Barbieri entry.
+        raise ValueError(f"unknown instrument {key!r}")
+    if key == "B100XY":
+        # A chart for the Barbieri Spectro 100xy, laid out by the engine as
+        # every ChromIQ chart is: a column is a strip, a row is the patch
+        # number down it. The table moves the head to every patch, so there
+        # is NO run-up (lspa and lcar 0: the margins are the law), no
+        # spacers, no trailer and no label band unless the person turns the
+        # labels on. Every page is a full rectangle (the last pass is filled
+        # up with paper patches), at most 99 patches down it (Gateway's
+        # limit); the column cap, the 0.1 mm steps and everything else the
+        # chart fixes come from `workflow.barbieri.chart.fixed_build_kwargs`,
+        # every number from `workflow.barbieri.chart_facts`.
+        from workflow.barbieri import chart_facts as _BF
+        _p = _BF.HEADS[_BF.DEFAULT_HEAD].default_patch_mm
+        return replace(_build_base("SS", spacer_on=False,
+                                   clip_band=float(clip_band or 0.0)),
+                       key="B100XY",
+                       target_name=TARGET_INSTRUMENT_NAME["B100XY"],
+                       plen=_p, pwid=_p, rrsp=_p, pspa=0.0, tspa=0.0,
+                       lspa=0.0, lcar=0.0, txhisl=0.0, padlrow=True,
+                       mxpprow=int(_BF.MAX_PER_SIDE.value),
+                       extra_keywords=(("CHROMIQ_BARBIERI_LAYOUT", "1"),))
     if key == "CM" and hflag and density < 2:
         density = 2   # back-compat: hflag meant "rig" (double density)
     if key not in TARGET_INSTRUMENT_NAME:

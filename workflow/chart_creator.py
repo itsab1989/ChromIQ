@@ -189,7 +189,8 @@ _PRINTTARG_CAL_MISMATCH = re.compile(
 # ADDING AN INSTRUMENT? Read docs/adding_an_instrument.md and work through
 # docs/adding_an_instrument_checklist.md first: they list every place an
 # instrument is registered (this is one of them) and how each is tested.
-ENGINE_INSTRUMENTS = {"i1", "p3", "CM", "SS", "CR30", "FD9", "IO2", "XRISIS"}
+ENGINE_INSTRUMENTS = {"i1", "p3", "CM", "SS", "CR30", "FD9", "IO2", "XRISIS",
+                      "B100XY"}
 
 # Instruments the engine is the ONLY route for - printtarg cannot lay them out
 # at all, so the printtarg path is not a fallback, it is a fault (#159).
@@ -204,7 +205,7 @@ ENGINE_INSTRUMENTS = {"i1", "p3", "CM", "SS", "CR30", "FD9", "IO2", "XRISIS"}
 # to printtarg once per probe. So the CR30 is forced onto the engine in
 # _should_use_engine, and _build_printtarg_args REFUSES to build an argv for it
 # rather than emitting a flag printtarg will reject.
-ENGINE_ONLY_INSTRUMENTS = {"CR30", "FD9", "IO2", "XRISIS"}
+ENGINE_ONLY_INSTRUMENTS = {"CR30", "FD9", "IO2", "XRISIS", "B100XY"}
 
 # printtarg's ColorMunki triple-density trick (-ii1) uses -a1.3 by default; the
 # engine's native extra-high-density (pscale 1.0) reproduces exactly that size,
@@ -842,6 +843,10 @@ class ChartParams:
     #: default). Manual's recipe holds its own.
     isis_model: str = ""
     isis_notes_band: bool = False
+    #: Guided's Barbieri "Measuring opening" (a Beta, `workflow.barbieri.
+    #: chart`): "" = the 3 mm reflection opening. Manual's recipe holds its
+    #: own.
+    barbieri_head: str = ""
     fd9_clip_options: "dict | None" = None
     # When True, the .icc/.ti3 from a prior session in the same working folder
     # are renamed to pre_*.icc/pre_*.ti3 instead of being overwritten on the
@@ -1801,6 +1806,13 @@ class ChartCreator:
             if getattr(params, "isis_notes_band", False):
                 kw["isis_notes_band"] = True
                 kw["clip_content_mode"] = "notes"
+        elif params.instrument == "B100XY":
+            # Guided's Barbieri chart (a Beta): the opening's own patch size,
+            # no spacers or gaps, no labels, and the default margins (15 mm
+            # left, the patch area inside the datasheet reading area).
+            from workflow.barbieri.chart import guided_kwargs
+            kw.update(guided_kwargs(params.paper,
+                                    getattr(params, "barbieri_head", "")))
         return kw
 
     def _engine_total_patches(self, params: "ChartParams") -> int | None:
@@ -2065,6 +2077,12 @@ class ChartCreator:
                     elif type(exc).__name__ == "IsisSheetRefused":
                         reason = M.isis_sheet_check_text(
                             str(exc), getattr(params, "layout_recipe", None))
+                from workflow.barbieri.support import (barbieri_enabled,
+                                                       is_barbieri_code)
+                if is_barbieri_code(params.instrument) and not barbieri_enabled():
+                    # A Barbieri chart drawn again with its Beta off: said in
+                    # words, never as "unknown instrument 'B100XY'".
+                    reason = tr(M._BARBIERI_SUPPORT_OFF_TEXT)
                 self._matched_errors.append(
                     ("engine", "engine_redraw_failed" if redraw
                      else "engine_failed",
@@ -2079,7 +2097,22 @@ class ChartCreator:
         # An i1iO chart built with a risky option (Job D: allowed, and
         # said, as other instruments' charts are)
         from workflow.isis.support import is_isis_code as _is_isis
-        if not _is_isis(params.instrument):
+        from workflow.barbieri.support import is_barbieri_code as _is_barb
+        if _is_barb(params.instrument):
+            # A Barbieri chart (a Beta): its warnings as they are, then the
+            # grid numbers, the aim patch and the reading time for the log
+            # (the app log carries the Beta's chart data)
+            for why in list(getattr(result, "warnings", None) or []):
+                on_line(tr("[WARNING] {why}").format(why=why))
+            try:
+                from workflow.barbieri.support import read_side_file
+                from workflow.barbieri.chart import summary_lines
+                for _bl in summary_lines(
+                        read_side_file(result.ti2_path) or {}):
+                    on_line(_bl)
+            except Exception:  # noqa: BLE001 - a line, never a failure
+                log.debug("Barbieri summary lines unavailable", exc_info=True)
+        elif not _is_isis(params.instrument):
             for why in getattr(result, "warnings", ()) or ():
                 on_line(tr("[WARNING] The i1iO table may not read this layout "
                            "well: {why}").format(why=why))

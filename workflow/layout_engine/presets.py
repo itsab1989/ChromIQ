@@ -265,6 +265,19 @@ class LayoutRecipe:
     isis_notes_place: str = "header"
     isis_notes_height_mm: float = 24.0
     isis_align: str = ""
+    #: THE BARBIERI SPECTRO 100xy CHART'S OWN OPTIONS (a Beta,
+    #: `workflow.barbieri.chart`): the measuring opening (its aperture and
+    #: reflection / transmission, which also gives the patch size a new
+    #: chart starts with), the check patches at the corners, the corner marks
+    #: and the ready-made size the values came from ("" = none; a record of
+    #: where they came from, every value stays the person's). Each is written
+    #: to the dict and the build kwargs ONLY for a "B100XY" recipe that
+    #: differs from the default (`BARBIERI_FIELD_DEFAULTS`), so every other
+    #: recipe is byte for byte as before.
+    barbieri_head: str = "reflection-3"
+    barbieri_check_patches: bool = True
+    barbieri_marks: bool = True
+    barbieri_size: str = ""
     # Layout strategy (#93, Knut). "patch_first" (default) = size the patches
     # (above) and fit as many as possible to the page. "area_first" = fit a
     # target grid into the usable area and SIZE the patches to fill it:
@@ -536,6 +549,9 @@ class LayoutRecipe:
         for _f, _dflt in ISIS_FIELD_DEFAULTS.items():
             if self.instrument != "XRISIS" or d.get(_f) == _dflt:
                 d.pop(_f, None)
+        for _f, _dflt in BARBIERI_FIELD_DEFAULTS.items():
+            if self.instrument != "B100XY" or d.get(_f) == _dflt:
+                d.pop(_f, None)
         d[HIDES_PATCH_CONTROLS_KEY] = True      # B8-1570; not a field
         # Left out at 0, so a recipe that does not move its labels sideways
         # writes exactly the dict it wrote before the field existed (see the
@@ -641,6 +657,7 @@ class LayoutRecipe:
                                   else float(d["i1io_numbers_edge_mm"])),
             i1io_text_align=str(d.get("i1io_text_align") or ""),
             **{_f: d[_f] for _f in ISIS_FIELD_DEFAULTS if _f in d},
+            **{_f: d[_f] for _f in BARBIERI_FIELD_DEFAULTS if _f in d},
             show_strip_indicators=bool(d.get("draw_indicators", True)),
             show_row_indicators=(None if d.get("row_indicators") is None
                                  else bool(d.get("row_indicators"))),
@@ -954,6 +971,12 @@ class LayoutRecipe:
                 _v = getattr(self, _f)
                 if _v != _dflt:
                     kw[_f] = _v
+        # The Barbieri chart's own options, likewise.
+        if self.instrument == "B100XY":
+            for _f, _dflt in BARBIERI_FIELD_DEFAULTS.items():
+                _v = getattr(self, _f)
+                if _v != _dflt:
+                    kw[_f] = _v
         # Only when it moves anything, so the kwargs of every chart that does
         # not use it are the ones it had before the field existed.
         if self.strip_label_offset_x_mm:
@@ -995,6 +1018,15 @@ ISIS_FIELD_DEFAULTS: dict = {
     "isis_align": "",
 }
 
+#: The Barbieri recipe fields and their defaults (`LayoutRecipe.barbieri_*`;
+#: the same as `workflow.barbieri.chart.FIELD_DEFAULTS`, which a test holds).
+BARBIERI_FIELD_DEFAULTS: dict = {
+    "barbieri_head": "reflection-3",
+    "barbieri_check_patches": True,
+    "barbieri_marks": True,
+    "barbieri_size": "",
+}
+
 
 def default_recipe(instrument: str = "i1", paper: str = "A4", *, mode: str | None = None
                    ) -> LayoutRecipe:
@@ -1031,6 +1063,36 @@ def default_recipe(instrument: str = "i1", paper: str = "A4", *, mode: str | Non
             r.margin_bottom = r.margin_left = _m
             r.patch_area_align = "top-left"
             # no strip letters or row numbers by default, as i1Profiler
+            r.show_strip_indicators = False
+            r.show_row_indicators = False
+    if instrument == "B100XY":
+        from workflow.barbieri.support import barbieri_enabled
+        if barbieri_enabled():
+            # The Barbieri Spectro 100xy's own chart (`workflow.barbieri`):
+            # the 3 mm opening's 6.5 mm patches (the size an owner's real
+            # 896-patch run read), no spacers or gaps, patch-first, the
+            # margins of `default_margins` (15 mm left, the patch area kept
+            # inside the datasheet reading area), the grid top-left, no
+            # labels, no clip border, no helper markers.
+            from workflow.barbieri import chart as _bc
+            from workflow.layout_engine import papers as _papers
+            _h = _bc.head_of(r.barbieri_head)
+            r.patch_w_mm = r.patch_h_mm = _h.default_patch_mm
+            r.spacer_mode, r.spacer_on = "none", False
+            r.inter_patch_mm = r.strip_gap_mm = 0.0
+            r.edge_spacers = False
+            r.layout_mode = "patch_first"
+            r.clip_content_mode = "off"
+            r.helper_markers = False
+            r.use_instrument_margins = False
+            r.nolimit = True
+            try:
+                _w, _hh = _papers.dimensions_mm(paper)
+            except (ValueError, TypeError):
+                _w, _hh = 297.0, 210.0
+            (r.margin_top, r.margin_right, r.margin_bottom,
+             r.margin_left) = _bc.default_margins(_w, _hh)
+            r.patch_area_align = "top-left"
             r.show_strip_indicators = False
             r.show_row_indicators = False
     if instrument == "IO2":

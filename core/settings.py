@@ -496,6 +496,11 @@ DEFAULTS: dict[str, Any] = {
     #: for everybody (`data.patch_db.REMOVED_INSTRUMENT_CODES`). Restart to
     #: apply (`workflow.isis.support`).
     "isis_charts_beta":          False,
+    #: Beta (Settings -> Beta): Barbieri Spectro 100xy charts, laid out by
+    #: ChromIQ and measured in Barbieri's own program (Spectro32 or
+    #: Gateway). Off = no Barbieri entry anywhere, nothing of it loaded.
+    #: Restart to apply (`workflow.barbieri.support`).
+    "barbieri_chart_beta":       False,
     #: Beta (Settings -> Beta, #215): custom page size in mm with fractions,
     #: in inches or as an exact pixel count, a resolution above 1200 guarded
     #: by a memory budget, and the TIFF's resolution in pixels per inch. Off =
@@ -1266,6 +1271,8 @@ THRESHOLD_INSTR_LABEL = {
     # printtarg entry removed on 2026-11-14, and thresholds stored under it
     # must not be picked up by the new entry.
     "XRISIS": "i1iSis (Beta)",
+    # The Barbieri Spectro 100xy (a Beta).
+    "B100XY": "Barbieri 100xy (Beta)",
 }
 
 # Canonical sheet name keyed by sorted (short, long) mm — so any paper code

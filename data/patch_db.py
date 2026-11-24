@@ -233,6 +233,10 @@ INSTRUMENT_LABELS: dict[str, str] = {
     # in i1Profiler. It replaces the printtarg entry "isis", removed by the
     # owner's ruling of 2026-11-14 (REMOVED_INSTRUMENT_CODES below).
     "XRISIS": "i1iSis family",
+    # Barbieri Spectro 100xy (Beta; offered only while Preferences > Beta
+    # turns it on, `workflow.barbieri.support`): ChromIQ's own layout,
+    # measured in Barbieri's own program.
+    "B100XY": "Barbieri Spectro 100xy",
 }
 
 #: Instrument codes ChromIQ once offered and offers no more. A stored value

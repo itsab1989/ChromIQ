@@ -42,7 +42,7 @@ log = get_logger(__name__)
 # strip map. `tests/test_both_import_routes_carry_the_same_side_files.py`.
 CHART_IMPORT_SIDE_FILES = (".cht", ".channels.json", ".strips.json", ".cie",
                            ".pdf", ".control-strip.json", ".fd9.json",
-                           ".i1io.json", ".isis.json")
+                           ".i1io.json", ".isis.json", ".barbieri.json")
 _CHART_EXTS = CHART_IMPORT_SIDE_FILES
 
 

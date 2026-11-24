@@ -169,6 +169,9 @@ CHART_SNAPSHOT_DIRNAME = "chart"
 #: * ``.fd9.json``: the FD-9 physical grid and measurement coordinates;
 #: * ``.isis.json``: the i1iSis chart's furniture and grid in millimetres
 #:   (`workflow.isis.chart`, a Beta); a name, read by nothing while it is off;
+#: * ``.barbieri.json``: the Barbieri Spectro 100xy chart's grid, reading
+#:   order, check patches and grid numbers (`workflow.barbieri.chart`, a
+#:   Beta); a name, read by nothing while it is off;
 #: * ``.i1io.json``: the i1iO table chart's marks, rows and patch positions in
 #:   millimetres (`workflow.i1io.chart`);
 #: * ``.control-strip.json``: the control-strip declaration (Knut 2026-09-19,
@@ -185,6 +188,7 @@ CHART_SNAPSHOT_DIRNAME = "chart"
 CHART_COMPANION_SUFFIXES: "tuple[str, ...]" = (
     ".ti1", ".ti2", ".channels.json", ".strips.json", ".fd9.json", ".control-strip.json",
     "-reference.ti3", ".print.json", ".i1io.json", ".isis.json",
+    ".barbieri.json",
 )
 
 
@@ -2883,7 +2887,7 @@ class Run(I1ioTablePlace):
     #: whatever chart lands on that stem next.
     _CHART_EXTS = (".ti1", ".ti2", ".cht", ".ps", ".channels.json",
                    ".strips.json", ".cie", ".pdf", ".print.json", ".fd9.json",
-                   ".i1io.json", ".isis.json")
+                   ".i1io.json", ".isis.json", ".barbieri.json")
 
     def adopt_run_chart_as_verify(self) -> "Path | None":
         """Move a just-generated chart from the run root into ``verifications/``
@@ -3104,7 +3108,7 @@ class Run(I1ioTablePlace):
         return [f"{s}.ti1", f"{s}.ti2", f"{s}.cht", f"{s}.cie", f"{s}.ps",
                 f"{s}.pdf", f"{s}.channels.json", f"{s}.strips.json",
                 f"{s}.print.json", f"{s}.fd9.json", f"{s}.i1io.json",
-                f"{s}.isis.json"]
+                f"{s}.isis.json", f"{s}.barbieri.json"]
 
     def settle_chart_stash(self, stash: "Path | None", *, built: bool) -> None:
         """Finish what :meth:`reset_chart_artefacts` started.
@@ -3305,7 +3309,7 @@ class Run(I1ioTablePlace):
             ".ti1", ".ti2", ".cht", ".cie", ".ps",
             ".pdf",                      # vector-PDF export (was left stale, Basti)
             ".channels.json", ".strips.json", ".fd9.json", ".i1io.json",
-            ".isis.json",
+            ".isis.json", ".barbieri.json",
             ".print.json",               # how the chart that is GOING was printed
         ) + ((
             ".ti3",                      # the measurement (chartread output)
@@ -4494,6 +4498,7 @@ class Project:
                    "{stem}.ps", "{stem}.pdf", "{stem}.channels.json",
                    "{stem}.strips.json", "{stem}.print.json", "{stem}.fd9.json",
                    "{stem}.i1io.json", "{stem}.isis.json",
+                   "{stem}.barbieri.json",
                    "{stem}_*.tif", "{stem}.tif",
                    "chart/**/*")),
                    # The chart's turned i1Profiler export (beta) is the

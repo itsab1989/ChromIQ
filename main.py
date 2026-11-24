@@ -320,6 +320,9 @@ def main() -> int:
     # …and i1iSis charts (Preferences > Beta), the same way.
     from workflow.isis.support import latch_from as _latch_isis
     _latch_isis(settings)
+    # …and Barbieri Spectro 100xy charts (Preferences > Beta), the same way.
+    from workflow.barbieri.support import latch_from as _latch_barbieri
+    _latch_barbieri(settings)
     # …and custom page sizes in inches or pixels (Preferences > Beta).
     from workflow.page_output.support import latch_from as _latch_page
     _latch_page(settings)

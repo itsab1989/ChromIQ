@@ -68,6 +68,8 @@ def _latched() -> str:
     for name, mod, fn in (("fd9", "workflow.fd9.support", "fd9_enabled"),
                           ("i1io", "workflow.i1io.support", "i1io_enabled"),
                           ("isis", "workflow.isis.support", "isis_enabled"),
+                          ("barbieri", "workflow.barbieri.support",
+                           "barbieri_enabled"),
                           ("page_output", "workflow.page_output.support",
                            "page_output_enabled")):
         try:
