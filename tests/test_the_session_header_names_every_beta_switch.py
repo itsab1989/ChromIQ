@@ -72,10 +72,24 @@ def test_the_header_names_each_switch_with_its_state(caplog):
     assert len(msgs) == len(lines) + 1
 
 
+#: the keys the test below changes (4.3.64 gate: they leaked into the worker's shared store)
+_CHANGED = ("i1pro2_dual_scan_beta", "i1io_table_ask_after_each_step", "log_visible_lines")
+
+
 def test_a_changed_beta_switch_is_logged_once(caplog, tmp_path, monkeypatch):
+    """4.3.64 gate (2026-11-25): this test used to set CHROMIQ_SETTINGS_FILE and believe it was
+    writing a scratch file. Under the suite it is not: tests/conftest.py replaces
+    core.settings.QSettings with the worker's ONE sandboxed store, whatever path is asked for,
+    so log_visible_lines=12 (and the two Beta keys) stayed in that store for every later test on
+    the worker. A later window bound to it showed every log at 12 lines, and
+    test_log_height_every_tab failed in two gates while passing alone. The store is now a real
+    file of this test's own, and the worker's store is checked untouched afterwards."""
+    from PyQt6.QtCore import QSettings
     from core.settings import AppSettings
-    monkeypatch.setenv("CHROMIQ_SETTINGS_FILE", str(tmp_path / "s.ini"))
+    shared = AppSettings()
+    before = {k: shared.get(k) for k in _CHANGED}
     s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
     with caplog.at_level(logging.INFO, logger="core.settings"):
         s.set("i1pro2_dual_scan_beta", True)
         s.set("i1pro2_dual_scan_beta", True)    # unchanged: no second line
@@ -84,6 +98,7 @@ def test_a_changed_beta_switch_is_logged_once(caplog, tmp_path, monkeypatch):
     msgs = [r.getMessage() for r in caplog.records if "option changed" in r.getMessage()]
     assert msgs == ["option changed: i1pro2_dual_scan_beta=on (was off)",
                     "option changed: i1io_table_ask_after_each_step=off (was on)"]
+    assert {k: AppSettings().get(k) for k in _CHANGED} == before    # nothing leaked
 
 
 def test_every_checkbox_on_the_beta_page_saves_a_key_the_header_names(qapp):
