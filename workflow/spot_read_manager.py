@@ -58,8 +58,12 @@ _USB_ERROR_RE      = re.compile(r"ReadPipeAsync\s+failed",                      
 _INIT_COMS_FAIL_RE = re.compile(r"Establishing communications with instrument failed with message\s+'([^']+)'", re.IGNORECASE)
 _INIT_INST_FAIL_RE = re.compile(r"Initialising instrument failed with message\s+'([^']+)'", re.IGNORECASE)
 # spotread refuses -s (print the spectrum) on an instrument without spectral
-# data: "Need spectral information for custom illuminant or observer" / "and
-# instrument doesn't support it", then it exits.
+# data with exactly two lines, "Need spectral information for custom
+# illuminant or observer" and then "and instrument doesn't support it", and
+# exits (spotread.c, its only use of the first line). The second line alone
+# ends EVERY capability refusal (a colorimeter in Reflective mode, Emissive on
+# a reflective-only instrument, the "(ignored)" notes), so only the pair counts.
+_NEED_SPECTRAL_RE  = re.compile(r"Need spectral information",                   re.IGNORECASE)
 _NO_SPECTRAL_RE    = re.compile(r"instrument doesn't support it",               re.IGNORECASE)
 
 
@@ -120,6 +124,20 @@ class SpotReadManager(QObject):
         #: the spectrum printed for the reading whose Result line comes next
         self._spectrum: "tuple[float, float, list[float]] | None" = None
         self._spectrum_refused = False
+        #: True when this start passed -s, so a refusal of it can be one
+        self._asked_spectrum = False
+        #: True right after "Need spectral information" (the refusal's first line)
+        self._need_spectral_seen = False
+        #: True once the window let go of this manager (detach): a restart
+        #: that was already queued must not start a spotread nobody owns.
+        self._detached = False
+        #: The one restart without -s, on a timer this manager owns, so it dies
+        #: with the manager instead of firing into a closed window.
+        self._restart_timer = QTimer(self)
+        self._restart_timer.setSingleShot(True)
+        self._restart_timer.setInterval(0)
+        self._restart_timer.timeout.connect(self._restart_without_spectrum)
+        self._restart_params: "SpotReadParams | None" = None
 
     # ------------------------------------------------------------------
     def start(self, params: SpotReadParams, on_line: Callable[[str], None]) -> None:
@@ -132,6 +150,8 @@ class SpotReadManager(QObject):
         self._spectrum_head = None
         self._spectrum = None
         self._spectrum_refused = False
+        self._asked_spectrum = "-s" in args
+        self._need_spectral_seen = False
         # The session reads with a calibration in force from its first
         # reading on (the start-up one, or the stored one with -N).
         self._cal_check.reset()
@@ -155,19 +175,25 @@ class SpotReadManager(QObject):
         )
 
     def _on_finish(self, code: int) -> None:
-        if self._spectrum_refused and self._params is not None \
-                and self._params.spectrum:
+        if (self._spectrum_refused and self._asked_spectrum
+                and self._params is not None and not self._detached):
             # This instrument has no spectral data, so spotread refused -s and
-            # ended before it calibrated anything. Start again without it; the
-            # calibration check then judges by Y alone.
+            # ended before it calibrated anything. Start again without it,
+            # once (the new start has spectrum=False, so it cannot refuse -s
+            # again); the calibration check then judges by Y alone.
             log.info("spotread refused -s (no spectral data); starting again "
                      "without it")
             from dataclasses import replace
-            params = replace(self._params, spectrum=False)
-            on_line = self._on_line or (lambda _l: None)
-            QTimer.singleShot(0, lambda: self.start(params, on_line))
+            self._restart_params = replace(self._params, spectrum=False)
+            self._restart_timer.start()
             return
         self.session_ended.emit(code)
+
+    def _restart_without_spectrum(self) -> None:
+        params, self._restart_params = self._restart_params, None
+        if params is None or self._detached:
+            return
+        self.start(params, self._on_line or (lambda _l: None))
 
     def request_calibration(self) -> None:
         """Ask spotread for a calibration from its ready prompt ('k')."""
@@ -202,6 +228,10 @@ class SpotReadManager(QObject):
         callbacks would then emit signals on a C++ object Qt has already
         destroyed with the dialog. See ``ArgyllRunner.forget_run_callbacks``.
         """
+        self._detached = True
+        restart = self.__dict__.get("_restart_timer")
+        if restart is not None:
+            restart.stop()
         try:
             self._runner.forget_run_callbacks()
         except Exception:      # noqa: BLE001 — closing must never raise
@@ -310,9 +340,14 @@ class SpotReadManager(QObject):
                                 "reflective patch after this calibration; "
                                 "asking about the calibration")
                     self.calibration_suspect.emit(verdict)
-        if _NO_SPECTRAL_RE.search(line) and self._params is not None \
-                and self._params.spectrum:
-            self._spectrum_refused = True
+        if _NEED_SPECTRAL_RE.search(line):
+            self._need_spectral_seen = True
+        elif _NO_SPECTRAL_RE.search(line):
+            if self._need_spectral_seen and self._asked_spectrum:
+                self._spectrum_refused = True
+            self._need_spectral_seen = False
+        elif line.strip():
+            self._need_spectral_seen = False
         if _SENSOR_POS_RE.search(line):
             self.sensor_wrong_position.emit()
         if _COMS_FAIL_RE.search(line) or _USB_ERROR_RE.search(line):

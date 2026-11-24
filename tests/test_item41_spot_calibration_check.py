@@ -344,3 +344,71 @@ def test_the_calibration_complete_window_carries_the_tip(qapp):
     import inspect
     assert "_calibration_tip_html()" in inspect.getsource(
         SpotReadDialog._on_calibration_finished)
+
+
+# ---- 6. review fixes (4.3.60 item 41, fix round) ---------------------------
+# S1: only spotread's -s refusal restarts, and only when -s was passed.
+def _refuse(mgr, runner, lines):
+    _feed(mgr, lines)
+    runner.runs[-1][2]["on_finish"](-1)
+    QApplication.processEvents()
+
+
+_REFUSE_SPECTRUM = ["Need spectral information for custom illuminant or observer",
+                    "and instrument doesn't support it"]
+
+
+@pytest.mark.parametrize("mode,lines", [
+    # a colorimeter (i1Display) with Mode set to Reflective
+    ("reflective", ["Need reflection spot reading capability,",
+                    "and instrument doesn't support it"]),
+    # Emissive on a reflective-only instrument
+    ("emissive", ["Need emissive spot capability",
+                  "and instrument doesn't support it"]),
+])
+def test_another_refusal_ends_the_session_without_a_restart(qapp, monkeypatch,
+                                                            mode, lines):
+    mgr, runner, got = _manager(monkeypatch, mode=mode)
+    _refuse(mgr, runner, lines)
+    assert len(runner.runs) == 1, [r[1] for r in runner.runs]
+    assert got["ended"] == [-1]
+
+
+def test_an_ignored_option_note_is_not_a_refusal(qapp, monkeypatch):
+    mgr, runner, got = _manager(monkeypatch)
+    _feed(mgr, ["Requested high resolution mode (ignored)",
+                "and instrument doesn't support it"])
+    runner.runs[0][2]["on_finish"](0)
+    QApplication.processEvents()
+    assert len(runner.runs) == 1 and got["ended"] == [0]
+
+
+def test_the_spectrum_refusal_restarts_once_only(qapp, monkeypatch):
+    mgr, runner, got = _manager(monkeypatch)
+    _refuse(mgr, runner, _REFUSE_SPECTRUM)
+    assert len(runner.runs) == 2 and "-s" not in runner.runs[1][1]
+    _refuse(mgr, runner, _REFUSE_SPECTRUM)       # cannot happen without -s
+    assert len(runner.runs) == 2 and got["ended"] == [-1]
+
+
+def test_no_restart_when_the_spectrum_was_not_asked_for(qapp, monkeypatch):
+    monkeypatch.setattr("core.instrument_port.refused_port", lambda *a: None)
+    runner = _StubRunner()
+    mgr = SpotReadManager(runner)
+    ended = []
+    mgr.session_ended.connect(ended.append)
+    mgr.start(SpotReadParams(spectrum=False), lambda _l: None)
+    _refuse(mgr, runner, _REFUSE_SPECTRUM)
+    assert len(runner.runs) == 1 and ended == [-1]
+
+
+def test_a_queued_restart_dies_with_the_window(qapp, monkeypatch):
+    """N1: the restart is queued on a zero timer; a window closing in between
+    must not leave a spotread nobody owns."""
+    mgr, runner, got = _manager(monkeypatch)
+    _feed(mgr, _REFUSE_SPECTRUM)
+    runner.runs[0][2]["on_finish"](-1)
+    runner.forget_run_callbacks = lambda: None
+    mgr.detach()
+    QApplication.processEvents()
+    assert len(runner.runs) == 1
