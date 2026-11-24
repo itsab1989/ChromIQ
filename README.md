@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-4.3.59-7c5cff">
+  <img alt="Version" src="https://img.shields.io/badge/version-4.3.60-7c5cff">
   <img alt="Downloads" src="https://img.shields.io/endpoint?url=https://itsab1989.github.io/github-traffic-downloads-dashboard/assets/badges/itsab1989_ChromIQ-downloads.json">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2a9d8f">
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-blue">
@@ -790,7 +790,12 @@ first try: [The dual scan, step by step](docs/i1pro2_dual_scan.md).
 ### Tools menu — standalone utilities
 The masthead **Tools** button opens a menu of conversions and checks you can run
 on their own, outside the five-step flow:
-- **Measurements**: **Read single patches** (spot readings off any material),
+- **Measurements**: **Read single patches** (spot readings off any material;
+  New in 4.3.60: ChromIQ checks every reflective reading and, if one is
+  lighter than a print can be or the instrument's sensor is saturated, warns
+  you once per calibration and offers **Calibrate again** or **Carry on measuring**. Your
+  readings are never changed or dropped. A new **Calibrate** button calibrates
+  again without ending the session),
   **Average measurements** (combine repeat reads of the same chart for lower
   noise), **Merge measurements** (fold extra measurements into an existing set),
   **Inspect a measurement**, and **Measurement report (accuracy & trends)**.

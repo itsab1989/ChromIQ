@@ -1,5 +1,19 @@
 # Changelog
 
+## v4.3.60
+
+**Tools > Read single patches now warns you when a calibration looks wrong, and you can calibrate again without ending the session.**
+
+### Changed
+
+- **A warning after a doubtful calibration.** In Read single patches, ChromIQ now checks every reflective reading. If a reading is lighter than a print can be (an average of 530 to 700 nm above 102 % of a perfect white), or if the instrument's sensor is saturated, a window tells you, once per calibration, and offers "Calibrate again" or "Carry on measuring". Your readings are never changed or dropped. A much too weak calibration and a saturated sensor are caught. A calibration that is only slightly weak may not be caught, so the Calibration Complete window now has a tip (see below).
+- **A Calibrate button.** The Read single patches window now has a Calibrate button, so you can calibrate the instrument again without ending the session.
+- **A tip in the Calibration Complete window:** read the bare paper first. It should not read lighter than it did in earlier sessions. If it does, calibrate again.
+
+### Known issues
+
+- The new texts of this version are shown as proposed texts and may still be reworded.
+
 ## v4.3.59
 
 **Only one ChromIQ can run at a time now, so two windows can never write the same project or settings. A false warning after a good calibration is fixed, and the log says more about the i1iO table and the i1Pro 2.**
