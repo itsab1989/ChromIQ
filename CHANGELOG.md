@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Barbieri Spectro 100xy charts (Beta, Preferences > Beta, off by default).** A new instrument entry, "Barbieri Spectro 100xy", in Guided and Manual. ChromIQ lays out a plain grid of patches sized for the measuring opening you choose (3 mm reflection or transmission, 0.5 mm transmission, 6 mm reflection of the second model), with marks at the four corners of the patch grid, two thin ticks that cross at the upper-right patch where Spectro32 is aimed, and a few check patches at the corners for a later check of how the sheet lay. Beside the chart it shows the numbers to type into Spectro32 (the R line in 0.1 mm) or Gateway, the patch area, the pages and the estimated reading time. Manual offers ready-made sizes for A4 and Letter in one pass, Barbieri's 225 x 180 mm standard area, the full reading area and two film frames. Start explains, step by step, how to measure the chart in Spectro32; bringing the measurement back into ChromIQ comes in a later version. Nobody on the team owns the instrument, so it has not been tried on one yet.
+
 ## v4.3.60
 
 **Tools > Read single patches now warns you when a calibration looks wrong, and you can calibrate again without ending the session.**
