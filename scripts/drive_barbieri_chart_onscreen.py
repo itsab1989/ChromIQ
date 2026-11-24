@@ -37,6 +37,9 @@ ap = argparse.ArgumentParser()
 ap.add_argument("out")
 ap.add_argument("--language", default="en")
 ap.add_argument("--appearance", default="dark")
+ap.add_argument("--guided-05", action="store_true",
+                help="only Guided with the 0.5 mm opening: its film frames, "
+                     "a chart on the 35 mm frame")
 ap.add_argument("--quick", action="store_true",
                 help="only the default chart, the steps window and Guided")
 args = ap.parse_args()
@@ -148,6 +151,31 @@ def main() -> int:
         p.barbieri_size.activated.emit(i)
         return True
 
+    def guided_05(d):
+        win._file_mgr.set_target_name(PROJECT)
+        win._file_mgr.project().current_run().ensure_dir()
+        d.goto_tab("chart")
+        tc._switch_mode("guided")
+        yield 900
+        i = tc._instr_combo.findData("B100XY")
+        tc._instr_combo.setCurrentIndex(i)
+        yield 900
+        box = tc._barbieri_head_combo
+        box.setCurrentIndex(box.findData("transmission-0.5"))
+        yield 1200
+        papers = [tc._paper_combo.itemText(k)
+                  for k in range(tc._paper_combo.count())]
+        d.note(f"Guided 0.5 mm papers: {papers}")
+        d.shot(win, "20-guided-05-film-frames")
+        yield from generate("21-guided-05-35mm")
+        d.shot(win, "21-guided-05-35mm-chart")
+        box.setCurrentIndex(box.findData("reflection-3"))
+        yield 1200
+        papers = [tc._paper_combo.itemText(k)
+                  for k in range(tc._paper_combo.count())]
+        d.note(f"Guided 3 mm papers: {papers}")
+        d.end(0, "done")
+
     def script(d):
         win._file_mgr.set_target_name(PROJECT)
         win._file_mgr.project().current_run().ensure_dir()
@@ -229,7 +257,7 @@ def main() -> int:
         yield 800
         d.end(0, "done")
 
-    return d.run(script)
+    return d.run(guided_05 if args.guided_05 else script)
 
 
 if __name__ == "__main__":

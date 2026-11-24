@@ -149,9 +149,10 @@ class SizePreset:
 #: `tests/test_barbieri_chart.py::test_every_size_preset_gives_its_patch_area`.
 SIZE_PRESETS: "tuple[SizePreset, ...]" = (
     # A4 landscape with the patch area inside one pass of the table, the
-    # 15 mm left border included: 36 x 29 patches of 6.5 mm, 234 x 188.5 mm.
+    # 15 mm left border included: 36 x 28 patches of 6.5 mm, 234 x 182 mm
+    # (an even row count, so Gateway's target size is whole millimetres).
     SizePreset("a4", "A4 landscape, one pass (3 mm, 6.5 mm patches)",
-               F.HEAD_REFLECTION_3, 6.5, (10.0, 47.0, 10.0, 15.0),
+               F.HEAD_REFLECTION_3, 6.5, (10.0, 47.0, 17.9, 15.0),
                paper="A4R"),
     # Letter landscape, the same way: 36 x 30 patches, 234 x 195 mm.
     SizePreset("letter", "Letter landscape, one pass (3 mm, 6.5 mm patches)",
@@ -168,10 +169,12 @@ SIZE_PRESETS: "tuple[SizePreset, ...]" = (
                F.HEAD_REFLECTION_3, 6.5, (5.0, 47.0, 5.0, 15.0),
                paper="A4R"),
     # An owner's large film frame, 9.25 x 7.75 in, read with the 3 mm opening
-    # in transmission, at his film recorder's 2032 pixels per inch.
+    # in transmission, at his film recorder's 2032 pixels per inch: 34 x 28
+    # patches of 6.5 mm, 221 x 182 mm (even counts: whole millimetres for
+    # Gateway).
     SizePreset("film_large", "Film frame 9.25 x 7.75 in (3 mm transmission, "
                "6.5 mm patches)", F.HEAD_TRANSMISSION_3, 6.5,
-               (3.0, 3.0, 3.0, 3.0),
+               (3.0, 10.9, 11.8, 3.0),
                page_size={"w": [9.25, "in"], "h": [7.75, "in"], "ppi": 2032},
                dpi=2032, needs_page_beta=True),
     # The 35 mm frame, 4096 x 2730 pixels at 2731 pixels per inch (1.5 x 1
@@ -795,10 +798,55 @@ def capacity(kw: dict) -> int:
 #: one pass of the table with the default margins.
 GUIDED_PAPERS = ("A4R", "LetterR", "A4", "Letter")
 
+#: The film frames Guided offers for the 0.5 mm opening, by ready-made size.
+GUIDED_FILM_SIZES = ("film_35", "film_large")
+
+
+def film_paper_code(key: str) -> str:
+    """The paper code (mm) of the film-frame ready-made size *key*."""
+    from workflow.page_output import support as po
+    p = size_preset(key)
+    ps = po.clean_page_size(p.page_size)
+    w, h = po.page_mm(ps, p.dpi or ps.get("ppi"))
+    return po.paper_code(w, h)
+
+
+def guided_film_preset(paper: str) -> "SizePreset | None":
+    """The film-frame ready-made size whose page *paper* is, or None."""
+    for key in GUIDED_FILM_SIZES:
+        try:
+            if film_paper_code(key) == str(paper or ""):
+                return size_preset(key)
+        except Exception:   # noqa: BLE001
+            continue
+    return None
+
+
+def guided_papers(head_key: str) -> "tuple[str, ...]":
+    """The sheets Guided offers for an opening. The 0.5 mm opening reads
+    film: Guided offers only the film frames (a sheet of paper would hold
+    thousands of 1 mm patches and hours of reading); Manual keeps every
+    paper for it."""
+    if head_of(head_key).key == F.HEAD_TRANSMISSION_05:
+        return tuple(film_paper_code(k) for k in GUIDED_FILM_SIZES)
+    return GUIDED_PAPERS
+
+
+def guided_paper_label(paper: str) -> "str | None":
+    """The film frame's own name for its paper code in Guided (the frame
+    only: in Guided the opening chosen gives the patch size), else None."""
+    p = guided_film_preset(paper)
+    if p is None:
+        return None
+    return {"film_35": tr("35 mm film frame (4096 x 2730 px at 2731 ppi)"),
+            "film_large": tr("Large film frame (9.25 x 7.75 in)")}[p.key]
+
 
 def guided_kwargs(paper: str, head_key: str) -> dict:
     """What Guided's Barbieri chart uses: the opening's own patch size, no
-    gaps, and the default margins (`default_margins`)."""
+    gaps, and the default margins (`default_margins`); on a film frame the
+    frame's own margins, and (with the page-output Beta on) its page in
+    pixels or inches and its resolution."""
     from workflow.layout_engine import papers
     head = head_of(head_key)
     w, h = papers.dimensions_mm(paper or "A4R")
@@ -806,6 +854,14 @@ def guided_kwargs(paper: str, head_key: str) -> dict:
            "margins": default_margins(w, h), "layout_mode": "patch_first",
            "spacer_on": False, "spacer_mode": "none", "draw_indicators": False,
            "row_indicators": False, "patch_area_align": "top-left"}
+    film = guided_film_preset(paper)
+    if film is not None:
+        out["margins"] = tuple(film.margins)
+        from workflow.page_output.support import page_output_enabled
+        if page_output_enabled():
+            from workflow.page_output import support as po
+            out.update(page_size=po.clean_page_size(film.page_size),
+                       dpi=int(film.dpi), tiff_res_unit="in")
     if head.key != F.DEFAULT_HEAD:
         out[HEAD_KEY] = head.key
     return out

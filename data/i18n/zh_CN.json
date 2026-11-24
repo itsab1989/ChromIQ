@@ -9826,5 +9826,7 @@
  "{opening} (Spectro32 {code})": "{opening}（Spectro32 {code}）",
  "{w} x {h} mm": "{w} x {h} mm",
  "{x} x {y} mm": "{x} x {y} mm",
- "•  The layout follows Barbieri's datasheets, the way Barbieri's own programs describe a chart, and an owner's real measurement files. All of it was checked carefully, but without an instrument.\n\n•  Nobody on the ChromIQ team owns a Spectro 100xy, so no ChromIQ chart has been read by one yet. Owners who try it are the first to test it.\n\n•  You can switch this off again at any time, and ChromIQ then works as before.": "•  排版依据 Barbieri 的数据表、Barbieri 自己的程序描述色卡的方式以及一位用户的真实测量文件。一切都经过仔细检查，但没有使用仪器。\n\n•  ChromIQ 团队中没有人拥有 Spectro 100xy，因此还没有任何 ChromIQ 色卡被它读取过。尝试使用的用户将是第一批测试者。\n\n•  你可以随时再次关闭它，届时 ChromIQ 会照常工作。"
+ "•  The layout follows Barbieri's datasheets, the way Barbieri's own programs describe a chart, and an owner's real measurement files. All of it was checked carefully, but without an instrument.\n\n•  Nobody on the ChromIQ team owns a Spectro 100xy, so no ChromIQ chart has been read by one yet. Owners who try it are the first to test it.\n\n•  You can switch this off again at any time, and ChromIQ then works as before.": "•  排版依据 Barbieri 的数据表、Barbieri 自己的程序描述色卡的方式以及一位用户的真实测量文件。一切都经过仔细检查，但没有使用仪器。\n\n•  ChromIQ 团队中没有人拥有 Spectro 100xy，因此还没有任何 ChromIQ 色卡被它读取过。尝试使用的用户将是第一批测试者。\n\n•  你可以随时再次关闭它，届时 ChromIQ 会照常工作。",
+ "35 mm film frame (4096 x 2730 px at 2731 ppi)": "35 mm 胶片画幅（4096 x 2730 px，2731 ppi）",
+ "Large film frame (9.25 x 7.75 in)": "大幅胶片画幅（9.25 x 7.75 英寸）"
 }

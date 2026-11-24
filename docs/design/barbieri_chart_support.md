@@ -67,11 +67,16 @@ project owns a Spectro 100xy; no ChromIQ chart has been read by one.*
   upper-right patch, a sheet upside down puts another patch at A1, a vertical
   flip puts the lightest at A1, a shift by one puts B1's or A2's colour there.
 * **Ready-made sizes** (Manual, built in, every value stays editable and is
-  saved as typed): A4 landscape one pass (36 x 29 of 6.5 mm), Letter
+  saved as typed): A4 landscape one pass (36 x 28 of 6.5 mm), Letter
   landscape one pass (36 x 30), Barbieri standard area 225 x 180 mm (30 x 24
   of 7.5 mm), full reading area (36 x 30 of 6.5 mm), film frame 9.25 x 7.75 in
-  (3 mm transmission, 2032 ppi) and 35 mm frame 4096 x 2730 px at 2731 ppi
-  (0.5 mm, 36 x 23 of 1 mm). The two film frames need the page-output Beta
+  (3 mm transmission, 2032 ppi, 34 x 28 of 6.5 mm) and 35 mm frame
+  4096 x 2730 px at 2731 ppi (0.5 mm, 36 x 23 of 1 mm). Each gives exact
+  numbers to both programs (spans in whole 0.1 mm, a Gateway target size in
+  whole mm); a size a person makes that does not is said in the steps window.
+* **Guided** offers A4 and Letter (landscape first) for the 3 mm and 6 mm
+  openings, and only the two film frames for the 0.5 mm opening; Manual keeps
+  every paper for every opening. The two film frames need the page-output Beta
   and are greyed with that reason without it.
 * **Greyed in Manual, each with its reason:** spacers and edge spacers, the
   patch scale, the layout mode, offset strips and hexagons, the strip-limit

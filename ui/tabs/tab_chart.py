@@ -7717,7 +7717,7 @@ class TabChart(QWidget):
             self._barbieri_head_combo = QComboBox(inner)
             fill_head_combo(self._barbieri_head_combo)
             self._barbieri_head_combo.currentIndexChanged.connect(
-                self._update_patch_count)
+                self._barbieri_head_changed)
             self._barbieri_head_label = QLabel(tr("Measuring opening:"),
                                                inner)
             self._barbieri_head_tooltip = TooltipButton(
@@ -20547,6 +20547,14 @@ class TabChart(QWidget):
         return bool(panel is not None and self._manual_panel_lays_out()
                     and panel.instr.currentData() == "FD9")
 
+    def _barbieri_head_changed(self, *_a) -> None:
+        """Guided's Barbieri opening changed: the sheets it offers follow
+        (the 0.5 mm opening offers only the film frames)."""
+        if (self._instr_combo.currentData() or "") == "B100XY":
+            self._rebuild_paper_combo()
+        else:
+            self._update_patch_count()
+
     def _isis_model_changed(self, *_a) -> None:
         """Guided's i1iSis model width changed: the sheets it offers follow
         (the XL models take A3, 11 x 17 in and A3+ as well)."""
@@ -20598,10 +20606,14 @@ class TabChart(QWidget):
             # The Barbieri's Guided sheets: A4 and Letter, landscape first
             # (their patch area fits one pass of the table with the default
             # margins). Manual takes any paper.
-            from workflow.barbieri.chart import GUIDED_PAPERS as _BGP
-            sizes = list(_BGP)
+            # With the 0.5 mm opening only the film frames (it reads film;
+            # a sheet would hold thousands of 1 mm patches).
+            from workflow.barbieri.chart import guided_papers as _bgp
+            _bbox = getattr(self, "_barbieri_head_combo", None)
+            sizes = list(_bgp(_bbox.currentData() if _bbox is not None
+                              else ""))
             if current not in sizes:
-                current = "A4R"
+                current = sizes[0]
         elif instr == "IO2":
             # The i1iO's sheets: landscape, inside the arm's reach
             # (`workflow.i1io.chart.GUIDED_PAPERS`). Only reachable with i1iO
@@ -20611,6 +20623,14 @@ class TabChart(QWidget):
             if current not in sizes:
                 current = paper_for(current)
         _label_code = (lambda c: c)
+        if instr == "B100XY":
+            # a film frame by its own name (a Beta)
+            from workflow.barbieri.chart import guided_paper_label as _bgl
+            for size in sizes:
+                if size not in excluded:
+                    self._paper_combo.addItem(
+                        _bgl(size) or paper_display_label(size), size)
+            sizes = []
         if instr == "IO2":
             # shown as the sheet is used: landscape, on the table
             from workflow.i1io.chart import i1io_paper_label as _label_code

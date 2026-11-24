@@ -239,7 +239,7 @@ def test_side_file_holds_the_ti2_checksum_and_the_opening(tmp_path):
 
 
 @pytest.mark.parametrize("key,cols,rows", [
-    ("a4", 36, 29), ("letter", 36, 30), ("standard", 30, 24),
+    ("a4", 36, 28), ("letter", 36, 30), ("standard", 30, 24),
     ("full", 36, 30)])
 def test_every_size_preset_gives_its_patch_area(tmp_path, key, cols, rows):
     from workflow.barbieri.chart import size_preset
@@ -257,12 +257,14 @@ def test_every_size_preset_gives_its_patch_area(tmp_path, key, cols, rows):
     assert left >= 15.0 - 1e-6           # the left border kept
     if key == "standard":
         assert (aw, ah) == (pytest.approx(225.0), pytest.approx(180.0))
-        assert pg["gateway"]["exact"]
+    # every ready-made size gives exact numbers to both programs: spans in
+    # whole 0.1 mm (Spectro32) and a target size in whole mm (Gateway)
+    assert pg["gateway"]["exact"], pg["gateway"]
     assert doc["size_preset"] == key
 
 
 @pytest.mark.parametrize("key,cols,rows", [("film_35", 36, 23),
-                                           ("film_large", 35, 29)])
+                                           ("film_large", 34, 28)])
 def test_the_film_presets_need_and_use_the_page_beta(tmp_path, key, cols,
                                                     rows):
     from workflow.page_output import support as po
@@ -285,6 +287,8 @@ def test_the_film_presets_need_and_use_the_page_beta(tmp_path, key, cols,
             lay = geometry.compute(g, w, h, cols * rows)
             assert (lay.patches_per_page // lay.steps_in_pass,
                     lay.steps_in_pass) == (cols, rows)
+            from workflow.barbieri.chart import gateway_numbers
+            assert gateway_numbers(cols, rows, 6.5, 6.5)["exact"]
             return
         w, h = po.page_mm(po.clean_page_size(p.page_size), p.dpi)
         res, doc = _build(tmp_path, cols * rows, paper=po.paper_code(w, h),
@@ -295,6 +299,7 @@ def test_the_film_presets_need_and_use_the_page_beta(tmp_path, key, cols,
         pg = doc["pages_detail"][0]
         assert (pg["columns"], pg["rows"]) == (cols, rows)
         assert pg["spectro32"] == "R0,0,350,220,36,23"
+        assert pg["gateway"]["exact"]
         assert doc["spectro32_mode"] == "M5"
         # 1 mm margins still carry the corner marks, drawn thinner
         assert doc["marks_on"] is True
@@ -348,3 +353,31 @@ def test_marks_fit_a_one_millimetre_margin():
     for (a, b, c, d) in plan.rects:
         assert 0 <= a and 0 <= b and c <= 38.1 and d <= 25.4
         assert not (a < 37.0 and c > 1.0 and b < 24.0 and d > 1.0)
+
+
+def test_guided_offers_only_the_film_frames_for_the_half_millimetre_opening():
+    from workflow.barbieri import chart as C
+    films = C.guided_papers("transmission-0.5")
+    assert films == tuple(C.film_paper_code(k) for k in C.GUIDED_FILM_SIZES)
+    assert not set(films) & set(C.GUIDED_PAPERS)
+    for code in films:
+        assert C.guided_paper_label(code)
+    for head in ("reflection-3", "transmission-3", "reflection-6", ""):
+        assert C.guided_papers(head) == C.GUIDED_PAPERS
+
+
+def test_guided_kwargs_on_a_film_frame_take_the_frames_own_page():
+    from workflow.barbieri import chart as C
+    from workflow.page_output import support as po
+    code = C.film_paper_code("film_35")
+    before = po._latched
+    try:
+        po.set_enabled_for_this_process(True)
+        kw = C.guided_kwargs(code, "transmission-0.5")
+        assert kw["margins"] == (1.0, 1.0, 1.0, 1.0)
+        assert kw["page_size"]["w"] == [4096, "px"] and kw["dpi"] == 2731
+        assert kw["patch_w"] == 1.0
+        po.set_enabled_for_this_process(False)
+        assert "page_size" not in C.guided_kwargs(code, "transmission-0.5")
+    finally:
+        po._latched = before
