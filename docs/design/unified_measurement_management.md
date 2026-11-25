@@ -11312,7 +11312,7 @@ alone.
 > ChromIQ did not move the arm this time. Before it moves, ChromIQ asks you to take your hands away from the table and the arm.
 >
 > Row {row} of page {page} could not be read as a strip: {why}. Nothing was read this time. What would you like to do?
->   •  Read it again as a strip. If the same reason comes again, please choose another answer: trying once more will hardly help.
+>   •  Read it again as a strip. If the reason above says what to do, please do that first. If the same reason comes again, choose another answer.
 >   •  Read it patch by patch: slower, but without the strip move.
 >   •  Skip this row: the measurement is saved without it, and you can read it later.
 >   •  End this step.
@@ -12661,7 +12661,7 @@ For one (n = 1):
 > ChromIQ did not move the arm this time. Before it moves, ChromIQ asks you to take your hands away from the table and the arm.
 >
 > Row {row} of piece {page} could not be read as a strip: {why}. Nothing was read this time. What would you like to do?
->   •  Read it again as a strip. If the same reason comes again, please choose another answer: trying once more will hardly help.
+>   •  Read it again as a strip. If the reason above says what to do, please do that first. If the same reason comes again, choose another answer.
 >   •  Read it patch by patch: slower, but without the strip move.
 >   •  Skip this row: the measurement is saved without it, and you can read it later.
 >   •  End this step.

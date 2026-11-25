@@ -96,4 +96,18 @@ def test_the_two_pages_say_what_happened():
     for body in (held, still):
         assert [ln[5:16] for ln in body.split("\n") if "•" in ln] == [
             "Read it aga", "Read it pat", "Skip this r", "End this st"]
-    assert "choose another answer" in still
+    assert "choose another answer" in still and "hardly help" not in still
+    assert "says what to do, please do that first" in still      # a hand on the free arm is cured so
+
+
+def test_a_logged_c4_answer_sends_no_line(tmp_path):
+    """Safety review NOTE 5: a row whose c4 is written to the logs sends exactly the lines of a
+    row whose c4 is not."""
+    lines = []
+    for byte in (0xBA, 0xBE):
+        job, sim, helper, p = _strip(tmp_path / f"{byte:02X}")
+        sim.c_faults["c4_byte"] = byte
+        n = len(sim.received)
+        assert p.drive(job.read_row()).ok
+        lines.append(sim.received[n:])
+    assert lines[0] == lines[1]

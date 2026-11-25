@@ -14417,8 +14417,8 @@ M_I1IO_DRIVE_ROW_FAILED_STRIP_NOT_MOVED = _m(
     "hands away from the table and the arm.\n\n"
     "Row {row} of page {page} could not be read as a strip: {why}. Nothing was read this time. "
     "What would you like to do?\n"
-    "  •  Read it again as a strip. If the same reason comes again, please choose another "
-    "answer: trying once more will hardly help.\n"
+    "  •  Read it again as a strip. If the reason above says what to do, please do that first. "
+    "If the same reason comes again, choose another answer.\n"
     "  •  Read it patch by patch: slower, but without the strip move.\n"
     "  •  Skip this row: the measurement is saved without it, and you can read it later.\n"
     "  •  End this step.",

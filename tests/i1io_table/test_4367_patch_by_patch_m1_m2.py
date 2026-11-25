@@ -246,3 +246,19 @@ def test_the_window_shows_the_not_moved_page_for_a_refusal_before_any_move(
     first = M.M_I1IO_DRIVE_ROW_FAILED_STRIP_NOT_MOVED.body.split(".")[0]
     assert first in win._text.text()
     assert "where the strip move ended" not in win._text.text()
+
+
+def test_the_window_says_the_arm_is_held_after_a_real_move(
+        qtbot, monkeypatch, tmp_path, settings):  # noqa: F811
+    """The direction that matters (safety review S1): the arm moved to the row start and is held."""
+    from tests.i1io_table.test_window import open_window
+    from tests.i1io_table.window_sim import WindowSim
+    from workflow import measurement_messages as M
+    win, sim, run, p, saved, finished = open_window(
+        qtbot, monkeypatch, tmp_path, settings, asking=False,
+        args=["-v", "-c", "1", "chart"], sim=WindowSim(faults={"scan": {"not_ready": True}}))
+    assert p.drive_until("row_failed_strip") == "row_failed_strip"
+    assert sim.sim.moving is False and sim.jobs[-1]._table.arm_free is False
+    body = win._text.text()
+    assert M.M_I1IO_DRIVE_ROW_FAILED_STRIP.body.split(".")[0] in body
+    assert "did not move the arm" not in body
