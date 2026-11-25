@@ -2270,8 +2270,9 @@ class ChartCreator:
                 # Store a real recipe (not raw build kwargs) so reloading doesn't
                 # lose fields like clip_border (which kwargs spell as nolpcbord)
                 # and the editor reproduces the exact layout (#93).
-                from workflow.layout_engine.presets import (LayoutRecipe,
-                                                            stored_recipe)
+                from dataclasses import replace as _replace
+                from workflow.layout_engine.presets import (
+                    LayoutRecipe, guided_margin_fields, stored_recipe)
                 _gkw = self._engine_build_kwargs(params)
                 _grec = LayoutRecipe.from_build_kwargs(_gkw)
                 if _grec.instrument == "IO2":
@@ -2283,23 +2284,18 @@ class ChartCreator:
                     # what Guided's i1iSis chart really used (a Beta)
                     from workflow.isis.chart import with_guided_values
                     _grec = with_guided_values(_grec)
+                # The margins the engine really laid the sheet out to, not the
+                # 6 mm `from_build_kwargs` fills in (item 60): a rebuild from
+                # the recipe is then the same sheet.
+                _grec = _replace(_grec, **guided_margin_fields(
+                    stored_recipe(_grec, result)))
                 layout["recipe"] = stored_recipe(_grec, result)
-                # NOBODY CHOSE A GUIDED CHART'S MARGINS, AND THE NUMBERS THE
-                # RECIPE CARRIES ARE NOT THE ONES THE SHEET WAS LAID OUT TO.
+                # NOBODY CHOSE A GUIDED CHART'S MARGINS.
                 #
-                # Guided has no margin boxes, so `LayoutRecipe.from_build_kwargs`
-                # fills margin_top/right/bottom/left from the dataclass
-                # defaults: 6/6/6/6. What the engine was actually handed is
-                # `INSTRUMENT_DEFAULT_MARGIN` — 10 mm for the i1Pro (whose
-                # shipping preset is `m10_a0.95`), 6 mm for the ColorMunki, i1Pro3
-                # and SpyderPrint (core/settings.py). And the margins the sheet
-                # ends up WITH are an output of the whole layout, not an input at
-                # all: i1Pro/A4 realises 10.0 / 10.0 / 41.58 / 24.57.
-                #
-                # So "6" is right for three instruments by coincidence — it is
-                # both printtarg's `-m` default and the dataclass default — and
-                # simply wrong for the i1Pro. Do not read these four numbers as a
-                # description of the sheet.
+                # Guided has no margin boxes: the engine is handed the
+                # instrument's base margin (`INSTRUMENT_DEFAULT_MARGIN`), and
+                # the margins the sheet ends up WITH are an output of the whole
+                # layout: i1Pro/A4 realises 10.0 / 10.0 / 41.58 / 24.57.
                 #
                 # The field that does the damage is `use_instrument_margins:
                 # false` beside them. On disk it is indistinguishable from a
@@ -2314,13 +2310,12 @@ class ChartCreator:
                 # through printtarg, recorded no recipe, and were judged against
                 # the jig; that is the behaviour this restores.
                 #
-                # Record the PROVENANCE and let the reader decide. Do NOT write
-                # different numbers into the recipe: both attempts were measured
-                # and both are worse — writing the margins explicitly is still
-                # silent AND breaks the rebuild round-trip (20 -> 62
-                # combinations rebuild a different sheet), and setting
-                # `use_instrument_margins` true changes the geometry itself
-                # (20 -> 74).
+                # Record the PROVENANCE and let the reader decide.
+                # (`use_instrument_margins` true would change the geometry
+                # itself. The realised margins written as the recipe's broke
+                # the rebuild in 2026-08; the base margin does not: every
+                # Guided combination of instrument and paper rebuilds pixel
+                # for pixel, `tests/test_a_guided_recipe_rebuilds_its_sheet.py`.)
                 layout["margins_chosen_by_user"] = False
             doc["layout"] = layout
             sidecar.write_text(json.dumps(doc), encoding="utf-8")

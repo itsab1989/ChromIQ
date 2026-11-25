@@ -6048,8 +6048,10 @@ def _sheet_of_sidecar(data: bytes) -> "tuple[dict, dict, dict] | None":
         layout = dict(doc["layout"])
         if layout.get("engine") != "chromiq":
             return None
-        from workflow.layout_engine.presets import LayoutRecipe
-        recipe = LayoutRecipe.from_stored(dict(layout.pop("recipe"))).to_dict()
+        from workflow.layout_engine.presets import (LayoutRecipe,
+                                                    recipe_as_printed)
+        recipe = LayoutRecipe.from_stored(recipe_as_printed(layout)).to_dict()
+        layout.pop("recipe")
     except Exception:      # noqa: BLE001 - not an engine chart's record
         return None
     for key in _NOT_IN_THE_BUILD:
@@ -18657,9 +18659,10 @@ class TabChart(QWidget):
         restored_full = False
         try:
             layout = doc.get("layout") or {}
-            rec_dict = layout.get("recipe") or {}
+            from workflow.layout_engine.presets import (LayoutRecipe,
+                                                        recipe_as_printed)
+            rec_dict = recipe_as_printed(layout)
             if rec_dict:
-                from workflow.layout_engine.presets import LayoutRecipe
                 recipe = LayoutRecipe.from_stored(rec_dict, ti2_path)
                 # The seed the chart was ACTUALLY built with (Knut, #130
                 # 2026-07-27: "the random seed must survive the restore and

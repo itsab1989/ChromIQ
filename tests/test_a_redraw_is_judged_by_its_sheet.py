@@ -57,7 +57,7 @@ def _guided(tc, qapp, instrument, paper):
         qapp.processEvents()
 
 
-def _restored(win, qapp, qtbot, monkeypatch, make):  # noqa: F811
+def _restored(win, qapp, qtbot, monkeypatch, make, changed=False):  # noqa: F811
     """The chart *make* generates, stored, replaced by another one, restored
     and redrawn: ``(its pages before, its pages after, what the log says)``."""
     from workflow.chart_slot import slot_for_run
@@ -70,6 +70,8 @@ def _restored(win, qapp, qtbot, monkeypatch, make):  # noqa: F811
     held = {p: p.read_bytes() for p in run.dir.glob(f"{run.stem}.*")
             if p.suffix in (".ti1", ".ti2", ".json")}
     snapshot_slot(slot_for_run(run))
+    if changed:                   # (the test's own snapshot edits the record)
+        held = {p: p.read_bytes() for p in held}
     _guided(tc, qapp, other, "Letter")
     _generate(win, qapp, qtbot, expect=_prof(win))
     assert before and _pages(run.dir) != before
@@ -108,10 +110,43 @@ def test_it_is_told_exactly_when_the_pages_come_out_different(
         return "CM" if instrument == "i1" else "i1"
     before, after, log = _restored(win, qapp, qtbot, monkeypatch, make)
     assert (TOLD in log) is (after != before), log
-    # (the rule for the i1Pro's and the CR30's Guided charts is another one:
-    # their redraw uses margins the Guided build did not, and says so)
-    if mode == "manual" or instrument not in ("i1", "CR30"):
-        assert after == before
+    assert after == before
+
+
+@requires_argyll
+@pytest.mark.parametrize("old", [True, False], ids=["as 4.3.66 stored it",
+                                                    "margins of a person"])
+def test_a_guided_chart_stored_with_the_wrong_margins(
+        win, qapp, qtbot, monkeypatch, old):  # noqa: F811
+    """A stored Guided chart of 4.3.66 is redrawn as it was printed. One whose
+    margins are said to be a person's is redrawn with them: another sheet, and
+    told."""
+    from tests.test_i1io_run_types import _prof as chart
+    tc = win._tab_chart
+    _guided(tc, qapp, "i1", "A4")
+    _generate(win, qapp, qtbot, expect=chart(win))
+
+    def make(tab):
+        _guided(tab, qapp, "i1", "A4")
+        return "CM"
+    from workflow import verify_chart_snapshot as V
+    real = V.snapshot_slot
+
+    def as_4366(slot):
+        side = chart(win).with_suffix(".channels.json")
+        doc = json.loads(side.read_text(encoding="utf-8"))
+        for edge in ("top", "right", "bottom", "left"):
+            assert doc["layout"]["recipe"][f"margin_{edge}"] == 10.0
+            doc["layout"]["recipe"][f"margin_{edge}"] = 6.0
+        if not old:
+            doc["layout"].pop("margins_chosen_by_user")
+        side.write_text(json.dumps(doc), encoding="utf-8")
+        return real(slot)
+    monkeypatch.setattr(V, "snapshot_slot", as_4366)
+    before, after, log = _restored(win, qapp, qtbot, monkeypatch, make,
+                                   changed=True)
+    assert (after == before) is old
+    assert (TOLD in log) is not old
 
 
 # ---- the record of the sheet -----------------------------------------------
@@ -179,10 +214,22 @@ def test_what_is_not_on_the_sheet_is_no_difference(tmp_path, path, value):
     (("layout", "recipe", "spacer_mode"), "bw"),
     (("layout", "recipe", "indicator_size_mm"), 4.23),
     (("layout", "recipe", "chart_text"), "x"),
-    (("layout", "recipe", "margin_left"), 9.0)])
+    (("layout", "recipe", "border"), 9.0)])
 def test_what_is_on_the_sheet_is_a_difference(tmp_path, path, value):
     old = _doc(tmp_path)
     assert not _same(old, _set(old, path, value))
+
+
+def test_other_margins_are_another_sheet(tmp_path):
+    """Those of a Guided chart are its base margin whatever it recorded; the
+    redraw records them without "nobody chose these"."""
+    guided = _doc(tmp_path)
+    base = guided["layout"]["recipe"]["border"]
+    for mm, same in ((base, True), (base + 3.0, False)):
+        redrawn = _set(guided, ("layout", "margins_chosen_by_user"), None)
+        for side in ("top", "right", "bottom", "left"):
+            redrawn = _set(redrawn, ("layout", "recipe", f"margin_{side}"), mm)
+        assert _same(guided, redrawn) is same
 
 
 def test_a_description_that_is_printed_counts(tmp_path):

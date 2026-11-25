@@ -567,9 +567,17 @@ while the option is on and hands it back to Create Chart; off, it opens as in
   who chose a value (the recipe's seed and "explicit" ticks, `margins_chosen_by_user`) and a run
   description that nothing on the sheet prints. Before, it was written of every chart, in Guided and
   in Manual, also where the redrawn pages were the same pixel for pixel.
-* **Known, and still said:** a Guided chart of the i1Pro or the CR30 is redrawn differently (the recipe
-  it records holds 6 mm margins the Guided build did not use): the strip letters move, on a CR30 A4
-  landscape sheet the patches too. The chart's files are kept; the pages shown are not its pages.
+* **A Guided chart's margins.** Guided has no margin boxes; the engine is handed none and lays the
+  sheet out with the base margin (`border`) on every side. The recipe stored with the chart said 6 mm
+  from 4.1.3-beta.19 to 4.3.66, so the redraw of a Guided i1Pro chart (10 mm), CR30 chart (5 mm) or
+  ColorMunki chart at triple density (5 mm), of an i1iO chart without aiming crosses and of an i1iSis
+  chart on 127 x 178 mm was another sheet (the last one was refused). The recipe now says the margins
+  of the build; nothing else of the record and nothing of the print changes. A stored Guided chart
+  (it says so itself, `margins_chosen_by_user` false, and holds exactly the 6 mm, an i1iSis chart
+  5 mm, that were filled in) is restored and opened as it was printed (`presets.recipe_as_printed`). Not reached: a chart of 4.1.3-beta.19, which does not say it is
+  Guided, and an i1iO chart without crosses from before 4.3.66; the line above is still written there
+  when the sheet comes out different.
 
-Tests: `tests/test_a_redraw_is_judged_by_its_sheet.py` (the pages themselves are the judge, for every
+Tests: `tests/test_a_guided_recipe_rebuilds_its_sheet.py`,
+`tests/test_a_redraw_is_judged_by_its_sheet.py` (the pages themselves are the judge, for every
 instrument, Guided and Manual).
