@@ -1153,7 +1153,7 @@ i1pro2_startcal_test.c`). Helper 2026-11-23b (`+dual-startup-wavelength`).
 again; 3: an i1Pro 2 follows the dual scan's own "always / only for M1 or M2"). Never run on an
 instrument; a first try until a real i1Pro 2 has read a dual spot. NOT RELEASED: an independent
 safety review of the new helper mode comes first. Code: `native/chartread_helper/
-chromiq_spotsession.c` (helper 2026-11-24b, caps word `spot_session`),
+chromiq_spotsession.c` (helper 2026-11-25a, caps word `spot_session`),
 `workflow/helper_spot_manager.py`, `ui/dialogs/spot_read_dialog.py`, `workflow/spot_read_io.py`.
 Tests: `tests/test_spot_session_wire.py`, `tests/test_item43_steps23.py`. Texts §M-PROPOSED
 `M-SPOT-ALL-CONDITIONS` ... `M-SPOT-CAL-FAILED`.

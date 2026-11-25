@@ -241,7 +241,7 @@ def test_the_hand_reader_writes_it_to_the_app_log(trace, caplog, qapp):
 def test_the_bundled_helper_is_this_build():
     from workflow.i1io.table.reader import HELPER_BUILD
     ext = (HELPER / "chromiq_ext.h").read_text(encoding="utf-8")
-    assert '"chromiq-chartread 2026-11-25a ' in ext and "+wavelength-report" in ext
+    assert '"chromiq-chartread 2026-11-25a ' in ext and "+wavelength-report+dual-tile-restore+spot-session\"" in ext
     assert HELPER_BUILD == "2026-11-25a"
     exe = ROOT / "native" / "chromiq-chartread"
     if not exe.is_file():
