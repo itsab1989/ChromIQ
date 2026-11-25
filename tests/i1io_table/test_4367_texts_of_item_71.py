@@ -77,7 +77,7 @@ def test_the_refused_page_says_the_percent_and_that_it_is_not_accepted(tmp_path)
     assert r.detail["scaled_percent"] == 97
     text = reason_text(r.reason, dict(r.detail))
     assert "97 %" in text and "not at 100 %" in text and "does not accept it" in text
-    assert "Carry on" in text and "at least one aim was on another point." in text
+    assert "“Next step”" in text and "at least one aim was on another point." in text
     assert job.alignment is None
     assert not [ln for ln in sim.received[n:] if ln.startswith(";m2")]
 

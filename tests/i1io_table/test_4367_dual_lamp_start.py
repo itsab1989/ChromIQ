@@ -106,7 +106,7 @@ def test_only_the_dual_lamp_pass_uses_it():
         assert "DUAL_LAMP_MOTION_START_S" not in inspect.getsource(fn), fn
     users = subprocess.run(["grep", "-rl", "DUAL_LAMP_MOTION_START_S", "--include=*.py", "core",
                             "ui", "workflow"], cwd=ROOT, capture_output=True,
-                           text=True).stdout.split()
+                           text=True, encoding="utf-8").stdout.split()
     assert sorted(users) == ["workflow/i1io/table/dual_rows.py", "workflow/i1io/table/job.py",
                              "workflow/i1io/table/scan.py", "workflow/i1io/table/spot.py"]
 

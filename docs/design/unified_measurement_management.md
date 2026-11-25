@@ -11342,7 +11342,7 @@ alone.
 > Row {row} of page {page} could not be read as a strip: {why}. Nothing was read this time. What would you like to do?
 >   •  Read it again as a strip. If the reason above says what to do, please do that first. If the same reason comes again, choose another answer.
 >   •  Read it patch by patch: slower, but without the strip move.
->   •  Skip this row: the measurement is saved without it, and you can read it later.
+>   •  Skip it: the measurement is saved without this row, and you can read it later.
 >   •  End this step.
 
 ### M-I1IO-DRIVE-ROW-M0-ONLY-STRIP · PROPOSED · the job asks row_failed_strip for a dual row whose lamp pass was kept as M0 only (m0_kept), Measure (the i1iO table window)
@@ -12733,7 +12733,7 @@ For one (n = 1):
 > Row {row} of piece {page} could not be read as a strip: {why}. Nothing was read this time. What would you like to do?
 >   •  Read it again as a strip. If the reason above says what to do, please do that first. If the same reason comes again, choose another answer.
 >   •  Read it patch by patch: slower, but without the strip move.
->   •  Skip this row: the measurement is saved without it, and you can read it later.
+>   •  Skip it: the measurement is saved without this row, and you can read it later.
 >   •  End this step.
 
 ### M-I1IO-DRIVE-ROW-M0-ONLY-PIECE · PROPOSED · The table window, on a chart in pieces

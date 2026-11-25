@@ -25,6 +25,8 @@ QUESTIONS = [
      ("again", "patch by patch", "skip", "stop")),
     (M.M_I1IO_DRIVE_ROW_M0_ONLY_STRIP, "row_failed_strip",
      ("again", "patch by patch", "skip", "stop")),
+    (M.M_I1IO_DRIVE_ROW_FAILED_STRIP_NOT_MOVED, "row_failed_strip",
+     ("again", "patch by patch", "skip", "stop")),
     (M.M_I1IO_DRIVE_ROW_PLACEMENT_REST, "row_failed_strip",
      ("again", "rest patch by patch", "skip", "stop")),
 ]

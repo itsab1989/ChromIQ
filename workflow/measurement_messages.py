@@ -14439,7 +14439,7 @@ M_I1IO_DRIVE_ROW_FAILED_STRIP_NOT_MOVED = _m(
     "  •  Read it again as a strip. If the reason above says what to do, please do that first. "
     "If the same reason comes again, choose another answer.\n"
     "  •  Read it patch by patch: slower, but without the strip move.\n"
-    "  •  Skip this row: the measurement is saved without it, and you can read it later.\n"
+    "  •  Skip it: the measurement is saved without this row, and you can read it later.\n"
     "  •  End this step.",
     approved=False)
 

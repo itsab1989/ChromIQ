@@ -95,7 +95,7 @@ def test_the_two_pages_say_what_happened():
     assert "held" not in still and "take your hands away" in still.split("\n\n")[0]
     for body in (held, still):
         assert [ln[5:16] for ln in body.split("\n") if "•" in ln] == [
-            "Read it aga", "Read it pat", "Skip this r", "End this st"]
+            "Read it aga", "Read it pat", "Skip it: th", "End this st"]
     assert "choose another answer" in still and "hardly help" not in still
     assert "says what to do, please do that first" in still      # a hand on the free arm is cured so
 
