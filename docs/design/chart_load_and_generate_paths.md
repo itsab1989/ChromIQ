@@ -589,3 +589,27 @@ while the option is on and hands it back to Create Chart; off, it opens as in
 Tests: `tests/test_a_guided_recipe_rebuilds_its_sheet.py`,
 `tests/test_a_redraw_is_judged_by_its_sheet.py` (the pages themselves are the judge, for every
 instrument, Guided and Manual).
+
+
+### ⏳ Awaiting confirmation: switching from Guided to Manual (ruled by Basti, 25 Nov 2026)
+
+**Confirmed by:** *nobody yet.*
+
+* **No chart made yet:** Manual stays as it is; only the instrument and the paper come along.
+* **A chart made in Guided (in this session, and on screen):** Manual shows the layout that chart was
+  really made with: its instrument, paper, margins, patch size, density, clip border, label style and
+  number of patches, read from the chart's own record (`presets.recipe_as_printed`), never from what
+  Guided's fields say by now. Generate with nothing changed makes the same LAYOUT: the same patches in
+  the same places, counts, pages and letters (and, with the same shuffle, the same order). The patch
+  set stays Manual's own: its Auto works out its own grey steps, whites and blacks, which are not
+  Guided's on every sheet; there the same places hold other colours.
+* **What was chosen in Guided after the chart stays in Guided**, the instrument too. This is the one
+  exception to "the two modes show one instrument" (#130): Manual shows the chart's. A line in the
+  panel says both. Another instrument chosen in Guided takes Manual along as ever, and the chart's
+  values come back on the way to Manual; a person's edits in Manual are otherwise never written over
+  by a second switch.
+* "Chart layout information" is right in both cases.
+
+Tests: `tests/test_manual_shows_the_chart_guided_made.py`: 22 charts of nine instruments, at once and
+after another choice in Guided; Generate in Manual, and with Guided's own patch set the same pages,
+pixel for pixel. (Once, by hand: 204 charts, every paper Guided offers.)

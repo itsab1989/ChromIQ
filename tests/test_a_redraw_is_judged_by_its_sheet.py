@@ -166,7 +166,7 @@ def test_manual_shows_the_restored_charts_settings(
         return "CM" if instrument == "i1" else "i1"
     before, after, log = _restored(win, qapp, qtbot, monkeypatch, make)
     assert after == before and TOLD not in log
-    assert "Guided settings copied" not in log
+    assert "Manual now shows the settings" not in log
     assert tc._current_mode() == "manual"
     recipe = json.loads(side.read_text(encoding="utf-8"))["layout"]["recipe"]
     shown = tc._manual_layout_panel.get_recipe()

@@ -1853,7 +1853,7 @@
  "Grows or shrinks every patch (and its spacer) together. 1.0 is the instrument's standard size. Below 1.0 fits more patches per sheet but each is harder for the instrument to read reliably — watch the warning if patches get too small.": "各パッチ（とそのスペーサー）をまとめて拡大・縮小します。1.0が測定器の標準サイズです。1.0未満では1枚あたりのパッチが増えますが、各パッチは測定器で確実に読み取りにくくなります。パッチが小さくなりすぎたら警告に注意してください。",
  "Guided leaves these at their standard settings:": "ガイドモードでは次の項目は標準設定のままです:",
  "Guided mode applies these fixed settings:": "ガイドモードは以下の固定設定を適用します:",
- "Guided settings copied to Manual mode — edit and regenerate as needed.": "ガイドモードの設定をマニュアルモードにコピーしました。必要に応じて編集して再生成してください。",
+ "Manual now shows the settings the chart on screen was made with. What you have chosen in Guided since then stays there. Edit them and generate again as needed.": "手動モードには、画面に表示されているチャートの作成に使われた設定が表示されています。その後ガイドモードで選んだ内容は、ガイドモードにそのまま残ります。必要に応じて編集し、もう一度生成してください。",
  "H": "高さ",
  "H (mm):": "高さ (mm):",
  "Half black (h)": "黒50 % (h)",

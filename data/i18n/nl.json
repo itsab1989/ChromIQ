@@ -1853,7 +1853,7 @@
  "Grows or shrinks every patch (and its spacer) together. 1.0 is the instrument's standard size. Below 1.0 fits more patches per sheet but each is harder for the instrument to read reliably — watch the warning if patches get too small.": "Vergroot of verkleint elk meetveld (en zijn scheidingslijn) samen. 1.0 is de standaardgrootte van het instrument. Onder 1.0 passen er meer meetvelden per vel, maar elk is voor het instrument moeilijker betrouwbaar te lezen — let op de waarschuwing als meetvelden te klein worden.",
  "Guided leaves these at their standard settings:": "Begeleid laat deze op hun standaardinstellingen staan:",
  "Guided mode applies these fixed settings:": "De begeleide modus gebruikt deze vaste instellingen:",
- "Guided settings copied to Manual mode — edit and regenerate as needed.": "Geleide instellingen gekopieerd naar handmatige modus — bewerk en genereer opnieuw indien nodig.",
+ "Manual now shows the settings the chart on screen was made with. What you have chosen in Guided since then stays there. Edit them and generate again as needed.": "De handmatige modus toont nu de instellingen waarmee de kaart op het scherm is gemaakt. Wat je sindsdien in de geleide modus hebt gekozen, blijft daar staan. Bewerk ze en genereer opnieuw indien nodig.",
  "H": "H",
  "H (mm):": "H (mm):",
  "Half black (h)": "Half zwart (h)",

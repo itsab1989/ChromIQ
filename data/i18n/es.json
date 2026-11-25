@@ -1853,7 +1853,7 @@
  "Grows or shrinks every patch (and its spacer) together. 1.0 is the instrument's standard size. Below 1.0 fits more patches per sheet but each is harder for the instrument to read reliably — watch the warning if patches get too small.": "Agranda o reduce cada parche (y su separador) a la vez. 1.0 es el tamaño estándar del instrumento. Por debajo de 1.0 caben más parches por hoja, pero cada uno es más difícil de leer con fiabilidad; vigila el aviso si los parches se vuelven demasiado pequeños.",
  "Guided leaves these at their standard settings:": "El modo Guiado deja estos ajustes en sus valores estándar:",
  "Guided mode applies these fixed settings:": "El modo guiado aplica estos ajustes fijos:",
- "Guided settings copied to Manual mode — edit and regenerate as needed.": "Ajustes del modo guiado copiados al modo manual: edítalos y regenera si es necesario.",
+ "Manual now shows the settings the chart on screen was made with. What you have chosen in Guided since then stays there. Edit them and generate again as needed.": "El modo manual muestra ahora los ajustes con los que se hizo la carta que está en pantalla. Lo que hayas elegido desde entonces en el modo guiado se queda allí. Edítalos y vuelve a generar si hace falta.",
  "H": "Al",
  "H (mm):": "Al (mm):",
  "Half black (h)": "Negro al 50 % (h)",

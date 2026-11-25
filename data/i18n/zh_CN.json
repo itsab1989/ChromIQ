@@ -1853,7 +1853,7 @@
  "Grows or shrinks every patch (and its spacer) together. 1.0 is the instrument's standard size. Below 1.0 fits more patches per sheet but each is harder for the instrument to read reliably — watch the warning if patches get too small.": "同时放大或缩小每个色块（及其间隔条）。1.0 是仪器的标准尺寸。低于 1.0 每张纸可放更多色块，但每个都更难被仪器可靠读取——色块过小时请留意警告。",
  "Guided leaves these at their standard settings:": "引导模式将以下各项保持为标准设置:",
  "Guided mode applies these fixed settings:": "引导模式应用以下固定设置:",
- "Guided settings copied to Manual mode — edit and regenerate as needed.": "已将向导模式的设置复制到手动模式——可按需编辑并重新生成。",
+ "Manual now shows the settings the chart on screen was made with. What you have chosen in Guided since then stays there. Edit them and generate again as needed.": "手动模式现在显示的是制作屏幕上这张色卡时所用的设置。此后你在引导模式中选择的内容仍保留在那里。可按需修改并重新生成。",
  "H": "高",
  "H (mm):": "高 (mm):",
  "Half black (h)": "半黑 (h)",

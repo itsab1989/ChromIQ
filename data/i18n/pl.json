@@ -2887,7 +2887,7 @@
  "Grows or shrinks every patch (and its spacer) together. 1.0 is the instrument's standard size. Below 1.0 fits more patches per sheet but each is harder for the instrument to read reliably — watch the warning if patches get too small.": "Powiększa lub pomniejsza każde pole (i jego separator) razem. 1.0 to standardowy rozmiar przyrządu. Poniżej 1.0 mieści się więcej pól na arkusz, ale każde jest trudniejsze do niezawodnego odczytu — obserwuj ostrzeżenie, jeśli pola stają się zbyt małe.",
  "Guided leaves these at their standard settings:": "Tryb prowadzony zostawia je w ustawieniach standardowych:",
  "Guided mode applies these fixed settings:": "Tryb prowadzony stosuje te stałe ustawienia:",
- "Guided settings copied to Manual mode — edit and regenerate as needed.": "Ustawienia trybu prowadzonego skopiowano do trybu ręcznego — edytuj i wygeneruj ponownie w razie potrzeby.",
+ "Manual now shows the settings the chart on screen was made with. What you have chosen in Guided since then stays there. Edit them and generate again as needed.": "Tryb ręczny pokazuje teraz ustawienia, z którymi powstał wzorzec widoczny na ekranie. To, co od tego czasu wybrano w trybie prowadzonym, pozostaje tam. W razie potrzeby zmień je i wygeneruj wzorzec ponownie.",
  "H": "Wys.",
  "H (mm):": "Wys. (mm):",
  "Half black (h)": "Pół czerni (h)",

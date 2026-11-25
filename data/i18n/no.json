@@ -1853,7 +1853,7 @@
  "Grows or shrinks every patch (and its spacer) together. 1.0 is the instrument's standard size. Below 1.0 fits more patches per sheet but each is harder for the instrument to read reliably — watch the warning if patches get too small.": "Forstørrer eller forminsker hvert felt (og skillefeltet) samlet. 1.0 er instrumentets standardstørrelse. Under 1.0 får du plass til flere felt per ark, men hvert blir vanskeligere for instrumentet å lese pålitelig — følg med på advarselen hvis feltene blir for små.",
  "Guided leaves these at their standard settings:": "Veiledet lar disse stå på standardinnstillingene:",
  "Guided mode applies these fixed settings:": "Veiledet modus bruker disse faste innstillingene:",
- "Guided settings copied to Manual mode — edit and regenerate as needed.": "Veiledede innstillinger kopiert til manuell modus – rediger og bygg på nytt ved behov.",
+ "Manual now shows the settings the chart on screen was made with. What you have chosen in Guided since then stays there. Edit them and generate again as needed.": "Manuell modus viser nå innstillingene kartet på skjermen ble laget med. Det du har valgt i veiledet modus siden da, blir stående der. Rediger dem og generer på nytt ved behov.",
  "H": "H",
  "H (mm):": "H (mm):",
  "Half black (h)": "Halvt svart (h)",

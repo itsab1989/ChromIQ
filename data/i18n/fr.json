@@ -1853,7 +1853,7 @@
  "Grows or shrinks every patch (and its spacer) together. 1.0 is the instrument's standard size. Below 1.0 fits more patches per sheet but each is harder for the instrument to read reliably — watch the warning if patches get too small.": "Agrandit ou réduit chaque plage (et son séparateur) ensemble. 1.0 est la taille standard de l'instrument. En dessous de 1.0, plus de plages tiennent par feuille mais chacune est plus difficile à lire de façon fiable pour l'instrument — surveille l'avertissement si les plages deviennent trop petites.",
  "Guided leaves these at their standard settings:": "Le mode guidé laisse ceux-ci à leurs réglages standard :",
  "Guided mode applies these fixed settings:": "Le mode guidé applique ces réglages fixes :",
- "Guided settings copied to Manual mode — edit and regenerate as needed.": "Réglages du mode guidé copiés vers le mode manuel — modifie et régénère au besoin.",
+ "Manual now shows the settings the chart on screen was made with. What you have chosen in Guided since then stays there. Edit them and generate again as needed.": "Le mode manuel affiche maintenant les réglages avec lesquels la mire à l'écran a été faite. Ce que tu as choisi depuis dans le mode guidé y reste. Modifie-les et génère à nouveau au besoin.",
  "H": "H",
  "H (mm):": "H (mm) :",
  "Half black (h)": "Noir à 50 % (h)",

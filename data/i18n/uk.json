@@ -2917,7 +2917,7 @@
  "Grows or shrinks every patch (and its spacer) together. 1.0 is the instrument's standard size. Below 1.0 fits more patches per sheet but each is harder for the instrument to read reliably — watch the warning if patches get too small.": "Збільшує або зменшує кожен патч (разом із його роздільником). 1,0 — стандартний розмір для приладу. Менше за 1,0 вміщує більше патчів на аркуш, але кожен приладу важче надійно зчитати; стежте за попередженням, якщо патчі стають замалими.",
  "Guided leaves these at their standard settings:": "Покроковий режим залишає ці параметри стандартними:",
  "Guided mode applies these fixed settings:": "Покроковий режим застосовує ці фіксовані налаштування:",
- "Guided settings copied to Manual mode — edit and regenerate as needed.": "Налаштування покрокового режиму скопійовано в ручний режим — змінюйте їх і створюйте діаграму знову, як потрібно.",
+ "Manual now shows the settings the chart on screen was made with. What you have chosen in Guided since then stays there. Edit them and generate again as needed.": "У ручному режимі тепер показано налаштування, з якими створено діаграму на екрані. Те, що ви відтоді вибрали в покроковому режимі, залишається там. За потреби змініть їх і створіть діаграму знову.",
  "H": "В",
  "H (mm):": "В (мм):",
  "Half black (h)": "Напівчорний (h)",

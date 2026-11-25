@@ -2881,7 +2881,7 @@
  "Grows or shrinks every patch (and its spacer) together. 1.0 is the instrument's standard size. Below 1.0 fits more patches per sheet but each is harder for the instrument to read reliably — watch the warning if patches get too small.": "Увеличивает или уменьшает каждый патч (и его разделитель) вместе. 1.0 — стандартный размер прибора. Ниже 1.0 на лист помещается больше патчей, но каждый труднее надёжно прочитать прибором — следите за предупреждением, если патчи становятся слишком маленькими.",
  "Guided leaves these at their standard settings:": "Пошаговый режим оставляет эти параметры со стандартными значениями:",
  "Guided mode applies these fixed settings:": "Пошаговый режим применяет фиксированные настройки:",
- "Guided settings copied to Manual mode — edit and regenerate as needed.": "Настройки направляемого режима скопированы в ручной режим — при необходимости измените и создайте заново.",
+ "Manual now shows the settings the chart on screen was made with. What you have chosen in Guided since then stays there. Edit them and generate again as needed.": "В ручном режиме теперь показаны настройки, с которыми создана мишень на экране. То, что вы с тех пор выбрали в пошаговом режиме, остаётся там. При необходимости измените их и создайте мишень заново.",
  "H": "В",
  "H (mm):": "В (мм):",
  "Half black (h)": "Чёрный 50 % (h)",
