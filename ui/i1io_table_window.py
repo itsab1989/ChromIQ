@@ -1740,6 +1740,7 @@ def retire_window(win) -> None:
         relay = getattr(win, "_relay", None)
         if relay is not None:
             relay.detach()
+        win._keep_awake(False)
     except Exception:      # noqa: BLE001 - the deletion below decides
         pass
     _Retire(win).step()
@@ -3802,6 +3803,22 @@ class TableMeasureWindow(QFrame):
         if self.job is not None and self.job.phase == "new":
             self.job.guided = bool(on)
 
+    def _keep_awake(self, on: bool) -> None:
+        """Item 74, P5: the computer does not go to sleep while the table's session is open (a
+        page read patch by patch takes half an hour without a key; the USB link would be lost
+        with the arm out). Held from the press that opens it, released when the job has let go
+        of the table and when the panel is finished, whatever ended it; on macOS the assertion
+        ends with ChromIQ's process in any case. Never in the way of a step."""
+        try:
+            from core.keep_awake import keep_awake
+            if on:
+                keep_awake.hold()
+            elif getattr(self, "_awake_held", False):
+                keep_awake.release()
+            self._awake_held = bool(on)
+        except Exception:      # noqa: BLE001
+            log.debug("i1iO table: keep awake", exc_info=True)
+
     def _on_start_pressed(self) -> None:
         # review 11, opinion (iii): Stop and Report a problem appear when the USB is opened
         # (the "Start" answer on the ready-to-open question), not before
@@ -3810,6 +3827,7 @@ class TableMeasureWindow(QFrame):
                 getattr(self, "_page_id", "") == "prepare":
             # 4.3.52: the first page's tick switched the guidance off for this START
             self._guidance_notice()
+        self._keep_awake(True)
         self._call(self.job.open, status=tr("Connecting to the table..."))
 
     # ---- one result --------------------------------------------------------------------------
@@ -4670,6 +4688,7 @@ class TableMeasureWindow(QFrame):
 
     def _after_close_for_driver(self, res) -> None:
         self._closed_job = True
+        self._keep_awake(False)
         if getattr(res, "way_back", "none") not in ("none", "home_offered"):
             # never expected before the table was opened; if it ever is, the usual ending
             # says what is true about the table first, and nothing else opens
@@ -5433,6 +5452,7 @@ class TableMeasureWindow(QFrame):
 
     def _after_close(self, res) -> None:
         self._closed_job = True
+        self._keep_awake(False)
         _applog_row_identity_total(self.job)
         _remember_table_after(self, self.job)
         self._moving_controls(False)
@@ -5588,6 +5608,7 @@ class TableMeasureWindow(QFrame):
         self._alarm_stop("finished")
         self.notice.emit("")
         self._finished = True
+        self._keep_awake(False)
         self._hide_popup()
         self.progress.emit({"event": "end"})
         # review 2, M-1: the panel is finished (and the tab deletes it): nothing on the job's
