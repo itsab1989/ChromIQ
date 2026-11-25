@@ -2144,3 +2144,9 @@ the calibration rules are untouched.
   of being read on for M0 only. The readings made keep their M0, by the rule of every row that
   ended early. When the folder cannot be made, nothing is read and nothing moves. The row is not
   read again by itself. Only "write" does this; every other ending of the record is as before.
+* **The page of a strip row that moved nothing** (M-I1IO-DRIVE-ROW-FAILED-STRIP-NOT-MOVED,
+  proposed) takes the place of M-I1IO-DRIVE-ROW-FAILED-STRIP, which says the arm is held where the
+  strip move ended. Chosen by what happened: the attempt sent no move, or the arm is free (the job's
+  "moved"), never by the reason's name; a row refused after its lamp pass, or after the move to its
+  start, keeps the old page. Its first answer says to choose another one when the same reason comes
+  again.

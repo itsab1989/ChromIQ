@@ -4240,7 +4240,9 @@ class TableMeasureWindow(QFrame):
             msg = (M.M_I1IO_DRIVE_ROW_M0_ONLY_STRIP if d.get("m0_kept")
                    # 4.3.54: the second row of this page the row placement check refused
                    else M.M_I1IO_DRIVE_ROW_PLACEMENT_REST if d.get("offer_rest")
-                   else M.M_I1IO_DRIVE_ROW_FAILED_STRIP)
+                   else M.M_I1IO_DRIVE_ROW_FAILED_STRIP if d.get("moved", True)
+                   # nothing moved: no "held where the strip move ended", and no loop
+                   else M.M_I1IO_DRIVE_ROW_FAILED_STRIP_NOT_MOVED)
             title, body = M.of_pieces(msg, in_pieces(self._sheet)).render(
                 row=d.get("row", "?"), page=d.get("page", page),
                 why=as_clause(self._reason(d.get("why", ""))))

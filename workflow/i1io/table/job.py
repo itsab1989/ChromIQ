@@ -5163,6 +5163,7 @@ class TableJob:
         attempt = 1
         reread_by_itself = False
         while True:
+            moves_before = self._table.motions_sent
             if plan.kind == "strip" and self.dual is not None:
                 rec = yield from self._dual_strip_attempt(plan, attempt)
             elif plan.kind == "strip":
@@ -5236,7 +5237,11 @@ class TableJob:
                 and not self._calibration_due_for(len(plan.patches)),
                 "rows_read_again": self.rows_again.get(self.page, 0),
                 "calibration_due": self._calibration_due_for(len(plan.patches)),
-                "offer_rest": offer_rest, "aim_again": beside})
+                "offer_rest": offer_rest, "aim_again": beside,
+                # what really happened, not the reason's name: did this attempt send any move,
+                # and do the motors hold the arm (the page says so first)
+                "moved": self._table.motions_sent > moves_before
+                and self._table.arm_free is not True})
             if ans == "rest patch by patch":
                 self.rest_by_patch.add(self.page)
                 self.diag.log("DATA", f"page {self.page + 1}: the person chose to read the rest "

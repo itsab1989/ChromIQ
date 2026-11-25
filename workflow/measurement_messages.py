@@ -14408,6 +14408,22 @@ M_I1IO_DRIVE_ROW_FAILED_STRIP = _m(
     "  •  End this step.",
     approved=False)
 
+#: shown IN PLACE of M-I1IO-DRIVE-ROW-FAILED-STRIP when that attempt sent no move (the job's
+#: "moved"): nothing is held "where the strip move ended", and the first answer is no loop
+M_I1IO_DRIVE_ROW_FAILED_STRIP_NOT_MOVED = _m(
+    "M-I1IO-DRIVE-ROW-FAILED-STRIP-NOT-MOVED",
+    "Row {row} could not be read as a strip",
+    "ChromIQ has not moved the arm for this. Before it moves, ChromIQ asks you to take your "
+    "hands away from the table and the arm.\n\n"
+    "Row {row} of page {page} could not be read as a strip: {why}. Nothing was read this time. "
+    "What would you like to do?\n"
+    "  •  Read it again as a strip. If the same reason comes again, please choose another "
+    "answer: trying once more will hardly help.\n"
+    "  •  Read it patch by patch: slower, but without the strip move.\n"
+    "  •  Skip this row: the measurement is saved without it, and you can read it later.\n"
+    "  •  End this step.",
+    approved=False)
+
 #: 4.3.54 (the row placement check's fix round): shown IN PLACE of M-I1IO-DRIVE-ROW-FAILED-STRIP,
 #: once per page, when the row placement check has refused a SECOND row of that page; its four
 #: answers: again as a strip / "Rest patch by patch" (this row and every row after it on the
@@ -15594,7 +15610,7 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_STRIP_FIRST_TRY, M_I1IO_DRIVE_STRIP_TOO_LONG, M_I1IO_DRIVE_STRIP_DEFAULT_OFFER,
     M_I1IO_DRIVE_STRIP_OUTSIDE_AREA, M_I1IO_DRIVE_STRIP_NOT_POSSIBLE,
     M_I1IO_DRIVE_DUAL_ROWS, M_I1IO_DRIVE_DUAL_SPOT, M_I1IO_DRIVE_DUAL_PATCHES_TOO_SHORT,
-    M_I1IO_DRIVE_ROW_FAILED_STRIP, M_I1IO_DRIVE_FRONT,
+    M_I1IO_DRIVE_ROW_FAILED_STRIP, M_I1IO_DRIVE_ROW_FAILED_STRIP_NOT_MOVED, M_I1IO_DRIVE_FRONT,
     M_I1IO_DRIVE_FIRST_VISIT, M_I1IO_DRIVE_READER_CONSENT,
     M_I1IO_DRIVE_READER_CONSENT_MAC, M_I1IO_DRIVE_COUNTDOWN, M_I1IO_DRIVE_START_UP_ARM,
     M_I1IO_DRIVE_CONSENT_GUIDANCE, M_I1IO_GUIDED_HELP, M_I1IO_LOG_HELP,
@@ -15660,6 +15676,7 @@ I1IO_DRIVE_USB_MESSAGE["M-I1IO-DRIVE-TABLE-DRIVER-NOT-INSTALLED"] = M_I1IO_DRIVE
 PIECE_MESSAGES = {m.id: _piece_twin(m) for m in (
     M_I1IO_DRIVE_ROW_FAILED, M_I1IO_DRIVE_ROW_FAILED_STRIP, M_I1IO_DRIVE_ROW_M0_ONLY,
     M_I1IO_DRIVE_ROW_M0_ONLY_STRIP, M_I1IO_DRIVE_ROW_PLACEMENT_REST,
+    M_I1IO_DRIVE_ROW_FAILED_STRIP_NOT_MOVED,
     M_I1IO_DRIVE_ROW_NOT_IN_PLACE, M_I1IO_DRIVE_ROW_NOT_IN_PLACE_SPOT)}
 
 CATALOGUE = {m.id: m for m in (
