@@ -189,9 +189,12 @@ def test_a_piece_without_crosses_is_laid_by_its_first_patch():
             assert "mark 1 at the top left" in m.render(corner=cross, **kw)[1]
 
 
-def test_the_texts_say_that_only_a_simulated_table_has_seen_it():
-    for text in (M._I1IO_PIECES_INFO, M._I1IO_COMPACT_INFO):
-        assert "a simulated table only, not on a real one" in text
+def test_the_texts_say_what_a_real_table_has_seen():
+    """A sheet in pieces: still a simulated table only. Compact: its rows have been read on one
+    real table, without the dual scan (item 71; "a simulated table only" until 4.3.66)."""
+    assert "a simulated table only, not on a real one" in M._I1IO_PIECES_INFO
+    assert "simulated" not in M._I1IO_COMPACT_INFO
+    assert "read on one real table so far, without the dual scan" in M._I1IO_COMPACT_INFO
 
 
 def test_nothing_promises_a_piece_larger_than_a4_or_letter():
