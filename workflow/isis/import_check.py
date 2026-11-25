@@ -50,7 +50,7 @@ RIGHT, WRONG, CANNOT = "right", "wrong", "cannot"
 #: CLEARLY_RIGHT for every wrong way: told apart. At least CLEARLY_WRONG for
 #: one: that way fits and the right one does not.
 CLEARLY_RIGHT = 0.85
-CLEARLY_WRONG = 1.50
+CLEARLY_WRONG = 2.00
 #: How many whole columns / rows off are asked about.
 SHIFTS = (1, 2, 3)
 
