@@ -1180,21 +1180,28 @@ Tests: `tests/test_spot_session_wire.py`, `tests/test_item43_steps23.py`. Texts 
   dual part before anything is sent (the window does not pass `-N` to a dual session and says
   so: `M-SPOT-DUAL-SKIP-CAL`). `--dual-table`, the lights, the ruler and the table modes are
   refused in this mode.
-* **Why the UV light cannot stay on** (safety review S3, 2026-11-24). ArgyllCMS's `uv_en` and
-  the dual arm state are host-side flags. The i1Pro 2's UV LED lights only during one 0xD4
-  trigger with the UV flag (0x0200, 41 lamp clocks), timed by the instrument, and nothing is
-  ever written into the instrument. So however the helper ends, the LED cannot stay on beyond
-  that one bounded trigger. On every IN-PROCESS ending (quit, the end of stdin at the press
-  wait, a lost USB connection, a calibration error) the session also disarms, switches the dual
-  part off and closes the instrument itself (`cq_ss_end`). Two endings do not reach that, as
-  for the chart reader: the window's Stop and its close send quit and then kill the helper at
-  once; the end of stdin BEFORE the press wait (at the start calibration's prompt) ends the
-  process through the exit guard (`_exit` after 1.5 s).
+* **Why the UV light is not expected to stay on** (safety review S3, 2026-11-24; wording corrected
+  2026-11-25, D2). ArgyllCMS's `uv_en` and the dual arm state are host-side flags, and nothing is
+  ever written into the instrument. **Inferred, not measured:** that the i1Pro 2 times its UV LED
+  itself, so that it lights only during one 0xD4 trigger with the UV flag (0x0200, 41 lamp clocks)
+  and cannot stay on beyond that trigger however the helper ends. This is concluded from the
+  bounded reading count in the trigger and from there being no request that switches the LED off;
+  nobody has looked at an instrument's LED after the helper was killed. Tested on the fake USB
+  layer: on every IN-PROCESS ending (quit, the end of stdin at the press wait, a lost USB
+  connection, a calibration error) the session disarms, switches the dual part off and closes the
+  instrument itself (`cq_ss_end`). Two endings do not reach that, as for the chart reader: the
+  window's Stop and its close send quit and then kill the helper at once; the end of stdin BEFORE
+  the press wait (at the start calibration's prompt) ends the process through the exit guard
+  (`_exit` after 1.5 s).
 * **A failed start calibration** (the helper waits for retry or quit, `chromiq_cal.c`) is
   answered: the chart reader's automatic attempts (`CAL_AUTO_RETRIES`), then quit, and the
   window says why the instrument could not start, as stock spotread ends on a calibration
   error. Calibrate is not offered there (nothing would read its command); after a failed
   calibration asked for in the session the helper's lock does read Calibrate.
+* **Cancel session while the helper is locked** (D3, 2026-11-25). After a failed calibration asked
+  for, the first quit brings the helper's `strip_interrupted` question; the manager answers it, and
+  every other place where the helper still waits after a quit (a placement prompt, `cal_failed`,
+  the lock, the press wait), with the quit that ends a session there. No window opens for them.
 * **Wire, on the fake USB layer** (the REAL helper through the real driver, both readers with
   the same presses): a fresh session with a calibration asked for in the middle, a session
   opened with a restored calibration, an unplug in the middle of a dual spot, Esc at the

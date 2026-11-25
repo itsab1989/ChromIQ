@@ -44,17 +44,17 @@
  * request.
  *
  * The UV light. ArgyllCMS's uv_en and the dual arm state are HOST-side
- * flags: the i1Pro 2's UV LED is lit only during one 0xD4 trigger with the
- * UV flag (0x0200, 41 lamp clocks), timed by the instrument itself, and no
- * state is ever written into the instrument. So however the process ends,
- * the LED cannot stay on beyond that one bounded trigger. cq_ss_end
- * additionally disarms and switches the dual part off on every IN-PROCESS
- * ending (quit, the end of stdin at the press wait, a lost USB connection,
- * a calibration error) before the instrument is closed. Two endings do not
- * reach it, as for the chart reader: the app's Stop and window close send
- * quit and then kill the helper at once, and the end of stdin BEFORE the
- * press wait (at the start calibration's prompt) ends the process through
- * the exit guard (_exit after 1.5 s).
+ * flags, and no state is ever written into the instrument. INFERRED, NOT
+ * MEASURED: that the i1Pro 2 itself times its UV LED, so that it is lit only
+ * during one 0xD4 trigger with the UV flag (0x0200, 41 lamp clocks) and
+ * cannot stay on beyond it however the process ends. It rests on the bounded
+ * reading count in the trigger and on there being no "off" request; nobody
+ * has looked at the LED after a kill. What is tested: cq_ss_end disarms and
+ * switches the dual part off before the close on every IN-PROCESS ending
+ * (quit, end of stdin at the press wait, lost USB, a calibration error). Two
+ * endings do not reach it, as for the chart reader: the app's Stop and window
+ * close (quit, then a kill at once), and the end of stdin BEFORE the press
+ * wait (the start calibration's prompt: the exit guard, _exit after 1.5 s).
  *
  * Events (one JSON object per line; "t" is this process's msec clock):
  *   spot_session_start {build}
