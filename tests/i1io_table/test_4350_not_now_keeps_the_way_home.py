@@ -181,7 +181,7 @@ def test_the_same_with_the_answer_that_the_arm_is_at_rest(
                                                     sim=sim, asking=False)
     page = p.drive_until(("repair_at_start", "stopped", "refused", "done"))
     assert page == "repair_at_start" and not [c for c in _cids(sim) if c in MOVES]
-    assert "still in its aiming mode" in win._text.text()
+    assert "in its aiming mode" in win._text.text()
 
 
 def test_a_stop_at_the_opening_never_offers_readings_that_do_not_exist(

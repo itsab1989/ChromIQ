@@ -15018,14 +15018,13 @@ M_I1IO_DRIVE_HOME_AFTER_STOP_DONE = _m(
 M_I1IO_DRIVE_REPAIR_AT_START = _m(
     "M-I1IO-DRIVE-REPAIR-AT-START",
     "The table is still in its aiming mode",
-    "An earlier measurement ended before the arm went back to its resting place, so the table "
-    "is still in its aiming mode, the mode in which you aim at the marks by hand. That is "
-    "nothing to worry about. ChromIQ now brings the arm to its resting place and ends that "
-    "mode. Then this measurement goes on as usual.\n"
+    "ChromIQ found the table in its aiming mode, the mode in which you aim at the marks by hand. "
+    "To end it, ChromIQ brings the arm to its resting place. Then this measurement goes on as "
+    "usual.\n"
     "\n"
-    "Please take your hands away from the table and the arm. From some places the arm first "
-    "moves towards the middle of the table. To stop the arm at once, switch the table off at "
-    "its power switch.\n"
+    "The arm may be anywhere over the table, and from some places it first moves towards the "
+    "middle. Please take your hands away from the table and the arm. To stop the arm at once, "
+    "switch the table off at its power switch.\n"
     "\n"
     "If you press Not now, nothing moves. ChromIQ offers the same again here, and at your next "
     "START MEASUREMENT.",
@@ -15249,9 +15248,9 @@ M_I1IO_DRIVE_LEFT_OUT = _m(
     "M-I1IO-DRIVE-LEFT-OUT",
     "The arm stayed extended over the table",
     "The arm stayed out over the table, and the table is still in its aiming mode. You do not "
-    "need to do anything now. The next time you press START MEASUREMENT, ChromIQ first asks "
-    "you to take your hands away from the table and the arm, then brings the arm home and ends "
-    "the aiming mode, and the measurement starts as usual.",
+    "need to do anything now. The next time you press START MEASUREMENT, ChromIQ first brings "
+    "the arm home and ends the aiming mode, and the measurement starts as usual. It asks you "
+    "before the arm moves, unless the arm is back at its resting place by then.",
     approved=False,
     needs_old_i1profiler=False)
 

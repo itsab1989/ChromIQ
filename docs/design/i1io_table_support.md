@@ -1808,7 +1808,7 @@ i1Profiler recordings of 19 and 21 Nov 2026 (R19, N1 to N4), the owner's start-u
   | 111800 | just switched on | S1, N4, many | i0, then s0 f4 x4 (00) s0 p0 i1 s0 | its start-up (M-I1IO-DRIVE-START-UP), unchanged |
   | 130000, f4 00 x4 | started, mode off | many | s0 p0 i1 s0 | the START rule (4.3.52), unchanged |
   | 511800 | just switched on, mode left on | recording A; owner 4.3.50 log | i0, s0 f4 x4 (01) s0 p0 i1 s0 | the same start-up (f4 01 expected), then f0 f4 f4 p0 (the mode ended at rest, R19's tail); the start-up page says so (M-I1IO-DRIVE-START-UP-AIMING) |
-  | 530000, f4 01 x4 | started, mode left on | N1; volunteer 19 Nov | s0 p0 i1 s0; f0 at its close | after the hands-off question (M-I1IO-DRIVE-REPAIR-AT-START; with the guidance off the countdown): s0 p0 [way home] i1 s0 f0 f4 f4 p0, the arm read at rest; the measurement goes on |
+  | 530000, f4 01 x4 | started, mode left on | N1; volunteer 19 Nov | s0 p0 i1 s0; f0 at its close | after the hands-off question (M-I1IO-DRIVE-REPAIR-AT-START; since 4.3.67 also with the guidance off, unless the arm was read at rest right before: then the countdown): s0 p0 [way home] i1 s0 f0 f4 f4 p0, the arm read at rest; the measurement goes on |
   | 540000, f4 01 x4 | as 530000 (its low digit 4 not understood) | owner 4.3.50 log, ChromIQ only | not recorded | as 530000, logged as itself |
   | a0 with bit 0x40 but f4 00 (530000 / 540000 / 511800 then 00) | the two answers disagree | never | not recorded; the vendor never branches on f4 (N1 mode on, N2 mode off: the same lines) | **fix round:** f4 decides; the same repair (warm) or the start-up with the end tail (cold); f0 with the mode off is recorded (N2 quit 25.676) |
   | 130000 with f4 01 (or 111800 then f4 01 after i0) | the two answers disagree | never | not recorded | **fix round:** f4 decides: the mode is on, the same repair / tail |
@@ -2185,3 +2185,21 @@ the calibration rules are untouched.
   degree (`geometry.print_scale_hint`). The page then says at about which percent the sheet seems to be
   printed, and how to print it again. Words only: the aims are refused as before, and so is every
   move.
+* **Every ending offers the homing** (item 74, P1). End measurement, the X, Esc or the quit pressed
+  on a question that was open withdraws it and keeps the wish to end. When the question about the
+  last step came in between and the ending was pressed again, that wish stayed standing and was
+  taken up only after the ending, which then let go of the table without the homing's question: the
+  arm stayed out, the aiming mode on. It is now fulfilled by the press that asks the ending; and a
+  quit asked while the Save itself runs no longer skips the homing either. Nothing is sent by it.
+* **On the page that asks the homing of the ending, End measurement, the X and Esc are its "Not now"**
+  (item 74, P2): nothing is sent, the page that says what that means follows, and only its Close (or
+  End measurement / the X there) lets go of the table. The app's quit stays on the page, as before.
+* **The repair of an aiming mode found at START asks before a move it cannot know to be small** (item
+  74, P3). With the guidance off one plain position query (p0) is sent before the question, nothing
+  moves: at the resting place (`start_place`, REST_GUARD) the countdown stands in for the question as
+  before; anywhere else, and when the start-up found the arm out, the person is asked. In the guided
+  mode nothing is added (the question is asked anyway). The rule of 4.3.56 stays: nothing is sent at
+  the app's close, and the next START ends the mode.
+* **The computer is kept awake while the table's USB is open** (item 74, P5; `core/keep_awake.py`, the
+  hand measurement's own): from the answer that opens it until the panel is finished, whatever
+  ended it. On macOS the assertion ends with ChromIQ's process in any case.

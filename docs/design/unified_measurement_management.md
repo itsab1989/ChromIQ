@@ -11873,17 +11873,19 @@ With {n} = 1: "The arm moves in 1 second. Please keep your hands away from the t
 > If nobody is touching the arm or the table now, ChromIQ can bring the arm home from where it stands. Please take your hands away and answer the question below again.
 
 
-### M-I1IO-DRIVE-REPAIR-AT-START · PROPOSED · the table found in its aiming mode at a START: ChromIQ brings the arm home and ends the mode (the one question; with the guidance off its first paragraph above the countdown), Measure (the i1iO table window)
+### M-I1IO-DRIVE-REPAIR-AT-START · PROPOSED · the table found in its aiming mode at a START: ChromIQ brings the arm home and ends the mode (the one question), Measure (the i1iO table window)
 
 *New 2026-11-21. The owner, Basti, 2026-11-21: "remember that driving the table should work without involving i1profiler". i1Profiler, recorded meeting a table left in its aiming mode (the table owner's recording of 21 Nov 2026; the owner's start-up capture of 19 Nov 2026, recording A), sends its usual opening and homing and ends the mode; ChromIQ now does the same (`workflow/i1io/table/job.py`, `repair_at_start`). Buttons: Not now, Bring the arm home, my hands are away.*
 
 *Revised 2026-11-21, fix round after the safety review (B-1, M-2, m-1, m-3): the mode answers decide, a disagreement is repaired; a page that says what Not now does; the arm-out answer runs the recorded start-up (N4); the power switch first where there is no way home.*
 
+*Revised 2026-11-25 (item 74, P3; awaiting confirmation): short, what moves and why; it no longer says that an earlier measurement ended early, which ChromIQ does not know. Asked with the guidance off as well, unless the arm was read at its resting place right before (then the countdown page, M-I1IO-DRIVE-REPAIR-COUNTDOWN).*
+
 > **The table is still in its aiming mode**
 >
-> An earlier measurement ended before the arm went back to its resting place, so the table is still in its aiming mode, the mode in which you aim at the marks by hand. That is nothing to worry about. ChromIQ now brings the arm to its resting place and ends that mode. Then this measurement goes on as usual.
+> ChromIQ found the table in its aiming mode, the mode in which you aim at the marks by hand. To end it, ChromIQ brings the arm to its resting place. Then this measurement goes on as usual.
 >
-> Please take your hands away from the table and the arm. From some places the arm first moves towards the middle of the table. To stop the arm at once, switch the table off at its power switch.
+> The arm may be anywhere over the table, and from some places it first moves towards the middle. Please take your hands away from the table and the arm. To stop the arm at once, switch the table off at its power switch.
 >
 > If you press Not now, nothing moves. ChromIQ offers the same again here, and at your next START MEASUREMENT.
 
@@ -12054,9 +12056,11 @@ With {n} = 1: "The arm moves in 1 second. Please keep your hands away from the t
 
 *Revised 2026-11-21 (the owner: "driving the table should work without involving i1profiler"): no way out through i1Profiler any more; START MEASUREMENT brings the arm home and ends an aiming mode left on (ChromIQ's own repair, as i1Profiler does with such a table), and the table's start-up after the power switch brings the arm home.*
 
+*Revised 2026-11-25 (item 74; awaiting confirmation): it no longer promises a question for an arm that is back at its resting place (with the guidance off a countdown stands there).*
+
 > **The arm stayed extended over the table**
 >
-> The arm stayed out over the table, and the table is still in its aiming mode. You do not need to do anything now. The next time you press START MEASUREMENT, ChromIQ first asks you to take your hands away from the table and the arm, then brings the arm home and ends the aiming mode, and the measurement starts as usual.
+> The arm stayed out over the table, and the table is still in its aiming mode. You do not need to do anything now. The next time you press START MEASUREMENT, ChromIQ first brings the arm home and ends the aiming mode, and the measurement starts as usual. It asks you before the arm moves, unless the arm is back at its resting place by then.
 
 ### M-I1IO-DRIVE-STILL-AIMING · PROPOSED · at a START the table reports that it is still in its aiming mode (f4 answers 01 at the opening), Measure (the i1iO table window)
 

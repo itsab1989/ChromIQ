@@ -167,16 +167,74 @@ def test_not_now_sends_nothing_and_the_offer_stays():
     assert r.ok and sim.received[n:] == REPAIR
 
 
-def test_with_the_guidance_off_the_countdown_stands_in_for_the_question():
+WHERE = ";p025"                  # item 74, P3: where the arm stands, read before the question
+
+
+def test_with_the_guidance_off_the_countdown_stands_in_only_at_the_resting_place():
+    """Item 74, P3 (a real arm travelled 24 cm after a 3 s countdown): the countdown only for an
+    arm read at rest right before. Until 4.3.66 it stood in wherever the arm was."""
+    for pos in ((1102, 36), (1102, 5), (1102, 70)):
+        job, sim = _table(pos)
+        job.guided = False
+        p, _r = _open(job, sim)
+        n = len(sim.received)
+        r = p.drive(job.repair_at_start())
+        assert r.ok, (pos, r.reason, r.detail)
+        assert not [a for a in p.asked if a[1] == C.GO]
+        assert [c["for"] for c in job.countdowns] == ["repair_at_start"]
+        assert sim.received[n:] == [WHERE, *REPAIR]
+        assert sim.violations == []
+
+
+OUT = [(0, 1600), (-1316, 2367), (2506, 1440), (1058, 317), (1102, 90), (1098, 36), (1104, 43)]
+
+
+@pytest.mark.parametrize("pos", OUT)
+def test_with_the_guidance_off_an_arm_that_is_out_is_asked_about(pos):
+    job, sim = _table(pos)
+    job.guided = False
+    p, _r = _open(job, sim, {C.GO: "back"})
+    n = len(sim.received)
+    r = p.drive(job.repair_at_start())
+    gos = [a for a in p.asked if a[1] == C.GO]
+    assert len(gos) == 1 and gos[0][2]["arm_at_rest"] is False and job.countdowns == []
+    # one plain position query before the question; "Not now" sends nothing more
+    assert sim.received[n:] == [WHERE] and gos[0][3] == n + 1
+    assert r.kind == J.Kind.REFUSED and r.reason == "person_chose_back"
+    assert r.way_back == J.WayBack.REPAIR_AT_START
+    p.script[C.GO] = "yes"
+    r = p.drive(job.repair_at_start())
+    assert r.ok and job.at_rest() and sim.violations == []
+
+
+@pytest.mark.parametrize("pos", [(0, 1600), (1102, 36)])
+def test_the_guided_mode_reads_nothing_before_the_question(pos):
+    job, sim = _table(pos)
+    p, _r = _open(job, sim)
+    n = len(sim.received)
+    assert p.drive(job.repair_at_start()).ok
+    assert [a for a in p.asked if a[1] == C.GO][0][3] == n and sim.received[n:] == REPAIR
+
+
+def test_the_start_up_that_finds_the_arm_out_asks_with_the_guidance_off():
+    job, sim = _table((0, 1600), cold=True)
+    sim.i0_after = (0.0, 1600.0)
+    job.guided = False
+    p, _r = _open(job, sim)
+    r = p.drive(job.start_up())
+    assert r.ok, (r.reason, r.detail)
+    assert len([a for a in p.asked if a[1] == C.GO and a[2].get("step") == "repair_at_start"]) == 1
+    assert [c["for"] for c in job.countdowns if c["for"] == "repair_at_start"] == []
+
+
+def test_no_answer_to_the_position_query_moves_nothing():
     job, sim = _table((0, 1600))
     job.guided = False
     p, _r = _open(job, sim)
     n = len(sim.received)
+    sim.inject("no_done", "p0")
     r = p.drive(job.repair_at_start())
-    assert r.ok, (r.reason, r.detail)
-    assert not [a for a in p.asked if a[1] == C.GO]
-    assert [c["for"] for c in job.countdowns] == ["repair_at_start"]
-    assert sim.received[n:] == REPAIR
+    assert not r.ok and _moves(sim.received[n:]) == [] and job.countdowns == []
 
 
 def test_an_unknown_state_answer_still_moves_nothing():

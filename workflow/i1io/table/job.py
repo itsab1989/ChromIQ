@@ -1382,10 +1382,14 @@ class TableJob:
             step = d.get("step")
             if step == "repair_at_start" and d.get("f4_mixed"):
                 return None               # last round: after answers that differ: always asked
-            if step in ("home_at_start", "repair_at_start"):
+            if step == "repair_at_start":
+                # item 74, P3: the arm may be anywhere (a real one travelled 24 cm after a
+                # countdown): the countdown only for an arm READ at its resting place right
+                # before; out, or not known, the person is asked as in the guided mode
+                return "countdown" if d.get("arm_at_rest") is True else None
+            if step == "home_at_start":
                 # 4.3.52: the START rule's homing inside the step that found the arm away from
-                # rest: the countdown, as before every first movement (not a fault); 2026-11-21:
-                # the same for the homing that ends an aiming mode found left on
+                # rest: the countdown, as before every first movement (not a fault)
                 return "countdown"
             if step == "home_after_stop" or d.get("at_start"):
                 return None               # the homing offered on a page after a stop stays
@@ -4045,9 +4049,23 @@ class TableJob:
         if mixed:
             d.log("DATA", f"the repair offered after mode answers that differ (a0 = "
                           f"{d.a0_answer}); the same lines as always, asked first")
+        place = found
+        if place is None and not self.guided_now and not mixed and d.closed_reason is None:
+            # item 74, P3: where the arm stands decides whether the countdown may stand in for
+            # the question: one plain position query, nothing moves. In the guided mode the
+            # question is asked anyway, and nothing is added
+            self._grant("where the arm stands, before the aiming mode found at the start is "
+                        "ended", 1, 0)
+            self._step("repair_where", 1, 0)
+            try:
+                place = d.position()
+            finally:
+                d.current_step = None
         ans = yield Ask(Confirm.GO, {"step": "repair_at_start", "page": self.page + 1,
                                      "at_start": True, "aiming_left_on": True,
                                      "f4_mixed": mixed,
+                                     "arm_at_rest": place is not None
+                                     and start_place(place) == "at_rest",
                                      "a0": d.a0_answer, "inline": stage != "repair_at_start"})
         self._start_case_answer(ans)
         if ans != "yes":
