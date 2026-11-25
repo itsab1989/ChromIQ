@@ -13886,7 +13886,7 @@ M_I1IO_DRIVE_PREPARE = _m(
     "•  Set the arm's height for this paper, as X-Rite's guide for the "
     "table describes.\n"
     "•  Lay page {page} on the table the way it was printed for it, with "
-    "mark 1 at the top left.\n"
+    "{corner}.\n"
     "•  Keep your hands away from the table and the arm whenever it moves. "
     "Before the arm moves after any question, ChromIQ asks you to take your "
     "hands away and waits until you confirm it, on a page of its own or with "
@@ -13903,7 +13903,7 @@ M_I1IO_DRIVE_PREPARE = _m(
         "•  Set the arm's height for this paper, as X-Rite's guide for "
         "the table describes.\n"
         "•  Lay page {page} on the table the way it was printed for it, "
-        "with mark 1 at the top left.\n"
+        "with {corner}.\n"
         "•  Keep your hands away from the table and the arm whenever it "
         "moves. Before the arm moves after any question, ChromIQ asks you to "
         "take your hands away and waits until you confirm it, on a page of its "
@@ -13912,8 +13912,8 @@ M_I1IO_DRIVE_PREPARE = _m(
         "That is always allowed."),
     count_key="pages", approved=False)
 
-#: What lies where on a piece, for {corner}: by its crosses, or by its patches on a piece without
-#: them (the print note's words)
+#: What lies where on a page or a piece, for {corner}: by its crosses, or by its patches on one
+#: without them (the print note's words)
 _I1IO_CORNER_MARK = "mark 1 at the top left"
 _I1IO_CORNER_PATCH = "its first strip at the top and patch 1 of it at the top left"
 #: the same for a chart whose pages are pieces of a larger sheet (the new chart layout)
@@ -14055,7 +14055,7 @@ M_I1IO_DRIVE_SHEET_LAID = _m(
     "M-I1IO-DRIVE-SHEET-LAID",
     "Is page {page} on the table?",
     "Please lay page {page} on the table the way it was printed for it, with "
-    "mark 1 at the top left, and nothing else on the bed.\n\n"
+    "{corner}, and nothing else on the bed.\n\n"
     "Then take your hands away from the table and the arm. When you press "
     "“The page is laid, and my hands are away from the table”, the arm moves "
     "at once: it makes its homing at the resting place, then drives out over "

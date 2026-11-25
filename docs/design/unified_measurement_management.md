@@ -10974,7 +10974,7 @@ alone.
 > •  Quit i1Profiler, if it is open.
 > •  Switch the table on, with the arm at its resting place over the small white tile, and nothing on the bed but your sheet.
 > •  Set the arm's height for this paper, as X-Rite's guide for the table describes.
-> •  Lay page {page} on the table the way it was printed for it, with mark 1 at the top left.
+> •  Lay page {page} on the table the way it was printed for it, with {corner}.
 > •  Keep your hands away from the table and the arm whenever it moves. Before the arm moves after any question, ChromIQ asks you to take your hands away and waits until you confirm it, on a page of its own or with your answer to that question.
 >
 > This chart has {pages} pages; ChromIQ reads them one after the other and asks you to lay the next one when a page is done.
@@ -10988,12 +10988,14 @@ alone.
 > •  Quit i1Profiler, if it is open.
 > •  Switch the table on, with the arm at its resting place over the small white tile, and nothing on the bed but your sheet.
 > •  Set the arm's height for this paper, as X-Rite's guide for the table describes.
-> •  Lay page {page} on the table the way it was printed for it, with mark 1 at the top left.
+> •  Lay page {page} on the table the way it was printed for it, with {corner}.
 > •  Keep your hands away from the table and the arm whenever it moves. Before the arm moves after any question, ChromIQ asks you to take your hands away and waits until you confirm it, on a page of its own or with your answer to that question.
 >
 > To stop the arm at once, switch the table off at its power switch. That is always allowed.
 
 *Revised 2026-11-18 (final fix round of the i1iO table drive, M-1: after any question the next move waits for the hands-off confirmation; where the answer itself is that confirmation, the page says so and names the move).*
+
+*Revised 2026-11-25 (after 4.3.66): {corner} names what lies at the top left, in the words of the piece messages (“mark 1 at the top left”, or on a chart without aiming crosses “its first strip at the top and patch 1 of it at the top left”).*
 
 ### M-I1IO-DRIVE-READY · PROPOSED · the job asks ready_to_open: two ticks, both needed, Measure (the i1iO table window)
 
@@ -11107,11 +11109,13 @@ alone.
 
 > **Is page {page} on the table?**
 >
-> Please lay page {page} on the table the way it was printed for it, with mark 1 at the top left, and nothing else on the bed.
+> Please lay page {page} on the table the way it was printed for it, with {corner}, and nothing else on the bed.
 >
 > Then take your hands away from the table and the arm. When you press “The page is laid, and my hands are away from the table”, the arm moves at once: it makes its homing at the resting place, then drives out over the bed to the place where you aim it, and the table lets go of it there, so that you can push it gently by hand.
 
 *Revised 2026-11-18 (final fix round of the i1iO table drive, M-1: after any question the next move waits for the hands-off confirmation; where the answer itself is that confirmation, the page says so and names the move).*
+
+*Revised 2026-11-25 (after 4.3.66): {corner} names what lies at the top left, in the words of the piece messages (“mark 1 at the top left”, or on a chart without aiming crosses “its first strip at the top and patch 1 of it at the top left”).*
 
 ### M-I1IO-DRIVE-ARM-FELT · PROPOSED · the job asks arm_felt: the free arm at the alignment start, Measure (the i1iO table window)
 

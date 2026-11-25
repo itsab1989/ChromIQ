@@ -332,7 +332,8 @@ def test_every_hands_off_answer_page_says_take_your_hands_away_and_what_moves():
     from ui import i1io_table_window as W
     from workflow import measurement_messages as M
     pages = {
-        (J.Confirm.SHEET_LAID, "yes"): M.M_I1IO_DRIVE_SHEET_LAID.render(page=1)[1],
+        (J.Confirm.SHEET_LAID, "yes"): M.M_I1IO_DRIVE_SHEET_LAID.render(
+            page=1, corner=M._I1IO_CORNER_MARK)[1],
         (J.Confirm.FIRST_VISIT, "yes"): M.M_I1IO_DRIVE_FIRST_VISIT.render()[1],
         (J.Confirm.START_UP, "yes"): M.M_I1IO_DRIVE_START_UP.render()[1],
         (J.Confirm.GO, "yes"): M.M_I1IO_DRIVE_GO.render()[1],
@@ -355,7 +356,7 @@ def test_every_hands_off_answer_page_says_take_your_hands_away_and_what_moves():
 def test_the_two_promises_say_what_the_code_does():
     from workflow import measurement_messages as M
     root = Path(__file__).resolve().parents[2]
-    prep = M.M_I1IO_DRIVE_PREPARE.render(page=1, pages=2)[1]
+    prep = M.M_I1IO_DRIVE_PREPARE.render(page=1, pages=2, corner=M._I1IO_CORNER_MARK)[1]
     promise = ("Before the arm moves after any question, ChromIQ asks you to take your hands "
                "away and waits until you confirm it")
     assert promise in " ".join(prep.split())

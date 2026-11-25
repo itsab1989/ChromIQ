@@ -3683,7 +3683,8 @@ class TableMeasureWindow(QFrame):
         title, body = (M.M_I1IO_DRIVE_PREPARE_PIECES.render(
             page=self.job.page + 1, pages=pages, corner=self._corner_text())
             if in_pieces(self._sheet) else
-            M.M_I1IO_DRIVE_PREPARE.render(page=self.job.page + 1, pages=pages))
+            M.M_I1IO_DRIVE_PREPARE.render(page=self.job.page + 1, pages=pages,
+                                          corner=self._corner_text()))
         notes = [n for n in (getattr(self, "_reads_note", ""), self._options_note) if n]
         if self._row_speed_said():
             notes.append(self._row_speed_note)
@@ -4191,7 +4192,8 @@ class TableMeasureWindow(QFrame):
         elif kind == "sheet_laid":
             title, body = (M.M_I1IO_DRIVE_SHEET_LAID_PIECE.render(
                 page=page, corner=self._corner_text())
-                if in_pieces(self._sheet) else M.M_I1IO_DRIVE_SHEET_LAID.render(page=page))
+                if in_pieces(self._sheet) else M.M_I1IO_DRIVE_SHEET_LAID.render(
+                    page=page, corner=self._corner_text()))
         elif kind == "aimed":
             patch = d.get("patch") if d.get("target") == "patch" else None
             if patch:
@@ -4469,8 +4471,8 @@ class TableMeasureWindow(QFrame):
         return None
 
     def _corner_text(self) -> str:
-        """What lies at the top left of the piece that is laid now: mark 1, or on a piece without
-        crosses its first patch."""
+        """What lies at the top left of the page (or piece) that is laid now: mark 1, or on one
+        without crosses its first patch."""
         from workflow import measurement_messages as M
         try:
             patch = any(a.get("target") == "patch"
