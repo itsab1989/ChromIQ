@@ -12883,6 +12883,14 @@ class TabChart(QWidget):
             log.warning("Guided→Manual transfer skipped (the chart's record "
                         "cannot be used)", exc_info=True)
             return False
+        # THE PANEL FIRST. With the engine on it (not the printtarg widgets)
+        # builds the Manual chart, so it takes the FULL engine recipe Guided
+        # used: instrument, paper, pages AND clip-border suppression, margins,
+        # patch scale, density, edge spacers, or Manual silently rebuilds a
+        # different chart (Knut: clip border reappeared, patches too near the
+        # labels). What it would not take leaves Manual as it was, its rows too.
+        if not self._apply_guided_engine_recipe(recipe):
+            return False
         # Instrument + paper first: changing the instrument can cascade (reset
         # -a/-m to the instrument default), so scale/margin are set afterwards.
         self._set_manual_value("printtarg", "-i", p.instrument)
@@ -12916,21 +12924,18 @@ class TabChart(QWidget):
         name = name_edit.text().strip() if name_edit is not None else ""
         if name:
             self._set_manual_name_plain(name)
-        # With the engine on, the layout panel (not the printtarg widgets) builds
-        # the Manual chart, so load the FULL engine recipe Guided used into the
-        # panel — instrument, paper, pages AND clip-border suppression, margins,
-        # patch scale, density, edge spacers — or Manual silently rebuilds a
-        # different chart (Knut: clip border reappeared, patches too near the
-        # labels). Otherwise (engine off) just sync the canonical selection.
-        done = self._apply_guided_engine_recipe(recipe)
+        panel = getattr(self, "_manual_layout_panel", None)
+        if (self._manual_panel_lays_out()
+                and getattr(panel, "pages", None) is not None
+                and self._manual_pages_spin is not None):
+            panel.pages.setValue(int(self._manual_pages_spin.value()))
         self._refresh_manual_command_preview()
-        if done:
-            self._guided_chart_taken = True
-            self._log.appendPlainText(tr(
-                "Manual now shows the settings the chart on screen was made "
-                "with. What you have chosen in Guided since then stays there. "
-                "Edit them and generate again as needed."))
-        return done
+        self._guided_chart_taken = True
+        self._log.appendPlainText(tr(
+            "Manual now shows the settings the chart on screen was made "
+            "with. What you have chosen in Guided since then stays there. "
+            "Edit them and generate again as needed."))
+        return True
 
     # Shared chart-defining settings both tabs express (Knut #9). Each is read /
     # written per tab below; only the ones the user CHANGED in the tab being left
@@ -13269,20 +13274,21 @@ class TabChart(QWidget):
         Nothing to do when the engine is off (then the printtarg widgets the
         transfer already set are what build the chart); the CR30 is laid out by
         the panel with the box unticked too (B8-1295). False when the panel
-        would not take it."""
+        would not take it; it is then as it was."""
         panel = getattr(self, "_manual_layout_panel", None)
         if not self._manual_panel_lays_out() or panel is None:
             return True
+        before = panel.get_recipe()
         try:
             self._set_engine_recipe(recipe)
-            if (getattr(panel, "pages", None) is not None
-                    and self._manual_pages_spin is not None):
-                panel.pages.setValue(int(self._manual_pages_spin.value()))
             return True
         except Exception:  # noqa: BLE001 — never block the mode switch
             log.warning("Guided→Manual engine-recipe transfer failed",
                         exc_info=True)
-            self._sync_engine_panel_after_transfer()   # fall back to light sync
+            try:
+                panel.set_recipe(before)
+            except Exception:  # noqa: BLE001
+                log.warning("Manual's layout not put back", exc_info=True)
             return False
 
     def _shows_a_guided_chart(self) -> bool:

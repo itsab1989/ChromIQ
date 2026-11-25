@@ -610,6 +610,8 @@ instrument, Guided and Manual).
   chart in its place, a chart made in Manual since, a record that is missing, damaged or holds a value
   of the wrong kind, and Guided standing on another instrument by now: the two modes show one
   instrument (Knut, #130), and the chart's values are another instrument's. Manual is then as it was.
+  A value that is missing where one is needed is of the wrong kind too. Manual's own rows are written
+  only after its layout panel has taken the chart's recipe, and what the panel would not take is put back.
 * A paper (and number of pages) chosen in Guided after the chart stays in Guided.
 * "Chart layout information" is right in every case.
 

@@ -153,12 +153,16 @@ def recipe_as_printed(layout: dict) -> dict:
 
 def recipe_types_are_right(recipe: dict) -> bool:
     """Whether every field of a stored *recipe* (a dict) that this version
-    knows holds a value of its own kind. A field with no value of its own
-    (None) may hold anything; a later version's fields are nobody's."""
+    knows holds a value of its own kind: nothing (None) only where the field
+    may be empty. A later version's fields are nobody's."""
     ours = LayoutRecipe()
+    may_be_empty = {f.name for f in fields(LayoutRecipe)
+                    if "None" in str(f.type)}
     for key, value in recipe.items():
-        want = getattr(ours, key, None)
-        if want is None or value is None:
+        if not hasattr(ours, key) or (value is None and key in may_be_empty):
+            continue
+        want = getattr(ours, key)
+        if want is None:
             continue
         kind = (bool if isinstance(want, bool) else
                 (int, float) if isinstance(want, (int, float)) else type(want))

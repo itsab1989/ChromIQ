@@ -346,6 +346,7 @@ def test_another_instrument_in_guided_takes_nothing_of_the_chart(
 @requires_argyll
 @pytest.mark.parametrize("record", ["missing", "damaged", "a wrong type",
                                     "a wrong margin", "a wrong text",
+                                    "no margin",
                                     "of another instrument",
                                     "of a later version"])
 def test_a_record_that_cannot_be_used_is_not_claimed(
@@ -355,6 +356,8 @@ def test_a_record_that_cannot_be_used_is_not_claimed(
     tc = win._tab_chart
     tc._switch_mode("manual")
     before = tc._manual_layout_panel.get_recipe()
+    tc._set_manual_value("printtarg", "-m", 23)
+    auto = tc._manual_auto_patches_check.isChecked()
     tc = _made(win, qapp, qtbot, "i1", "A4", ())
     side = _prof(win).with_suffix(".channels.json")
     doc = json.loads(side.read_text(encoding="utf-8"))
@@ -367,6 +370,7 @@ def test_a_record_that_cannot_be_used_is_not_claimed(
         key, value = {"a wrong type": ("border", "abc"),
                       "a wrong margin": ("margin_left", "9"),
                       "a wrong text": ("clip_text_font", 5),
+                      "no margin": ("margin_top", None),
                       "of another instrument": ("instrument", "CM"),
                       "of a later version": ("from_the_future", {"a": 1}),
                       }[record]
@@ -384,6 +388,8 @@ def test_a_record_that_cannot_be_used_is_not_claimed(
         for name in ("margin_top", "margin_left", "layout_mode", "pscale",
                      "border"):
             assert getattr(now, name) == getattr(before, name), name
+        assert tc._manual_value("printtarg", "-m") == 23
+        assert tc._manual_auto_patches_check.isChecked() is auto
 
 
 @requires_argyll
@@ -391,12 +397,40 @@ def test_a_panel_that_would_not_take_it_is_not_claimed(
         win, qapp, qtbot, monkeypatch):  # noqa: F811
     tc = _made(win, qapp, qtbot, "i1", "A4", ())
 
-    def refuse(*_a, **_k):
+    panel = tc._manual_layout_panel
+    before, rows = panel.get_recipe(), tc._manual_value("printtarg", "-m")
+    half_way = []
+
+    def refuse(recipe, **_k):
+        from dataclasses import replace
+        panel.set_recipe(replace(before, margin_top=before.margin_top + 4.0,
+                                 use_instrument_margins=False,
+                                 layout_explicit=True))
+        half_way.append(panel.get_recipe().margin_top)
         raise RuntimeError("no")
     monkeypatch.setattr(tc, "_set_engine_recipe", refuse)
     tc._switch_mode("manual")
+    assert half_way == [before.margin_top + 4.0]
     assert SAID not in tc._log.toPlainText()
     assert not tc._manual_has_the_guided_chart()
+    assert panel.get_recipe().margin_top == before.margin_top
+    assert tc._manual_value("printtarg", "-m") == rows
+
+
+@requires_argyll
+def test_a_new_chart_in_guided_is_not_yet_taken(win, qapp, qtbot):  # noqa: F811
+    """One chart was taken over, the next one cannot be: then Manual follows a
+    paper chosen in Guided as before, and does not keep the first one's."""
+    tc = _made(win, qapp, qtbot, "i1", "A4", ())
+    tc._switch_mode("manual")
+    assert tc._manual_has_the_guided_chart()
+    tc = _made(win, qapp, qtbot, "i1", "Letter", ())
+    assert not tc._manual_has_the_guided_chart()
+    _prof(win).with_suffix(".channels.json").unlink()
+    tc._switch_mode("manual")
+    qapp.processEvents()
+    assert _shown_paper(tc) == ("i1", "Letter")
+    assert SAID not in tc._log.toPlainText()      # (Generate cleared it)
 
 
 @requires_argyll
@@ -452,3 +486,20 @@ def test_the_rows_beside_the_panel_are_the_charts_too(
     assert tc._manual_value("printtarg", "-h") is True
     assert tc._manual_value("printtarg", "-m") == 6
     assert tc._pages_spin.value() == 3 and not tc._dd_check.isChecked()
+
+
+def test_a_number_that_is_missing_is_the_wrong_kind():
+    """Nothing (null) only where the field may be empty."""
+    from dataclasses import fields
+    from workflow.layout_engine.presets import (LayoutRecipe,
+                                                recipe_types_are_right)
+    ours = LayoutRecipe()
+    assert recipe_types_are_right(ours.to_dict())
+    asked = 0
+    for f in fields(LayoutRecipe):
+        value, empty = getattr(ours, f.name), "None" in str(f.type)
+        assert recipe_types_are_right({f.name: None}) is (
+            empty or value is None), f.name
+        asked += not empty
+    assert asked > 60
+    assert recipe_types_are_right({"fd9_gap_mm": None, "a_later_field": None})
