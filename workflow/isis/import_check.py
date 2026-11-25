@@ -177,11 +177,8 @@ def _row_of_equals(E: np.ndarray, rows: int, row: int) -> bool:
     """True when a third or more of the neighbours along i1Profiler's *row*
     are about the same colour: such a row (white patches filling it up, say)
     fits its neighbours as well as itself, also when it was read rightly."""
-    e = E[np.arange(len(E)) % rows == row]
-    if len(e) < 2:
-        return True
-    d = np.linalg.norm(e[1:] - e[:-1], axis=1)
-    return float((d < DISTINCT_DE).mean()) >= 1 / 3
+    from workflow.turned_colour_check import row_of_equals
+    return row_of_equals(E[np.arange(len(E)) % rows == row], share=1 / 3)
 
 
 def judge_rows(measured, at, order, chart_ti2) -> Verdict:

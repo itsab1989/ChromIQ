@@ -279,14 +279,16 @@ def _distinct(E: np.ndarray, de: float) -> int:
     return len(reps)
 
 
-def row_of_equals(e: np.ndarray) -> bool:
-    """True when half or more of the neighbours along a strip with the expected
-    colours *e* (L*a*b*, in strip order) are about the same colour: the medians
-    of a comparison with the neighbours are then those of equals."""
+def row_of_equals(e: np.ndarray, share: float = 1 / 2) -> bool:
+    """True when *share* or more of the neighbours along a strip with the
+    expected colours *e* (L*a*b*, in strip order) are about the same colour
+    (white patches filling it up, say). From half on, the medians of a
+    comparison with the neighbours are those of equals (`judge`); the i1iSis
+    import asks from a third on (`workflow.isis.import_check`)."""
     if len(e) < 2:
         return True
     step = np.linalg.norm(e[1:] - e[:-1], axis=1)
-    return float((step < DISTINCT_DE).mean()) >= 1 / 2
+    return float((step < DISTINCT_DE).mean()) >= share
 
 
 #: How far apart the readings of patches expected alike may be (dE76): the
