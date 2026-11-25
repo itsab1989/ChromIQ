@@ -279,6 +279,16 @@ def _distinct(E: np.ndarray, de: float) -> int:
     return len(reps)
 
 
+def row_of_equals(e: np.ndarray) -> bool:
+    """True when half or more of the neighbours along a strip with the expected
+    colours *e* (L*a*b*, in strip order) are about the same colour: the medians
+    of a comparison with the neighbours are then those of equals."""
+    if len(e) < 2:
+        return True
+    step = np.linalg.norm(e[1:] - e[:-1], axis=1)
+    return float((step < DISTINCT_DE).mean()) >= 1 / 2
+
+
 def judge(expected_lab, measured_lab, rows: int, cols: int,
           file_cols: "int | None" = None) -> ColourJudgement:
     """Judge readings *measured_lab* (entry order of the turned order) against
@@ -372,13 +382,26 @@ def judge(expected_lab, measured_lab, rows: int, cols: int,
         if len(js) < MIN_STRIP_PATCHES:
             continue
         own = float(np.median(own_all[js]))
+        # A STRIP OF EQUALS (item 66): the white patches that fill a chart's
+        # last strip up fit their neighbours as well as themselves, also when
+        # they were read rightly. Where half or more of the neighbours are about
+        # the same colour, only the others can tell; fewer than
+        # MIN_STRIP_PATCHES of them, and the strip is judged by the whole.
+        alike = row_of_equals(E[js])
         ratios = []
         for d in (1, -1):
-            here = [js[k] for k in range(len(js)) if 0 <= k + d < len(js)]
-            there = [js[k + d] for k in range(len(js)) if 0 <= k + d < len(js)]
+            ks = [k for k in range(len(js)) if 0 <= k + d < len(js)
+                  and not (alike and np.linalg.norm(E[js[k]] - E[js[k + d]])
+                           < DISTINCT_DE)]
+            if not ks or (alike and len(ks) < MIN_STRIP_PATCHES):
+                continue
+            here, there = [js[k] for k in ks], [js[k + d] for k in ks]
             alt = float(np.median(np.linalg.norm(M[here] - _fit(E[there]),
                                                  axis=1)))
-            ratios.append(own / alt if alt > 0 else math.inf)
+            mine = float(np.median(own_all[here])) if alike else own
+            ratios.append(mine / alt if alt > 0 else math.inf)
+        if not ratios:
+            continue
         ratio = max(ratios)
         if ratio > worst_ratio:
             worst_r, worst_ratio = r, ratio
