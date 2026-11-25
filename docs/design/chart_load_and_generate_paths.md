@@ -554,3 +554,22 @@ while the option is on and hands it back to Create Chart; off, it opens as in
 * **An import without the sheets** gets them in Print Chart, built from its pieces.
 * **Create Chart shows the pieces**, by name ("Piece 2 of 4: strips W to AR"); Print Chart shows the
   whole sheets.
+
+
+### ⏳ Awaiting confirmation: what Restore Used Chart's redraw is judged by (after 4.3.66)
+
+**Confirmed by:** *nobody yet.*
+
+* The restored chart's own files are put back whenever the redraw wrote them differently, as before.
+* **The line in the panel** ("Redrawing the pages would have changed the chart itself ...") is written
+  only when the sheet would be another one. The `.ti1` and `.ti2` count without their `CREATED` and
+  `ORIGINATOR` lines; an engine chart's `channels.json` counts without the form's rows, the record of
+  who chose a value (the recipe's seed and "explicit" ticks, `margins_chosen_by_user`) and a run
+  description that nothing on the sheet prints. Before, it was written of every chart, in Guided and
+  in Manual, also where the redrawn pages were the same pixel for pixel.
+* **Known, and still said:** a Guided chart of the i1Pro or the CR30 is redrawn differently (the recipe
+  it records holds 6 mm margins the Guided build did not use): the strip letters move, on a CR30 A4
+  landscape sheet the patches too. The chart's files are kept; the pages shown are not its pages.
+
+Tests: `tests/test_a_redraw_is_judged_by_its_sheet.py` (the pages themselves are the judge, for every
+instrument, Guided and Manual).

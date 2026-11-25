@@ -6027,6 +6027,59 @@ def _chart_date_from_ti2(ti2: Path) -> str:
     return day.strftime("%Y-%m-%d") if day is not None else ""
 
 
+#: What a chart's ``channels.json`` records beside the sheet: the form's rows
+#: at Generate, and how the patch set came to be. Not what is on the paper; a
+#: redraw fills them from the form that is on screen now.
+_NOT_THE_SHEET = ("create_chart_settings", "printtarg_fields", "auto_patches",
+                  "patch_set_given")
+#: The recipe's record of who chose a value. No build reads them
+#: (`LayoutRecipe.build_kwargs`), and the redraw answers them anew: it pins the
+#: label style and writes the drawn seed, which the layout block holds too.
+_NOT_IN_THE_BUILD = ("seed", "seed_fixed", "label_style_explicit",
+                     "layout_explicit", "margins_explicit", "align_explicit")
+
+
+def _sheet_of_sidecar(data: bytes) -> "tuple[dict, dict, dict] | None":
+    """``(the chart's record, its layout, its recipe)`` of an engine chart's
+    ``channels.json``, without what says nothing about the sheet. None for any
+    other file: that one is compared byte by byte."""
+    try:
+        doc = json.loads(data.decode("utf-8"))
+        layout = dict(doc["layout"])
+        if layout.get("engine") != "chromiq":
+            return None
+        from workflow.layout_engine.presets import LayoutRecipe
+        recipe = LayoutRecipe.from_stored(dict(layout.pop("recipe"))).to_dict()
+    except Exception:      # noqa: BLE001 - not an engine chart's record
+        return None
+    for key in _NOT_IN_THE_BUILD:
+        recipe.pop(key, None)
+    # "nobody chose these margins", said of a Guided chart only
+    layout.pop("margins_chosen_by_user", None)
+    doc.pop("layout")
+    for key in _NOT_THE_SHEET:
+        doc.pop(key, None)
+    if b"{rundescription" not in data.lower():
+        doc.pop("run_description", None)       # nothing on the sheet prints it
+    from workflow.printer_calibration import ENGINE_CHROMIQ, calibration_record
+    doc.setdefault("printer_calibration",
+                   calibration_record(ENGINE_CHROMIQ, None, False))
+    return doc, layout, recipe
+
+
+def _same_sheet(old: bytes, new: bytes) -> bool:
+    """Whether two ``channels.json`` describe the same sheet. What only the
+    new one records (a later version's) is no difference; what the old one
+    records and the new one does not, is."""
+    if old == new:
+        return True
+    a, b = _sheet_of_sidecar(old), _sheet_of_sidecar(new)
+    if a is None or b is None:
+        return False
+    return all(key in there and there[key] == value
+               for here, there in zip(a, b) for key, value in here.items())
+
+
 class _ChartRebuildGuard:
     """Keeps a chart's own files unchanged while its pages are redrawn.
 
@@ -6131,7 +6184,8 @@ class _ChartRebuildGuard:
         return _meaningful(old) == _meaningful(new)
 
     def put_back(self) -> list[str]:
-        """Restore any held file the rebuild changed. Returns their names.
+        """Put back every held file the rebuild wrote differently. Returns the
+        names of those whose chart it changed.
 
         **Says WHICH kind of change it found.** The .ti2 is stamped with a
         CREATED time whenever it is written, so a rebuild that reproduced the
@@ -6145,8 +6199,15 @@ class _ChartRebuildGuard:
         silent. So a timestamp-only difference is logged as the routine event it
         is, and the warning is kept for a chart that actually changed.
 
+        THE SIDECAR IS JUDGED BY ITS SHEET (`_same_sheet`). It also holds the
+        form's rows and who chose a value, which the redraw of a chart drawn on
+        the same sheet, pixel for pixel, writes differently: every chart whose
+        seed was drawn (its recipe says no seed, the redraw's says which), and
+        every Guided one (form rows, label style, margins).
+
         Either way the held bytes are put back: the CREATED stamp of the chart
-        that was measured is the truthful one.
+        that was measured is the truthful one. Only the files whose CHART
+        changed are returned, which is what the person is told about.
         """
         changed, cosmetic = [], []
         for path, data in self._held.items():
@@ -6159,8 +6220,10 @@ class _ChartRebuildGuard:
                 if current == data:
                     continue
                 path.write_bytes(data)
-                (cosmetic if self._difference_is_only_a_timestamp(data, current)
-                 else changed).append(path.name)
+                same = (_same_sheet(data, current)
+                        if path.name.endswith(".channels.json") else
+                        self._difference_is_only_a_timestamp(data, current))
+                (cosmetic if same else changed).append(path.name)
             except OSError:
                 log.warning("could not put %s back after the rebuild", path)
         kept = []
@@ -6178,12 +6241,12 @@ class _ChartRebuildGuard:
             log.info("the page rebuild had set aside %s; put back with the "
                      "restored chart", ", ".join(kept))
         if cosmetic:
-            log.info("the page rebuild re-stamped %s — same layout, original "
+            log.info("the page rebuild re-stamped %s: same layout, original "
                      "kept", ", ".join(cosmetic))
         if changed:
             log.warning("the page rebuild altered the chart itself (%s) — the "
                         "restored chart has been put back", ", ".join(changed))
-        return changed + cosmetic
+        return changed
 
 
 #: "no store argument was given", so that passing None can mean the different
