@@ -11309,7 +11309,7 @@ alone.
 
 > **Row {row} could not be read as a strip**
 >
-> ChromIQ has not moved the arm for this. Before it moves, ChromIQ asks you to take your hands away from the table and the arm.
+> ChromIQ did not move the arm this time. Before it moves, ChromIQ asks you to take your hands away from the table and the arm.
 >
 > Row {row} of page {page} could not be read as a strip: {why}. Nothing was read this time. What would you like to do?
 >   •  Read it again as a strip. If the same reason comes again, please choose another answer: trying once more will hardly help.
@@ -12658,7 +12658,7 @@ For one (n = 1):
 
 > **Row {row} could not be read as a strip**
 >
-> ChromIQ has not moved the arm for this. Before it moves, ChromIQ asks you to take your hands away from the table and the arm.
+> ChromIQ did not move the arm this time. Before it moves, ChromIQ asks you to take your hands away from the table and the arm.
 >
 > Row {row} of piece {page} could not be read as a strip: {why}. Nothing was read this time. What would you like to do?
 >   •  Read it again as a strip. If the same reason comes again, please choose another answer: trying once more will hardly help.

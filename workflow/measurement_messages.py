@@ -14413,7 +14413,7 @@ M_I1IO_DRIVE_ROW_FAILED_STRIP = _m(
 M_I1IO_DRIVE_ROW_FAILED_STRIP_NOT_MOVED = _m(
     "M-I1IO-DRIVE-ROW-FAILED-STRIP-NOT-MOVED",
     "Row {row} could not be read as a strip",
-    "ChromIQ has not moved the arm for this. Before it moves, ChromIQ asks you to take your "
+    "ChromIQ did not move the arm this time. Before it moves, ChromIQ asks you to take your "
     "hands away from the table and the arm.\n\n"
     "Row {row} of page {page} could not be read as a strip: {why}. Nothing was read this time. "
     "What would you like to do?\n"

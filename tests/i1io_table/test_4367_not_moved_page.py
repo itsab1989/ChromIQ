@@ -91,7 +91,7 @@ def test_the_two_pages_say_what_happened():
     held = M.M_I1IO_DRIVE_ROW_FAILED_STRIP.render(row=1, page=1, why="x")[1]
     still = M.M_I1IO_DRIVE_ROW_FAILED_STRIP_NOT_MOVED.render(row=1, page=1, why="x")[1]
     assert held.startswith("The arm is held where the strip move ended.")
-    assert still.startswith("ChromIQ has not moved the arm for this.")
+    assert still.startswith("ChromIQ did not move the arm this time.")
     assert "held" not in still and "take your hands away" in still.split("\n\n")[0]
     for body in (held, still):
         assert [ln[5:16] for ln in body.split("\n") if "•" in ln] == [
