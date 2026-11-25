@@ -1664,6 +1664,31 @@ def _sweep_stale_temp_dirs() -> "tuple[int, int]":
 # longer be mistaken for a test failure, and can no longer be a pass.
 _CRASHED_WORKERS: list = []
 
+#: what each test file left in its worker's shared settings store, and the guard's cost per
+#: worker (tests/helpers/settings_store_guard.py); filled by the workers through workeroutput
+_SETTINGS_LEFT: "dict[str, list[str]]" = {}
+_SETTINGS_GUARD_S: "list[float]" = []
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_runtest_setup(item):
+    try:
+        name = item.path.relative_to(item.config.rootpath).as_posix()
+    except ValueError:                               # a file outside the repository
+        name = item.path.name
+    item.config._chromiq_store_guard.file_begins(name)
+
+
+@pytest.hookimpl(wrapper=True, tryfirst=True)
+def pytest_runtest_teardown(item, nextitem):
+    """After the whole teardown (module fixtures included) of a file's last test."""
+    try:
+        return (yield)
+    finally:
+        if nextitem is None or nextitem.path != item.path:
+            item.config._chromiq_store_guard.file_ends()
+
+
 # A FAILED test loses both watchdogs for its teardown (pytest's faulthandler
 # and pytest-timeout cancel them on the failure), so a teardown that blocks
 # then hangs the gate silently: the two stalls of 2026-11-22. These re-arm one
@@ -1680,6 +1705,11 @@ def pytest_testnodedown(node, error):
     `error` is None for a worker that finished cleanly and a message
     ("Not properly terminated") for one whose process DIED.
     """
+    for name, keys in (getattr(node, "workeroutput", None) or {}).get(
+            "chromiq_settings_left", {}).items():
+        _SETTINGS_LEFT[name] = sorted(set(_SETTINGS_LEFT.get(name, [])) | set(keys))
+    _SETTINGS_GUARD_S.append(float((getattr(node, "workeroutput", None) or {}).get(
+        "chromiq_settings_guard_s", 0.0)))
     if error is None:
         return
     gw = getattr(getattr(node, "gateway", None), "id", "?")
@@ -1698,6 +1728,14 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     out here instead of being left to be re-derived.
     """
     _skip_census(terminalreporter, config)
+    from tests.helpers.settings_store_guard import summary_lines
+    guard = getattr(config, "_chromiq_store_guard", None)      # a test's fake config has none
+    lines = summary_lines({**(guard.left if guard else {}), **_SETTINGS_LEFT},
+                          _SETTINGS_GUARD_S + [guard.seconds if guard else 0.0])
+    if lines:
+        terminalreporter.write_sep("=", "SETTINGS LEFT BEHIND (put back)")
+        for line in lines:
+            terminalreporter.write_line(line)
     if not _CRASHED_WORKERS:
         return
     w = terminalreporter
@@ -1747,6 +1785,10 @@ def pytest_sessionfinish(session, exitstatus):
     removing it while the others are still writing would fail the run.
     """
     if hasattr(session.config, "workerinput"):
+        guard = getattr(session.config, "_chromiq_store_guard", None)
+        if guard is not None:
+            session.config.workeroutput["chromiq_settings_left"] = guard.left
+            session.config.workeroutput["chromiq_settings_guard_s"] = guard.seconds
         return
 
     # THE EXIT CODE. `wrap_session` returns `session.exitstatus` AFTER every
@@ -2165,6 +2207,8 @@ def pytest_configure(config):
 
     sandbox = pathlib.Path(tempfile.mkdtemp(prefix="chromiq-settings-"))
     ini = sandbox / "ChromIQ.ini"
+    from tests.helpers.settings_store_guard import SettingsStoreGuard
+    config._chromiq_store_guard = SettingsStoreGuard(str(ini))
 
     # …AND THE FILE-BACKED PRESET STORE, which the QSettings sandbox below does
     # NOT cover. `core.platform_paths.presets_dir()` resolves to the real
