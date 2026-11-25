@@ -184,6 +184,7 @@ class HelperSpotManager(QObject):
         self._conditions_live = False
         self._fallback = False
         self._quit_sent = False
+        self._cal_retried = False
         from workflow.measure_manager import CAL_AUTO_RETRIES
         self._cal_retries_left = CAL_AUTO_RETRIES
         self._cal_check.reset()
@@ -307,9 +308,11 @@ class HelperSpotManager(QObject):
         elif k == "cal_required":
             self._prompt_open = True
             self._prompt_requested = bool(ev.get("requested"))
-            if self._calib_announced:
+            if self._calib_announced and not self.__dict__.get("_cal_retried"):
                 self.calibration_position_wrong.emit()
             else:
+                # (asked again after a failed try: a prompt, not a complaint)
+                self._cal_retried = False
                 self._calib_announced = True
                 self.calibration_prompt.emit()
         elif k == "cal_result":
@@ -428,7 +431,9 @@ class HelperSpotManager(QObject):
                 self._cal_retries_left -= 1
                 log.info("spot read (helper): calibration failed (%s); "
                          "trying again automatically", detail or "unknown")
-                self._calib_announced = False
+                # the placement stays announced, so a try that works ends
+                # with Calibration Complete like any other
+                self._cal_retried = True
                 self._send(cmd="retry")
             else:
                 log.warning("spot read (helper): calibration failed after "

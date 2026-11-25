@@ -1070,6 +1070,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         self._detected_this_session = False
         self._session_note = ""
         self._pending_conds = None
+        self._helper_start_failed = ""
         if self._chosen_reader() == "cr30":
             self._start_cr30_session()
             return
@@ -1839,7 +1840,13 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         # the session that ended, never to the next one.
         self._recalibrate_pending = False
         self._set_session_running(False)
-        self._set_status(tr("Session ended."))
+        ended = tr("Session ended.")
+        why = self.__dict__.get("_helper_start_failed")
+        if why:
+            # ChromIQ's own spot session ends right after saying why it could
+            # not start; the reason stays (safety review S1)
+            ended = why + "\n" + ended
+        self._set_status(ended)
 
     def _on_ready(self) -> None:
         # spotread's menu prompt is the only proof the error mode is over, so
@@ -2988,7 +2995,11 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         self._set_status(tr("Instrument disconnected."))
 
     def _on_init_failed(self, detail: str) -> None:
-        self._set_status(tr("Could not start the instrument: {detail}").format(detail=detail))
+        text = tr("Could not start the instrument: {detail}").format(detail=detail)
+        mgr = self.__dict__.get("_helper_mgr")
+        if mgr is not None and self.__dict__.get("_manager") is mgr:
+            self._helper_start_failed = text
+        self._set_status(text)
 
     # ------------------------------------------------------------------
     def _set_status(self, text: str) -> None:

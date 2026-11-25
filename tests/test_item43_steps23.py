@@ -773,3 +773,66 @@ def test_the_dual_scan_hint(qapp, monkeypatch, cond_beta, dual_beta, family, sho
         d._mode.setCurrentIndex(1)                  # emissive: no hint
         assert d._dual_hint.isHidden()
     d.deleteLater()
+
+
+# ============================ found while preparing 4.3.65 (2026-11-25)
+
+def test_a_retried_start_calibration_that_succeeds_is_called_complete(qapp, monkeypatch):
+    """An automatic retry that works must end like any calibration: the
+    Calibration Complete window, and no second placement complaint."""
+    m, r = _mgr(monkeypatch)
+    prompt, done, wrong = [], [], []
+    m.calibration_prompt.connect(lambda: prompt.append(1))
+    m.calibration_finished.connect(lambda: done.append(1))
+    m.calibration_position_wrong.connect(lambda: wrong.append(1))
+    m.handle_event({"event": "cal_required", "cond": "man_ref_white", "id": ""})
+    m.send_key("\r")
+    m.handle_event({"event": "error", "kind": "cal_failed", "detail": "lamp"})
+    assert r.writes[-1] == {"cmd": "retry"}
+    m.handle_event({"event": "cal_done"})
+    m.handle_event({"event": "spot_ready", "n": 1})
+    assert done == [1] and len(prompt) == 1 and wrong == []
+
+
+def test_a_placement_asked_again_after_a_failed_try_is_a_prompt(qapp, monkeypatch):
+    m, _r = _mgr(monkeypatch)
+    prompt, wrong = [], []
+    m.calibration_prompt.connect(lambda: prompt.append(1))
+    m.calibration_position_wrong.connect(lambda: wrong.append(1))
+    ask = {"event": "cal_required", "cond": "man_ref_white", "id": ""}
+    m.handle_event(ask)
+    m.handle_event({"event": "error", "kind": "cal_failed", "detail": "lamp"})
+    m.handle_event(ask)
+    assert len(prompt) == 2 and wrong == []
+    m.handle_event(ask)                      # ...and a plain repeat still is one
+    assert wrong == [1]
+
+
+def test_the_reason_a_helper_session_could_not_start_stays_on_screen(qapp, monkeypatch):
+    """The helper ends right after the reason; "Session ended." must not
+    replace the only sentence that says why (safety review S1)."""
+    from workflow.dual_scan import instrument_model as IM
+    from workflow.measure_manager import CAL_AUTO_RETRIES
+    d = _dialog(monkeypatch, IM.FAMILY_I1PRO3, conditions_beta=True)
+    d._on_start_stop()
+    h = d._helper_mgr
+    for _ in range(CAL_AUTO_RETRIES + 1):
+        h.handle_event({"event": "error", "kind": "cal_failed", "detail": "lamp fault"})
+    h._on_finish(1)
+    assert "lamp fault" in d._status.text()
+    assert d._start_btn.text() and d._start_btn.isEnabled()
+    d._on_start_stop()                       # the next session starts clean
+    h._on_finish(0)
+    assert "lamp fault" not in d._status.text()
+    d.deleteLater()
+
+
+@needs_helper
+def test_a_stock_start_never_sends_f_to_an_i1pro2(qapp, monkeypatch):
+    """The row is shown for an i1Pro 2 with the dual scan on and may say M1;
+    its driver refuses every -F, so a stock start asks for no condition."""
+    from workflow.dual_scan import instrument_model as IM
+    d = _dialog(monkeypatch, IM.FAMILY_I1PRO, stored="M1", dual_beta=True)
+    assert not d._cond_row.isHidden() and d._condition.currentData() == "M1"
+    assert d._condition_for_start() is None
+    d.deleteLater()
