@@ -6092,7 +6092,7 @@ class TableJob:
                           f"{(timing.get('uv') or {}).get('best_motion_start_s')} s (assumed "
                           f"{sc.UV_MOTION_START_AFTER_TRIGGER_S} s), lamp "
                           f"{(timing.get('lamp') or {}).get('best_motion_start_s')} s (assumed "
-                          f"{sc.MOTION_START_AFTER_LAMP_S} s); judged {timing.get('checked')}, "
+                          f"{sc.DUAL_LAMP_MOTION_START_S} s); judged {timing.get('checked')}, "
                           f"refused {timing.get('refuse')}; lamp judged "
                           f"{timing.get('lamp_checked')}, refused {timing.get('lamp_refuse')}")
             if not cut.ok:

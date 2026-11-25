@@ -79,8 +79,10 @@ def test_the_switch_is_one_constant_and_on():
     assert "pl.check_row(plan, rows, info[\"windows\"], wl, uniform_reference=uniform_row)" \
         in src
     from workflow.i1io.table import dual_rows as dl
-    assert ("pl.check_row(lamp, lamp_rows, windows, wavelengths, uniform_reference=uniform_row)"
-            in inspect.getsource(dl._placement))
+    # (2026-11-25, item 70: on the dual lamp pass's own motion start)
+    place = " ".join(inspect.getsource(dl._placement).split())
+    assert ("pl.check_row(lamp, lamp_rows, windows, wavelengths, "
+            "motion_start_s=sc.DUAL_LAMP_MOTION_START_S, uniform_reference=uniform_row)") in place
     assert inspect.getsource(dl.cut_dual).count("_placement(") == 1
     assert inspect.getsource(dl.cut_lamp_only).count("_placement(") == 1
 

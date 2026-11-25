@@ -2154,3 +2154,21 @@ the calibration rules are untouched.
   has its own page (M-I1IO-DRIVE-ROW-M1-M2-NOT-WRITTEN, proposed): it says what to check and offers
   "Skip it" and "End this step" only. M-I1IO-DRIVE-ROW-M0-ONLY (no reason known) keeps "Read it
   again" and no longer says "as often as you like".
+* **The dual row's lamp pass has its own assumed start** (item 70). `scan.DUAL_LAMP_MOTION_START_S` =
+  0.365 s, 7 ms before the single strip's 0.372 s, used for the lamp pass's windows, its placement
+  check and its timing verdict; everything else of the table and the hand dual scan is untouched.
+  Measured on every dual lamp pass on disk (31 of ChromIQ's on a real table, 6 of i1Profiler's): the
+  best start lies 0 to 3.25 readings before 0.372, 1.9 on average, whatever the row. A cut is
+  harmless (no patch above 0.5 dE00) from 2.5 readings early to 1.5 late of the assumed start, so the
+  real passes lay at its early edge and good rows were refused; around 0.365 they lie from 1.75 early
+  to 1.25 late. The limits are unchanged, because what is harmless around an assumed start is.
+  Speed plays no part (single strips in both directions: 0.369 at 168 mm/s, 0.370 at 61). What
+  differs from row to row is where the patches lie along it: opposite in the two directions,
+  drifting along the page (aims, opening), and it cancels in the sum of a row's lamp and UV starts
+  (-2.0 readings, spread 0.35). 35 of the 37 recorded passes are accepted now (28 before), none
+  newly refused, the worst patch 0.40 dE00. Moved by whole readings: a pass 1 to 3 early is now
+  often accepted (every patch within 0.35 dE00 of its true value, it cannot be told from a row
+  that lies there), a pass 2 to 4 late is refused more often. A wrong row's lamp pass, a reversed
+  stream and a lamp that fails are found by the identity check and the helper's pairing check, not
+  by this verdict, before and after. No row is read as a dual row that was not before (planned at
+  both starts).

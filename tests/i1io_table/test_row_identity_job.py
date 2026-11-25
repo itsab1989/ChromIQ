@@ -89,7 +89,9 @@ def _asked(p, what=J.Confirm.ROW_IDENTITY):
 
 @pytest.mark.parametrize("kind", KINDS)
 def test_a_sheet_laid_right_is_kept_and_nobody_is_asked(tmp_path, kind):
-    ch = _chart(tmp_path, count=60 if "dual" in kind else 72,
+    # (100 for the dual scan since item 70: with 60, one invented noisy reading of a dark first
+    # patch stands in its window, and the placement check refuses the row)
+    ch = _chart(tmp_path, count=100 if "dual" in kind else 72,
                 patch_h=12.0 if "dual" in kind else None)
     job, sim, helper, p = _job(tmp_path, ch, B.Bed(ch.laid()), kind)
     rows = read_page(job, p)
@@ -503,8 +505,9 @@ def test_a_row_read_before_in_this_sitting_goes_with_the_dropped_one(tmp_path, k
     wrong sheet lies there: End drops the row, every attempt of it; an earlier sitting's stays."""
     ph = 12.0 if "dual" in kind else 10.0
     n = 20 if "dual" in kind else 24
-    ch = _chart(tmp_path, count=3 * n, patch_h=ph)
-    other = B.build_chart(tmp_path, name="Other", colours=B.patch_set(3 * n, seed=99), seed=9,
+    # (5 rows since item 70, as above)
+    ch = _chart(tmp_path, count=5 * n, patch_h=ph)
+    other = B.build_chart(tmp_path, name="Other", colours=B.patch_set(5 * n, seed=99), seed=9,
                           patch_h=ph)
     bed = B.Bed(ch.laid())
     job, sim, helper, p = _job(tmp_path, ch, bed, kind, {J.Confirm.ROW_IDENTITY: "stop"})

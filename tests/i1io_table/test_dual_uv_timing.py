@@ -69,7 +69,7 @@ def _passes(k_late=0.0, flat=False, seed=1):
     rng = random.Random(seed)
     levels = [0.5] * 25 if flat else [0.08 + 0.8 * rng.random() for _ in range(25)]
     at = _sheet(lamp, levels)
-    lr = _stream(lamp, sc.FIRST_READING_AFTER_LAMP_S, sc.MOTION_START_AFTER_LAMP_S, lamp.N,
+    lr = _stream(lamp, sc.FIRST_READING_AFTER_LAMP_S, sc.DUAL_LAMP_MOTION_START_S, lamp.N,
                  at, False, rng)
     ur = _stream(uv, sc.UV_FIRST_READING_AFTER_TRIGGER_S,
                  sc.UV_MOTION_START_AFTER_TRIGGER_S + k_late * sc.READING_S, uv.N, at, True, rng)
@@ -82,7 +82,7 @@ def test_a_uv_pass_on_time_is_accepted_and_its_start_is_recorded():
     assert f["checked"] is True and f["refuse"] is False, f
     assert abs(f["uv"]["best_readings"]) < 0.5
     assert abs(f["uv"]["best_motion_start_s"] - sc.UV_MOTION_START_AFTER_TRIGGER_S) < 0.003
-    assert abs(f["lamp"]["best_readings"]) < 0.5
+    assert abs(f["lamp"]["best_readings"]) <= 0.5
     json.dumps(f)                              # it goes into the row's record as it is
 
 

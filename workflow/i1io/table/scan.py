@@ -176,6 +176,23 @@ D1_UV_ECHO = "00D2"
 #: motion start at +0.233 to +0.240 s, all giving M2 0.012-0.022 dE00 with a 1.5 mm clean edge)
 UV_FIRST_READING_AFTER_TRIGGER_S = 0.231
 UV_MOTION_START_AFTER_TRIGGER_S = 0.236
+#: THE DUAL ROW'S LAMP PASS has its own motion start (2026-11-25, item 70): its windows, its
+#: placement check and its timing verdict start here, 7 ms (1.4 readings) before the single strip
+#: pass's MOTION_START_AFTER_LAMP_S, which is not changed.
+#: WHERE IT COMES FROM: every dual lamp pass on disk laid over its chart (31 of ChromIQ's on a real
+#: table, 6 of i1Profiler's, all at 132 mm/s). The best start (dual_rows._layout_fit) lies 0 to
+#: 3.25 readings before 0.372 in all 37, 1.9 on average. Moving each stream by whole readings and
+#: comparing every patch with its true value (the same row patch by patch, the vendor's M0, or the
+#: row's own centre): a cut is harmless (no patch above 0.5 dE00) while that best start lies from 2.5
+#: readings before the assumed one to 1.5 after it, centre 0.5 before (the windows take whole
+#: readings, counted by their beginning). So 1.4 readings earlier puts the real passes in the middle
+#: of what is harmless (-1.75 to +1.25 of the new start) instead of at its early edge.
+#: NOT a matter of speed: single strip passes in both directions give 0.369 at 168 mm/s and 0.370 at
+#: 61. The rest is where a row's patches lie along it (aims, opening), the same 0.4 to 1.5 mm in
+#: every sitting, opposite in the two directions and drifting along the page: it cancels in the sum
+#: of a row's lamp and UV best starts, -2.0 readings with a spread of 0.35 (30 ChromIQ pairs) and
+#: -2.15 (5 of the vendor's). Which of the two passes owns how much of that sum is not known.
+DUAL_LAMP_MOTION_START_S = 0.365
 #: the clean edge the dual row's cut leaves on each side of a patch's window (at 132 mm/s the
 #: lamp pass's motion start is known to +-6 ms = 0.8 mm; on the recorded rows 0.5 mm gave p95
 #: 1.04 dE00, 1.0 mm 0.25, 1.5 mm 0.22). 1.5 mm first; 1.0 mm only when 1.5 mm leaves a patch

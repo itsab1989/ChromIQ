@@ -497,7 +497,10 @@ def dual_windows_ok(lamp, uv, edge_mm: "float | None" = None) -> "int | None":
     (*edge_mm*, default the narrowest of ``scan.DUAL_EDGES_MM``; each pass's own motion start
     and first reading), or None when a window lies outside a pass's readings."""
     e = min(sc.DUAL_EDGES_MM) if edge_mm is None else edge_mm
-    w = sc.windows(lamp, sc.MOTION_START_AFTER_LAMP_S, lamp.N, edge_mm=e)
+    # 2026-11-25 (item 70): at the lamp pass's own start (what the cut uses) AND at the start used
+    # until 4.3.66, so that no row is read as a dual row that was not before
+    w = sc.windows(lamp, sc.DUAL_LAMP_MOTION_START_S, lamp.N, edge_mm=e)
+    w += sc.windows(lamp, sc.MOTION_START_AFTER_LAMP_S, lamp.N, edge_mm=e)
     w += sc.windows(uv, sc.UV_MOTION_START_AFTER_TRIGGER_S, uv.N, edge_mm=e,
                     first_reading_s=sc.UV_FIRST_READING_AFTER_TRIGGER_S)
     if any(i1 - i0 < 1 for i0, i1 in w):

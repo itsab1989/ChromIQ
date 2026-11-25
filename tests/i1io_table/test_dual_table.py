@@ -434,7 +434,7 @@ def test_the_cut_finds_the_patches_of_both_passes_by_position():
             val = 0.05 + 0.04 * int(plan.patches[idx].sample_id)
             rows.append([val * k] * 36)
         return rows
-    L = stream(lamp, 0.370, sc.MOTION_START_AFTER_LAMP_S, 1.0)
+    L = stream(lamp, 0.370, sc.DUAL_LAMP_MOTION_START_S, 1.0)
     U = stream(uv, sc.UV_FIRST_READING_AFTER_TRIGGER_S, sc.UV_MOTION_START_AFTER_TRIGGER_S, 0.2)
     cut = dl.cut_dual(lamp, uv, L, U)
     assert cut.ok, (cut.reason, cut.info)
