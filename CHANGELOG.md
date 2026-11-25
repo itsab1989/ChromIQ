@@ -19,6 +19,7 @@
 ### Fixed
 
 - **Create Chart, Barbieri Spectro 100xy Beta:** the ready-made sizes box and its list no longer cut long names; the box spans the whole group and wraps the chosen name, and the list is as wide as its longest name.
+- **Create Chart, Barbieri Spectro 100xy Beta: the paper you pick is the paper you keep.** A ready-made size picked in Manual, and a film frame chosen in Guided, now keep their exact paper. Before, Manual could come back as A4 portrait, as an A4 page at 2032 ppi, or as 234 x 196 mm. If you saved such a size as your defaults, please pick it once more and save again.
 
 ### Internal
 
