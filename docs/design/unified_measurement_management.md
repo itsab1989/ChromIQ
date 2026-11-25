@@ -12698,7 +12698,9 @@ For one (n = 1):
 
 > **A row read beside its place: aim again**
 >
-> If the sheet lies off its place, if it was moved, or if it is not the right one, choose “End this step” and then “Carry on”: the arm goes to its resting place, you lay the right sheet, ChromIQ asks you to aim at its marks again, and then this row is read. Please do not move the sheet just to read the row again: without aiming again, every row after it would be read beside its place.
+> If the sheet lies off its place, if it was moved, or if it is not the right one, choose “End this step” and then “Next step”: the arm goes to its resting place, you lay the right sheet, ChromIQ asks you to aim at its marks again, and then this row is read. Please do not move the sheet just to read the row again: without aiming again, every row after it would be read beside its place.
+
+*Revised 2026-11-25 (after 4.3.66): the button “Carry on” of the table's window is “Next step” (agreed by Basti, 25 Nov 2026, for this rename only). It asks for whatever the measurement needs next.*
 
 ### M-I1IO-DRIVE-ROW-AIM-AGAIN-PIECE · PROPOSED · the failed-row page, a chart in pieces
 
@@ -12706,7 +12708,9 @@ For one (n = 1):
 
 > **A row read beside its place: aim again**
 >
-> If the piece lies off its place, if it was moved, or if it is not the right one, choose “End this step” and then “Carry on”: the arm goes to its resting place, you lay the right piece, ChromIQ asks you to aim at its marks again, and then this row is read. Please do not move the piece just to read the row again: without aiming again, every row after it would be read beside its place.
+> If the piece lies off its place, if it was moved, or if it is not the right one, choose “End this step” and then “Next step”: the arm goes to its resting place, you lay the right piece, ChromIQ asks you to aim at its marks again, and then this row is read. Please do not move the piece just to read the row again: without aiming again, every row after it would be read beside its place.
+
+*Revised 2026-11-25 (after 4.3.66): the button “Carry on” of the table's window is “Next step” (agreed by Basti, 25 Nov 2026, for this rename only). It asks for whatever the measurement needs next.*
 
 ### M-I1IO-DRIVE-END-CHOICES-AIM-AGAIN · PROPOSED · the ending's page
 

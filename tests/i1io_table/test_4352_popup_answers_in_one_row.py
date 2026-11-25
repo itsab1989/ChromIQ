@@ -38,7 +38,7 @@ PAGES = [
                       "Yes. Start the table"]),
     ("home_at_start", ["Not now", "Bring the arm home, my hands are away"]),
     ("end_of_session", ["Save and stop", "Discard and stop", "Keep measuring"]),
-    ("refused", ["Carry on", "Bring the arm home", "End measurement"]),
+    ("refused", ["Next step", "Bring the arm home", "End measurement"]),
     ("go", ["Go", "Back"]),
 ]
 

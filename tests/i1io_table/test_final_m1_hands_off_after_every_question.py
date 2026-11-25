@@ -9,7 +9,7 @@ Three kinds of proof:
 * the job, every question it can ask, both modes: between an answer that is not a hands-off
   confirmation and the next answer, not one movement line is sent;
 * the panel, the same rule over every page a person answers (the job's questions and the
-  panel's own: the mark-3 check, Go on, Carry on, the problem page, ...), both modes;
+  panel's own: the mark-3 check, Go on, Next step, the problem page, ...), both modes;
 * the texts: every hands-off answer's page says so, and the two promises (CHANGELOG and the
   preparation page) say what the code does.
 
@@ -400,7 +400,7 @@ def _panel_walk(qtbot, monkeypatch, tmp_path, settings, asking, script=None, sim
                 while_open.append(win.pages_shown[-1:])
             return out
         sim.transport.write = write
-    p.script.update({"end_of_session": "Save and stop", "stopped_by_you": "Carry on",
+    p.script.update({"end_of_session": "Save and stop", "stopped_by_you": "Next step",
                      "stored_white_refused": "Go on"})
     p.script.update(script or {})
     presses = []

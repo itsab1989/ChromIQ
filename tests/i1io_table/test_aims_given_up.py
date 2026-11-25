@@ -222,7 +222,7 @@ def test_the_refused_row_page_says_how_to_aim_again():
                     (M.M_I1IO_DRIVE_ROW_AIM_AGAIN_PIECE, "piece")):
         body = m.render()[1]
         assert "or if it is not the right one" in body and f"lay the right {word}" in body
-        assert "“End this step” and then “Carry on”" in body and word in body
+        assert "“End this step” and then “Next step”" in body and word in body
         assert "aim at its marks again" in body
     for pieces in (False, True):
         for why in (idn.REASON_STRIP, idn.REASON_SPOT):
@@ -317,7 +317,7 @@ def test_the_refused_row_page_begins_with_the_way_on(qtbot, monkeypatch, tmp_pat
     for _ in range(3):
         if p.page() == "report_after_step":
             p.press("As described, my hands are away")
-    p.press("Carry on")
+    p.press("Next step")
     assert p.drive_until(("sheet_laid", "aimed", "row_failed_strip")) == "sheet_laid"
 
 
@@ -327,7 +327,7 @@ def test_the_refused_row_page_begins_with_the_way_on(qtbot, monkeypatch, tmp_pat
 @pytest.mark.parametrize("how", ["a reading fails", "Stop"])
 def test_a_wrong_sheet_noticed_by_an_early_end(tmp_path, off, how):
     """Patch by patch: 12 patches or more of a wrong sheet, then a reading fails ("End this step"
-    and Carry on) or Stop is pressed: the right sheet, laid by eye, is aimed at again."""
+    and Next step) or Stop is pressed: the right sheet, laid by eye, is aimed at again."""
     ch = B.build_chart(tmp_path, count=72)
     other = B.build_chart(tmp_path, name="Other", colours=B.patch_set(72, seed=99), seed=9)
     bed = B.Bed(other.laid())

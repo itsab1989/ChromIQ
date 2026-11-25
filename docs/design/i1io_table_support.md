@@ -803,7 +803,7 @@ table.
   away" (the start-up), "As described, my hands are away" (the report after a step; the page
   names the panel's next step) and "Yes, it is centred, my hands are away" (the mark-3 check;
   the rows follow). Every other answer (the reader consent inside a row, the calibration
-  questions, the aims, Go on, Carry on, the problem page, ...) makes the next movement ask GO
+  questions, the aims, Go on, Next step, the problem page, ...) makes the next movement ask GO
   first. The table module refuses a movement line while a confirmation is owed (a guard: the
   session stops, nothing moves, nothing more is sent); the table tests fail if it ever fires.
   A Stop pressed on the mark-3 check or the next-page question takes effect once.
@@ -871,7 +871,7 @@ in-app drive has still not run on a real table.
   (where the arm is, which row and patch is read, the counts, the white reference used, each
   question as "In the table's window: <title>" and each answer as "Your answer: <label>"), its own
   START / STOP row. The tab's Stop is the table's Stop (before the next move; its pop-up then
-  offers Carry on, End measurement, Bring the arm home), live whenever anything can move, in the
+  offers Next step (until 4.3.66 “Carry on”; renamed, agreed by Basti, 25 Nov 2026), End measurement, Bring the arm home), live whenever anything can move, in the
   tab's own Stop look. While the session is open: "To stop the arm at once, switch the table off
   at its power switch." above the buttons (where Guided's banner stands), with Report a problem at
   its right end, directly above Stop (in the START / STOP row a third button cut the others at

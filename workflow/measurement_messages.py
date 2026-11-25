@@ -14314,7 +14314,7 @@ M_I1IO_DRIVE_ROW_AIM_AGAIN = _m(
     "M-I1IO-DRIVE-ROW-AIM-AGAIN",
     "A row read beside its place: aim again",
     "If the sheet lies off its place, if it was moved, or if it is not the right one, choose “End "
-    "this step” and then “Carry on”: the arm goes to its resting place, you lay the right sheet, "
+    "this step” and then “Next step”: the arm goes to its resting place, you lay the right sheet, "
     "ChromIQ asks you to aim at its marks again, and then this row is read. Please do not move the "
     "sheet just to read the row again: without aiming again, every row after it would be read beside "
     "its place.",
@@ -14323,7 +14323,7 @@ M_I1IO_DRIVE_ROW_AIM_AGAIN_PIECE = _m(
     "M-I1IO-DRIVE-ROW-AIM-AGAIN-PIECE",
     "A row read beside its place: aim again",
     "If the piece lies off its place, if it was moved, or if it is not the right one, choose “End "
-    "this step” and then “Carry on”: the arm goes to its resting place, you lay the right piece, "
+    "this step” and then “Next step”: the arm goes to its resting place, you lay the right piece, "
     "ChromIQ asks you to aim at its marks again, and then this row is read. Please do not move the "
     "piece just to read the row again: without aiming again, every row after it would be read beside "
     "its place.",

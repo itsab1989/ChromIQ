@@ -53,3 +53,45 @@ def test_the_question_offers_these_answers_in_this_order():
     for _msg, kind, answers in QUESTIONS:
         offered = [a for a in J.CHOICES[kind] if a in answers]
         assert tuple(offered) == answers
+
+
+# ---- "Next step" (agreed by Basti, 25 Nov 2026; it was "Carry on") ------------------------------
+
+#: The table's other ways on, and the button of the Measure tab.
+OTHERS = ("Keep measuring", "Continue", "Continue Measurement", "Go on")
+
+
+def _table_texts():
+    """Every English text of the table's window and its messages, as it is written."""
+    import ast
+    tree = ast.parse(Path(W.__file__).read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and getattr(node.func, "id", "") == "tr" and node.args:
+            try:
+                yield ast.literal_eval(node.args[0])
+            except ValueError:
+                continue
+    for msg in vars(M).values():
+        if str(getattr(msg, "id", "")).startswith("M-I1IO-DRIVE"):
+            yield msg.body
+
+
+def test_the_table_never_says_carry_on():
+    texts = set(_table_texts())
+    assert "Next step" in texts
+    assert [t for t in texts if "Carry on" in t] == []
+    quoting = [t for t in texts if "Next step" in t and t != "Next step"]
+    assert len(quoting) == 10
+    for text in quoting:
+        assert text.count("“Next step”") == text.count("Next step") == 1, text
+
+
+@pytest.mark.parametrize("lang", LANGS[1:])
+def test_every_language_quotes_the_button_and_tells_it_from_the_others(lang):
+    cat = json.loads((I18N / f"{lang}.json").read_text(encoding="utf-8"))
+    button = cat["Next step"]
+    assert "Carry on" not in cat
+    assert button not in [cat[other] for other in OTHERS]
+    for text in set(_table_texts()):
+        if "“Next step”" in text:
+            assert re.search(rf"[«„“”‘「]\s?{re.escape(button)}\s?[»“”’」]", cat[text]), cat[text]

@@ -51,7 +51,7 @@ How it is enforced (fill in your own names):
 | page (buttons) | what the person may be touching | what moves next | where GO is asked |
 |---|---|---|---|
 | consent, prepare | nothing is open | nothing | none |
-| stopped (Carry on / Bring the arm home) | anything | the next step / the homing | its GO |
+| stopped (Next step / Bring the arm home) | anything | the next step / the homing | its GO |
 | problem (Cancel / Send nothing more / Something looks or sounds wrong) | anything | nothing, or only the homing | the homing's GO |
 | done (Close) | anything | nothing; the device is let go | none |
 

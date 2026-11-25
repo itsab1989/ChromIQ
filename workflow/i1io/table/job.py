@@ -2957,7 +2957,7 @@ class TableJob:
 
     def person_answered(self, question_id: str, answer: str = "") -> None:
         """Final fix round, M-1: the person answered one of the WINDOW's own questions (the
-        a "Go on", "Carry on", the problem page...). As after any of the job's
+        a "Go on", "Next step", the problem page...). As after any of the job's
         questions, the next movement asks the hands-off GO first, unless the answer is itself
         that confirmation (``HANDS_OFF_WINDOW_ANSWERS``). Ignored while a step runs (its GO was
         given before it started; a page answered then is not a question at the table)."""

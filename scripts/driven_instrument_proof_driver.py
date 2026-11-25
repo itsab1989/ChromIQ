@@ -386,7 +386,7 @@ def pass_first():
 
 
 def pass_stop():
-    """Stop while a row runs: the move finishes, the Stopped page, Carry on asks GO again."""
+    """Stop while a row runs: the move finishes, the Stopped page, Next step asks GO again."""
     start()
     yield 1500
     w = panel()
@@ -402,9 +402,9 @@ def pass_stop():
          "finishes first, then ChromIQ stops")
     wait_idle(w, 240)
     SIM.transport.delay_s, PACE["s"] = 0.0, 0.0
-    pshot(w, "stopped", f"after Stop: page '{w.pages_shown[-1]}' with Carry on / Bring the arm home")
-    press(w, "Carry on")
-    pshot(w, "go-after-carry-on", "Carry on asks the hands-off GO before anything moves again")
+    pshot(w, "stopped", f"after Stop: page '{w.pages_shown[-1]}' with Next step / Bring the arm home")
+    press(w, "Next step")
+    pshot(w, "go-after-carry-on", "Next step asks the hands-off GO before anything moves again")
     w._on_end_pressed()
     wait_idle(w)
     if w.pages_shown[-1] == "end_of_session":

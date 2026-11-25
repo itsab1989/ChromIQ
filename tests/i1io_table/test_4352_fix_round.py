@@ -208,7 +208,7 @@ def test_must1_carry_on_after_a_stop_asks_the_hands_off_question(qtbot, monkeypa
     _to_the_stop(p, state)
     job = sim.jobs[0]
     n, cds = _moves(sim.sim.received), len(job.countdowns)
-    p.press("Carry on")
+    p.press("Next step")
     p.idle()
     assert p.page() == "go", p.page()
     assert _moves(sim.sim.received) == n and len(job.countdowns) == cds
