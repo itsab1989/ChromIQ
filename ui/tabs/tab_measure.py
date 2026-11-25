@@ -19091,6 +19091,22 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             self._log.appendPlainText("\n[OK] " + title + "\n" + body)
         return True
 
+    def _isis_import_confirmed(self, verdict) -> bool:
+        """M-IMPORT-ISIS-CANNOT-CHECK for an i1iSis chart that is not
+        randomised and whose colours cannot show how the sheet was fed (the
+        i1iSis Beta, item 63). True: go on; False: cancelled."""
+        why = getattr(verdict, "isis_ask_why", "")
+        if not why:
+            return True
+        from workflow import measurement_messages as M
+        if self._ask_import_question(M.M_IMPORT_ISIS_CANNOT_CHECK,
+                                     tr("Import"),
+                                     **M.isis_cannot_check_kw(why)):
+            return True
+        self._log.appendPlainText("\n" + tr(
+            "[INFO] The import was cancelled. Nothing has been changed."))
+        return False
+
     def _complete_i1io_import(self, converted: Path, chart: Path,
                               verdict) -> "bool | None":
         """File an i1Profiler Measure Chart measurement of this i1iO chart
@@ -19489,6 +19505,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 else M.M_IMPORT_MISMATCH, reason=reason)
             return
 
+        # 2d) An i1iSis chart that is not randomised (the i1iSis Beta).
+        if not self._isis_import_confirmed(verdict):
+            return
+
         # 2c) An i1Profiler Measure Chart measurement of this i1iO chart (the
         #     i1iO Beta): each reading on the patch at its own place.
         if getattr(verdict, "i1io_grid", None) is not None:
@@ -19679,6 +19699,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                                           reason=verdict.reason)
                 return
             refuse_it_does_not_belong(self, verdict.reason)
+            return
+
+        # 2d) An i1iSis chart that is not randomised (the i1iSis Beta).
+        if not self._isis_import_confirmed(verdict):
             return
 
         # 2c) An i1Profiler Measure Chart measurement of this i1iO chart (the

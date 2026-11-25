@@ -563,14 +563,21 @@ def only_you_can_confirm_the_chart(parent, verdict, chart: "Path | None") -> boo
     already uses, so this adds no string to any catalogue.
     """
     if not (getattr(verdict, "ok", False)
-            and getattr(verdict, "device_from_chart", False)):
+            and (getattr(verdict, "device_from_chart", False)
+                 or getattr(verdict, "isis_ask_why", ""))):
         return True
     from PyQt6.QtWidgets import QMessageBox
 
     from workflow import measurement_messages as M
-    title, body = M.M_IMPORT_DEVICE_FROM_CHART.render(
-        count=int(getattr(verdict, "n_measured", 0) or 0),
-        chart=Path(chart).name if chart else "")
+    if getattr(verdict, "isis_ask_why", ""):
+        # An i1iSis chart that is not randomised, whose colours cannot show
+        # how the sheet was fed (item 63): the same kind of question.
+        title, body = M.M_IMPORT_ISIS_CANNOT_CHECK.render(
+            **M.isis_cannot_check_kw(verdict.isis_ask_why))
+    else:
+        title, body = M.M_IMPORT_DEVICE_FROM_CHART.render(
+            count=int(getattr(verdict, "n_measured", 0) or 0),
+            chart=Path(chart).name if chart else "")
     box = QMessageBox(parent)
     box.setIcon(QMessageBox.Icon.NoIcon)
     box.setWindowTitle(title)
