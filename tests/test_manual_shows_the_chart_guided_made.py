@@ -6,6 +6,11 @@ Until 4.3.66 the switch copied what Guided's fields said at that moment, with
 6 mm margins the build did not use: 506 patches beside an i1Pro chart of 484,
 and Letter beside an A4 chart when Letter was chosen afterwards.
 
+What is a person's stays a person's: Manual's settings of a run without a
+chart, and every edit in Manual after the chart was shown there. The two modes
+show one instrument (Knut, #130): with another one chosen in Guided since,
+Manual takes nothing of the chart.
+
 Real builds: targen from ArgyllCMS and the layout engine.
 """
 from __future__ import annotations
@@ -20,7 +25,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from tests.test_a_redraw_is_judged_by_its_sheet import (_guided,  # noqa: E402
                                                         _pages)
-from tests.test_i1io_run_types import (_generate, _prof,        # noqa: E402,F401
+from tests.test_i1io_run_types import (_generate, _pick, _prof,  # noqa: E402,F401
                                        requires_argyll, win)
 
 #: (instrument, paper, the boxes ticked in Guided)
@@ -113,7 +118,7 @@ def _patches_of(win):  # noqa: F811
 @pytest.mark.parametrize("instrument,paper,ticks", CHARTS,
                          ids=[" ".join([i, p, *t]) for i, p, t in CHARTS])
 @pytest.mark.parametrize("later", [False, True],
-                         ids=["at once", "another choice in Guided since"])
+                         ids=["at once", "another paper in Guided since"])
 def test_generate_in_manual_makes_the_same_layout(
         win, qapp, qtbot, monkeypatch, instrument, paper, ticks,  # noqa: F811
         later):
@@ -122,10 +127,10 @@ def test_generate_in_manual_makes_the_same_layout(
     printed, patches = _pages(_prof(win).parent), _patches_of(win)
     assert built.instrument == instrument and built.paper == paper
     if later:
-        _guided(tc, qapp, "CM" if instrument == "i1" else "i1",
-                "Letter" if paper != "Letter" else "A4")
-        held = (tc._instr_combo.currentData(), tc._paper_combo.currentData())
-        assert held != (instrument, paper)
+        _guided(tc, qapp, instrument, "Letter" if paper != "Letter" else "A4")
+        tc._pages_spin.setValue(2)
+        held = (tc._instr_combo.currentData(), tc._paper_combo.currentData(),
+                tc._pages_spin.value())
     tc._switch_mode("manual")
     for _ in range(20):
         qapp.processEvents()
@@ -146,8 +151,8 @@ def test_generate_in_manual_makes_the_same_layout(
     assert (_patches_of(win) == patches) is same_colours
     assert (_pages(_prof(win).parent) == printed) is same_colours
     if later:                         # nothing of Guided's is lost
-        assert (tc._instr_combo.currentData(),
-                tc._paper_combo.currentData()) == held
+        assert (tc._instr_combo.currentData(), tc._paper_combo.currentData(),
+                tc._pages_spin.value()) == held
     # 2. with Guided's own patch set: the very same pages
     if not same_colours:
         _generate_in_manual(win, qapp, qtbot, monkeypatch, guided["seed"],
@@ -193,29 +198,244 @@ def test_no_chart_made_yet_leaves_manual_as_it_is(win, qapp):  # noqa: F811
     assert "Manual now shows" not in tc._log.toPlainText()
 
 
+SAID = "Manual now shows the settings"
+
+
+def _edit_manual(tc, qapp):
+    """A person's own Manual settings: Auto off, 321 patches, area-first."""
+    tc._manual_auto_patches_check.setChecked(False)
+    tc._on_auto_patches_toggled(False)
+    tc._set_manual_value("targen", "-f", 321)
+    tc._manual_layout_panel.margins["t"].setValue(17.0)
+    for _ in range(10):
+        qapp.processEvents()
+
+
+def _manual_is(tc):
+    return (tc._manual_auto_patches_check.isChecked(),
+            tc._manual_value("targen", "-f"),
+            tc._manual_layout_panel.get_recipe().margin_top)
+
+
 @requires_argyll
-def test_back_and_forth_keeps_the_persons_edit_in_manual(
+def test_back_and_forth_keeps_the_persons_edits_in_manual(
         win, qapp, qtbot):  # noqa: F811
     """Once shown, Manual is the person's: a second switch writes nothing over
-    it, and what Guided held since stays in Guided. Another instrument chosen
-    in Guided takes Manual along (Knut, #130), so there the chart comes back."""
+    it, and what Guided held since stays in Guided."""
     tc = _made(win, qapp, qtbot, "i1", "A4", ())
     tc._switch_mode("manual")
-    box = tc._manual_layout_panel.margins["t"]
-    box.setValue(box.value() + 1.0)
-    edited = tc._manual_layout_panel.get_recipe().margin_top
+    assert SAID in tc._log.toPlainText()
+    _edit_manual(tc, qapp)
+    mine = _manual_is(tc)
+    assert mine == (False, 321, 17.0)
     _guided(tc, qapp, "i1", "Letter")
     tc._switch_mode("manual")
     qapp.processEvents()
-    assert _shown_paper(tc) == ("i1", "A4")
-    assert tc._manual_layout_panel.get_recipe().margin_top == edited == 11.0
+    assert _shown_paper(tc) == ("i1", "A4") and _manual_is(tc) == mine
     assert tc._paper_combo.currentData() == "Letter"
-    _guided(tc, qapp, "CM", "Letter")
+
+
+@requires_argyll
+def test_b2_another_instrument_and_back_keeps_them_too(
+        win, qapp, qtbot):  # noqa: F811
+    tc = _made(win, qapp, qtbot, "i1", "A4", ())
+    tc._switch_mode("manual")
+    _edit_manual(tc, qapp)
+    mine = _manual_is(tc)
+    tc._switch_mode("guided")
+    for code in ("CM", "i1"):
+        i = tc._instr_combo.findData(code)
+        tc._instr_combo.setCurrentIndex(i)
+        tc._instr_combo.activated.emit(i)
+        qapp.processEvents()
     tc._switch_mode("manual")
     qapp.processEvents()
-    assert _shown_paper(tc) == ("i1", "A4")
-    assert tc._manual_layout_panel.get_recipe().margin_top == 10.0
-    assert tc._instr_combo.currentData() == "CM"
+    assert _manual_is(tc) == mine
+    assert tc._log.toPlainText().count(SAID) == 1
+
+
+@requires_argyll
+@pytest.mark.parametrize("ours", ["taken over", "taken over, Guided on CM",
+                                  "not taken over"])
+def test_b1_a_run_without_a_chart_keeps_manual_as_it_is(
+        win, qapp, qtbot, ours):  # noqa: F811
+    """Run 2 has no chart, and Manual settings of its own; run 1's chart was
+    made in Guided. B2's second case is the way back to run 1."""
+    tc, ctl = win._tab_chart, win._target_ctl
+    project = win._file_mgr.project()
+    first = project.current_run().id
+    second = project.new_run().id
+
+    def go(run):
+        ctl.set_profile_run(run)
+        for _ in range(30):
+            qapp.processEvents()
+    go(second)
+    _pick(tc, qapp, "i1")
+    _edit_manual(tc, qapp)
+    theirs = _manual_is(tc)
+    go(first)
+    _guided(tc, qapp, "i1", "A4")
+    _generate(win, qapp, qtbot, expect=project.run(first).chart_ti2)
+    if ours.startswith("taken over"):
+        tc._switch_mode("manual")
+        _edit_manual(tc, qapp)
+        _guided(tc, qapp, "CM" if "CM" in ours else "i1", "Letter")
+    log = tc._log.toPlainText().count(SAID)
+    go(second)
+    tc._switch_mode("guided")
+    tc._switch_mode("manual")
+    for _ in range(10):
+        qapp.processEvents()
+    assert not tc._shows_a_guided_chart()
+    assert _manual_is(tc) == theirs
+    assert tc._log.toPlainText().count(SAID) == log
+    go(first)
+    assert tc._shows_a_guided_chart()
+    if ours.startswith("taken over"):
+        # (what the run's return shows in Manual is its own affair)
+        for edit in (False, True):
+            if edit:
+                tc._switch_mode("manual")
+                _edit_manual(tc, qapp)
+            before = _manual_is(tc)
+            tc._switch_mode("guided")
+            tc._switch_mode("manual")
+            qapp.processEvents()
+            assert _manual_is(tc) == before
+        assert before == (False, 321, 17.0)
+        assert tc._log.toPlainText().count(SAID) == log
+    else:
+        tc._switch_mode("guided")
+        tc._switch_mode("manual")
+        qapp.processEvents()
+        assert tc._manual_layout_panel.get_recipe().margin_top == 10.0
+
+
+@requires_argyll
+@pytest.mark.parametrize("again", [False, True],
+                         ids=["CM", "CM and back to i1"])
+def test_another_instrument_in_guided_takes_nothing_of_the_chart(
+        win, qapp, qtbot, again):  # noqa: F811
+    """The two modes show one instrument (#130), and the chart's values are
+    another instrument's. Back on its own instrument, Manual takes it."""
+    tc = _made(win, qapp, qtbot, "i1", "A4", ())
+    _guided(tc, qapp, "CM", "Letter")
+    if again:
+        _guided(tc, qapp, "i1", "Letter")
+    tc._switch_mode("manual")
+    for _ in range(10):
+        qapp.processEvents()
+    assert tc._instr_combo.currentData() == tc._manual_value(
+        "printtarg", "-i") == ("i1" if again else "CM")
+    if again:
+        assert _shown_paper(tc) == ("i1", "A4")
+        assert SAID in tc._log.toPlainText()
+    else:
+        assert _shown_paper(tc) == ("CM", "Letter")
+        assert SAID not in tc._log.toPlainText()
+        # ...and not later either: Manual was opened, it is the person's now
+        _edit_manual(tc, qapp)
+        mine = _manual_is(tc)
+        tc._switch_mode("guided")
+        tc._switch_mode("manual")
+        qapp.processEvents()
+        assert _manual_is(tc) == mine
+
+
+@requires_argyll
+@pytest.mark.parametrize("record", ["missing", "damaged", "a wrong type",
+                                    "a wrong margin", "a wrong text",
+                                    "of another instrument",
+                                    "of a later version"])
+def test_a_record_that_cannot_be_used_is_not_claimed(
+        win, qapp, qtbot, record):  # noqa: F811
+    """S2: Manual as it was, and nothing is said. (A record with fields of a
+    later version can be used.)"""
+    tc = win._tab_chart
+    tc._switch_mode("manual")
+    before = tc._manual_layout_panel.get_recipe()
+    tc = _made(win, qapp, qtbot, "i1", "A4", ())
+    side = _prof(win).with_suffix(".channels.json")
+    doc = json.loads(side.read_text(encoding="utf-8"))
+    recipe = doc["layout"]["recipe"]
+    if record == "missing":
+        side.unlink()
+    elif record == "damaged":
+        side.write_text("{\"layout\": {", encoding="utf-8")
+    else:
+        key, value = {"a wrong type": ("border", "abc"),
+                      "a wrong margin": ("margin_left", "9"),
+                      "a wrong text": ("clip_text_font", 5),
+                      "of another instrument": ("instrument", "CM"),
+                      "of a later version": ("from_the_future", {"a": 1}),
+                      }[record]
+        recipe[key] = value
+        side.write_text(json.dumps(doc), encoding="utf-8")
+    tc._switch_mode("manual")
+    for _ in range(10):
+        qapp.processEvents()
+    now = tc._manual_layout_panel.get_recipe()
+    used = record == "of a later version"
+    assert (SAID in tc._log.toPlainText()) is used
+    if used:
+        assert now.margin_top == 10.0
+    else:
+        for name in ("margin_top", "margin_left", "layout_mode", "pscale",
+                     "border"):
+            assert getattr(now, name) == getattr(before, name), name
+
+
+@requires_argyll
+def test_a_panel_that_would_not_take_it_is_not_claimed(
+        win, qapp, qtbot, monkeypatch):  # noqa: F811
+    tc = _made(win, qapp, qtbot, "i1", "A4", ())
+
+    def refuse(*_a, **_k):
+        raise RuntimeError("no")
+    monkeypatch.setattr(tc, "_set_engine_recipe", refuse)
+    tc._switch_mode("manual")
+    assert SAID not in tc._log.toPlainText()
+    assert not tc._manual_has_the_guided_chart()
+
+
+@requires_argyll
+def test_a_chart_made_in_manual_ends_it(win, qapp, qtbot):  # noqa: F811
+    """S3: then the chart on screen is Manual's, and a paper chosen in Guided
+    comes along again (#9)."""
+    tc = _made(win, qapp, qtbot, "i1", "A4", ())
+    tc._switch_mode("manual")
+    assert tc._shows_a_guided_chart() and tc._manual_has_the_guided_chart()
+    _generate(win, qapp, qtbot, expect=_prof(win))
+    assert not tc._shows_a_guided_chart()
+    _guided(tc, qapp, "i1", "Letter")
+    tc._switch_mode("manual")
+    qapp.processEvents()
+    assert _shown_paper(tc) == ("i1", "Letter")
+
+
+@requires_argyll
+def test_another_chart_in_its_place_is_not_the_one_guided_made(
+        win, qapp, qtbot):  # noqa: F811
+    tc = _made(win, qapp, qtbot, "i1", "A4", ())
+    assert tc._shows_a_guided_chart()
+    tc._shown_chart_stamp = "another"
+    assert not tc._shows_a_guided_chart()
+
+
+@requires_argyll
+def test_the_charts_label_style_is_the_printed_one(
+        win, qapp, qtbot, monkeypatch):  # noqa: F811
+    """S3: other label settings in Preferences since are not the chart's."""
+    tc = _made(win, qapp, qtbot, "i1", "A4", ())
+    printed, seed = _pages(_prof(win).parent), _record(win)["layout"]["seed"]
+    from core.settings import INDICATOR_STYLE_KEYS
+    tc._settings.set(INDICATOR_STYLE_KEYS["indicator_size_mm"], 9.0)
+    tc._settings.set(INDICATOR_STYLE_KEYS["indicator_bold"], True)
+    tc._switch_mode("manual")
+    qapp.processEvents()
+    _generate_in_manual(win, qapp, qtbot, monkeypatch, seed)
+    assert _pages(_prof(win).parent) == printed
 
 
 @requires_argyll

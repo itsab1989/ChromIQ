@@ -151,6 +151,23 @@ def recipe_as_printed(layout: dict) -> dict:
     return d
 
 
+def recipe_types_are_right(recipe: dict) -> bool:
+    """Whether every field of a stored *recipe* (a dict) that this version
+    knows holds a value of its own kind. A field with no value of its own
+    (None) may hold anything; a later version's fields are nobody's."""
+    ours = LayoutRecipe()
+    for key, value in recipe.items():
+        want = getattr(ours, key, None)
+        if want is None or value is None:
+            continue
+        kind = (bool if isinstance(want, bool) else
+                (int, float) if isinstance(want, (int, float)) else type(want))
+        if not isinstance(value, kind) or (
+                kind is not bool and isinstance(value, bool)):
+            return False
+    return True
+
+
 def build_kwargs_as_built(recipe, chart=None) -> dict:
     """The engine kwargs a chart was BUILT with, for the helpers that describe a
     sheet already made (B8-1570): the edge-spacer width behind "Show only

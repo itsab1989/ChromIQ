@@ -596,20 +596,23 @@ instrument, Guided and Manual).
 **Confirmed by:** *nobody yet.*
 
 * **No chart made yet:** Manual stays as it is; only the instrument and the paper come along.
-* **A chart made in Guided (in this session, and on screen):** Manual shows the layout that chart was
-  really made with: its instrument, paper, margins, patch size, density, clip border, label style and
-  number of patches, read from the chart's own record (`presets.recipe_as_printed`), never from what
-  Guided's fields say by now. Generate with nothing changed makes the same LAYOUT: the same patches in
-  the same places, counts, pages and letters (and, with the same shuffle, the same order). The patch
-  set stays Manual's own: its Auto works out its own grey steps, whites and blacks, which are not
-  Guided's on every sheet; there the same places hold other colours.
-* **What was chosen in Guided after the chart stays in Guided**, the instrument too. This is the one
-  exception to "the two modes show one instrument" (#130): Manual shows the chart's. A line in the
-  panel says both. Another instrument chosen in Guided takes Manual along as ever, and the chart's
-  values come back on the way to Manual; a person's edits in Manual are otherwise never written over
-  by a second switch.
-* "Chart layout information" is right in both cases.
+* **A chart made in Guided (in this session, and on screen):** the first time Manual is opened after
+  it, Manual shows the layout that chart was really made with: its instrument, paper, margins, patch
+  size, density, clip border, label style and number of patches, read from the chart's own record
+  (`presets.recipe_as_printed`), never from what Guided's fields say by now. Generate with nothing
+  changed makes the same LAYOUT: the same patches in the same places, counts, pages and letters (and,
+  with the same shuffle, the same order). The patch set stays Manual's own: its Auto works out its own
+  grey steps, whites and blacks, which are not Guided's on every sheet; there the same places hold
+  other colours. A line in the panel says it.
+* **Once.** From then on Manual is the person's, by whatever way it was opened: no edit in Manual is
+  written over by going back and forth, by another instrument and back in Guided, or by another run.
+* **Nothing is taken, and nothing is said,** where it would not be true: a run without a chart, another
+  chart in its place, a chart made in Manual since, a record that is missing, damaged or holds a value
+  of the wrong kind, and Guided standing on another instrument by now: the two modes show one
+  instrument (Knut, #130), and the chart's values are another instrument's. Manual is then as it was.
+* A paper (and number of pages) chosen in Guided after the chart stays in Guided.
+* "Chart layout information" is right in every case.
 
 Tests: `tests/test_manual_shows_the_chart_guided_made.py`: 22 charts of nine instruments, at once and
-after another choice in Guided; Generate in Manual, and with Guided's own patch set the same pages,
+after another paper in Guided; Generate in Manual, and with Guided's own patch set the same pages,
 pixel for pixel. (Once, by hand: 204 charts, every paper Guided offers.)

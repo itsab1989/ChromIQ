@@ -12786,12 +12786,11 @@ class TabChart(QWidget):
                 and not getattr(self, "_mode_transfer_active", False)):
             self._mode_transfer_active = True
             try:
-                if mode == "manual" and getattr(self, "_guided_transfer_pending", False):
+                if (mode == "manual"
+                        and getattr(self, "_guided_transfer_pending", False)
+                        and self._transfer_guided_to_manual()):
                     # #79: a chart was just generated in Guided: Manual shows
-                    # the values that chart was made with, once, whatever
-                    # Guided's fields say by now (item 69).
-                    self._guided_transfer_pending = False
-                    self._transfer_guided_to_manual()
+                    # the values that chart was made with, once (item 69).
                     # CHANGING MODULE IS NOT A LAYOUT EDIT. This branch is by
                     # definition "reproduce the chart that was just built", so
                     # there is nothing here for the live preview to discover —
@@ -12819,12 +12818,17 @@ class TabChart(QWidget):
                     # the notice; the branch below carries what the user
                     # changed, and there it must.
                     self._mark_settings_applied()
-                elif not (mode == "manual" and self._shows_a_guided_chart()):
-                    # (while the chart on screen is the one Guided made, Manual
-                    # keeps it, and what was chosen in Guided since stays there)
+                elif not (mode == "manual"
+                          and self._manual_has_the_guided_chart()):
+                    # (while Manual has the chart on screen from Guided, a
+                    # paper chosen in Guided since stays there)
                     self._carry_shared_settings(prev, mode)
             finally:
                 self._mode_transfer_active = False
+        if mode == "manual":
+            # ONCE, AND NEVER LATER: from here on Manual is the person's, by
+            # whatever route it was opened (a run that loads its own mode too).
+            self._guided_transfer_pending = False
         # Snapshot the now-active tab's shared settings so the next switch can tell
         # what the user changed while it was open.
         if mode in ("guided", "manual"):
@@ -12851,40 +12855,34 @@ class TabChart(QWidget):
         # 2026-08-11).
         self._refresh_verify_noprofile_box()
 
-    def _transfer_guided_to_manual(self, quiet: bool = False) -> None:
-        """Seed the Manual panel from the chart Guided made.
+    def _transfer_guided_to_manual(self) -> bool:
+        """Show the chart Guided made in Manual (#79); True when it was done.
 
-        *quiet* = the plain tab-switch sync (Knut #9): carry only the shared
-        chart-defining fields and leave Manual's patch count and custom
-        scale/margin alone (changing -i below still cascades the instrument
-        defaults). Without *quiet* it's the post-generation #79 transfer: Manual
-        shows the values REALLY USED for that chart (ruled by Basti, 25 Nov
-        2026), so that Generate with nothing changed makes the same LAYOUT: the
-        margins, the patch size and positions, the number of patches, the paper.
-        Which grey steps, whites and blacks it holds is Manual's own answer, as
-        ever. The values are the build's own parameters and the recipe in the chart's
-        record, never what Guided's fields say by now, which stay as they are.
+        Manual shows the values REALLY USED for that chart (ruled by Basti,
+        25 Nov 2026), so that Generate with nothing changed makes the same
+        LAYOUT: the margins, the patch size and positions, the number of
+        patches, the paper. Which grey steps, whites and blacks it holds is
+        Manual's own answer, as ever. The values are the build's own parameters
+        and the recipe in the chart's record, never what Guided's fields say by
+        now; a paper chosen there since stays there.
+
+        NOT DONE, and Manual is as it was, where that cannot be true: the chart
+        on screen is not the one Guided made (another run, a run without a
+        chart), its record cannot be used, or Guided stands on another
+        instrument by now: the two modes show one instrument (Knut, #130).
         Best-effort: never blocks a mode switch."""
-        # GUIDED'S OWN INSTRUMENT STAYS (item 69). The two modes show one
-        # instrument (`_link_instrument_controls`, Knut #130), but not here:
-        # what was chosen in Guided after the chart is not the chart's.
-        syncing = getattr(self, "_syncing_instrument", False)
-        self._syncing_instrument = self._shows_a_guided_chart() or syncing
+        p = vars(self).get("_guided_chart_params")
         try:
-            self._transfer_the_chart_guided_made(quiet)
-        finally:
-            self._syncing_instrument = syncing
-
-    def _transfer_the_chart_guided_made(self, quiet: bool) -> None:
-        """The body of :meth:`_transfer_guided_to_manual`."""
-        try:
-            built = (vars(self).get("_guided_chart_params")
-                     if not quiet and self._shows_a_guided_chart() else None)
-            p = built if built is not None else self._collect_guided()
-        except Exception:
-            log.warning("Guided→Manual transfer skipped (could not read guided "
-                        "settings)", exc_info=True)
-            return
+            if (p is None or not self._shows_a_guided_chart()
+                    or self._instr_combo.currentData() != p.instrument):
+                return False
+            recipe = self._guided_chart_recipe()
+            if recipe is None or recipe.instrument != p.instrument:
+                return False
+        except Exception:      # noqa: BLE001 - never block the switch
+            log.warning("Guided→Manual transfer skipped (the chart's record "
+                        "cannot be used)", exc_info=True)
+            return False
         # Instrument + paper first: changing the instrument can cascade (reset
         # -a/-m to the instrument default), so scale/margin are set afterwards.
         self._set_manual_value("printtarg", "-i", p.instrument)
@@ -12893,13 +12891,12 @@ class TabChart(QWidget):
             self._manual_pages_spin.setValue(int(p.pages))
         self._set_manual_value("targen", "-d", str(p.device_type))
         self._set_manual_value("targen", "-G", bool(p.good_mode))
-        if not quiet:
-            # Reproduce the exact generated chart: mirror Guided's Auto count
-            # (which drives the neutral counts) and its derived scale/margin.
-            if self._manual_auto_patches_check is not None:
-                self._manual_auto_patches_check.setChecked(True)
-            self._set_manual_value("printtarg", "-a", round(float(p.patch_scale), 3))
-            self._set_manual_value("printtarg", "-m", int(p.margin_mm))
+        # Reproduce the exact generated chart: mirror Guided's Auto count (which
+        # drives the neutral counts) and its derived scale/margin.
+        if self._manual_auto_patches_check is not None:
+            self._manual_auto_patches_check.setChecked(True)
+        self._set_manual_value("printtarg", "-a", round(float(p.patch_scale), 3))
+        self._set_manual_value("printtarg", "-m", int(p.margin_mm))
         self._set_manual_value("printtarg", "-h", bool(p.double_density))
         self._set_manual_value("printtarg", "-P", bool(p.no_strip_limit))
         self._set_manual_value("printtarg", "-L", bool(p.disable_left_border))
@@ -12914,25 +12911,26 @@ class TabChart(QWidget):
                     self._set_manual_value("targen", "-c", toks[i + 1])
         except ValueError:
             pass
-        if not quiet:
-            # Printer profile project name + a one-time confirmation.
-            name_edit = getattr(self, "_target_name_edit", None)
-            name = name_edit.text().strip() if name_edit is not None else ""
-            if name:
-                self._set_manual_name_plain(name)
+        # Printer profile project name + a one-time confirmation.
+        name_edit = getattr(self, "_target_name_edit", None)
+        name = name_edit.text().strip() if name_edit is not None else ""
+        if name:
+            self._set_manual_name_plain(name)
         # With the engine on, the layout panel (not the printtarg widgets) builds
         # the Manual chart, so load the FULL engine recipe Guided used into the
         # panel — instrument, paper, pages AND clip-border suppression, margins,
         # patch scale, density, edge spacers — or Manual silently rebuilds a
         # different chart (Knut: clip border reappeared, patches too near the
         # labels). Otherwise (engine off) just sync the canonical selection.
-        self._apply_guided_engine_recipe(p)
+        done = self._apply_guided_engine_recipe(recipe)
         self._refresh_manual_command_preview()
-        if not quiet:
+        if done:
+            self._guided_chart_taken = True
             self._log.appendPlainText(tr(
                 "Manual now shows the settings the chart on screen was made "
                 "with. What you have chosen in Guided since then stays there. "
                 "Edit them and generate again as needed."))
+        return done
 
     # Shared chart-defining settings both tabs express (Knut #9). Each is read /
     # written per tab below; only the ones the user CHANGED in the tab being left
@@ -13125,10 +13123,6 @@ class TabChart(QWidget):
         def _mirror(src: str) -> None:
             if self._syncing_instrument:
                 return                      # the echo of our own write
-            if src == "guided" and self._shows_a_guided_chart():
-                # (item 69: Manual's layout follows this instrument now; on the
-                # way to Manual it is the chart's again)
-                self._guided_transfer_pending = True
             self._syncing_instrument = True
             try:
                 value = self._shared_get(src).get("instrument")
@@ -13268,61 +13262,61 @@ class TabChart(QWidget):
                 and self._manual_pages_spin is not None):
             p.pages.setValue(int(self._manual_pages_spin.value()))
 
-    def _apply_guided_engine_recipe(self, guided_params) -> None:
-        """Load the FULL engine recipe a Guided chart used into the Manual layout
-        panel, so Manual reproduces it exactly (Knut bugfix B).
+    def _apply_guided_engine_recipe(self, recipe) -> bool:
+        """Load the FULL engine *recipe* of the chart Guided made into the
+        Manual layout panel, so Manual reproduces it exactly (Knut bugfix B).
 
-        It is the recipe in the chart's own record, read as the chart was laid
-        out (`presets.recipe_as_printed`): its margins, its clip border, patch
-        scale, density, edge spacers, label style, an i1iO chart's division.
-        Without such a record (the chart is gone) the kwargs Guided would hand
-        the engine now, ``ChartCreator._engine_build_kwargs``. No-op when the engine is off (then the printtarg
-        widgets the transfer already set are what build the chart); the CR30
-        is laid out by the panel with the box unticked too (B8-1295)."""
-        if not self._manual_panel_lays_out():
-            return
+        Nothing to do when the engine is off (then the printtarg widgets the
+        transfer already set are what build the chart); the CR30 is laid out by
+        the panel with the box unticked too (B8-1295). False when the panel
+        would not take it."""
         panel = getattr(self, "_manual_layout_panel", None)
-        if panel is None:
-            return
+        if not self._manual_panel_lays_out() or panel is None:
+            return True
         try:
-            from workflow.layout_engine.presets import LayoutRecipe
-            recipe = self._guided_chart_recipe()
-            if recipe is None:
-                kw = self._creator._engine_build_kwargs(guided_params)
-                recipe = LayoutRecipe.from_build_kwargs(kw)
-                if recipe.instrument == "IO2":
-                    # the size Guided really used (review 5, item 6)
-                    from workflow.i1io.chart import with_guided_size
-                    recipe = with_guided_size(recipe, kw)
-                if recipe.instrument == "XRISIS":
-                    # what Guided's i1iSis chart really used (a Beta)
-                    from workflow.isis.chart import with_guided_values
-                    recipe = with_guided_values(recipe)
             self._set_engine_recipe(recipe)
             if (getattr(panel, "pages", None) is not None
                     and self._manual_pages_spin is not None):
                 panel.pages.setValue(int(self._manual_pages_spin.value()))
+            return True
         except Exception:  # noqa: BLE001 — never block the mode switch
             log.warning("Guided→Manual engine-recipe transfer failed",
                         exc_info=True)
             self._sync_engine_panel_after_transfer()   # fall back to light sync
+            return False
 
     def _shows_a_guided_chart(self) -> bool:
-        """Whether the chart on screen is the one Guided made in this session."""
-        mine = vars(self).get("_guided_chart_ti2")
-        return mine is not None and mine == vars(self).get("_shown_chart_ti2")
+        """Whether the chart on screen is the one Guided made in this session,
+        and not another one that stands in its place by now."""
+        own = vars(self)
+        mine = own.get("_guided_chart_ti2")
+        return (mine is not None and mine == own.get("_shown_chart_ti2")
+                and own.get("_guided_chart_stamp")
+                == own.get("_shown_chart_stamp"))
+
+    def _manual_has_the_guided_chart(self) -> bool:
+        """Whether Manual has taken the chart on screen over from Guided, and
+        both modes are still on its instrument."""
+        p = vars(self).get("_guided_chart_params")
+        return (bool(vars(self).get("_guided_chart_taken")) and p is not None
+                and self._shows_a_guided_chart()
+                and self._instr_combo.currentData() == p.instrument)
 
     def _guided_chart_recipe(self):
-        """The recipe of the chart Guided made (`_shows_a_guided_chart`), as its
-        sheet was laid out, for Manual to show; None without its record."""
-        if not self._shows_a_guided_chart():
-            return None
+        """The recipe in the record of the chart Guided made, as its sheet was
+        laid out (`presets.recipe_as_printed`): its margins, clip border, patch
+        scale, density, edge spacers, label style, an i1iO chart's division.
+        None without a usable record."""
         from dataclasses import replace
-        from workflow.layout_engine.presets import LayoutRecipe
-        recipe = LayoutRecipe.from_channels_json(
-            Path(self._guided_chart_ti2).with_suffix(".channels.json"))
-        if recipe is None:
+        from workflow.layout_engine import instruments
+        from workflow.layout_engine.presets import (LayoutRecipe,
+                                                    recipe_types_are_right)
+        side = Path(self._guided_chart_ti2).with_suffix(".channels.json")
+        recipe = LayoutRecipe.from_channels_json(side)
+        if recipe is None or not recipe_types_are_right(
+                json.loads(read_text(side))["layout"]["recipe"]):
             return None
+        instruments.geom_from_build_kwargs(recipe.build_kwargs())
         # The chart's own seed stays the Seed box's "this chart" line
         # (`_show_built_seed_in_panel`): Guided pinned none. Its label style is
         # the one it was printed with, never today's Preferences.
@@ -27222,6 +27216,8 @@ class TabChart(QWidget):
             # …and what it was really built with (item 69).
             self._guided_chart_ti2 = (ti2 if self._guided_transfer_pending
                                       else None)
+            self._guided_chart_stamp = self._chart_stamp(ti2)
+            self._guided_chart_taken = False
             self._guided_chart_params = (
                 copy.copy(getattr(self._creator, "_pending_params", None))
                 if self._guided_transfer_pending else None)
