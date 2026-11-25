@@ -39,6 +39,7 @@ from PyQt6.QtWidgets import QApplication             # noqa: E402
 from core.argyll_runner import ArgyllRunner          # noqa: E402
 from core.file_manager import FileManager            # noqa: E402
 from core.settings import AppSettings                # noqa: E402
+from tests._guided_chart_fixture import made_in_guided  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -150,11 +151,11 @@ def test_a_real_change_still_renders(tab, monkeypatch):
 
 # ------------------------------------------------------------- mode switch
 
-def test_opening_manual_after_a_guided_build_arms_nothing(tab):
+def test_opening_manual_after_a_guided_build_arms_nothing(tab, tmp_path):
     """Half one of Basti's report. The #79 transfer reproduces the chart that
     was just built, so there is nothing for the preview to discover."""
     tab._switch_mode("guided")
-    tab._guided_transfer_pending = True
+    made_in_guided(tab, tmp_path)
     tab._last_auto_sig = None            # as if the Guided build had just landed
     tab._switch_mode("manual")
     assert not tab._auto_preview_timer.isActive(), (
@@ -163,7 +164,8 @@ def test_opening_manual_after_a_guided_build_arms_nothing(tab):
         "the fingerprint was left stale, so the next arming would fire")
 
 
-def test_the_transfer_really_does_arm_the_timer(tab, monkeypatch):
+def test_the_transfer_really_does_arm_the_timer(tab, monkeypatch,
+                                                tmp_path):
     """The control for the test above.
 
     If seeding Manual's widgets did not arm the timer in the first place, the
@@ -177,7 +179,7 @@ def test_the_transfer_really_does_arm_the_timer(tab, monkeypatch):
     monkeypatch.setattr(tab, "_layout_signature",
                         lambda: f"unique-{next(counter)}", raising=False)
     tab._switch_mode("guided")
-    tab._guided_transfer_pending = True
+    made_in_guided(tab, tmp_path)
     tab._last_auto_sig = None
     tab._switch_mode("manual")
     assert tab._auto_preview_timer.isActive(), (

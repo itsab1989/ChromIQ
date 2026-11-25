@@ -1,6 +1,7 @@
 """Tab 1: Chart Creation — Guided and Manual modes."""
 from __future__ import annotations
 
+import copy
 import json
 import math
 import re
@@ -6027,6 +6028,61 @@ def _chart_date_from_ti2(ti2: Path) -> str:
     return day.strftime("%Y-%m-%d") if day is not None else ""
 
 
+#: What a chart's ``channels.json`` records beside the sheet: the form's rows
+#: at Generate, and how the patch set came to be. Not what is on the paper; a
+#: redraw fills them from the form that is on screen now.
+_NOT_THE_SHEET = ("create_chart_settings", "printtarg_fields", "auto_patches",
+                  "patch_set_given")
+#: The recipe's record of who chose a value. No build reads them
+#: (`LayoutRecipe.build_kwargs`), and the redraw answers them anew: it pins the
+#: label style and writes the drawn seed, which the layout block holds too.
+_NOT_IN_THE_BUILD = ("seed", "seed_fixed", "label_style_explicit",
+                     "layout_explicit", "margins_explicit", "align_explicit")
+
+
+def _sheet_of_sidecar(data: bytes) -> "tuple[dict, dict, dict] | None":
+    """``(the chart's record, its layout, its recipe)`` of an engine chart's
+    ``channels.json``, without what says nothing about the sheet. None for any
+    other file: that one is compared byte by byte."""
+    try:
+        doc = json.loads(data.decode("utf-8"))
+        layout = dict(doc["layout"])
+        if layout.get("engine") != "chromiq":
+            return None
+        from workflow.layout_engine.presets import (LayoutRecipe,
+                                                    recipe_as_printed)
+        recipe = LayoutRecipe.from_stored(recipe_as_printed(layout)).to_dict()
+        layout.pop("recipe")
+    except Exception:      # noqa: BLE001 - not an engine chart's record
+        return None
+    for key in _NOT_IN_THE_BUILD:
+        recipe.pop(key, None)
+    # "nobody chose these margins", said of a Guided chart only
+    layout.pop("margins_chosen_by_user", None)
+    doc.pop("layout")
+    for key in _NOT_THE_SHEET:
+        doc.pop(key, None)
+    if b"{rundescription" not in data.lower():
+        doc.pop("run_description", None)       # nothing on the sheet prints it
+    from workflow.printer_calibration import ENGINE_CHROMIQ, calibration_record
+    doc.setdefault("printer_calibration",
+                   calibration_record(ENGINE_CHROMIQ, None, False))
+    return doc, layout, recipe
+
+
+def _same_sheet(old: bytes, new: bytes) -> bool:
+    """Whether two ``channels.json`` describe the same sheet. What only the
+    new one records (a later version's) is no difference; what the old one
+    records and the new one does not, is."""
+    if old == new:
+        return True
+    a, b = _sheet_of_sidecar(old), _sheet_of_sidecar(new)
+    if a is None or b is None:
+        return False
+    return all(key in there and there[key] == value
+               for here, there in zip(a, b) for key, value in here.items())
+
+
 class _ChartRebuildGuard:
     """Keeps a chart's own files unchanged while its pages are redrawn.
 
@@ -6131,7 +6187,8 @@ class _ChartRebuildGuard:
         return _meaningful(old) == _meaningful(new)
 
     def put_back(self) -> list[str]:
-        """Restore any held file the rebuild changed. Returns their names.
+        """Put back every held file the rebuild wrote differently. Returns the
+        names of those whose chart it changed.
 
         **Says WHICH kind of change it found.** The .ti2 is stamped with a
         CREATED time whenever it is written, so a rebuild that reproduced the
@@ -6145,8 +6202,15 @@ class _ChartRebuildGuard:
         silent. So a timestamp-only difference is logged as the routine event it
         is, and the warning is kept for a chart that actually changed.
 
+        THE SIDECAR IS JUDGED BY ITS SHEET (`_same_sheet`). It also holds the
+        form's rows and who chose a value, which the redraw of a chart drawn on
+        the same sheet, pixel for pixel, writes differently: every chart whose
+        seed was drawn (its recipe says no seed, the redraw's says which), and
+        every Guided one (form rows, label style, margins).
+
         Either way the held bytes are put back: the CREATED stamp of the chart
-        that was measured is the truthful one.
+        that was measured is the truthful one. Only the files whose CHART
+        changed are returned, which is what the person is told about.
         """
         changed, cosmetic = [], []
         for path, data in self._held.items():
@@ -6159,8 +6223,10 @@ class _ChartRebuildGuard:
                 if current == data:
                     continue
                 path.write_bytes(data)
-                (cosmetic if self._difference_is_only_a_timestamp(data, current)
-                 else changed).append(path.name)
+                same = (_same_sheet(data, current)
+                        if path.name.endswith(".channels.json") else
+                        self._difference_is_only_a_timestamp(data, current))
+                (cosmetic if same else changed).append(path.name)
             except OSError:
                 log.warning("could not put %s back after the rebuild", path)
         kept = []
@@ -6178,12 +6244,12 @@ class _ChartRebuildGuard:
             log.info("the page rebuild had set aside %s; put back with the "
                      "restored chart", ", ".join(kept))
         if cosmetic:
-            log.info("the page rebuild re-stamped %s — same layout, original "
+            log.info("the page rebuild re-stamped %s: same layout, original "
                      "kept", ", ".join(cosmetic))
         if changed:
             log.warning("the page rebuild altered the chart itself (%s) — the "
                         "restored chart has been put back", ", ".join(changed))
-        return changed + cosmetic
+        return changed
 
 
 #: "no store argument was given", so that passing None can mean the different
@@ -12720,11 +12786,11 @@ class TabChart(QWidget):
                 and not getattr(self, "_mode_transfer_active", False)):
             self._mode_transfer_active = True
             try:
-                if mode == "manual" and getattr(self, "_guided_transfer_pending", False):
-                    # #79: a chart was just generated in Guided — seed Manual with
-                    # the EXACT recipe that produced it (incl. scale/margin), once.
-                    self._guided_transfer_pending = False
-                    self._transfer_guided_to_manual()
+                if (mode == "manual"
+                        and getattr(self, "_guided_transfer_pending", False)
+                        and self._transfer_guided_to_manual()):
+                    # #79: a chart was just generated in Guided: Manual shows
+                    # the values that chart was made with, once (item 69).
                     # CHANGING MODULE IS NOT A LAYOUT EDIT. This branch is by
                     # definition "reproduce the chart that was just built", so
                     # there is nothing here for the live preview to discover —
@@ -12752,10 +12818,17 @@ class TabChart(QWidget):
                     # the notice; the branch below carries what the user
                     # changed, and there it must.
                     self._mark_settings_applied()
-                else:
+                elif not (mode == "manual"
+                          and self._manual_has_the_guided_chart()):
+                    # (while Manual has the chart on screen from Guided, a
+                    # paper chosen in Guided since stays there)
                     self._carry_shared_settings(prev, mode)
             finally:
                 self._mode_transfer_active = False
+        if mode == "manual":
+            # ONCE, AND NEVER LATER: from here on Manual is the person's, by
+            # whatever route it was opened (a run that loads its own mode too).
+            self._guided_transfer_pending = False
         # Snapshot the now-active tab's shared settings so the next switch can tell
         # what the user changed while it was open.
         if mode in ("guided", "manual"):
@@ -12782,21 +12855,42 @@ class TabChart(QWidget):
         # 2026-08-11).
         self._refresh_verify_noprofile_box()
 
-    def _transfer_guided_to_manual(self, quiet: bool = False) -> None:
-        """Seed the Manual panel from the Guided settings.
+    def _transfer_guided_to_manual(self) -> bool:
+        """Show the chart Guided made in Manual (#79); True when it was done.
 
-        *quiet* = the plain tab-switch sync (Knut #9): carry only the shared
-        chart-defining fields and leave Manual's patch count and custom
-        scale/margin alone (changing -i below still cascades the instrument
-        defaults). Without *quiet* it's the post-generation #79 transfer, which
-        reproduces the EXACT generated chart (scale, margin, Auto count) and logs.
+        Manual shows the values REALLY USED for that chart (ruled by Basti,
+        25 Nov 2026), so that Generate with nothing changed makes the same
+        LAYOUT: the margins, the patch size and positions, the number of
+        patches, the paper. Which grey steps, whites and blacks it holds is
+        Manual's own answer, as ever. The values are the build's own parameters
+        and the recipe in the chart's record, never what Guided's fields say by
+        now; a paper chosen there since stays there.
+
+        NOT DONE, and Manual is as it was, where that cannot be true: the chart
+        on screen is not the one Guided made (another run, a run without a
+        chart), its record cannot be used, or Guided stands on another
+        instrument by now: the two modes show one instrument (Knut, #130).
         Best-effort: never blocks a mode switch."""
+        p = vars(self).get("_guided_chart_params")
         try:
-            p = self._collect_guided()
-        except Exception:
-            log.warning("Guided→Manual transfer skipped (could not read guided "
-                        "settings)", exc_info=True)
-            return
+            if (p is None or not self._shows_a_guided_chart()
+                    or self._instr_combo.currentData() != p.instrument):
+                return False
+            recipe = self._guided_chart_recipe()
+            if recipe is None or recipe.instrument != p.instrument:
+                return False
+        except Exception:      # noqa: BLE001 - never block the switch
+            log.warning("Guided→Manual transfer skipped (the chart's record "
+                        "cannot be used)", exc_info=True)
+            return False
+        # THE PANEL FIRST. With the engine on it (not the printtarg widgets)
+        # builds the Manual chart, so it takes the FULL engine recipe Guided
+        # used: instrument, paper, pages AND clip-border suppression, margins,
+        # patch scale, density, edge spacers, or Manual silently rebuilds a
+        # different chart (Knut: clip border reappeared, patches too near the
+        # labels). What it would not take leaves Manual as it was, its rows too.
+        if not self._apply_guided_engine_recipe(recipe):
+            return False
         # Instrument + paper first: changing the instrument can cascade (reset
         # -a/-m to the instrument default), so scale/margin are set afterwards.
         self._set_manual_value("printtarg", "-i", p.instrument)
@@ -12805,13 +12899,12 @@ class TabChart(QWidget):
             self._manual_pages_spin.setValue(int(p.pages))
         self._set_manual_value("targen", "-d", str(p.device_type))
         self._set_manual_value("targen", "-G", bool(p.good_mode))
-        if not quiet:
-            # Reproduce the exact generated chart: mirror Guided's Auto count
-            # (which drives the neutral counts) and its derived scale/margin.
-            if self._manual_auto_patches_check is not None:
-                self._manual_auto_patches_check.setChecked(True)
-            self._set_manual_value("printtarg", "-a", round(float(p.patch_scale), 3))
-            self._set_manual_value("printtarg", "-m", int(p.margin_mm))
+        # Reproduce the exact generated chart: mirror Guided's Auto count (which
+        # drives the neutral counts) and its derived scale/margin.
+        if self._manual_auto_patches_check is not None:
+            self._manual_auto_patches_check.setChecked(True)
+        self._set_manual_value("printtarg", "-a", round(float(p.patch_scale), 3))
+        self._set_manual_value("printtarg", "-m", int(p.margin_mm))
         self._set_manual_value("printtarg", "-h", bool(p.double_density))
         self._set_manual_value("printtarg", "-P", bool(p.no_strip_limit))
         self._set_manual_value("printtarg", "-L", bool(p.disable_left_border))
@@ -12826,24 +12919,23 @@ class TabChart(QWidget):
                     self._set_manual_value("targen", "-c", toks[i + 1])
         except ValueError:
             pass
-        if not quiet:
-            # Printer profile project name + a one-time confirmation.
-            name_edit = getattr(self, "_target_name_edit", None)
-            name = name_edit.text().strip() if name_edit is not None else ""
-            if name:
-                self._set_manual_name_plain(name)
-        # With the engine on, the layout panel (not the printtarg widgets) builds
-        # the Manual chart, so load the FULL engine recipe Guided used into the
-        # panel — instrument, paper, pages AND clip-border suppression, margins,
-        # patch scale, density, edge spacers — or Manual silently rebuilds a
-        # different chart (Knut: clip border reappeared, patches too near the
-        # labels). Otherwise (engine off) just sync the canonical selection.
-        self._apply_guided_engine_recipe(p)
+        # Printer profile project name + a one-time confirmation.
+        name_edit = getattr(self, "_target_name_edit", None)
+        name = name_edit.text().strip() if name_edit is not None else ""
+        if name:
+            self._set_manual_name_plain(name)
+        panel = getattr(self, "_manual_layout_panel", None)
+        if (self._manual_panel_lays_out()
+                and getattr(panel, "pages", None) is not None
+                and self._manual_pages_spin is not None):
+            panel.pages.setValue(int(self._manual_pages_spin.value()))
         self._refresh_manual_command_preview()
-        if not quiet:
-            self._log.appendPlainText(tr(
-                "Guided settings copied to Manual mode — edit and regenerate as "
-                "needed."))
+        self._guided_chart_taken = True
+        self._log.appendPlainText(tr(
+            "Manual now shows the settings the chart on screen was made "
+            "with. What you have chosen in Guided since then stays there. "
+            "Edit them and generate again as needed."))
+        return True
 
     # Shared chart-defining settings both tabs express (Knut #9). Each is read /
     # written per tab below; only the ones the user CHANGED in the tab being left
@@ -13175,41 +13267,67 @@ class TabChart(QWidget):
                 and self._manual_pages_spin is not None):
             p.pages.setValue(int(self._manual_pages_spin.value()))
 
-    def _apply_guided_engine_recipe(self, guided_params) -> None:
-        """Load the FULL engine recipe a Guided chart used into the Manual layout
-        panel, so Manual reproduces it exactly (Knut bugfix B).
+    def _apply_guided_engine_recipe(self, recipe) -> bool:
+        """Load the FULL engine *recipe* of the chart Guided made into the
+        Manual layout panel, so Manual reproduces it exactly (Knut bugfix B).
 
-        Guided builds engine charts from ``ChartCreator._engine_build_kwargs`` —
-        the same kwargs converted to a :class:`LayoutRecipe` here — so clip-border
-        suppression, margins, patch scale, density and edge spacers all carry, not
-        just instrument/paper. No-op when the engine is off (then the printtarg
-        widgets the transfer already set are what build the chart); the CR30
-        is laid out by the panel with the box unticked too (B8-1295)."""
-        if not self._manual_panel_lays_out():
-            return
+        Nothing to do when the engine is off (then the printtarg widgets the
+        transfer already set are what build the chart); the CR30 is laid out by
+        the panel with the box unticked too (B8-1295). False when the panel
+        would not take it; it is then as it was."""
         panel = getattr(self, "_manual_layout_panel", None)
-        if panel is None:
-            return
+        if not self._manual_panel_lays_out() or panel is None:
+            return True
+        before = panel.get_recipe()
         try:
-            from workflow.layout_engine.presets import LayoutRecipe
-            kw = self._creator._engine_build_kwargs(guided_params)
-            recipe = LayoutRecipe.from_build_kwargs(kw)
-            if recipe.instrument == "IO2":
-                # the size Guided really used (review 5, item 6)
-                from workflow.i1io.chart import with_guided_size
-                recipe = with_guided_size(recipe, kw)
-            if recipe.instrument == "XRISIS":
-                # what Guided's i1iSis chart really used (a Beta)
-                from workflow.isis.chart import with_guided_values
-                recipe = with_guided_values(recipe)
             self._set_engine_recipe(recipe)
-            if (getattr(panel, "pages", None) is not None
-                    and self._manual_pages_spin is not None):
-                panel.pages.setValue(int(self._manual_pages_spin.value()))
+            return True
         except Exception:  # noqa: BLE001 — never block the mode switch
             log.warning("Guided→Manual engine-recipe transfer failed",
                         exc_info=True)
-            self._sync_engine_panel_after_transfer()   # fall back to light sync
+            try:
+                panel.set_recipe(before)
+            except Exception:  # noqa: BLE001
+                log.warning("Manual's layout not put back", exc_info=True)
+            return False
+
+    def _shows_a_guided_chart(self) -> bool:
+        """Whether the chart on screen is the one Guided made in this session,
+        and not another one that stands in its place by now."""
+        own = vars(self)
+        mine = own.get("_guided_chart_ti2")
+        return (mine is not None and mine == own.get("_shown_chart_ti2")
+                and own.get("_guided_chart_stamp")
+                == own.get("_shown_chart_stamp"))
+
+    def _manual_has_the_guided_chart(self) -> bool:
+        """Whether Manual has taken the chart on screen over from Guided, and
+        both modes are still on its instrument."""
+        p = vars(self).get("_guided_chart_params")
+        return (bool(vars(self).get("_guided_chart_taken")) and p is not None
+                and self._shows_a_guided_chart()
+                and self._instr_combo.currentData() == p.instrument)
+
+    def _guided_chart_recipe(self):
+        """The recipe in the record of the chart Guided made, as its sheet was
+        laid out (`presets.recipe_as_printed`): its margins, clip border, patch
+        scale, density, edge spacers, label style, an i1iO chart's division.
+        None without a usable record."""
+        from dataclasses import replace
+        from workflow.layout_engine import instruments
+        from workflow.layout_engine.presets import (LayoutRecipe,
+                                                    recipe_types_are_right)
+        side = Path(self._guided_chart_ti2).with_suffix(".channels.json")
+        recipe = LayoutRecipe.from_channels_json(side)
+        if recipe is None or not recipe_types_are_right(
+                json.loads(read_text(side))["layout"]["recipe"]):
+            return None
+        instruments.geom_from_build_kwargs(recipe.build_kwargs())
+        # The chart's own seed stays the Seed box's "this chart" line
+        # (`_show_built_seed_in_panel`): Guided pinned none. Its label style is
+        # the one it was printed with, never today's Preferences.
+        return replace(recipe, seed=None, layout_explicit=True,
+                       label_style_explicit=True)
 
     def _on_guided_precond_toggled(self, checked: bool) -> None:
         self._guided_precond_path.setEnabled(checked)
@@ -18594,9 +18712,10 @@ class TabChart(QWidget):
         restored_full = False
         try:
             layout = doc.get("layout") or {}
-            rec_dict = layout.get("recipe") or {}
+            from workflow.layout_engine.presets import (LayoutRecipe,
+                                                        recipe_as_printed)
+            rec_dict = recipe_as_printed(layout)
             if rec_dict:
-                from workflow.layout_engine.presets import LayoutRecipe
                 recipe = LayoutRecipe.from_stored(rec_dict, ti2_path)
                 # The seed the chart was ACTUALLY built with (Knut, #130
                 # 2026-07-27: "the random seed must survive the restore and
@@ -26270,7 +26389,18 @@ class TabChart(QWidget):
             # where the original was in fixed order, with a fresh seed, 15
             # patches per pass instead of 16 and 60 sets instead of 64.
             if restored_recipe and self._current_mode() != "manual":
-                self._switch_mode("manual")
+                # WITHOUT CARRYING GUIDED'S SETTINGS OVER (item 61): Manual
+                # holds the restored chart's, and the switch wrote the other
+                # chart's paper, margin, scale and left border over them.
+                carrying = getattr(self, "_mode_transfer_active", False)
+                self._mode_transfer_active = True
+                try:
+                    self._switch_mode("manual")
+                finally:
+                    self._mode_transfer_active = carrying
+            # (nor later, should the redraw fail: the chart Guided made is gone)
+            self._guided_transfer_pending = False
+            self._guided_chart_ti2 = None
             # SAY SO WHEN THE OPTIONS COULD NOT COME BACK.
             #
             # Knut, #130 2026-07-29: *"after restore of the chart the options in
@@ -27089,6 +27219,14 @@ class TabChart(QWidget):
             # #79: arm the one-shot Guided→Manual transfer when this chart was
             # built in Guided mode, so opening Manual seeds the recipe used.
             self._guided_transfer_pending = (self._current_mode() == "guided")
+            # …and what it was really built with (item 69).
+            self._guided_chart_ti2 = (ti2 if self._guided_transfer_pending
+                                      else None)
+            self._guided_chart_stamp = self._chart_stamp(ti2)
+            self._guided_chart_taken = False
+            self._guided_chart_params = (
+                copy.copy(getattr(self._creator, "_pending_params", None))
+                if self._guided_transfer_pending else None)
             # Track the just-built chart so a later Run-type switch back to it
             # doesn't needlessly reload (#130).
             self._shown_chart_ti2 = ti2
@@ -28793,9 +28931,10 @@ class TabChart(QWidget):
                 if stamp[1] is not None:
                     import json as _json
                     doc = _json.loads(read_text(ch))
-                    rec = (doc.get("layout") or {}).get("recipe") or {}
+                    from workflow.layout_engine.presets import (
+                        LayoutRecipe, recipe_as_printed)
+                    rec = recipe_as_printed(doc.get("layout") or {})
                     if rec:
-                        from workflow.layout_engine.presets import LayoutRecipe
                         built = LayoutRecipe.from_stored(rec, ti2)
                 self._notice_recipe_cache = (stamp, built)
             if built is None:
@@ -28856,12 +28995,11 @@ class TabChart(QWidget):
                 log.debug("printer edge note: no printer known")
                 return None
             from workflow.i1io.support import i1io_enabled
-            own_size = False
             if i1io_enabled():
                 from workflow.i1io import sheets as _sheets
                 from workflow.i1io.support import pages_are_i1io_chart
-                own_size = pages_are_i1io_chart(tiffs)
-                ti2 = _sheets.chart_of_pages(tiffs) if own_size else None
+                ti2 = (_sheets.chart_of_pages(tiffs)
+                       if pages_are_i1io_chart(tiffs) else None)
                 si = _sheets.info(ti2) if ti2 is not None else None
                 if si is not None:
                     # what is printed is the sheet, not the piece shown here
@@ -28874,9 +29012,7 @@ class TabChart(QWidget):
             from workflow.page_geometry import read_tiff_dimensions_points
             w_pt, h_pt = read_tiff_dimensions_points(Path(tiffs[0]))
             chart_mm = (w_pt * PE.MM_PER_PT, h_pt * PE.MM_PER_PT)
-            edges, paper = PE.edges_for(
-                printer, chart_mm, self._settings,
-                **({"own_size": True} if own_size else {}))
+            edges, paper = PE.edges_for(printer, chart_mm, self._settings)
             if not edges.any():
                 return None
             pages = [(Path(t), 0) for t in tiffs]
@@ -31820,11 +31956,10 @@ class TabChart(QWidget):
             recipe = layout.get("recipe")
             if not isinstance(recipe, dict):
                 return None
-            # NOBODY CHOSE A GUIDED CHART'S MARGINS, and the 6/6/6/6 in its
-            # recipe is not what the sheet was laid out to — it is the
-            # LayoutRecipe dataclass default. The engine is handed the
-            # instrument's own border (10 mm for the i1Pro), and the realised
-            # margins are an output of the layout (i1Pro/A4: 10/10/41.58/24.57).
+            # NOBODY CHOSE A GUIDED CHART'S MARGINS. Its recipe holds the
+            # base margin the engine was handed (10 mm for the i1Pro; 6 mm
+            # whatever it was until 4.3.66), and the realised margins are an
+            # output of the layout (i1Pro/A4: 10/10/41.58/24.57).
             # `use_instrument_margins: false` beside those numbers is a default
             # too, not a user declining the guideline — Guided has no such
             # control. Reading it as a decision silenced the jig check on 112 of
@@ -31979,13 +32114,14 @@ class TabChart(QWidget):
         """True when re-deriving the page geometry from this chart's stored
         recipe gives back the sheet the user is actually looking at.
 
-        FOR A GUIDED CHART IT DOES NOT. Guided writes no layout recipe of its
-        own, so the sidecar carries the LayoutRecipe dataclass defaults — 6 mm
-        on all four sides — while the sheet was laid out at the instrument's
-        default border (10 mm for the i1Pro, whose shipping preset is
-        `m10_a0.95`). Re-deriving from those defaults produces a ROOMIER page
+        FOR A GUIDED CHART IT DID NOT, until 4.3.66. Guided writes no layout
+        recipe of its own, so the sidecar carried the LayoutRecipe dataclass
+        defaults, 6 mm on all four sides, while the sheet was laid out at the
+        instrument's default border (10 mm for the i1Pro, whose shipping preset
+        is `m10_a0.95`). Re-deriving from those defaults produced a ROOMIER page
         than the real one: measured, 506 patches for a real 484-patch i1Pro A4
-        sheet.
+        sheet. Both are read as printed now (`presets.recipe_as_printed`); the
+        hint stays off for Guided charts all the same, as it was.
 
         Everything downstream of that mistake is confidently wrong. The
         partial-last-page hint told the owner of a completely full sheet that

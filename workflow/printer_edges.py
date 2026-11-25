@@ -18,7 +18,11 @@ THREE SOURCES, the person's own first:
   (``QPageLayout.minimumMargins``), the same numbers the 4.3.14 print log line
   writes;
 * **macOS and Linux (CUPS)**: the queue's PPD, ``*ImageableArea`` of the page
-  size that matches the chart (within 5 mm), else of ``*DefaultPageSize``.
+  size that matches the chart (within 5 mm).
+
+A PAPER THE PRINTER DOES NOT KNOW HAS NO KNOWN EDGE (after 4.3.66, every
+instrument): the default paper's edge, measured against a chart of another
+size, named parts that lie well inside the sheet.
 
 What falls into the edge is read off the chart's own page image
 (`workflow.overhang`'s ink, helper-marker and caption readers), placed on the
@@ -103,7 +107,7 @@ def _ppd_path(printer: str) -> "Path | None":
 def ppd_edges_mm(ppd_text: str, chart_mm: "tuple[float, float]"
                  ) -> "tuple[Edges, tuple[float, float]] | None":
     """(edges, paper mm) from a PPD's ``*ImageableArea`` for the page size
-    that matches *chart_mm* (either way round), else the default size."""
+    that matches *chart_mm* (either way round), None when none does."""
     dims = {}
     for m in re.finditer(r'^\*PaperDimension\s+([^/:\s]+)[^:]*:\s*'
                          r'"\s*([\d.]+)\s+([\d.]+)\s*"', ppd_text, re.M):
@@ -122,10 +126,6 @@ def ppd_edges_mm(ppd_text: str, chart_mm: "tuple[float, float]"
                 or (abs(wm - ch) <= MATCH_MM and abs(hm - cw) <= MATCH_MM)):
             if pick is None or abs(wm - cw) + abs(hm - ch) < pick[1]:
                 pick = (name, abs(wm - cw) + abs(hm - ch))
-    if pick is None:
-        m = re.search(r'^\*DefaultPageSize:\s*(\S+)', ppd_text, re.M)
-        if m and m.group(1) in dims and m.group(1) in areas:
-            pick = (m.group(1), 0.0)
     if pick is None:
         return None
     w, h = dims[pick[0]]
@@ -272,22 +272,22 @@ def forget_system_default_printer() -> None:
     _last_recheck = None
 
 
-def edges_for(printer: str, chart_mm: "tuple[float, float]", settings=None,
-              own_size: bool = False
+def edges_for(printer: str, chart_mm: "tuple[float, float]", settings=None
               ) -> "tuple[Edges, tuple[float, float]]":
     """(edges, paper mm) for *printer* and a chart of *chart_mm*. The paper
     is the driver's page that matches the chart, else the chart's own size.
-    No printer, or nothing known: no edge. *own_size* (an i1iO chart): only
-    a driver's page that IS the chart's size says anything; a paper the
-    printer does not know has no known edge (its default paper's, measured
-    against this chart, named crosses that lie well inside the sheet)."""
+    No printer, or nothing known: no edge. Only a driver's page that IS the
+    chart's size says anything: a paper the printer does not know has no
+    known edge (its default paper's, measured against this chart, named parts
+    that lie well inside the sheet). The person's own edge is used on every
+    paper."""
     paper = (float(chart_mm[0]), float(chart_mm[1]))
     found = None
     try:
         found = _query_driver(printer, chart_mm)
     except Exception:      # noqa: BLE001
         found = None
-    if own_size and found is not None and not any(
+    if found is not None and not any(
             abs(a - chart_mm[0]) <= MATCH_MM and abs(b - chart_mm[1]) <= MATCH_MM
             for a, b in (found[1], found[1][::-1])):
         found = None

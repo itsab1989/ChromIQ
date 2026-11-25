@@ -279,6 +279,44 @@ def _distinct(E: np.ndarray, de: float) -> int:
     return len(reps)
 
 
+def row_of_equals(e: np.ndarray) -> bool:
+    """True when half or more of the neighbours along a strip with the expected
+    colours *e* (L*a*b*, in strip order) are about the same colour: the medians
+    of a comparison with the neighbours are then those of equals."""
+    if len(e) < 2:
+        return True
+    step = np.linalg.norm(e[1:] - e[:-1], axis=1)
+    return float((step < DISTINCT_DE).mean()) >= 1 / 2
+
+
+#: How far apart the readings of patches expected alike may be (dE76): the
+#: same colour on one page, read in one strip, differs by a unit or two.
+ALIKE_DE = 10.0
+
+
+def equals_read_alike(e: np.ndarray, m: np.ndarray, fit: np.ndarray) -> bool:
+    """Whether a strip of equals (:func:`row_of_equals`) with the expected
+    colours *e*, the readings *m* and *fit*, the readings the rest of the chart
+    foretells, can have been read in its place.
+
+    Its equals must have been read alike: another strip, a mirrored one, or one
+    that begins a patch early or late puts another colour among them. And a
+    patch of its own must not have been read as one of them, where it is far
+    enough from them to tell. The order within the equals is nobody's."""
+    e, m, fit = np.asarray(e, float), np.asarray(m, float), np.asarray(fit, float)
+    near = np.linalg.norm(e[:, None] - e[None], axis=2) < DISTINCT_DE
+    group = near[int(near.sum(axis=1).argmax())]
+    middle = np.median(m[group], axis=0)
+    if float(np.linalg.norm(m[group] - middle, axis=1).max()) > ALIKE_DE:
+        return False
+    for k in np.flatnonzero(~group):
+        if (float(np.linalg.norm(fit[k] - middle)) >= 2 * ALIKE_DE
+                and float(np.linalg.norm(m[k] - middle))
+                < float(np.linalg.norm(m[k] - fit[k]))):
+            return False
+    return True
+
+
 def judge(expected_lab, measured_lab, rows: int, cols: int,
           file_cols: "int | None" = None) -> ColourJudgement:
     """Judge readings *measured_lab* (entry order of the turned order) against
@@ -372,13 +410,32 @@ def judge(expected_lab, measured_lab, rows: int, cols: int,
         if len(js) < MIN_STRIP_PATCHES:
             continue
         own = float(np.median(own_all[js]))
+        # A STRIP OF EQUALS (item 66): the white patches that fill a chart's
+        # last strip up fit their neighbours as well as themselves, also when
+        # they were read rightly. Where half or more of the neighbours are about
+        # the same colour, only the others can tell; fewer than
+        # MIN_STRIP_PATCHES of them, and the equals themselves are asked
+        # (`equals_read_alike`).
+        alike = row_of_equals(E[js])
         ratios = []
         for d in (1, -1):
-            here = [js[k] for k in range(len(js)) if 0 <= k + d < len(js)]
-            there = [js[k + d] for k in range(len(js)) if 0 <= k + d < len(js)]
+            ks = [k for k in range(len(js)) if 0 <= k + d < len(js)
+                  and not (alike and np.linalg.norm(E[js[k]] - E[js[k + d]])
+                           < DISTINCT_DE)]
+            if not ks or (alike and len(ks) < MIN_STRIP_PATCHES):
+                continue
+            here, there = [js[k] for k in ks], [js[k + d] for k in ks]
             alt = float(np.median(np.linalg.norm(M[here] - _fit(E[there]),
                                                  axis=1)))
-            ratios.append(own / alt if alt > 0 else math.inf)
+            mine = float(np.median(own_all[here])) if alike else own
+            ratios.append(mine / alt if alt > 0 else math.inf)
+        if not ratios:
+            # no neighbour can tell: at most two patches of their own
+            if not equals_read_alike(E[js], M[js], _fit(E[js])):
+                return ColourJudgement(
+                    DISAGREE, "strip-wrong", s, n, strip=r,
+                    detail="patches expected alike were not read alike")
+            continue
         ratio = max(ratios)
         if ratio > worst_ratio:
             worst_r, worst_ratio = r, ratio

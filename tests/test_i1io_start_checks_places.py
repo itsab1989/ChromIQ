@@ -181,9 +181,10 @@ def test_a_piece_without_crosses_is_laid_by_its_first_patch():
     assert patch == "its first strip at the top and patch 1 of it at the top left"
     # the print note's own words
     assert patch.replace("strip at", "strip is at") in M._I1IO_PRINT_LAY_PATCHES
-    for m in (M.M_I1IO_DRIVE_PREPARE_PIECES, M.M_I1IO_DRIVE_SHEET_LAID_PIECE):
+    for m in (M.M_I1IO_DRIVE_PREPARE_PIECES, M.M_I1IO_DRIVE_SHEET_LAID_PIECE,
+              M.M_I1IO_DRIVE_PREPARE, M.M_I1IO_DRIVE_SHEET_LAID):
         for n in (1, 4):
-            kw = {"page": 2, "pages": n} if m is M.M_I1IO_DRIVE_PREPARE_PIECES else {"page": 2}
+            kw = {"page": 2, "pages": n} if "{pages}" in m.body else {"page": 2}
             body = m.render(corner=patch, **kw)[1]
             assert patch in body and "mark 1" not in body and "{" not in body
             assert "mark 1 at the top left" in m.render(corner=cross, **kw)[1]

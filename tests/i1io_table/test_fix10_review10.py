@@ -672,7 +672,7 @@ def test_f6_a_stop_takes_away_the_dont_ask_offer_window_and_job(qtbot, monkeypat
     win._stop_btn.click()
     p.press("Go")
     if p.page() in ("stopped_by_you", "refused"):
-        p.press("Carry on")
+        p.press("Next step")
     p.drive_until("end_of_session")
     p.press("Save and stop")
     p.drive_until("done")

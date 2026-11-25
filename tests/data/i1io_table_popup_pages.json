@@ -89,7 +89,7 @@
   [
    "ending_closed",
    [
-    "Carry on",
+    "Next step",
     "Bring the arm home"
    ]
   ],
@@ -210,20 +210,20 @@
   [
    "refused",
    [
-    "Carry on"
+    "Next step"
    ]
   ],
   [
    "refused",
    [
-    "Carry on",
+    "Next step",
     "Bring the arm home"
    ]
   ],
   [
    "refused",
    [
-    "Carry on",
+    "Next step",
     "Bring the arm home",
     "End measurement"
    ]
@@ -295,13 +295,13 @@
   [
    "stopped_by_you",
    [
-    "Carry on"
+    "Next step"
    ]
   ],
   [
    "stopped_by_you",
    [
-    "Carry on",
+    "Next step",
     "Bring the arm home"
    ]
   ],

@@ -252,8 +252,9 @@ def _read_layout(ti2: Path) -> "tuple[dict, dict]":
             continue
         lay = doc.get("layout", doc) if isinstance(doc, dict) else {}
         if isinstance(lay, dict) and lay.get("patches") and lay.get("strips"):
-            rec = lay.get("recipe") if isinstance(lay.get("recipe"), dict) else {}
-            return lay, rec
+            from workflow.layout_engine.presets import recipe_as_printed
+            return lay, (recipe_as_printed(lay)
+                         if isinstance(lay.get("recipe"), dict) else {})
     return {}, {}
 
 

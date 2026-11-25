@@ -64,7 +64,7 @@ def test_the_arrival_beside_reason_says_at_most_1_mm():
 
 # ---- three planted faults of the release review that no test caught --------------------------
 def test_a_window_answer_makes_the_last_reading_stale():
-    """Planted fault A5: `person_answered` (the window's own questions: Carry on, the mark-3
+    """Planted fault A5: `person_answered` (the window's own questions: Next step, the mark-3
     check, the problem page) no longer marked the answer. Every reading before such an answer
     must count as stale, so the next computed move reads the arm again first (MUST-1)."""
     from tests.i1io_table import job_harness as H

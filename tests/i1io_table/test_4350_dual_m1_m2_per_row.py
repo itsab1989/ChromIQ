@@ -210,7 +210,7 @@ def test_the_m0_only_page_says_what_is_kept_and_what_skip_means():
     _t, body = M.M_I1IO_DRIVE_ROW_M0_ONLY_STRIP.render(row=3, page=1, why="it did not match")
     assert "was read and is kept" in body and "no M1 and M2 yet" in body
     assert "every other row keeps its own" in body
-    assert "Skip this row: it keeps M0 only" in body and "Continue Measurement" in body
+    assert "Skip it: the row keeps M0 only" in body and "Continue Measurement" in body
     assert "uses none of this row's values" not in body
     _t, body = M.M_I1IO_DRIVE_ROW_M0_ONLY.render(row=3, page=1)
     assert "its M0 values are kept" in body and "counts as missing" not in body

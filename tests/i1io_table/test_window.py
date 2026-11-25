@@ -188,7 +188,7 @@ def test_report_a_problem_stops_movement_but_the_homing_and_the_note_goes_to_the
     win._note_edit.setPlainText("The arm\nscraped the paper")
     win._note_save.click()
     n = moves(sim)
-    assert "Bring the arm home" in p.labels() and "Carry on" not in p.labels()
+    assert "Bring the arm home" in p.labels() and "Next step" not in p.labels()
     p.press("Bring the arm home")
     assert p.page() == "go" and moves(sim) == n
     p.press("Go")
@@ -222,7 +222,7 @@ def test_stop_during_a_row_stops_before_the_next_move_and_carry_on_asks_go(
     assert page in ("stopped_by_you", "refused"), page
     qtbot.wait(100)
     assert moves(sim) == n                               # nothing more moved by itself
-    p.press("Carry on")
+    p.press("Next step")
     assert p.page() == "go" and moves(sim) == n          # hands-off GO before the next move
     assert p.drive_until("end_of_session") == "end_of_session"
 
@@ -438,7 +438,7 @@ def test_stop_on_the_report_question_keeps_the_question_and_then_asks_go(
     assert p.page() == "report_after_step"
     p.press("As described, my hands are away")
     assert p.page() == "stopped_by_you" and moves(sim) == n
-    p.press("Carry on")
+    p.press("Next step")
     assert p.page() == "go" and moves(sim) == n
 
 

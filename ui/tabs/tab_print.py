@@ -2831,13 +2831,7 @@ class TabPrint(QWidget):
                 chart_pt = read_tiff_dimensions_points(pages[0][0])
                 chart_mm = (chart_pt[0] * PE.MM_PER_PT,
                             chart_pt[1] * PE.MM_PER_PT)
-                from workflow.i1io.support import (i1io_enabled,
-                                                   pages_are_i1io_chart)
-                own_size = i1io_enabled() and pages_are_i1io_chart(
-                    [p for p, _f in pages])
-                edges, paper = PE.edges_for(
-                    printer, chart_mm, self._settings,
-                    **({"own_size": True} if own_size else {}))
+                edges, paper = PE.edges_for(printer, chart_mm, self._settings)
                 if edges.any():
                     shift = (0.0, 0.0)
                     paper_pt = (paper[0] / PE.MM_PER_PT, paper[1] / PE.MM_PER_PT)
@@ -4710,6 +4704,7 @@ class TabPrint(QWidget):
             except (TypeError, RuntimeError):
                 pass
             try:
+                combo.hide()
                 combo.setParent(None)
                 combo.deleteLater()
             except RuntimeError:

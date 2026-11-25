@@ -214,9 +214,9 @@ def test_the_page_says_the_aims_fit_and_how_far_to_lay_the_sheet(qtbot, monkeypa
     assert "so you aimed at the right points" in text and "mark 1 lies where" in text
     assert "about 10 mm to the right" in text
     assert "towards the back" not in text
-    assert set(p.labels()) >= {"Carry on", "End measurement"}
+    assert set(p.labels()) >= {"Next step", "End measurement"}
     # aimed again at the same place: the second refusal says so
-    p.press("Carry on")
+    p.press("Next step")
     assert p.drive_until("refused") == "refused"
     assert "The aims have not fitted 2 times in a row now." in win._text.text()
     assert "End measurement" in p.labels()

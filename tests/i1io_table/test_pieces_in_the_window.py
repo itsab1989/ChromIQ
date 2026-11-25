@@ -89,6 +89,30 @@ def test_a_chart_of_pages_keeps_every_word(qtbot, monkeypatch, tmp_path, setting
     p.idle()
 
 
+@pytest.mark.parametrize("crosses", (True, False), ids=("crosses", "corner patches"))
+def test_a_page_without_crosses_is_laid_by_its_first_patch(qtbot, monkeypatch, tmp_path,
+                                                           settings, crosses):  # noqa: F811
+    """A chart of whole pages says where its first patch lies when it has no crosses, in the words
+    the piece messages have; 4.3.66 spoke of a mark 1 that is not on such a sheet."""
+    kw = {} if crosses else {"i1io_crosses": False}
+    ch = B.build_chart(tmp_path, count=528, **kw)
+    assert not W.in_pieces(ch.sheet)
+    assert {a.get("target") == "patch" for a in ch.sheet["pages"][0]["aim_points"]} == {not crosses}
+    win, sim, run, p, saved, finished = open_window(
+        qtbot, monkeypatch, tmp_path, settings, sheet=ch.sheet,
+        sim=B.bed_window_sim(ch, B.Bed(ch.laid(0))), run=ch.run,
+        args=STRIP + [str(ch.run.chart_ti2)[:-4]])
+    want = M._I1IO_CORNER_MARK if crosses else M._I1IO_CORNER_PATCH
+    assert p.drive_until("prepare") == "prepare"
+    assert f"the way it was printed for it, with {want}." in win._text.text()
+    assert p.drive_until("sheet_laid") == "sheet_laid"
+    laid = win._text.text()
+    assert f"with {want}, and nothing else on the bed." in laid
+    assert ("mark 1" in laid) is crosses
+    win._on_end_pressed()
+    p.idle()
+
+
 def test_the_lines_and_the_ending_speak_of_pieces():
     assert W.rows_read_line(3, 4, 2, 8, True) == "Piece 3 of 4: 2 of 8 rows read."
     assert W.rows_read_line(3, 4, 1, 1, True) == "Piece 3 of 4: 1 of 1 row read."

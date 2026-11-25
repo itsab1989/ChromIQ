@@ -67,6 +67,17 @@ def test_the_build_profile_button_says_what_the_tab_says(lang):
                 assert q1 + old + q2 not in value, key[:60]
 
 
+@pytest.mark.parametrize("lang", LANGS)
+def test_the_file_guide_names_the_build_profile_tab_by_its_title(lang):
+    """Item 45, the leftover: the file guide's "Build Profile (refinement)" (which
+    tab makes the file) kept the old Russian and Ukrainian names."""
+    cat = _cat(lang)
+    tab = _title(cat, "4. Build Profile")
+    assert cat["Build Profile (refinement)"].startswith(tab)
+    assert tab in cat["Build Profile tab"]
+    assert tab in cat["Build Profile ▸ browse for a .ti3 file."]
+
+
 # Old names that drifted, and the phrase that introduces a tab in that language.
 # Review D widened every intro: a capital ("Karta Pomiar" in five pl strings),
 # bold markup between the word "tab" and its name ("вкладке <b>Собрать

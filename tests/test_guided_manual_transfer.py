@@ -14,6 +14,8 @@ from core.file_manager import FileManager  # noqa: E402
 from core.settings import AppSettings  # noqa: E402
 from ui.tabs.tab_chart import TabChart  # noqa: E402
 
+from tests._guided_chart_fixture import made_in_guided  # noqa: E402
+
 
 @pytest.fixture(scope="module")
 def qapp():
@@ -35,7 +37,7 @@ def _manual(tab, tool, flag):
     return None
 
 
-def test_transfer_copies_instrument_paper_pages_and_density(tab):
+def test_transfer_copies_instrument_paper_pages_and_density(tab, tmp_path):
     # Configure Guided mode.
     tab._instr_combo.setCurrentIndex(tab._instr_combo.findData("CM"))
     tab._paper_combo.setCurrentIndex(tab._paper_combo.findData("A4"))
@@ -43,7 +45,8 @@ def test_transfer_copies_instrument_paper_pages_and_density(tab):
     tab._dd_check.setChecked(True)
     tab._target_name_edit.setText("MyPrinter Glossy")
 
-    tab._transfer_guided_to_manual()
+    made_in_guided(tab, tmp_path)
+    assert tab._transfer_guided_to_manual() is True
 
     assert _manual(tab, "printtarg", "-i") == "CM"
     assert _manual(tab, "printtarg", "-p") == "A4"
@@ -55,12 +58,12 @@ def test_transfer_copies_instrument_paper_pages_and_density(tab):
     assert tab._manual_target_name_edit.text().strip() == "MyPrinter Glossy"
 
 
-def test_transfer_is_armed_only_after_guided_generate(tab):
+def test_transfer_is_armed_only_after_guided_generate(tab, tmp_path):
     """The one-shot flag fires once on the guided→manual switch, then clears."""
     tab._switch_mode("guided")
-    tab._guided_transfer_pending = True
     tab._instr_combo.setCurrentIndex(tab._instr_combo.findData("i1"))
     tab._paper_combo.setCurrentIndex(tab._paper_combo.findData("A4"))
+    made_in_guided(tab, tmp_path)
 
     tab._switch_mode("manual")
     assert tab._guided_transfer_pending is False
@@ -105,7 +108,7 @@ def test_switch_does_not_clobber_unrepresentable_paper(tab):
     assert _manual(tab, "printtarg", "-p") == "A3"
 
 
-def test_engine_panel_follows_transfer(tab):
+def test_engine_panel_follows_transfer(tab, tmp_path):
     """With the ChromIQ engine ON, a Manual chart is built from the layout panel,
     not the printtarg widgets — so a Guided→Manual transfer must also push the
     instrument/paper/pages into the panel, or the generated chart ignores them
@@ -115,7 +118,7 @@ def test_engine_panel_follows_transfer(tab):
     tab._instr_combo.setCurrentIndex(tab._instr_combo.findData("CM"))
     tab._paper_combo.setCurrentIndex(tab._paper_combo.findData("A4R"))
     tab._pages_spin.setValue(2)
-    tab._guided_transfer_pending = True
+    made_in_guided(tab, tmp_path / "1")
     tab._switch_mode("manual")
     panel = tab._manual_layout_panel
     assert panel.instr.currentData() == "CM"
@@ -125,7 +128,7 @@ def test_engine_panel_follows_transfer(tab):
     assert r.instrument == "CM" and r.paper == "A4R"
 
 
-def test_engine_recipe_carries_clip_suppression_and_layout(tab):
+def test_engine_recipe_carries_clip_suppression_and_layout(tab, tmp_path):
     """Post-Generate transfer loads the FULL engine recipe Guided used (not just
     instrument/paper) — clip-border suppression, margins, scale, edge spacers —
     so Manual reproduces the chart instead of re-adding a clip border (Knut)."""
@@ -134,7 +137,7 @@ def test_engine_recipe_carries_clip_suppression_and_layout(tab):
     tab._instr_combo.setCurrentIndex(tab._instr_combo.findData("i1"))
     tab._paper_combo.setCurrentIndex(tab._paper_combo.findData("A4"))
     tab._lb_check.setChecked(True)            # disable left border → suppress clip
-    tab._guided_transfer_pending = True
+    made_in_guided(tab, tmp_path / "2")
     tab._switch_mode("manual")
     r = tab._manual_layout_panel.get_recipe()
     assert r.clip_border is False             # suppressed, not re-added
@@ -143,7 +146,7 @@ def test_engine_recipe_carries_clip_suppression_and_layout(tab):
     # keep the left border → clip comes back on
     tab._switch_mode("guided")
     tab._lb_check.setChecked(False)
-    tab._guided_transfer_pending = True
+    made_in_guided(tab, tmp_path / "3")
     tab._switch_mode("manual")
     r2 = tab._manual_layout_panel.get_recipe()
     assert r2.clip_border is True

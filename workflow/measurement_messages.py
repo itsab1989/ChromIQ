@@ -13891,7 +13891,7 @@ M_I1IO_DRIVE_PREPARE = _m(
     "•  Set the arm's height for this paper, as X-Rite's guide for the "
     "table describes.\n"
     "•  Lay page {page} on the table the way it was printed for it, with "
-    "mark 1 at the top left.\n"
+    "{corner}.\n"
     "•  Keep your hands away from the table and the arm whenever it moves. "
     "Before the arm moves after any question, ChromIQ asks you to take your "
     "hands away and waits until you confirm it, on a page of its own or with "
@@ -13908,7 +13908,7 @@ M_I1IO_DRIVE_PREPARE = _m(
         "•  Set the arm's height for this paper, as X-Rite's guide for "
         "the table describes.\n"
         "•  Lay page {page} on the table the way it was printed for it, "
-        "with mark 1 at the top left.\n"
+        "with {corner}.\n"
         "•  Keep your hands away from the table and the arm whenever it "
         "moves. Before the arm moves after any question, ChromIQ asks you to "
         "take your hands away and waits until you confirm it, on a page of its "
@@ -13917,8 +13917,8 @@ M_I1IO_DRIVE_PREPARE = _m(
         "That is always allowed."),
     count_key="pages", approved=False)
 
-#: What lies where on a piece, for {corner}: by its crosses, or by its patches on a piece without
-#: them (the print note's words)
+#: What lies where on a page or a piece, for {corner}: by its crosses, or by its patches on one
+#: without them (the print note's words)
 _I1IO_CORNER_MARK = "mark 1 at the top left"
 _I1IO_CORNER_PATCH = "its first strip at the top and patch 1 of it at the top left"
 #: the same for a chart whose pages are pieces of a larger sheet (the new chart layout)
@@ -14060,7 +14060,7 @@ M_I1IO_DRIVE_SHEET_LAID = _m(
     "M-I1IO-DRIVE-SHEET-LAID",
     "Is page {page} on the table?",
     "Please lay page {page} on the table the way it was printed for it, with "
-    "mark 1 at the top left, and nothing else on the bed.\n\n"
+    "{corner}, and nothing else on the bed.\n\n"
     "Then take your hands away from the table and the arm. When you press "
     "“The page is laid, and my hands are away from the table”, the arm moves "
     "at once: it makes its homing at the resting place, then drives out over "
@@ -14333,7 +14333,7 @@ M_I1IO_DRIVE_ROW_AIM_AGAIN = _m(
     "M-I1IO-DRIVE-ROW-AIM-AGAIN",
     "A row read beside its place: aim again",
     "If the sheet lies off its place, if it was moved, or if it is not the right one, choose “End "
-    "this step” and then “Carry on”: the arm goes to its resting place, you lay the right sheet, "
+    "this step” and then “Next step”: the arm goes to its resting place, you lay the right sheet, "
     "ChromIQ asks you to aim at its marks again, and then this row is read. Please do not move the "
     "sheet just to read the row again: without aiming again, every row after it would be read beside "
     "its place.",
@@ -14342,7 +14342,7 @@ M_I1IO_DRIVE_ROW_AIM_AGAIN_PIECE = _m(
     "M-I1IO-DRIVE-ROW-AIM-AGAIN-PIECE",
     "A row read beside its place: aim again",
     "If the piece lies off its place, if it was moved, or if it is not the right one, choose “End "
-    "this step” and then “Carry on”: the arm goes to its resting place, you lay the right piece, "
+    "this step” and then “Next step”: the arm goes to its resting place, you lay the right piece, "
     "ChromIQ asks you to aim at its marks again, and then this row is read. Please do not move the "
     "piece just to read the row again: without aiming again, every row after it would be read beside "
     "its place.",
@@ -14423,7 +14423,7 @@ M_I1IO_DRIVE_ROW_FAILED_STRIP = _m(
     "this row's values, because it never guesses a value. What would you like to do?\n"
     "  •  Read it again as a strip.\n"
     "  •  Read it patch by patch: slower, and the careful way.\n"
-    "  •  Skip this row: the measurement is saved without it, and you can read it later.\n"
+    "  •  Skip it: the measurement is saved without this row, and you can read it later.\n"
     "  •  End this step.",
     approved=False)
 
@@ -14455,10 +14455,10 @@ M_I1IO_DRIVE_ROW_PLACEMENT_REST = _m(
     "{page} could not be read as a strip: {why}. This is the second row of this page "
     "where that happened: the sheet may lie a little off the marks you aimed at. "
     "ChromIQ uses none of this row's values, because it never guesses a value. What "
-    "would you like to do?\n  •  Read it again as a strip.\n  •  Read the rest patch by "
+    "would you like to do?\n  •  Read it again as a strip.\n  •  Rest patch by "
     "patch: this row and every row after it on this page, each patch on its own, so "
-    "this does not matter. The rows read so far keep their values.\n  •  Skip this "
-    "row: the measurement is saved without it, and you can read it later.\n  •  End "
+    "this does not matter. The rows read so far keep their values.\n  •  Skip it: "
+    "the measurement is saved without this row, and you can read it later.\n  •  End "
     "this step. If the sheet may have moved, end the measurement and start it again: "
     "you aim again, and Continue Measurement reads only the rows that are still "
     "missing.",
@@ -14478,7 +14478,7 @@ M_I1IO_DRIVE_ROW_M0_ONLY_STRIP = _m(
     "do?\n"
     "  •  Read it again as a strip, with both passes.\n"
     "  •  Read it patch by patch: slower, but more careful.\n"
-    "  •  Skip this row: it keeps M0 only. Continue Measurement, with the dual scan still "
+    "  •  Skip it: the row keeps M0 only. Continue Measurement, with the dual scan still "
     "switched on, reads it again later with both passes.\n"
     "  •  End this step.",
     approved=False)

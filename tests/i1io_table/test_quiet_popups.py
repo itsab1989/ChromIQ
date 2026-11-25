@@ -194,7 +194,7 @@ def test_nothing_moves_while_a_pop_up_is_open(qtbot, monkeypatch, tmp_path, sett
         kw["presentation"] = W.PRESENTATION_POPUPS
     win, sim, run, p, saved, finished = _quiet(qtbot, monkeypatch, tmp_path, settings, **kw)
     p.script.update(script)
-    p.script.update({"end_of_session": "Save and stop", "stopped_by_you": "Carry on",
+    p.script.update({"end_of_session": "Save and stop", "stopped_by_you": "Next step",
                      "stored_white_refused": "Go on"})
     p.page()
     watch = _MoveWatch(win, sim)
@@ -543,7 +543,7 @@ def test_the_tabs_stop_is_the_tables_stop(tab, beta, tmp_path, monkeypatch, qtbo
     sim.transport.delay_s = 0.0
     assert p.page() == "stopped_by_you" and win.popup_open()
     labels = [b.text() for b in win.popup().findChildren(QPushButton) if b.isVisible()]
-    assert "Carry on" in labels and "End measurement" in labels
+    assert "Next step" in labels and "End measurement" in labels
     assert "Stop pressed: ChromIQ stops before the next move." in tab._log.toPlainText()
 
 
@@ -593,8 +593,8 @@ def test_no_button_of_a_pop_up_is_cut(qtbot, monkeypatch, tmp_path, settings, pa
 
 def test_at_most_one_answer_is_filled_in_the_accent(qtbot, monkeypatch, tmp_path, settings):
     win, sim, run, p, saved, finished = _quiet(qtbot, monkeypatch, tmp_path, settings)
-    p.script.update({"end_of_session": "Save and stop", "stopped_by_you": "Carry on"})
-    p.script.update({"refused": "Carry on"})
+    p.script.update({"end_of_session": "Save and stop", "stopped_by_you": "Next step"})
+    p.script.update({"refused": "Next step"})
     seen, stopped = 0, False
     for _ in range(120):
         page = p.page()

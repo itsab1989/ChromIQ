@@ -554,3 +554,67 @@ while the option is on and hands it back to Create Chart; off, it opens as in
 * **An import without the sheets** gets them in Print Chart, built from its pieces.
 * **Create Chart shows the pieces**, by name ("Piece 2 of 4: strips W to AR"); Print Chart shows the
   whole sheets.
+
+
+### ⏳ Awaiting confirmation: what Restore Used Chart's redraw is judged by (after 4.3.66)
+
+**Confirmed by:** *nobody yet.*
+
+* The restored chart's own files are put back whenever the redraw wrote them differently, as before.
+* **The line in the panel** ("Redrawing the pages would have changed the chart itself ...") is written
+  only when the sheet would be another one. The `.ti1` and `.ti2` count without their `CREATED` and
+  `ORIGINATOR` lines; an engine chart's `channels.json` counts without the form's rows, the record of
+  who chose a value (the recipe's seed and "explicit" ticks, `margins_chosen_by_user`) and a run
+  description that nothing on the sheet prints. Before, it was written of every chart, in Guided and
+  in Manual, also where the redrawn pages were the same pixel for pixel.
+* **A Guided chart's margins.** Guided has no margin boxes; the engine is handed none and lays the
+  sheet out with the base margin (`border`) on every side. The recipe stored with the chart said 6 mm
+  from 4.1.3-beta.19 to 4.3.66, so the redraw of a Guided i1Pro chart (10 mm), CR30 chart (5 mm) or
+  ColorMunki chart at triple density (5 mm), of an i1iO chart without aiming crosses and of an i1iSis
+  chart on 127 x 178 mm was another sheet (the last one was refused). The recipe now says the margins
+  of the build (an i1iO chart with crosses keeps 6 mm, which its own layout raises); nothing else of
+  the record and nothing of the print changes. A stored Guided chart (it says so itself,
+  `margins_chosen_by_user` false, and holds exactly the 6 mm, an i1iSis chart 5 mm, that were filled
+  in) is restored, opened, taken into the patch set editor and described as it was printed: every
+  reader that lays anything out from the record asks `presets.recipe_as_printed`. Not reached: a chart
+  of 4.1.3-beta.19, which does not say it is Guided, and an i1iO chart without crosses from before
+  4.3.66; the line above is still written there when the sheet comes out different.
+* The redraw is judged by the record, not by its pixels: a file the sheet draws that was replaced since
+  (the clip border's picture) or another project name is not seen. The chart's files are put back in
+  every case.
+* **Create Chart's Manual shows the restored chart's settings.** The restore fills Manual and switches
+  to it; on the way from Guided that switch wrote Guided's settings (the chart that was replaced) over
+  them, the paper among them. It carries nothing over now.
+
+Tests: `tests/test_a_guided_recipe_rebuilds_its_sheet.py`,
+`tests/test_a_redraw_is_judged_by_its_sheet.py` (the pages themselves are the judge, for every
+instrument, Guided and Manual).
+
+
+### ⏳ Awaiting confirmation: switching from Guided to Manual (ruled by Basti, 25 Nov 2026)
+
+**Confirmed by:** *nobody yet.*
+
+* **No chart made yet:** Manual stays as it is; only the instrument and the paper come along.
+* **A chart made in Guided (in this session, and on screen):** the first time Manual is opened after
+  it, Manual shows the layout that chart was really made with: its instrument, paper, margins, patch
+  size, density, clip border, label style and number of patches, read from the chart's own record
+  (`presets.recipe_as_printed`), never from what Guided's fields say by now. Generate with nothing
+  changed makes the same LAYOUT: the same patches in the same places, counts, pages and letters (and,
+  with the same shuffle, the same order). The patch set stays Manual's own: its Auto works out its own
+  grey steps, whites and blacks, which are not Guided's on every sheet; there the same places hold
+  other colours. A line in the panel says it.
+* **Once.** From then on Manual is the person's, by whatever way it was opened: no edit in Manual is
+  written over by going back and forth, by another instrument and back in Guided, or by another run.
+* **Nothing is taken, and nothing is said,** where it would not be true: a run without a chart, another
+  chart in its place, a chart made in Manual since, a record that is missing, damaged or holds a value
+  of the wrong kind, and Guided standing on another instrument by now: the two modes show one
+  instrument (Knut, #130), and the chart's values are another instrument's. Manual is then as it was.
+  A value that is missing where one is needed is of the wrong kind too. Manual's own rows are written
+  only after its layout panel has taken the chart's recipe, and what the panel would not take is put back.
+* A paper (and number of pages) chosen in Guided after the chart stays in Guided.
+* "Chart layout information" is right in every case.
+
+Tests: `tests/test_manual_shows_the_chart_guided_made.py`: 22 charts of nine instruments, at once and
+after another paper in Guided; Generate in Manual, and with Guided's own patch set the same pages,
+pixel for pixel. (Once, by hand: 204 charts, every paper Guided offers.)

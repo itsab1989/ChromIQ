@@ -784,7 +784,7 @@ open no file of the row's values stands on the disk (its raw readings do).
 | answer | what it does |
 |---|---|
 | It is the right sheet, and it was not moved | the row counts as read, as it was read; the next movement is preceded by the hands-off GO (with the guidance off: by the countdown), as after a failed row |
-| The same answer, Stop pressed while the question was open | the same: the row is kept; then the stop's own page, before anything moves; Carry on brings the arm home and asks for new aims |
+| The same answer, Stop pressed while the question was open | the same: the row is kept; then the stop's own page, before anything moves; “Next step” brings the arm home and asks for new aims |
 | Stop alone | leaves the question open |
 | End measurement (the footer's button; the question itself has one answer), the window closed, Esc, a lost link | the question is withdrawn, the row is dropped (nothing of it is kept anywhere, nor of earlier attempts of it in this sitting), then the existing ending: Save and stop, Discard and stop, Keep measuring. Save keeps the rows read before. Keep measuring brings the arm home, asks for the sheet and for new aims, then offers the dropped row as a row read again; Continue opens on the first unread row |
 | the app killed, a crash | nothing of the row is kept; the next START removes what may stand there without the row's record, and empties the row's earlier attempts of that sitting, as if the answer had been no |
@@ -792,7 +792,7 @@ open no file of the row's values stands on the disk (its raw readings do).
 The aims from before the question are used for no row after it unless the answer is "right" without
 a Stop (safety review, 2026-11-25, B1): the text asks to look without moving the sheet, and says that
 the right sheet is laid after the arm has gone home. The same holds for every row the check dropped, however it ended (refused as read beside its place,
-a reading that failed, Stop): "End this step" and then Carry on bring the arm home, ask for new aims
+a reading that failed, Stop): "End this step" and then “Next step” bring the arm home, ask for new aims
 and read that row first (M-I1IO-DRIVE-ROW-AIM-AGAIN, -PIECE); so does Back at the hands-off question
 after "read it again", and Stop pressed on that page. Read again and patch by patch after "Go", and
 Skip, keep the aims.

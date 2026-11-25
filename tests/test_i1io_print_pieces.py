@@ -434,11 +434,9 @@ def test_the_edge_note_is_about_a_paper_the_printer_has(
     monkeypatch.setattr(E, "_query_driver",
                         lambda printer, mm: E.ppd_edges_mm(PPD, mm))
     mm = dimensions_mm(paper)
-    edges, page = E.edges_for("P", mm, None, own_size=True)
+    edges, page = E.edges_for("P", mm, None)
     assert edges.any() is known
     assert page == pytest.approx(mm, abs=0.5)
-    # (another instrument's chart is asked about as ever)
-    assert E.edges_for("P", mm, None)[0].any()
     r = build(tmp_path, paper=paper, n=n, dpi=100)
     S.ensure(r.ti2_path)
     monkeypatch.setattr(tab, "_printer_combo", type(

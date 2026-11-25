@@ -90,6 +90,88 @@ def stored_recipe(recipe, result) -> dict:
     return d
 
 
+def guided_margins_mm(recipe: dict) -> "tuple[float, ...] | None":
+    """The margins ``(top, right, bottom, left)`` a Guided chart with this
+    *recipe* (a dict) was laid out to, or None where its recipe says them.
+
+    Guided has no margin boxes and hands the engine none: the engine then lays
+    the sheet out with the base margin (``border``) on every side
+    (`instruments.build`), 10 mm for the i1Pro, 5 mm for the CR30 and the
+    ColorMunki's triple density. `LayoutRecipe.from_build_kwargs` filled the
+    boxes with its own 6 mm, so a rebuild from the recipe was another sheet
+    (item 60, since 4.1.3-beta.19). The FD-9 and the Barbieri hand theirs over;
+    an i1iO chart without crosses keeps the crosses' room, and a short i1iSis
+    sheet has narrower margins of its own."""
+    inst = str(recipe.get("instrument") or "")
+    if inst in ("FD9", "B100XY"):
+        return None
+    if inst == "XRISIS":
+        from workflow.isis.support import isis_enabled
+        if not isis_enabled():
+            return None
+        from workflow.isis.chart import guided_margins
+        return guided_margins(str(recipe.get("paper") or ""))
+    if inst == "IO2":
+        from workflow.i1io.support import i1io_enabled
+        if not i1io_enabled():
+            return None
+        from workflow.i1io.chart import LIMITS_KEY, fixed_build_kwargs
+        # (one made before 4.3.66, limits 2, may be laid out by a rule of its
+        # version; never LIMITS_NOW, which moves on)
+        if (recipe.get("i1io_crosses", True)
+                or _limits_of(recipe.get(LIMITS_KEY)) < 2):
+            return None
+        kw = LayoutRecipe.from_stored(dict(recipe)).build_kwargs()
+        kw.pop("margins", None)
+        return tuple(fixed_build_kwargs(kw)["margins"])
+    border = recipe.get("border")
+    return (6.0 if border is None else float(border),) * 4
+
+
+def guided_margin_fields(recipe: dict) -> dict:
+    """The margin fields of a Guided chart's *recipe* (a dict), as it was laid
+    out (`guided_margins_mm`); none where the recipe says them."""
+    m = guided_margins_mm(recipe)
+    return {} if m is None else dict(zip(
+        ("margin_top", "margin_right", "margin_bottom", "margin_left"), m))
+
+
+def recipe_as_printed(layout: dict) -> dict:
+    """The recipe of a stored chart's *layout* block, as its sheet was laid
+    out. A Guided chart says so itself (``margins_chosen_by_user`` False,
+    since 4.1.3-beta.20); one made before 4.3.67 recorded 6 mm on every side
+    (an i1iSis chart 5 mm) whatever its build used, and what it used follows
+    from what else the recipe records. Any other margins stand."""
+    d = dict(layout.get("recipe") or {})
+    wrong = 5.0 if d.get("instrument") == "XRISIS" else 6.0
+    if (d and layout.get("margins_chosen_by_user") is False
+            and all(d.get(f"margin_{side}") == wrong
+                    for side in ("top", "right", "bottom", "left"))):
+        d.update(guided_margin_fields(d))
+    return d
+
+
+def recipe_types_are_right(recipe: dict) -> bool:
+    """Whether every field of a stored *recipe* (a dict) that this version
+    knows holds a value of its own kind: nothing (None) only where the field
+    may be empty. A later version's fields are nobody's."""
+    ours = LayoutRecipe()
+    may_be_empty = {f.name for f in fields(LayoutRecipe)
+                    if "None" in str(f.type)}
+    for key, value in recipe.items():
+        if not hasattr(ours, key) or (value is None and key in may_be_empty):
+            continue
+        want = getattr(ours, key)
+        if want is None:
+            continue
+        kind = (bool if isinstance(want, bool) else
+                (int, float) if isinstance(want, (int, float)) else type(want))
+        if not isinstance(value, kind) or (
+                kind is not bool and isinstance(value, bool)):
+            return False
+    return True
+
+
 def build_kwargs_as_built(recipe, chart=None) -> dict:
     """The engine kwargs a chart was BUILT with, for the helpers that describe a
     sheet already made (B8-1570): the edge-spacer width behind "Show only
@@ -824,9 +906,9 @@ class LayoutRecipe:
         lay = data.get("layout") if isinstance(data, dict) else None
         if not isinstance(lay, dict) or lay.get("engine") != "chromiq":
             return None
-        rec = lay.get("recipe")
-        if not isinstance(rec, dict):
+        if not isinstance(lay.get("recipe"), dict):
             return None
+        rec = recipe_as_printed(lay)
         name = str(path)
         r = cls.from_stored(
             rec, name[:-len(".channels.json")] + ".ti2"

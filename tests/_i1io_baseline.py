@@ -227,6 +227,12 @@ def digest(p: Path, fonts: bool = True) -> str:
             recipe = (doc.get("layout") or {}).get("recipe")
             if isinstance(recipe, dict) and recipe.get("i1io_limits") == 2:
                 del recipe["i1io_limits"]
+                # ...and a Guided one without crosses says the margins it was
+                # laid out to (item 60); 4.3.65's said 6 mm, the only change
+                if (recipe.get("i1io_crosses") is False and
+                        doc["layout"].get("margins_chosen_by_user") is False):
+                    for side in ("top", "right", "bottom", "left"):
+                        recipe[f"margin_{side}"] = 6.0
         if isinstance(doc, dict):
             doc.pop("table_facts", None)
         data = json.dumps(doc, indent=0, sort_keys=False).encode("utf-8")

@@ -9753,6 +9753,11 @@ alone.
 
 *The text above is unchanged; only the printer {printer} names changes, and only with “Use default macOS printer dialog” (the Windows print dialog likewise) switched on. That route hides the Print Chart tab's printer list, and the list can still hold a queue the person no longer prints to (lessbones, #214: Canon_IPF9400B), so the note was about a printer not in use. lessbones' own fix hid the note on the Print Chart tab whenever the dialog route is on, which is the default on macOS and Windows, removed the warning for most people, and left Create Chart naming the hidden queue (review of #214, M2); it was not taken. Instead, with the dialog route on, both tabs name the printer the system dialog last printed to (`workflow/printer_edges.py::note_printer`, kept in `printer_last_used_by_dialog`, on Windows only once the print really went out, not when it was refused). Before anything has been printed that way, they name the system's default printer, which is the printer the dialog opens on (`printer_edges.system_default_printer`, review round 1 of 4.3.24, M1, decided by the coordinator so that the note does not disappear for everybody after the update); with no default printer there is no note. Switching the print route in Preferences redraws the note on both tabs. The note stays where this section puts it, under “Measured from Preview” and under the Print Chart tab's buttons. With ChromIQ's own route nothing changes.*
 
+**⏳ Awaiting confirmation (after 4.3.66): a paper the printer does not know.**
+**Confirmed by:** *nobody yet.*
+
+*The text above is unchanged. When the printer's description has no paper of the chart's size (within 5 mm, either way round), its default paper was used, and an A2 chart on an A3+ printer was said to lose parts that lie well inside the sheet. A paper the printer does not know has no known edge, so there is no note, for every instrument (the i1iO had it in 4.3.66). The value typed in Preferences ▸ Printing is used on every paper, as before. `tests/test_an_unknown_paper_has_no_known_edge.py`.*
+
 ### M-FD9-EDGE-MARKS-NOT-PRINTED · PROPOSED · an FD-9 chart's marks fall into the edge the chosen printer does not print, Create Chart and Print Chart, 4.3.25
 
 *New 2026-11-04 for 4.3.25 (the owner's second round of FD-9 feedback, F6; report point 8.1). Shown instead of M-EDGE-NOT-PRINTED when the chart is an FD-9 chart (FD-9 support on) and one of its four marks or its arrow, read from the chart's .fd9.json, lies in the printer's unprinted edge. M-EDGE-NOT-PRINTED called them printed text and advised raising a text distance the FD-9 greys; the FD-9 finds the sheet only by them, and they cannot be moved. {where} is the sides, in M-EDGE-NOT-PRINTED's own words for them.*
@@ -10974,7 +10979,7 @@ alone.
 > •  Quit i1Profiler, if it is open.
 > •  Switch the table on, with the arm at its resting place over the small white tile, and nothing on the bed but your sheet.
 > •  Set the arm's height for this paper, as X-Rite's guide for the table describes.
-> •  Lay page {page} on the table the way it was printed for it, with mark 1 at the top left.
+> •  Lay page {page} on the table the way it was printed for it, with {corner}.
 > •  Keep your hands away from the table and the arm whenever it moves. Before the arm moves after any question, ChromIQ asks you to take your hands away and waits until you confirm it, on a page of its own or with your answer to that question.
 >
 > This chart has {pages} pages; ChromIQ reads them one after the other and asks you to lay the next one when a page is done.
@@ -10988,12 +10993,14 @@ alone.
 > •  Quit i1Profiler, if it is open.
 > •  Switch the table on, with the arm at its resting place over the small white tile, and nothing on the bed but your sheet.
 > •  Set the arm's height for this paper, as X-Rite's guide for the table describes.
-> •  Lay page {page} on the table the way it was printed for it, with mark 1 at the top left.
+> •  Lay page {page} on the table the way it was printed for it, with {corner}.
 > •  Keep your hands away from the table and the arm whenever it moves. Before the arm moves after any question, ChromIQ asks you to take your hands away and waits until you confirm it, on a page of its own or with your answer to that question.
 >
 > To stop the arm at once, switch the table off at its power switch. That is always allowed.
 
 *Revised 2026-11-18 (final fix round of the i1iO table drive, M-1: after any question the next move waits for the hands-off confirmation; where the answer itself is that confirmation, the page says so and names the move).*
+
+*Revised 2026-11-25 (after 4.3.66): {corner} names what lies at the top left, in the words of the piece messages (“mark 1 at the top left”, or on a chart without aiming crosses “its first strip at the top and patch 1 of it at the top left”).*
 
 ### M-I1IO-DRIVE-READY · PROPOSED · the job asks ready_to_open: two ticks, both needed, Measure (the i1iO table window)
 
@@ -11107,11 +11114,13 @@ alone.
 
 > **Is page {page} on the table?**
 >
-> Please lay page {page} on the table the way it was printed for it, with mark 1 at the top left, and nothing else on the bed.
+> Please lay page {page} on the table the way it was printed for it, with {corner}, and nothing else on the bed.
 >
 > Then take your hands away from the table and the arm. When you press “The page is laid, and my hands are away from the table”, the arm moves at once: it makes its homing at the resting place, then drives out over the bed to the place where you aim it, and the table lets go of it there, so that you can push it gently by hand.
 
 *Revised 2026-11-18 (final fix round of the i1iO table drive, M-1: after any question the next move waits for the hands-off confirmation; where the answer itself is that confirmation, the page says so and names the move).*
+
+*Revised 2026-11-25 (after 4.3.66): {corner} names what lies at the top left, in the words of the piece messages (“mark 1 at the top left”, or on a chart without aiming crosses “its first strip at the top and patch 1 of it at the top left”).*
 
 ### M-I1IO-DRIVE-ARM-FELT · PROPOSED · the job asks arm_felt: the free arm at the alignment start, Measure (the i1iO table window)
 
@@ -11313,12 +11322,14 @@ alone.
 > Row {row} of page {page} could not be read as a strip: {why}. ChromIQ uses none of this row's values, because it never guesses a value. What would you like to do?
 >   •  Read it again as a strip.
 >   •  Read it patch by patch: slower, and the careful way.
->   •  Skip this row: the measurement is saved without it, and you can read it later.
+>   •  Skip it: the measurement is saved without this row, and you can read it later.
 >   •  End this step.
 
 *Revised 2026-11-18 (final fix round of the i1iO table drive, S-3: the hands-off sentence comes first, so it can never be the part below a scroll edge; the reorder itself made in the quiet round, 2026-11-18, where the final round had only recorded it).*
 
 *Revised 2026-11-19 (table dual scan safety review, NOTE-5; awaiting confirmation): “keeps none of this row's readings” became “uses none of this row's values”: every raw reading of the row stays in the measurement's session folder (the diagnostics), only none of its values goes into the measurement. The dual row's reasons no longer repeat “Nothing of the row is kept” before it.*
+
+*Revised 2026-11-25 (after 4.3.66): the points name the answers as the buttons read (“Skip it”, “Rest patch by patch”), in every language.*
 
 ### M-I1IO-DRIVE-ROW-FAILED-STRIP-NOT-MOVED · PROPOSED · the job asks row_failed_strip after an attempt that sent no move ("moved" false), Measure (the i1iO table window)
 
@@ -11345,8 +11356,10 @@ alone.
 > The first pass of row {row} on page {page}, with the lamp, was read and is kept, so this row has its M0 values. Its second pass, with the UV light, could not be used: {why}. So this row has no M1 and M2 yet; every other row keeps its own. What would you like to do?
 >   •  Read it again as a strip, with both passes.
 >   •  Read it patch by patch: slower, but more careful.
->   •  Skip this row: it keeps M0 only. Continue Measurement, with the dual scan still switched on, reads it again later with both passes.
+>   •  Skip it: the row keeps M0 only. Continue Measurement, with the dual scan still switched on, reads it again later with both passes.
 >   •  End this step.
+
+*Revised 2026-11-25 (after 4.3.66): the points name the answers as the buttons read (“Skip it”, “Rest patch by patch”), in every language.*
 
 ### M-I1IO-DRIVE-ROW-PLACEMENT-REST · PROPOSED · the job asks row_failed_strip with offer_rest (the second row of a page the row placement check refused), Measure (the i1iO table window)
 
@@ -11358,9 +11371,11 @@ alone.
 >
 > Row {row} of page {page} could not be read as a strip: {why}. This is the second row of this page where that happened: the sheet may lie a little off the marks you aimed at. ChromIQ uses none of this row's values, because it never guesses a value. What would you like to do?
 >   •  Read it again as a strip.
->   •  Read the rest patch by patch: this row and every row after it on this page, each patch on its own, so this does not matter. The rows read so far keep their values.
->   •  Skip this row: the measurement is saved without it, and you can read it later.
+>   •  Rest patch by patch: this row and every row after it on this page, each patch on its own, so this does not matter. The rows read so far keep their values.
+>   •  Skip it: the measurement is saved without this row, and you can read it later.
 >   •  End this step. If the sheet may have moved, end the measurement and start it again: you aim again, and Continue Measurement reads only the rows that are still missing.
+
+*Revised 2026-11-25 (after 4.3.66): the points name the answers as the buttons read (“Skip it”, “Rest patch by patch”), in every language.*
 
 ### M-I1IO-DRIVE-ROW-M0-ONLY · PROPOSED · the job asks row_failed for a dual row read patch by patch whose reading program wrote no M1 and M2 (m0_kept), Measure (the i1iO table window)
 
@@ -12702,8 +12717,10 @@ For one (n = 1):
 > Row {row} of piece {page} could not be read as a strip: {why}. ChromIQ uses none of this row's values, because it never guesses a value. What would you like to do?
 >   •  Read it again as a strip.
 >   •  Read it patch by patch: slower, and the careful way.
->   •  Skip this row: the measurement is saved without it, and you can read it later.
+>   •  Skip it: the measurement is saved without this row, and you can read it later.
 >   •  End this step.
+
+*Revised 2026-11-25 (after 4.3.66): the points name the answers as the buttons read (“Skip it”, “Rest patch by patch”), in every language.*
 
 ### M-I1IO-DRIVE-ROW-FAILED-STRIP-NOT-MOVED-PIECE · PROPOSED · The table window, on a chart in pieces
 
@@ -12755,8 +12772,10 @@ For one (n = 1):
 > The first pass of row {row} on piece {page}, with the lamp, was read and is kept, so this row has its M0 values. Its second pass, with the UV light, could not be used: {why}. So this row has no M1 and M2 yet; every other row keeps its own. What would you like to do?
 >   •  Read it again as a strip, with both passes.
 >   •  Read it patch by patch: slower, but more careful.
->   •  Skip this row: it keeps M0 only. Continue Measurement, with the dual scan still switched on, reads it again later with both passes.
+>   •  Skip it: the row keeps M0 only. Continue Measurement, with the dual scan still switched on, reads it again later with both passes.
 >   •  End this step.
+
+*Revised 2026-11-25 (after 4.3.66): the points name the answers as the buttons read (“Skip it”, “Rest patch by patch”), in every language.*
 
 ### M-I1IO-DRIVE-ROW-PLACEMENT-REST-PIECE · PROPOSED · The table window, on a chart in pieces
 
@@ -12768,9 +12787,11 @@ For one (n = 1):
 >
 > Row {row} of piece {page} could not be read as a strip: {why}. This is the second row of this piece where that happened: the piece may lie a little off the marks you aimed at. ChromIQ uses none of this row's values, because it never guesses a value. What would you like to do?
 >   •  Read it again as a strip.
->   •  Read the rest patch by patch: this row and every row after it on this piece, each patch on its own, so this does not matter. The rows read so far keep their values.
->   •  Skip this row: the measurement is saved without it, and you can read it later.
+>   •  Rest patch by patch: this row and every row after it on this piece, each patch on its own, so this does not matter. The rows read so far keep their values.
+>   •  Skip it: the measurement is saved without this row, and you can read it later.
 >   •  End this step. If the piece may have moved, end the measurement and start it again: you aim again, and Continue Measurement reads only the rows that are still missing.
+
+*Revised 2026-11-25 (after 4.3.66): the points name the answers as the buttons read (“Skip it”, “Rest patch by patch”), in every language.*
 
 ### M-I1IO-CHART-NEWER · PROPOSED · START of a table measurement, and Create Chart when the chart is opened
 
@@ -12786,7 +12807,9 @@ For one (n = 1):
 
 > **A row read beside its place: aim again**
 >
-> If the sheet lies off its place, if it was moved, or if it is not the right one, choose “End this step” and then “Carry on”: the arm goes to its resting place, you lay the right sheet, ChromIQ asks you to aim at its marks again, and then this row is read. Please do not move the sheet just to read the row again: without aiming again, every row after it would be read beside its place.
+> If the sheet lies off its place, if it was moved, or if it is not the right one, choose “End this step” and then “Next step”: the arm goes to its resting place, you lay the right sheet, ChromIQ asks you to aim at its marks again, and then this row is read. Please do not move the sheet just to read the row again: without aiming again, every row after it would be read beside its place.
+
+*Revised 2026-11-25 (after 4.3.66): the button “Carry on” of the table's window is “Next step” (agreed by Basti, 25 Nov 2026, for this rename only). It asks for whatever the measurement needs next.*
 
 ### M-I1IO-DRIVE-ROW-AIM-AGAIN-PIECE · PROPOSED · the failed-row page, a chart in pieces
 
@@ -12794,7 +12817,9 @@ For one (n = 1):
 
 > **A row read beside its place: aim again**
 >
-> If the piece lies off its place, if it was moved, or if it is not the right one, choose “End this step” and then “Carry on”: the arm goes to its resting place, you lay the right piece, ChromIQ asks you to aim at its marks again, and then this row is read. Please do not move the piece just to read the row again: without aiming again, every row after it would be read beside its place.
+> If the piece lies off its place, if it was moved, or if it is not the right one, choose “End this step” and then “Next step”: the arm goes to its resting place, you lay the right piece, ChromIQ asks you to aim at its marks again, and then this row is read. Please do not move the piece just to read the row again: without aiming again, every row after it would be read beside its place.
+
+*Revised 2026-11-25 (after 4.3.66): the button “Carry on” of the table's window is “Next step” (agreed by Basti, 25 Nov 2026, for this rename only). It asks for whatever the measurement needs next.*
 
 ### M-I1IO-DRIVE-END-CHOICES-AIM-AGAIN · PROPOSED · the ending's page
 

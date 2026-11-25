@@ -229,7 +229,7 @@ _ACCEPT_LABELS = (
     "I switched it off and on",
     "As described, my hands are away", "Open the instrument", "Ready", "Seated",
     "Read it again", "Read it again as a strip", "Save and stop",
-    "Go on", "Carry on", "Bring the arm home", "Bring the arm home, my hands are away",
+    "Go on", "Next step", "Bring the arm home", "Bring the arm home, my hands are away",
     "Complete it", "Continue", "Measure the rest that way", "Calibrate again",
     "Table's tile", "Yes. Start the table")
 _REJECT_LABELS = ("Not now", "Cancel", "No", "Back", "End this step", "Leave it there",
@@ -950,9 +950,9 @@ def aims_text(rid: str, d: dict) -> str:
     """4.3.49 (the volunteer's run of 19 Nov 2026): the refused aims, saying WHICH check did
     not fit, by how much, and what to do. "" for the ids that keep the general sentence."""
     patch = d.get("aim_target") == "patch"
-    again = (tr("Then press Carry on and aim again at the centre of each corner patch, in the "
+    again = (tr("Then press “Next step” and aim again at the centre of each corner patch, in the "
                 "order shown.") if patch else
-             tr("Then press Carry on and aim again at the centre of each cross, in the order "
+             tr("Then press “Next step” and aim again at the centre of each cross, in the order "
                 "1, 2, 3."))
     if rid == "aims_outside_area":
         ways = _ways_text(d.get("sheet_move") or {})
@@ -1094,13 +1094,13 @@ def reason_text(rid: str, detail: "dict | None" = None, pieces: bool = False) ->
         "free_arm_moved_while_asked": tr(
             "While the last question was open, the free arm moved a little (more than 0.2 mm). A "
             "hand may still be on it, so ChromIQ did not drive it anywhere. Please take your "
-            "hands off the arm, make sure nothing touches it, and press Carry on: ChromIQ then "
+            "hands off the arm, make sure nothing touches it, and press “Next step”: ChromIQ then "
             "reads again where the arm stands and checks the whole way from there before it "
             "moves the arm."),
         "arm_moved_while_asked": tr(
             "While the last question was open, the arm moved by more than 0.5 mm, although the "
             "motors hold it. ChromIQ did not drive it any further. Please make sure nothing "
-            "touches the arm or the sheet, and press Carry on: ChromIQ then reads again where "
+            "touches the arm or the sheet, and press “Next step”: ChromIQ then reads again where "
             "the arm stands and tries this step once more from there. If this happens again, "
             "please end the measurement and send us its diagnostics file."),
         # 4.3.47 fix2 (suspect 4): read twice beside the target by 0.6 to 1 mm, the step ended
@@ -1364,7 +1364,7 @@ def reason_text(rid: str, detail: "dict | None" = None, pieces: bool = False) ->
         # final fix round, S-2
         "button_wait_still_holds_the_instrument": tr(
             "ChromIQ's wait for the button on the i1Pro 2 has not let go of the instrument, so "
-            "ChromIQ did not open it for reading. Nothing moved for this. Press Carry on to try "
+            "ChromIQ did not open it for reading. Nothing moved for this. Press “Next step” to try "
             "again in a moment; if this happens again, please end the measurement and send us "
             "its diagnostics file."),
         # final fix round, S-1: where the white is made, and its level
@@ -1376,12 +1376,12 @@ def reason_text(rid: str, detail: "dict | None" = None, pieces: bool = False) ->
             "With the white the i1Pro 2 has just made, the table's white tile reads Y {y}, and "
             "a white tile reads between {lo} and {hi}. Most likely the instrument did not sit "
             "flat on its white tile during the calibration. ChromIQ does not use this white, "
-            "and nothing has been read with it. Press Carry on to calibrate again.").format(
+            "and nothing has been read with it. Press “Next step” to calibrate again.").format(
             y=d.get("tile_y", "?"), lo=int(d.get("lowest", 82)), hi=int(d.get("highest", 97))),
         "white_level_not_checked": tr(
             "ChromIQ could not read the table's white tile to check the white the i1Pro 2 has "
             "just made, so it does not use that white, and nothing has been read with it. "
-            "Press Carry on to calibrate again."),
+            "Press “Next step” to calibrate again."),
         "calibration_not_done": tr("The instrument has not been calibrated yet."),
         # the X-Rite i1Pro 2 dual scan on the table (2026-11-18, a first try)
         "uv_pass_failed_clean": tr(
@@ -1458,7 +1458,7 @@ def reason_text(rid: str, detail: "dict | None" = None, pieces: bool = False) ->
             if push:
                 return tr("The free arm stands outside the part of the table where ChromIQ "
                           "starts a move from, so nothing has moved. Please push the arm gently "
-                          "by hand {push}, let go of it, and press Carry on. ChromIQ reads the "
+                          "by hand {push}, let go of it, and press “Next step”. ChromIQ reads the "
                           "arm again before anything moves, and asks you first to take your "
                           "hands away.").format(push=push)
             return tr("The free arm stands outside the part of the table where ChromIQ starts "
@@ -3047,7 +3047,7 @@ class TableMeasureWindow(QFrame):
                         r == QDialogButtonBox.ButtonRole.AcceptRole
                         for r in self._button_roles.values()):
                     # ONE confirming answer per window, as the hand path's windows have
-                    # (measured on screen: "Carry on" and "Bring the arm home" both filled)
+                    # (measured on screen: "Next step" and "Bring the arm home" both filled)
                     role = QDialogButtonBox.ButtonRole.ActionRole
                 self._button_roles[id(b)] = role
             else:
@@ -3704,7 +3704,8 @@ class TableMeasureWindow(QFrame):
         title, body = (M.M_I1IO_DRIVE_PREPARE_PIECES.render(
             page=self.job.page + 1, pages=pages, corner=self._corner_text())
             if in_pieces(self._sheet) else
-            M.M_I1IO_DRIVE_PREPARE.render(page=self.job.page + 1, pages=pages))
+            M.M_I1IO_DRIVE_PREPARE.render(page=self.job.page + 1, pages=pages,
+                                          corner=self._corner_text()))
         notes = [n for n in (getattr(self, "_reads_note", ""), self._options_note) if n]
         if self._row_speed_said():
             notes.append(self._row_speed_note)
@@ -4232,7 +4233,8 @@ class TableMeasureWindow(QFrame):
         elif kind == "sheet_laid":
             title, body = (M.M_I1IO_DRIVE_SHEET_LAID_PIECE.render(
                 page=page, corner=self._corner_text())
-                if in_pieces(self._sheet) else M.M_I1IO_DRIVE_SHEET_LAID.render(page=page))
+                if in_pieces(self._sheet) else M.M_I1IO_DRIVE_SHEET_LAID.render(
+                    page=page, corner=self._corner_text()))
         elif kind == "aimed":
             patch = d.get("patch") if d.get("target") == "patch" else None
             if patch:
@@ -4520,8 +4522,8 @@ class TableMeasureWindow(QFrame):
         return None
 
     def _corner_text(self) -> str:
-        """What lies at the top left of the piece that is laid now: mark 1, or on a piece without
-        crosses its first patch."""
+        """What lies at the top left of the page (or piece) that is laid now: mark 1, or on one
+        without crosses its first patch."""
         from workflow import measurement_messages as M
         try:
             patch = any(a.get("target") == "patch"
@@ -4745,9 +4747,9 @@ class TableMeasureWindow(QFrame):
             return
         if res.reason == "arm_not_at_rest" and after is None:
             # 4.3.48: the arm found out at a START (or before a calibration): plainly what
-            # ChromIQ can do, and the old way as the fallback; "Carry on" would only read it again
+            # ChromIQ can do, and the old way as the fallback; "Next step" would only read it again
             why += "\n\n" + self._arm_out_text()
-            buttons = [b for b in buttons if b[0] != tr("Carry on")] or \
+            buttons = [b for b in buttons if b[0] != tr("Next step")] or \
                 [(tr("End measurement"), self._on_end_pressed)]
         if after is None and is_alignment_refusal(res.reason):
             # 4.3.49 (the volunteer's run of 19 Nov 2026: five refused aim rounds, then the
@@ -4789,7 +4791,7 @@ class TableMeasureWindow(QFrame):
         if j is not None and j.phase == "open" and j.ended is None and not j.only_home \
                 and not j.stopped_by_person and j.state().table is not None \
                 and not j.state().sending_closed:
-            out.append((tr("Carry on"), self._next))
+            out.append((tr("Next step"), self._next))
         if j is not None and j.way_back() == "home_offered":
             out.append((tr("Bring the arm home"), self._on_home))
         if j is not None and j.way_back() == "repair_at_start":
