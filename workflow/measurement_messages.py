@@ -14404,7 +14404,7 @@ M_I1IO_DRIVE_ROW_FAILED_STRIP = _m(
     "this row's values, because it never guesses a value. What would you like to do?\n"
     "  •  Read it again as a strip.\n"
     "  •  Read it patch by patch: slower, and the careful way.\n"
-    "  •  Skip this row: the measurement is saved without it, and you can read it later.\n"
+    "  •  Skip it: the measurement is saved without this row, and you can read it later.\n"
     "  •  End this step.",
     approved=False)
 
@@ -14420,10 +14420,10 @@ M_I1IO_DRIVE_ROW_PLACEMENT_REST = _m(
     "{page} could not be read as a strip: {why}. This is the second row of this page "
     "where that happened: the sheet may lie a little off the marks you aimed at. "
     "ChromIQ uses none of this row's values, because it never guesses a value. What "
-    "would you like to do?\n  •  Read it again as a strip.\n  •  Read the rest patch by "
+    "would you like to do?\n  •  Read it again as a strip.\n  •  Rest patch by "
     "patch: this row and every row after it on this page, each patch on its own, so "
-    "this does not matter. The rows read so far keep their values.\n  •  Skip this "
-    "row: the measurement is saved without it, and you can read it later.\n  •  End "
+    "this does not matter. The rows read so far keep their values.\n  •  Skip it: "
+    "the measurement is saved without this row, and you can read it later.\n  •  End "
     "this step. If the sheet may have moved, end the measurement and start it again: "
     "you aim again, and Continue Measurement reads only the rows that are still "
     "missing.",
@@ -14443,7 +14443,7 @@ M_I1IO_DRIVE_ROW_M0_ONLY_STRIP = _m(
     "do?\n"
     "  •  Read it again as a strip, with both passes.\n"
     "  •  Read it patch by patch: slower, but more careful.\n"
-    "  •  Skip this row: it keeps M0 only. Continue Measurement, with the dual scan still "
+    "  •  Skip it: the row keeps M0 only. Continue Measurement, with the dual scan still "
     "switched on, reads it again later with both passes.\n"
     "  •  End this step.",
     approved=False)

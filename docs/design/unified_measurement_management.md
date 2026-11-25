@@ -11305,12 +11305,14 @@ alone.
 > Row {row} of page {page} could not be read as a strip: {why}. ChromIQ uses none of this row's values, because it never guesses a value. What would you like to do?
 >   •  Read it again as a strip.
 >   •  Read it patch by patch: slower, and the careful way.
->   •  Skip this row: the measurement is saved without it, and you can read it later.
+>   •  Skip it: the measurement is saved without this row, and you can read it later.
 >   •  End this step.
 
 *Revised 2026-11-18 (final fix round of the i1iO table drive, S-3: the hands-off sentence comes first, so it can never be the part below a scroll edge; the reorder itself made in the quiet round, 2026-11-18, where the final round had only recorded it).*
 
 *Revised 2026-11-19 (table dual scan safety review, NOTE-5; awaiting confirmation): “keeps none of this row's readings” became “uses none of this row's values”: every raw reading of the row stays in the measurement's session folder (the diagnostics), only none of its values goes into the measurement. The dual row's reasons no longer repeat “Nothing of the row is kept” before it.*
+
+*Revised 2026-11-25 (after 4.3.66): the points name the answers as the buttons read (“Skip it”, “Rest patch by patch”), in every language.*
 
 ### M-I1IO-DRIVE-ROW-M0-ONLY-STRIP · PROPOSED · the job asks row_failed_strip for a dual row whose lamp pass was kept as M0 only (m0_kept), Measure (the i1iO table window)
 
@@ -11323,8 +11325,10 @@ alone.
 > The first pass of row {row} on page {page}, with the lamp, was read and is kept, so this row has its M0 values. Its second pass, with the UV light, could not be used: {why}. So this row has no M1 and M2 yet; every other row keeps its own. What would you like to do?
 >   •  Read it again as a strip, with both passes.
 >   •  Read it patch by patch: slower, but more careful.
->   •  Skip this row: it keeps M0 only. Continue Measurement, with the dual scan still switched on, reads it again later with both passes.
+>   •  Skip it: the row keeps M0 only. Continue Measurement, with the dual scan still switched on, reads it again later with both passes.
 >   •  End this step.
+
+*Revised 2026-11-25 (after 4.3.66): the points name the answers as the buttons read (“Skip it”, “Rest patch by patch”), in every language.*
 
 ### M-I1IO-DRIVE-ROW-PLACEMENT-REST · PROPOSED · the job asks row_failed_strip with offer_rest (the second row of a page the row placement check refused), Measure (the i1iO table window)
 
@@ -11336,9 +11340,11 @@ alone.
 >
 > Row {row} of page {page} could not be read as a strip: {why}. This is the second row of this page where that happened: the sheet may lie a little off the marks you aimed at. ChromIQ uses none of this row's values, because it never guesses a value. What would you like to do?
 >   •  Read it again as a strip.
->   •  Read the rest patch by patch: this row and every row after it on this page, each patch on its own, so this does not matter. The rows read so far keep their values.
->   •  Skip this row: the measurement is saved without it, and you can read it later.
+>   •  Rest patch by patch: this row and every row after it on this page, each patch on its own, so this does not matter. The rows read so far keep their values.
+>   •  Skip it: the measurement is saved without this row, and you can read it later.
 >   •  End this step. If the sheet may have moved, end the measurement and start it again: you aim again, and Continue Measurement reads only the rows that are still missing.
+
+*Revised 2026-11-25 (after 4.3.66): the points name the answers as the buttons read (“Skip it”, “Rest patch by patch”), in every language.*
 
 ### M-I1IO-DRIVE-ROW-M0-ONLY · PROPOSED · the job asks row_failed for a dual row read patch by patch whose reading program wrote no M1 and M2 (m0_kept), Measure (the i1iO table window)
 
@@ -12629,8 +12635,10 @@ For one (n = 1):
 > Row {row} of piece {page} could not be read as a strip: {why}. ChromIQ uses none of this row's values, because it never guesses a value. What would you like to do?
 >   •  Read it again as a strip.
 >   •  Read it patch by patch: slower, and the careful way.
->   •  Skip this row: the measurement is saved without it, and you can read it later.
+>   •  Skip it: the measurement is saved without this row, and you can read it later.
 >   •  End this step.
+
+*Revised 2026-11-25 (after 4.3.66): the points name the answers as the buttons read (“Skip it”, “Rest patch by patch”), in every language.*
 
 ### M-I1IO-DRIVE-ROW-M0-ONLY-PIECE · PROPOSED · The table window, on a chart in pieces
 
@@ -12655,8 +12663,10 @@ For one (n = 1):
 > The first pass of row {row} on piece {page}, with the lamp, was read and is kept, so this row has its M0 values. Its second pass, with the UV light, could not be used: {why}. So this row has no M1 and M2 yet; every other row keeps its own. What would you like to do?
 >   •  Read it again as a strip, with both passes.
 >   •  Read it patch by patch: slower, but more careful.
->   •  Skip this row: it keeps M0 only. Continue Measurement, with the dual scan still switched on, reads it again later with both passes.
+>   •  Skip it: the row keeps M0 only. Continue Measurement, with the dual scan still switched on, reads it again later with both passes.
 >   •  End this step.
+
+*Revised 2026-11-25 (after 4.3.66): the points name the answers as the buttons read (“Skip it”, “Rest patch by patch”), in every language.*
 
 ### M-I1IO-DRIVE-ROW-PLACEMENT-REST-PIECE · PROPOSED · The table window, on a chart in pieces
 
@@ -12668,9 +12678,11 @@ For one (n = 1):
 >
 > Row {row} of piece {page} could not be read as a strip: {why}. This is the second row of this piece where that happened: the piece may lie a little off the marks you aimed at. ChromIQ uses none of this row's values, because it never guesses a value. What would you like to do?
 >   •  Read it again as a strip.
->   •  Read the rest patch by patch: this row and every row after it on this piece, each patch on its own, so this does not matter. The rows read so far keep their values.
->   •  Skip this row: the measurement is saved without it, and you can read it later.
+>   •  Rest patch by patch: this row and every row after it on this piece, each patch on its own, so this does not matter. The rows read so far keep their values.
+>   •  Skip it: the measurement is saved without this row, and you can read it later.
 >   •  End this step. If the piece may have moved, end the measurement and start it again: you aim again, and Continue Measurement reads only the rows that are still missing.
+
+*Revised 2026-11-25 (after 4.3.66): the points name the answers as the buttons read (“Skip it”, “Rest patch by patch”), in every language.*
 
 ### M-I1IO-CHART-NEWER · PROPOSED · START of a table measurement, and Create Chart when the chart is opened
 
