@@ -270,3 +270,19 @@ def test_the_editor_lays_a_stored_guided_chart_out_as_it_is(
     me._current_layout_recipe = lambda *a, **k: None
     shown = TabChart._notice_layout_recipe(me)
     assert shown is not None and shown.margin_top == recipe.margin_top
+
+
+def test_the_two_rules_of_the_review_notes(monkeypatch):
+    """N4: a recorded base margin of 0 is 0. N5: the i1iO rule is the one of
+    4.3.66 (limits 2), also when a later version raises LIMITS_NOW."""
+    from workflow.i1io import chart
+    layout = {"recipe": {"instrument": "i1", "border": 0.0, **SIX},
+              "margins_chosen_by_user": False}
+    assert recipe_as_printed(layout)["margin_top"] == 0.0
+    io = {"recipe": {"instrument": "IO2", "paper": "A4", "i1io_limits": 2,
+                     "i1io_crosses": False, **SIX},
+          "margins_chosen_by_user": False}
+    now = recipe_as_printed(io)
+    assert now["margin_top"] != 6.0
+    monkeypatch.setattr(chart, "LIMITS_NOW", 3)
+    assert recipe_as_printed(io) == now

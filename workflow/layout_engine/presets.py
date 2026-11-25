@@ -115,15 +115,17 @@ def guided_margins_mm(recipe: dict) -> "tuple[float, ...] | None":
         from workflow.i1io.support import i1io_enabled
         if not i1io_enabled():
             return None
-        from workflow.i1io.chart import LIMITS_KEY, LIMITS_NOW, fixed_build_kwargs
-        # (one made before 4.3.66 may be laid out by a rule of its version)
+        from workflow.i1io.chart import LIMITS_KEY, fixed_build_kwargs
+        # (one made before 4.3.66, limits 2, may be laid out by a rule of its
+        # version; never LIMITS_NOW, which moves on)
         if (recipe.get("i1io_crosses", True)
-                or _limits_of(recipe.get(LIMITS_KEY)) < LIMITS_NOW):
+                or _limits_of(recipe.get(LIMITS_KEY)) < 2):
             return None
         kw = LayoutRecipe.from_stored(dict(recipe)).build_kwargs()
         kw.pop("margins", None)
         return tuple(fixed_build_kwargs(kw)["margins"])
-    return (float(recipe.get("border") or 6.0),) * 4
+    border = recipe.get("border")
+    return (6.0 if border is None else float(border),) * 4
 
 
 def guided_margin_fields(recipe: dict) -> dict:

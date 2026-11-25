@@ -180,6 +180,12 @@ def test_manual_shows_the_restored_charts_settings(
             getattr(shown, name) == recipe[name], name
     assert tc._manual_value("printtarg", "-i") == instrument
     assert tc._manual_value("printtarg", "-p") == "A4"
+    # (N8 of the review: nor may a later click, should the redraw have failed)
+    import inspect
+    body = inspect.getsource(TC.TabChart.rebuild_verification_pages)
+    assert body.index('_switch_mode("manual")') < body.index(
+        "_guided_transfer_pending = False") < body.index(
+        "load_ti1_and_generate_preview")
     # (Guided keeps what it held)
     assert tc._paper_combo.currentData() == "Letter"
 

@@ -26345,6 +26345,8 @@ class TabChart(QWidget):
                     self._switch_mode("manual")
                 finally:
                     self._mode_transfer_active = carrying
+            # (nor later, should the redraw fail: what Guided made is replaced)
+            self._guided_transfer_pending = False
             # SAY SO WHEN THE OPTIONS COULD NOT COME BACK.
             #
             # Knut, #130 2026-07-29: *"after restore of the chart the options in
@@ -31892,11 +31894,10 @@ class TabChart(QWidget):
             recipe = layout.get("recipe")
             if not isinstance(recipe, dict):
                 return None
-            # NOBODY CHOSE A GUIDED CHART'S MARGINS, and the 6/6/6/6 in its
-            # recipe is not what the sheet was laid out to — it is the
-            # LayoutRecipe dataclass default. The engine is handed the
-            # instrument's own border (10 mm for the i1Pro), and the realised
-            # margins are an output of the layout (i1Pro/A4: 10/10/41.58/24.57).
+            # NOBODY CHOSE A GUIDED CHART'S MARGINS. Its recipe holds the
+            # base margin the engine was handed (10 mm for the i1Pro; 6 mm
+            # whatever it was until 4.3.66), and the realised margins are an
+            # output of the layout (i1Pro/A4: 10/10/41.58/24.57).
             # `use_instrument_margins: false` beside those numbers is a default
             # too, not a user declining the guideline — Guided has no such
             # control. Reading it as a decision silenced the jig check on 112 of
@@ -32051,13 +32052,14 @@ class TabChart(QWidget):
         """True when re-deriving the page geometry from this chart's stored
         recipe gives back the sheet the user is actually looking at.
 
-        FOR A GUIDED CHART IT DOES NOT. Guided writes no layout recipe of its
-        own, so the sidecar carries the LayoutRecipe dataclass defaults — 6 mm
-        on all four sides — while the sheet was laid out at the instrument's
-        default border (10 mm for the i1Pro, whose shipping preset is
-        `m10_a0.95`). Re-deriving from those defaults produces a ROOMIER page
+        FOR A GUIDED CHART IT DID NOT, until 4.3.66. Guided writes no layout
+        recipe of its own, so the sidecar carried the LayoutRecipe dataclass
+        defaults, 6 mm on all four sides, while the sheet was laid out at the
+        instrument's default border (10 mm for the i1Pro, whose shipping preset
+        is `m10_a0.95`). Re-deriving from those defaults produced a ROOMIER page
         than the real one: measured, 506 patches for a real 484-patch i1Pro A4
-        sheet.
+        sheet. Both are read as printed now (`presets.recipe_as_printed`); the
+        hint stays off for Guided charts all the same, as it was.
 
         Everything downstream of that mistake is confidently wrong. The
         partial-last-page hint told the owner of a completely full sheet that
