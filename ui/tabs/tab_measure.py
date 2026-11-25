@@ -5347,6 +5347,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             keep = [o for o in opts if o.key in keys]
             for o in opts:
                 if o.key not in keys and o.widget is not None:
+                    o.widget.hide()
                     o.widget.setParent(None)
                     o.widget.deleteLater()
             return keep

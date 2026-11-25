@@ -317,6 +317,7 @@ class ProfileInfoDialog(QDialog):
             item = self._grid.takeAt(0)
             w = item.widget()
             if w is not None:
+                w.hide()
                 w.setParent(None)   # remove from view immediately, not on the
                 w.deleteLater()     # next event loop (else it paints over rows)
 

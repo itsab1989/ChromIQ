@@ -3534,6 +3534,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         old_body, old_editor = self._adv_inline_body, self._adv_editor
         self._adv_inline_body = self._make_advanced_body(self._adv_inline.body)
         self._adv_inline_layout.replaceWidget(old_body, self._adv_inline_body)
+        old_body.hide()
         old_body.setParent(None)
         old_body.deleteLater()
         old_editor.deleteLater()
@@ -5439,9 +5440,11 @@ class ScannerProfileDialog(_ToolDialogBase):
         pop = getattr(self, "_popout", None)
         if pop is None:
             return
+        self._marquee.hide()                     # (never a window of its own)
         self._marquee.setParent(None)            # detach from the pop-out layout
         self._marquee.set_wheel_zoom(False)
         self._marquee_box.insertWidget(0, self._marquee)
+        self._marquee.show()
         self._marquee_placeholder.setVisible(False)
         self._popout_btn.setText(tr("⤢ Pop out"))
         self._rotate_btn.setEnabled(True)

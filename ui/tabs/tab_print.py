@@ -4704,6 +4704,7 @@ class TabPrint(QWidget):
             except (TypeError, RuntimeError):
                 pass
             try:
+                combo.hide()
                 combo.setParent(None)
                 combo.deleteLater()
             except RuntimeError:

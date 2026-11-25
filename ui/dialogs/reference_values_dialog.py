@@ -634,11 +634,13 @@ class ReferenceValuesDialog(QDialog):
                 while sub.count():
                     w = sub.takeAt(0).widget()
                     if w is not None:
+                        w.hide()
                         w.setParent(None)
                         w.deleteLater()
                 sub.setParent(None)
             w = item.widget()
             if w is not None:
+                w.hide()
                 w.setParent(None)
                 w.deleteLater()
         self._rows = [r for r in self._rows if r[0].key != src.key]

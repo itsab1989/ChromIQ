@@ -1825,6 +1825,7 @@ class Ti3InfoDialog(QDialog):
             item = self._grid.takeAt(0)
             w = item.widget()
             if w is not None:
+                w.hide()
                 w.setParent(None)
                 w.deleteLater()
         self._row = 0

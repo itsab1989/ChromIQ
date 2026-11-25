@@ -1921,6 +1921,7 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
             it = self._detail_layout.takeAt(0)
             w = it.widget()
             if w is not None:
+                w.hide()
                 w.setParent(None)
                 w.deleteLater()
 
