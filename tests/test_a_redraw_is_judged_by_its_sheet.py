@@ -149,6 +149,41 @@ def test_a_guided_chart_stored_with_the_wrong_margins(
     assert (TOLD in log) is not old
 
 
+@requires_argyll
+@pytest.mark.parametrize("instrument", INSTRUMENTS)
+def test_manual_shows_the_restored_charts_settings(
+        win, qapp, qtbot, monkeypatch, instrument):  # noqa: F811
+    """Item 61: the switch from Guided to Manual on the way wrote the settings
+    Guided held (the chart that was replaced) over the restored ones: Letter
+    beside an A4 chart. The target's stored settings follow."""
+    from PyQt6.QtWidgets import QMessageBox
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: 0)
+    tc = win._tab_chart
+    side = _prof(win).with_suffix(".channels.json")
+
+    def make(tab):
+        _guided(tab, qapp, instrument, "A4")
+        return "CM" if instrument == "i1" else "i1"
+    before, after, log = _restored(win, qapp, qtbot, monkeypatch, make)
+    assert after == before and TOLD not in log
+    assert "Guided settings copied" not in log
+    assert tc._current_mode() == "manual"
+    recipe = json.loads(side.read_text(encoding="utf-8"))["layout"]["recipe"]
+    shown = tc._manual_layout_panel.get_recipe()
+    assert (shown.instrument, shown.paper) == (instrument, "A4")
+    margins = ((), ("margin_top", "margin_left"))[instrument not in (
+        "IO2", "FD9")]            # (the panel shows the ones those have)
+    for name in ("border", "pscale", "cm_density", "clip_border",
+                 *margins):
+        assert getattr(shown, name) == pytest.approx(recipe[name]) if \
+            isinstance(recipe[name], float) else \
+            getattr(shown, name) == recipe[name], name
+    assert tc._manual_value("printtarg", "-i") == instrument
+    assert tc._manual_value("printtarg", "-p") == "A4"
+    # (Guided keeps what it held)
+    assert tc._paper_combo.currentData() == "Letter"
+
+
 # ---- the record of the sheet -----------------------------------------------
 
 def _doc(tmp_path):

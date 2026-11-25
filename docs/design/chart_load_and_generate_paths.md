@@ -577,6 +577,9 @@ while the option is on and hands it back to Create Chart; off, it opens as in
   5 mm, that were filled in) is restored and opened as it was printed (`presets.recipe_as_printed`). Not reached: a chart of 4.1.3-beta.19, which does not say it is
   Guided, and an i1iO chart without crosses from before 4.3.66; the line above is still written there
   when the sheet comes out different.
+* **Create Chart's Manual shows the restored chart's settings.** The restore fills Manual and switches
+  to it; on the way from Guided that switch wrote Guided's settings (the chart that was replaced) over
+  them, the paper among them. It carries nothing over now.
 
 Tests: `tests/test_a_guided_recipe_rebuilds_its_sheet.py`,
 `tests/test_a_redraw_is_judged_by_its_sheet.py` (the pages themselves are the judge, for every

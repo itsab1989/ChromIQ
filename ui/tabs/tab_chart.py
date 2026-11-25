@@ -26336,7 +26336,15 @@ class TabChart(QWidget):
             # where the original was in fixed order, with a fresh seed, 15
             # patches per pass instead of 16 and 60 sets instead of 64.
             if restored_recipe and self._current_mode() != "manual":
-                self._switch_mode("manual")
+                # WITHOUT CARRYING GUIDED'S SETTINGS OVER (item 61): Manual
+                # holds the restored chart's, and the switch wrote the other
+                # chart's paper, margin, scale and left border over them.
+                carrying = getattr(self, "_mode_transfer_active", False)
+                self._mode_transfer_active = True
+                try:
+                    self._switch_mode("manual")
+                finally:
+                    self._mode_transfer_active = carrying
             # SAY SO WHEN THE OPTIONS COULD NOT COME BACK.
             #
             # Knut, #130 2026-07-29: *"after restore of the chart the options in
