@@ -13,7 +13,7 @@ from tests.i1io_table.test_window_in_the_measure_tab import beta, tab  # noqa: F
 from tests.i1io_table.window_sim import WindowSim
 from ui import i1io_table_window as W
 
-LINE = ("Reading in rows has not been tried on a real table yet. Please keep the table's "
+LINE = ("Reading in rows has been tried on one real table so far. Please keep the table's "
         "power switch in reach.")
 
 

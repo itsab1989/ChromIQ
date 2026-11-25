@@ -10527,7 +10527,10 @@ alone.
 
 > **Dual scan (beta, first try): the table reads everything twice**
 >
-> In rows, each row is read twice: first with the lamp, then once more with the UV light. Patch by patch, each patch is read with the lamp and then with the UV light. From the two readings ChromIQ works out M1 and M2 besides M0, and the profile is made from {chosen}. Not yet tried on a real table; M1 and M2 are calculated.
+> In rows, each row is read twice: first with the lamp, then once more with the UV light. Patch by patch, each patch is read with the lamp and then with the UV light. From the two readings ChromIQ works out M1 and M2 besides M0, and the profile is made from {chosen}. Rows have been read this way on one real table so far; patch by patch is not yet tried to the end. M1 and M2 are calculated.
+
+
+*Revised 2026-11-25 (safety review 2, S3 / S4; awaiting confirmation): what has been tried on a real table since.*
 
 ### M-DUAL-M0-CHOSEN · PROPOSED · the X-Rite i1Pro 2 dual scan (Preferences > Beta), Measure, 2026-11-20
 
@@ -10942,7 +10945,7 @@ alone.
 >
 > This is unofficial. X-Rite did not make or approve it, and removed the i1iO 2 and the i1Pro 2 from i1Profiler in version 3.8.7 (X-Rite's own release notes); 3.8.6 is the last version that works with them. ChromIQ's commands and timings were taken from USB recordings that one table owner made of i1Profiler, not from X-Rite's documentation. Some steps go beyond what was recorded and are first tries.
 >
-> What has been tried on a real table so far. One i1iO 2 with an i1Pro 2, on a Mac, with ChromIQ's separate tester program: the table's own homing and the moves over the empty table, as i1Profiler makes them, the start-up of a table that had just been switched on, the calibration on the instrument's own white tile and on the table's tile, and one reading of the table's tile all worked. With ChromIQ itself, a whole page of 528 patches was read patch by patch on that table: the aiming, the slow steps towards the front and every row worked. Not tried on a real table yet: reading in rows (strips), the dual scan, a second page, bringing the arm home from the front of the table, and what happens at the end of the arm's range of movement. On Windows and on Linux, nothing has been tried at all: it may not work there, and if it does not, ChromIQ stops and tells you what it found.
+> What has been tried on a real table so far. One i1iO 2 with an i1Pro 2, on a Mac, with ChromIQ's separate tester program: the table's own homing and the moves over the empty table, as i1Profiler makes them, the start-up of a table that had just been switched on, the calibration on the instrument's own white tile and on the table's tile, and one reading of the table's tile all worked. With ChromIQ itself, a whole page of 528 patches was then read patch by patch on a real i1iO 2, on a Mac: the aiming, the slow steps towards the front and every row worked. Since then ChromIQ has also read rows as strips, a second page and rows with the dual scan on a real table, and has brought the arm home from the front of the table. Not tried on a real table yet: the dual scan patch by patch to the end, sheets cut into pieces, and what happens at the end of the arm's range of movement. On Windows and on Linux, nothing has been tried at all: it may not work there, and if it does not, ChromIQ stops and tells you what it found.
 >
 > Keep your hands away from the arm while it moves. Nothing may lie on the table's bed except your sheet.
 >
@@ -10957,6 +10960,8 @@ alone.
 *Revised 2026-11-20 (4.3.50 fix round, the independent review's SHOULD-4: a whole page has now been read patch by patch on a real table with ChromIQ; what has not run on a real table yet is named (rows, the dual scan, a second page, the homing from the front, the end of travel); the idiom "feeling its way" is gone; awaiting review). Confirmed by: nobody yet.*
 
 *Revised 2026-11-17 (owner-results round: the volunteer's two sessions and one recording of 17 Nov 2026 on a real i1iO 2): "What has been tried" says what ran on the real table with the tester program, and i1Profiler worked normally afterwards on that Mac; CONSENT_VERSION 2, so it is asked again.*
+
+*Revised 2026-11-25 (safety review 2, S3 / S4; awaiting confirmation): what has been tried on a real table since.*
 
 ### M-I1IO-DRIVE-PREPARE · PROPOSED · the first page of the table window, before every drive, Measure (the i1iO table window)
 
@@ -11160,13 +11165,15 @@ alone.
 >
 > The button never starts a move. Before the arm moves again, ChromIQ tells you on screen to take your hands away from the table.
 >
-> i1Profiler uses the button the same way on the table. ChromIQ's own way of listening for the press has not been tried on a real table yet. If nothing happens when you press it, simply press Aimed here: nothing is lost.
+> i1Profiler uses the button the same way on the table. ChromIQ's own way of listening for the press has been tried on one real table so far. If nothing happens when you press it, simply press Aimed here: nothing is lost.
 
 *Revised 2026-11-18 (final fix round of the i1iO table drive, crosses off: the corner patch named as printed).*
 
 *Revised 2026-11-20 (4.3.52): "tells you on screen", true in both modes (with the guidance off the countdown page says it; nothing asks).*
 
 *Revised 2026-11-18 (the last fix round before 4.3.45, review 14 S-6: one wording that is true in the panel and in a pop-up).*
+
+*Revised 2026-11-25 (safety review 2, S3 / S4; awaiting confirmation): what has been tried on a real table since.*
 
 ### M-I1IO-DRIVE-AIM-BUTTON · PROPOSED · added to M-I1IO-DRIVE-AIM when the helper can wait for the instrument's button, Measure (the i1iO table window)
 
@@ -11178,13 +11185,15 @@ alone.
 >
 > The button never starts a move. Before the arm moves again, ChromIQ tells you on screen to take your hands away from the table.
 >
-> i1Profiler uses the button the same way on the table. ChromIQ's own way of listening for the press has not been tried on a real table yet. If nothing happens when you press it, simply press Aimed here: nothing is lost.
+> i1Profiler uses the button the same way on the table. ChromIQ's own way of listening for the press has been tried on one real table so far. If nothing happens when you press it, simply press Aimed here: nothing is lost.
 
 *Revised 2026-11-20 (4.3.52): "tells you on screen", true in both modes (with the guidance off the countdown page says it; nothing asks).*
 
 *Revised 2026-11-17 (owner-results round: the volunteer's two sessions and one recording of 17 Nov 2026 on a real i1iO 2): i1Profiler confirms all three marks with the button on that table; ChromIQ's own listening has not run there yet.*
 
 *Revised 2026-11-18 (the last fix round before 4.3.45, review 14 S-6: one wording that is true in the panel and in a pop-up).*
+
+*Revised 2026-11-25 (safety review 2, S3 / S4; awaiting confirmation): what has been tried on a real table since.*
 
 ### M-I1IO-DRIVE-AIM-BUTTON-NOT-NOW · PROPOSED · added to M-I1IO-DRIVE-AIM when a button wait was started for these aims but did not confirm that it listens for this mark, Measure (the i1iO table window)
 
@@ -11209,11 +11218,13 @@ alone.
 >
 > Not ticked: the arm drives along the whole row while the i1Pro 2 reads all the time, the way i1Profiler reads a row. Afterwards ChromIQ finds each patch in those readings by where the arm was at the time. This is much faster.
 >
-> Reading by strips is a first try. It is built from recordings of i1Profiler, and it has not been tried on a real table yet. ChromIQ never guesses a value: a row that cannot be cut cleanly into its patches is not kept, and you can read it again, or read it patch by patch. A row that is too long for one strip move is read patch by patch by itself. If a strip move might still be waiting at the end, ChromIQ tells you to switch the table off with its power switch.
+> Reading by strips is a first try. It is built from recordings of i1Profiler, and it has been tried on one real table so far. ChromIQ never guesses a value: a row that cannot be cut cleanly into its patches is not kept, and you can read it again, or read it patch by patch. A row that is too long for one strip move is read patch by patch by itself. If a strip move might still be waiting at the end, ChromIQ tells you to switch the table off with its power switch.
 >
 > Every table chart starts ticked, unless you saved another choice for the table: Save as Defaults on this tab keeps your choice for every table chart, and Preferences > Beta can change it as well. A project that keeps its own setting opens with its own. Charts for other instruments keep their own patch-by-patch setting.
 
 *Revised 2026-11-18 (final fix round of the i1iO table drive: the table's own patch-by-patch default (the owner, 4.3.45)).*
+
+*Revised 2026-11-25 (safety review 2, S3 / S4; awaiting confirmation): what has been tried on a real table since.*
 
 ### M-I1IO-DRIVE-STRIP-FIRST-TRY · PROPOSED · the table panel's first page when “Patch-by-patch mode (-p)” is off, Measure (the i1iO table window)
 
@@ -11221,7 +11232,10 @@ alone.
 
 > **Rows are read as strips**
 >
-> “Patch-by-patch mode (-p)” is off, so the table reads each row as a strip: the arm drives along the row while the i1Pro 2 reads all the time, as i1Profiler does. This is a first try and has not been tried on a real table yet. Every row that cannot be cut cleanly into its patches is offered to you again, or patch by patch. To read patch by patch instead, press Not now, tick “Patch-by-patch mode (-p)” and press START MEASUREMENT again.
+> “Patch-by-patch mode (-p)” is off, so the table reads each row as a strip: the arm drives along the row while the i1Pro 2 reads all the time, as i1Profiler does. This is a first try and has been tried on one real table so far. Every row that cannot be cut cleanly into its patches is offered to you again, or patch by patch. To read patch by patch instead, press Not now, tick “Patch-by-patch mode (-p)” and press START MEASUREMENT again.
+
+
+*Revised 2026-11-25 (safety review 2, S3 / S4; awaiting confirmation): what has been tried on a real table since.*
 
 ### M-I1IO-DRIVE-DUAL-ROWS · PROPOSED · the table panel's first page with the dual scan on and rows read as strips, Measure (the i1iO table window)
 
@@ -11231,7 +11245,10 @@ alone.
 >
 > The dual scan is switched on (Preferences > Beta), so the table reads every row twice, as i1Profiler does: first forward with the lamp, then straight back over the same row with the UV light. ChromIQ works out M1 and M2 from the two passes and keeps M0 as well. Build Profile starts at {chosen}, the condition chosen in the filter row. The calibration also reads the white tile with the UV light, so keep the white tile clean and uncovered.
 >
-> This has not been tried on a real table yet. Every command it sends to the table and to the i1Pro 2 was recorded from i1Profiler on a volunteer's table, and ChromIQ keeps every reading of both passes in this measurement's folder so that the first real runs can be checked. A row whose second pass does not match its first is offered to you again, as a row or patch by patch.
+> This has been tried on one real table so far, and some rows had to be read again. Every command it sends to the table and to the i1Pro 2 was recorded from i1Profiler on a volunteer's table, and ChromIQ keeps every reading of both passes in this measurement's folder so that the first real runs can be checked. A row whose second pass does not match its first is offered to you again, as a row or patch by patch.
+
+
+*Revised 2026-11-25 (safety review 2, S3 / S4; awaiting confirmation): what has been tried on a real table since.*
 
 ### M-I1IO-DRIVE-DUAL-SPOT · PROPOSED · the table panel's first page with the dual scan on and rows read patch by patch, Measure (the i1iO table window)
 
@@ -12450,9 +12467,11 @@ For one (n = 1):
 
 > **Short patches read as strips**
 >
-> Patches under {size} mm have hardly been read as strips on a real table yet: so far patches of 8 mm, on one table. A row that cannot be placed safely is refused and read again.
+> Patches under {size} mm have hardly been read as strips on a real table yet: only patches of 8 mm, on one table. A row that cannot be placed safely is refused and read again.
 
 *Revised 2026-11-25 (item 71): what has been read on a real table since.*
+
+*Revised 2026-11-25 (safety review 2, S3 / S4; awaiting confirmation): what has been tried on a real table since.*
 
 ### M-I1IO-OLD-SIZE-REPLACED · PROPOSED · an i1iO layout of an earlier ChromIQ, or carried over from another instrument, with a size outside what an i1iO chart had: the Create Chart log and "Measured from Preview"
 

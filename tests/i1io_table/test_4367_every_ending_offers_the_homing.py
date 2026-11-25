@@ -172,3 +172,40 @@ def test_an_answered_report_still_goes_to_the_ending(qtbot, monkeypatch, tmp_pat
     assert p.page() == "end_of_session"
     p.press("Discard and stop")
     _homing_offered(win, sim, p)
+
+
+def test_a_quit_while_a_complete_chart_is_saved_with_the_guidance_off_asks_the_homing(
+        qtbot, monkeypatch, tmp_path, settings):  # noqa: F811
+    """Safety review 2, S5: with the guidance off a whole chart is saved and the arm goes home by
+    itself; a quit asked while that Save runs presses Stop first, and the homing is ASKED."""
+    import time
+
+    from workflow.i1io.table import job as J
+    started = []
+    real = J.TableJob.save
+
+    def slow(self, *a, **k):
+        started.append(len(self._table.t.sim.received) if hasattr(self._table.t, "sim") else 0)
+        time.sleep(0.6)
+        return real(self, *a, **k)
+    monkeypatch.setattr(J.TableJob, "save", slow)
+    win, sim, run, p, saved, finished = open_window(
+        qtbot, monkeypatch, tmp_path, settings, guided=False, sheet=long_sheet(),
+        args=["-v", "-c", "1", "chart"])
+    p.script["aimed"] = "Aimed"
+    for _ in range(3):
+        assert p.drive_until("aimed") == "aimed"
+        sim.sim.aim(win._last.detail["mark"])
+        n_pages = len(win.pages_shown)
+        next(b for b in win._buttons if b.text() == W.tr("Aimed")).click()
+        if win._last.detail.get("mark") == 3:
+            break
+        qtbot.waitUntil(lambda: not win._busy, timeout=15000)
+    qtbot.waitUntil(lambda: bool(started), timeout=60000)
+    n = len(sim.sim.received)
+    assert win._busy and win.request_quit() is False
+    p.idle()
+    assert saved, "the Save itself is finished"
+    assert p.page() in HOMING, (p.page(), win.pages_shown[-5:])
+    assert not [ln for ln in sim.sim.received[n:] if ln.startswith((";m", ";i"))]
+    assert finished == []

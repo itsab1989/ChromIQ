@@ -2168,9 +2168,11 @@ the calibration rules are untouched.
   (-2.0 readings, spread 0.35). 35 of the 37 recorded passes are accepted now (28 before), none
   newly refused, the worst patch 0.40 dE00. Moved by whole readings: a pass 1 to 3 early is now
   often accepted (every patch within 0.35 dE00 of its true value, it cannot be told from a row
-  that lies there), a pass 2 to 4 late is refused more often. A wrong row's lamp pass, a reversed
-  stream and a lamp that fails are found by the identity check and the helper's pairing check, not
-  by this verdict, before and after. No row is read as a dual row that was not before (planned at
+  that lies there), a pass 2 to 4 late is refused more often. This verdict never told one row from another,
+  before or after: that is the identity check's alone (in the rows it can judge), also when both
+  passes come from the same wrong row. A fading lamp is not seen by the identity check; the
+  helper's pairing check sees one at half its light, not one 10 % down, and a pairing refusal costs
+  the row its M1 and M2 only: the lamp pass is kept as M0 (released behaviour). No row is read as a dual row that was not before (planned at
   both starts).
 * **START of a chart whose rows are too short for the dual scan** (the chart layout "Compact", rows
   as strips chosen): a question before anything is opened, written or moved
@@ -2197,7 +2199,10 @@ the calibration rules are untouched.
 * **The repair of an aiming mode found at START asks before a move it cannot know to be small** (item
   74, P3). With the guidance off one plain position query (p0) is sent before the question, nothing
   moves: at the resting place (`start_place`, REST_GUARD) the countdown stands in for the question as
-  before; anywhere else, and when the start-up found the arm out, the person is asked. In the guided
+  before; anywhere else, and when the start-up found the arm out, the person is asked. After a countdown
+  the position that is read right before the homing anyway decides once more: no longer at rest
+  (a free arm pushed out meanwhile), nothing moves, and the person is asked; the rest of the sitting is
+  guided. In the guided
   mode nothing is added (the question is asked anyway). The rule of 4.3.56 stays: nothing is sent at
   the app's close, and the next START ends the mode.
 * **The computer is kept awake while the table's USB is open** (item 74, P5; `core/keep_awake.py`, the

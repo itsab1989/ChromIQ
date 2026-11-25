@@ -608,6 +608,15 @@ class _MovedWhileAsked(Exception):
         self.found, self.now = found, now
 
 
+class _LeftTheRestPlace(Exception):
+    """A homing that a countdown allowed (an arm at its resting place) read it elsewhere right
+    before: only s0 and p0 were sent, nothing moved. The caller asks."""
+
+    def __init__(self, now):
+        super().__init__(f"the arm left its resting place during the countdown: it reads {now}")
+        self.now = now
+
+
 #: 4.3.57 (item 21): how often the hands-off question before a START homing is asked again
 #: after the held arm moved while it waited; an arm that keeps moving between questions is not
 #: at rest by itself (a STATE: something holds or pushes it), and the homing is not sent
@@ -3857,7 +3866,7 @@ class TableJob:
         return {"read": self._table.position_now}
         yield  # pragma: no cover
 
-    def _end_of_job(self, stage: "str | None" = None) -> None:
+    def _end_of_job(self, stage: "str | None" = None, only_from_rest: bool = False) -> None:
         """i1Profiler's end of a job from where the arm stands: s0 p0 i1 s0 f0 f4 f4 p0 (f0 ends
         the aiming mode ChromIQ's alignment switched on), the last reading at rest. 4.3.52: a
         HELD arm from everywhere but the back strip, DIRECTLY, as i1Profiler homes (the move
@@ -3872,6 +3881,8 @@ class TableJob:
         got = d.position()
         #: 4.3.57 (item 20): where the arm stood right before this homing (the logs)
         self.homed_from = got
+        if only_from_rest and start_place(got) != "at_rest":
+            raise _LeftTheRestPlace(got)
         if last is not None and not _near(got, last) and d.arm_free is False:
             if got is None or not _near(got, last, tbl.HELD_ARM_MOVED_UNITS):
                 # 4.3.50 (table re-review, MUST-A): its own id, so the page says what is true
@@ -4061,12 +4072,13 @@ class TableJob:
                 place = d.position()
             finally:
                 d.current_step = None
-        ans = yield Ask(Confirm.GO, {"step": "repair_at_start", "page": self.page + 1,
-                                     "at_start": True, "aiming_left_on": True,
-                                     "f4_mixed": mixed,
-                                     "arm_at_rest": place is not None
-                                     and start_place(place) == "at_rest",
-                                     "a0": d.a0_answer, "inline": stage != "repair_at_start"})
+        detail = {"step": "repair_at_start", "page": self.page + 1,
+                  "at_start": True, "aiming_left_on": True, "f4_mixed": mixed,
+                  "arm_at_rest": place is not None and start_place(place) == "at_rest",
+                  "a0": d.a0_answer, "inline": stage != "repair_at_start"}
+        countdowns = len(self.countdowns)
+        ans = yield Ask(Confirm.GO, detail)
+        by_countdown = len(self.countdowns) > countdowns
         self._start_case_answer(ans)
         if ans != "yes":
             raise PersonStopped("person_chose_back")
@@ -4085,10 +4097,35 @@ class TableJob:
                       "and end the mode, as i1Profiler does with such a table")
         # fix round (review N1): this homing's own place, never an earlier homing's
         self.homed_from = None
+        declined = False
         try:
-            self._end_of_job(stage)
+            try:
+                self._end_of_job(stage, only_from_rest=by_countdown)
+            except _LeftTheRestPlace as left:
+                # safety review 2, S1: only s0 and p0 were sent; nothing moved. Nobody was asked
+                # (the countdown stood in for an arm at its resting place), and the arm is not
+                # there any more: now the person is, and the rest of the sitting with them
+                d.current_step = None
+                d.log("DATA", f"the arm was read at its resting place, and at {left.now} right "
+                              "before the homing: the question is asked, nothing moved")
+                self._turn_guided("the arm left its resting place during the countdown")
+                self._repair_tried = False          # "Not now": the same offer stays
+                ans = yield Ask(Confirm.GO, dict(detail, arm_at_rest=False))
+                self._start_case_answer(ans)
+                if ans != "yes":
+                    declined = True
+                    raise PersonStopped("person_chose_back") from None
+                why = self._repair_why()
+                if why:
+                    raise StageFailed(why) from None
+                self._check_other_program()
+                self._repair_tried = True
+                self._grant("the homing that ends the aiming mode, asked for after the arm left "
+                            "its resting place", *cp.HOME_DETOUR)
+                self._end_of_job(stage)
         except BaseException:
-            self.start_homing_failed = True
+            if not declined:
+                self.start_homing_failed = True
             if stopped_because is not None:
                 d.close_for_sending("the homing that ends the aiming mode did not end at the "
                                     "resting place; nothing more is sent in this measurement")

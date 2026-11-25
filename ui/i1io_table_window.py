@@ -865,7 +865,7 @@ def option_text(flag: str, why: str) -> str:
             "when the table reads rows as strips, the instrument reads in standard resolution, "
             "so this measurement is made without high resolution"),
         "strip_rows_a_first_try_not_confirmed_on_a_real_table": tr(
-            "reading rows as strips is a first try and has not been tried on a real table yet"),
+            "reading rows as strips is a first try and has been tried on one real table so far"),
     }
     name = names.get(flag)
     if name is None:

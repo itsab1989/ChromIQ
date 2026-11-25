@@ -182,3 +182,59 @@ def test_the_countdown_before_the_repair_says_what_was_found_and_what_moves():
     assert body.startswith("ChromIQ found the table in its aiming mode")
     assert "moves the arm a little and back to its resting place" in body
     assert "earlier measurement" not in body
+
+
+def test_the_countdown_page_says_what_was_found_and_what_moves(qtbot, monkeypatch,
+                                                              tmp_path):  # noqa: F811
+    """Safety review 2, S5 (T30): on the page itself, guidance off, the arm at its resting place."""
+    from core.settings import AppSettings
+    from PyQt6.QtCore import QSettings
+    from tests.i1io_table.test_window import open_window
+    from tests.i1io_table.window_sim import WindowSim
+    from ui import i1io_table_window as W
+    st = AppSettings()
+    st._qs = QSettings(str(tmp_path / "app.ini"), QSettings.Format.IniFormat)
+    sim = WindowSim()
+    real = sim.factory
+
+    def factory(*a, **k):
+        job = real(*a, **k)
+        sim.sim.mode, sim.sim.a0_aiming, sim.sim.pos = "01", "530000", [1102.0, 36.0]
+        return job
+    sim.factory = factory
+    pages = []
+    orig = W.TableMeasureWindow._show
+
+    def show(self, page, title, body, *a, **k):
+        pages.append((page, title, body))
+        return orig(self, page, title, body, *a, **k)
+    monkeypatch.setattr(W.TableMeasureWindow, "_show", show)
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, st,
+                                                    guided=False, sim=sim)
+    p.drive_until("aimed")
+    shown = [(t, b) for page, t, b in pages if page == "countdown"]
+    assert shown
+    title, body = shown[0]
+    assert title == M.M_I1IO_DRIVE_REPAIR_COUNTDOWN.title
+    assert body.startswith(M.M_I1IO_DRIVE_REPAIR_COUNTDOWN.body)
+    assert "Please keep your hands away" in body and "The arm moves in" in body
+
+
+def test_no_text_says_untried_what_a_real_table_has_done():
+    """Safety review 2, S3 / S4: what is proven, and no more; "not tried" stays where it is true."""
+    from ui.dialogs.layout_options_panel import i1io_layout_help
+    for m in (M.M_I1IO_DRIVE_AIM_BUTTON, M.M_I1IO_DRIVE_AIM_BUTTON_PATCH,
+              M.M_I1IO_DRIVE_STRIP_OPTION, M.M_I1IO_DRIVE_STRIP_FIRST_TRY,
+              M.M_I1IO_DRIVE_DUAL_ROWS):
+        assert "not been tried on a real table" not in m.body, m.id
+        assert "on one real table so far" in m.body, m.id
+    assert "has not been tried on a table yet" not in " ".join(i1io_layout_help().split())
+    assert "patch by patch is not yet tried to the end" in M.M_DUAL_BEFORE_START_TABLE.body
+    assert "only patches of 8 mm, on one table" in M._I1IO_SHORT_PATCH
+    con = M.M_I1IO_DRIVE_CONSENT.body
+    assert "Not tried on a real table yet: the dual scan patch by patch to the end, sheets cut " \
+        "into pieces, and what happens at the end of the arm's range of movement." in con
+    # still true
+    assert "not been tried on a real table yet" in M.M_I1IO_DRIVE_DUAL_SPOT.body
+    assert "simulated table only" in M._I1IO_PIECES_INFO
+    assert "have not been tried on a table yet" in M._I1IO_THIN_SPACER

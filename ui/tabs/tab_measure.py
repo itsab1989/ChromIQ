@@ -3025,7 +3025,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         measurement in rows has been completed on the table connected last
         (ui.i1io_table_window.rows_note_retired). What the box means, and Save as Defaults, are
         in its tooltip (M-I1IO-DRIVE-STRIP-OPTION)."""
-        lab = QLabel(tr("Reading in rows has not been tried on a real table yet. Please keep "
+        lab = QLabel(tr("Reading in rows has been tried on one real table so far. Please keep "
                         "the table's power switch in reach."), parent)
         lab.setObjectName("pbp_table_note")
         lab.setWordWrap(True)

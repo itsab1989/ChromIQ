@@ -9690,7 +9690,7 @@ _I1IO_SMALL_PATCH = (
     "Choose {size} mm or more for values you can trust.")
 _I1IO_SHORT_PATCH = (
     "Patches under {size} mm have hardly been read as strips on a real table "
-    "yet: so far patches of 8 mm, on one table. A "
+    "yet: only patches of 8 mm, on one table. A "
     "row that cannot be placed safely is refused and read again.")
 _I1IO_SPOT_PATCH = (
     "Patches under {size} mm along the strip are too short to be read in one "
@@ -13361,8 +13361,9 @@ M_DUAL_BEFORE_START_TABLE = _m(
     'In rows, each row is read twice: first with the lamp, then once more '
     'with the UV light. Patch by patch, each patch is read with the lamp '
     'and then with the UV light. From the two readings ChromIQ works out M1'
-    ' and M2 besides M0, and the profile is made from {chosen}. Not yet '
-    'tried on a real table; M1 and M2 are calculated.',
+    ' and M2 besides M0, and the profile is made from {chosen}. Rows '
+    'have been read this way on one real table so far; patch by patch is '
+    'not yet tried to the end. M1 and M2 are calculated.',
     approved=False)
 
 M_DUAL_M0_CHOSEN = _m(
@@ -13843,9 +13844,11 @@ M_I1IO_DRIVE_CONSENT = _m(
     "and one reading of the table's tile all worked. With ChromIQ itself, a "
     "whole page of 528 patches was then read patch by patch on a real i1iO 2, "
     "on a Mac: the aiming, the slow steps towards the front and every row "
-    "worked. Not tried "
-    "on a real table yet: reading in rows (strips), the dual scan, a second "
-    "page, bringing the arm home from the front of the table, and what happens at the end of the "
+    "worked. Since then ChromIQ has also read rows as strips, a second page and "
+    "rows with the dual scan on a real table, and has brought the arm home "
+    "from the front of the table. Not tried "
+    "on a real table yet: the dual scan patch by patch to the end, sheets cut "
+    "into pieces, and what happens at the end of the "
     "arm's range of movement."
     " On Windows and on Linux, nothing "
     "has been tried at all: it "
@@ -14116,7 +14119,7 @@ M_I1IO_DRIVE_AIM_BUTTON_PATCH = _m(
     "The button never starts a move. Before the arm moves again, ChromIQ tells you on screen "
     "to take your hands away from the table.\n\n"
     "i1Profiler uses the button the same way on the table. ChromIQ's own way of listening for "
-    "the press has not been tried on a real table yet. If nothing happens when you press it, "
+    "the press has been tried on one real table so far. If nothing happens when you press it, "
     "simply press Aimed here: nothing is lost.",
     approved=False)
 
@@ -14130,7 +14133,7 @@ M_I1IO_DRIVE_AIM_BUTTON = _m(
     "The button never starts a move. Before the arm moves again, ChromIQ "
     "tells you on screen to take your hands away from the table.\n\n"
     "i1Profiler uses the button the same way on the table. ChromIQ's own way "
-    "of listening for the press has not been tried on a real table yet. If "
+    "of listening for the press has been tried on one real table so far. If "
     "nothing happens when you press it, simply press Aimed here: nothing is "
     "lost.",
     approved=False)
@@ -14160,7 +14163,7 @@ M_I1IO_DRIVE_STRIP_OPTION = _m(
     "the way i1Profiler reads a row. Afterwards ChromIQ finds each patch in those readings "
     "by where the arm was at the time. This is much faster.\n\n"
     "Reading by strips is a first try. It is built from recordings of i1Profiler, and it "
-    "has not been tried on a real table yet. ChromIQ never guesses a value: a row that "
+    "has been tried on one real table so far. ChromIQ never guesses a value: a row that "
     "cannot be cut cleanly into its patches is not kept, and you can read it again, or read "
     "it patch by patch. A row that is too long for one strip move is read patch by patch "
     "by itself. If a strip move might still be waiting at the end, ChromIQ tells you to "
@@ -14186,7 +14189,7 @@ M_I1IO_DRIVE_STRIP_FIRST_TRY = _m(
     "Rows are read as strips",
     "“Patch-by-patch mode (-p)” is off, so the table reads each row as a strip: the arm "
     "drives along the row while the i1Pro 2 reads all the time, as i1Profiler does. This "
-    "is a first try and has not been tried on a real table yet. Every row that cannot be "
+    "is a first try and has been tried on one real table so far. Every row that cannot be "
     "cut cleanly into its patches is offered to you again, or patch by patch. To read "
     "patch by patch instead, press Not now, tick “Patch-by-patch mode (-p)” and press "
     "START MEASUREMENT again.",
@@ -14204,7 +14207,8 @@ M_I1IO_DRIVE_DUAL_ROWS = _m(
     "same row with the UV light. ChromIQ works out M1 and M2 from the two passes and "
     "keeps M0 as well. Build Profile starts at {chosen}, the condition chosen in the "
     "filter row. The calibration also reads the white tile with the UV light, so keep the"
-    " white tile clean and uncovered.\n\nThis has not been tried on a real table yet. Every"
+    " white tile clean and uncovered.\n\nThis has been tried on one real table so far, and "
+    "some rows had to be read again. Every"
     " command it sends to the table and to the i1Pro 2 was recorded from i1Profiler on a "
     "volunteer's table, and ChromIQ keeps every reading of both passes in this "
     "measurement's folder so that the first real runs can be checked. A row whose second "
