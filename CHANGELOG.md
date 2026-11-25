@@ -1,5 +1,47 @@
 # Changelog
 
+## v4.3.67
+
+**i1iO table (Beta): safer endings and restarts, truer texts. i1iSis import: every measurement is checked, randomised or not. Create Chart: Manual shows the layout a Guided chart was really made with.**
+
+### New
+
+- **i1iO table (Beta): every ending offers to send the arm home.** End, X and Esc on that page mean "Not now". The computer stays awake while a table session is open.
+- **i1iO table (Beta): patch by patch with the dual scan** now writes M1 and M2. A row that cannot write them ends at once, on its own page.
+
+### Changed
+
+- **i1iSis import: Randomise no longer decides whether a measurement is checked.** Pages, every patch once, the grid and the colours are checked on a chart that is not randomised too. What its colours cannot show is asked before anything is filed, never filed in silence. The order file must agree with the chart.
+- **Create Chart: after a chart made in Guided, Manual shows the layout that chart was really made with**, and "Chart layout information" agrees. Generate in Manual with nothing changed makes the same layout. Manual's own grey steps, whites and blacks stay Manual's, and a paper chosen in Guided since then stays there.
+- **i1iO table (Beta): explanations moved behind the (i).** The Compact note and the note on a sheet cut into pieces are in the (i) of "Chart layout" and of the paper. Print Chart keeps one line of what to do and has the rest behind a new (i).
+- **i1iO table (Beta): "Carry on" is "Next step"**, and the texts name every button exactly. The texts for Compact, rows as strips, the dual scan and the Beta help say what a real table has done, and no more.
+- **i1iO table (Beta): a table found in its aiming mode at START** is repaired only after a question, unless the arm was read at rest.
+
+### Fixed
+
+- **i1iO table (Beta): strip rows were refused before anything moved** when a table gave an answer outside the range seen so far. The wider range is logged.
+- **i1iO table (Beta): good dual scan rows were refused for their timing.** The lamp pass has its own start time now.
+- **i1iO table (Beta): a strip row that moved nothing** no longer says the arm is held where it ended, and "Read it again" is no longer offered where reading again cannot help.
+- **i1iO table (Beta): a right page whose last strip is short** is imported with Randomise off, and charts without aiming crosses are described by their first patch.
+- **Restore Used Chart:** a Guided chart of an i1Pro, a CR30 or a ColorMunki at triple density comes back as it was printed, its settings are shown in Manual, and ChromIQ says the redraw would change the chart only when it would.
+- **Print Chart and Create Chart:** the note about the edge your printer does not print is no longer shown for a paper the printer does not know.
+- **i1iSis import:** a row of equal patches is no longer taken for a slipped row, and a sheet is refused as turned only with more margin.
+
+### Documentation
+
+- The specifications for the i1iO table, the i1iSis import and the chart paths have new sections awaiting confirmation.
+
+### Internal
+
+- i1iO table: no move, speed, aim or calibration changed. With the guidance off, START asks the arm's position once before its question. With the Betas off nothing changes for any instrument.
+- The check for a row of equal patches is one function shared by the i1iSis and the i1iO imports.
+
+### Known issues
+
+- The i1iO table texts and behaviour are tested with a simulated table and the recordings of real tables; cut pieces have not yet been measured on a real table.
+- i1iO table: the check for readings taken between two patches still accepts an aim 3.5 mm off on many charts. This was so before; a fix is being studied.
+- The new texts of this version are shown as proposed texts and may still be reworded.
+
 ## v4.3.66
 
 **i1iO table (Beta): a new chart layout. Larger sheets are cut into pieces, patches can be smaller, and rows with enough different colours are checked against the chart.**
