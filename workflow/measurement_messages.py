@@ -7048,8 +7048,8 @@ M_SPOT_DUAL_CALIBRATE = _m(
 #: the dual scan's own sentence for why (workflow/dual_scan/reasons.py).
 M_SPOT_CONDITIONS_ENDED = _m(
     "M-SPOT-CONDITIONS-ENDED",
-    "M1 and M2 ended for this session",
-    "{reason}\n\nThe readings go on in M0, the instrument's own lamp. "
+    "M1 and M2 are no longer available in this session",
+    "{reason}\n\nThe readings go on in M0, with the instrument's own lamp. "
     "Readings already in the list keep their M1 and M2. Stop the session and "
     "start it again to get M1 and M2 back.",
     approved=False)
@@ -7092,7 +7092,7 @@ M_SPOT_DUAL_HINT = _m(
     "M1 and M2 need the dual scan (Beta)",
     "An i1Pro 2 measures M1 and M2 only with the dual scan, a Beta option: "
     "Preferences > Beta, \u201cX-Rite i1Pro 2: also M1 and M2, by a dual "
-    "scan\u201d. Without it this window reads in the instrument's own lamp "
+    "scan\u201d. Without it this window reads with the instrument's own lamp "
     "(M0).",
     approved=False)
 

@@ -7117,11 +7117,11 @@ already in the list keep theirs. Shown on the status line and above the Ready
 line for the rest of the session; the headline is not shown. `{reason}` is
 the dual scan's own sentence.*
 
-> **M1 and M2 ended for this session**
+> **M1 and M2 are no longer available in this session**
 >
 > {reason}
 >
-> The readings go on in M0, the instrument's own lamp. Readings already in the list keep their M1 and M2. Stop the session and start it again to get M1 and M2 back.
+> The readings go on in M0, with the instrument's own lamp. Readings already in the list keep their M1 and M2. Stop the session and start it again to get M1 and M2 back.
 
 ### M-SPOT-DUAL-SKIP-CAL · PROPOSED · "Skip initial calibration" is not used for an i1Pro 2 dual session — Tools ▸ Read single patches
 
@@ -7187,7 +7187,7 @@ line; the body is its tooltip.*
 
 > **M1 and M2 need the dual scan (Beta)**
 >
-> An i1Pro 2 measures M1 and M2 only with the dual scan, a Beta option: Preferences > Beta, “X-Rite i1Pro 2: also M1 and M2, by a dual scan”. Without it this window reads in the instrument's own lamp (M0).
+> An i1Pro 2 measures M1 and M2 only with the dual scan, a Beta option: Preferences > Beta, “X-Rite i1Pro 2: also M1 and M2, by a dual scan”. Without it this window reads with the instrument's own lamp (M0).
 
 ### M-SCAN-WP-DEFAULT · PROPOSED · the scanner white-point default moved, and existing settings moved with it — Tools ▸ Build profile with scanner or camera
 

@@ -640,9 +640,9 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             self._view.addItem(
                 filter_choice_label(_CONDITION_FILTER_CODES[_key]), _key)
         self._view.setToolTip(tr(
-            "Every reading of this list keeps M0, M1 and M2. Choose which one "
-            "the list shows; nothing is measured again. A reading taken with "
-            "one condition only keeps showing that one."))
+            "Every reading of this list keeps M0, M1 and M2. Choose which "
+            "condition the list shows; nothing is measured again. A reading "
+            "taken with only one condition keeps showing that condition."))
         self._view.currentIndexChanged.connect(self._on_view_changed)
         view_lay.addWidget(self._view)
         view_lay.addStretch(1)

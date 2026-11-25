@@ -9911,8 +9911,8 @@
  "This session keeps M0, M1 and M2 of every reading. Use “Show the readings in” above the list to switch the whole list between them at any time. Nothing is measured again.": "このセッションでは、すべての読み取りの M0、M1、M2 を保持します。リストの上にある「表示する条件」で、いつでもリスト全体をそれらの間で切り替えられます。再測定は行いません。",
  "Calibrate, then read this patch again": "キャリブレーションしてから、このパッチをもう一度読み取ってください",
  "Click Calibrate and put the instrument on its white tile. The calibration also reads the tile with the UV light, which M1 and M2 need. Then read the patch again.": "「キャリブレーションする」をクリックし、測定器を白色タイルの上に置いてください。キャリブレーションでは、M1 と M2 に必要な UV 光でもタイルを読み取ります。その後、パッチをもう一度読み取ってください。",
- "M1 and M2 ended for this session": "このセッションでは M1 と M2 を終了しました",
- "{reason}\n\nThe readings go on in M0, the instrument's own lamp. Readings already in the list keep their M1 and M2. Stop the session and start it again to get M1 and M2 back.": "{reason}\n\n読み取りは M0（測定器自身のランプ）で続きます。すでにリストにある読み取りは M1 と M2 を保持します。M1 と M2 を再び使うには、セッションを停止してから開始し直してください。",
+ "M1 and M2 are no longer available in this session": "このセッションでは M1 と M2 を使えなくなりました",
+ "{reason}\n\nThe readings go on in M0, with the instrument's own lamp. Readings already in the list keep their M1 and M2. Stop the session and start it again to get M1 and M2 back.": "{reason}\n\n読み取りは M0（測定器自身のランプ）で続きます。すでにリストにある読み取りは M1 と M2 を保持します。M1 と M2 を再び使うには、セッションを停止してから開始し直してください。",
  "This session calibrates first": "このセッションは最初にキャリブレーションします",
  "M1 and M2 of an i1Pro 2 need a calibration that also reads the white tile with the UV light. So this session calibrates first, even though “Skip initial calibration” is ticked.": "i1Pro 2 の M1 と M2 には、白色タイルを UV 光でも読み取るキャリブレーションが必要です。そのため、「初回キャリブレーションをスキップ」がオンでも、このセッションは最初にキャリブレーションします。",
  "The tile is also read with the UV light": "タイルは UV 光でも読み取られます",
@@ -9921,7 +9921,7 @@
  "The calibration did not succeed": "キャリブレーションに失敗しました",
  "The instrument could not be calibrated. Nothing more is read until a calibration succeeds, so that no reading is made with a calibration that went wrong. Put the instrument flat on its white tile and click Calibrate to try again, or stop the session. Your readings in the list are kept.\n\nWhat the instrument reported: {reason}": "測定器をキャリブレーションできませんでした。失敗したキャリブレーションで読み取らないように、キャリブレーションが成功するまでは何も読み取りません。測定器を白色タイルの上に平らに置き、「キャリブレーションする」をクリックしてやり直すか、セッションを停止してください。リストの読み取りはそのまま残ります。\n\n測定器からの報告: {reason}",
  "Show the readings in": "表示する条件",
- "Every reading of this list keeps M0, M1 and M2. Choose which one the list shows; nothing is measured again. A reading taken with one condition only keeps showing that one.": "このリストのすべての読み取りは M0、M1、M2 を保持しています。リストに表示するものを選んでください。再測定は行いません。1 つの条件だけで読み取ったものは、その条件のまま表示されます。",
+ "Every reading of this list keeps M0, M1 and M2. Choose which condition the list shows; nothing is measured again. A reading taken with only one condition keeps showing that condition.": "このリストのすべての読み取りは M0、M1、M2 を保持しています。リストに表示する条件を選んでください。再測定は行いません。1 つの条件だけで読み取ったものは、その条件のまま表示されます。",
  "M1 and M2 need the dual scan (Beta)": "M1 と M2 にはデュアルスキャン (ベータ) が必要です",
- "An i1Pro 2 measures M1 and M2 only with the dual scan, a Beta option: Preferences > Beta, “X-Rite i1Pro 2: also M1 and M2, by a dual scan”. Without it this window reads in the instrument's own lamp (M0).": "i1Pro 2 は、ベータオプションのデュアルスキャンでのみ M1 と M2 を測定します: 環境設定 > ベータ、「X-Rite i1Pro 2: デュアルスキャンで M1 と M2 も」。オフの場合、このウィンドウは測定器自身のランプ (M0) で測定します。"
+ "An i1Pro 2 measures M1 and M2 only with the dual scan, a Beta option: Preferences > Beta, “X-Rite i1Pro 2: also M1 and M2, by a dual scan”. Without it this window reads with the instrument's own lamp (M0).": "i1Pro 2 は、ベータオプションのデュアルスキャンでのみ M1 と M2 を測定します: 環境設定 > ベータ、「X-Rite i1Pro 2: デュアルスキャンで M1 と M2 も」。オフの場合、このウィンドウは測定器自身のランプ (M0) で測定します。"
 }
