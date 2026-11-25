@@ -135,8 +135,13 @@ def test_a_click_on_the_drawn_c7_selects_c7(qapp, chart):
 
 def test_the_paper_is_named_as_it_is_used(qapp):
     from workflow.layout_engine import papers
-    labels = [lab for _c, lab, _d in papers.list_papers("IO2", for_engine=True)]
+    from workflow.i1io.chart import DIVIDED_PAPERS
+    listed = papers.list_papers("IO2", for_engine=True)
+    labels = [lab for c, lab, _d in listed if c not in DIVIDED_PAPERS]
     assert labels and all("Landscape" in lab for lab in labels), labels
+    # (a sheet that is cut into pieces is named as it is printed)
+    assert not any("Landscape" in lab for c, lab, _d in listed
+                   if c in DIVIDED_PAPERS)
     # A4 and Letter first; every other sheet inside the table's reach
     # follows (review 5, item 7)
     assert [c for c, _l, _d in papers.list_papers("IO2")][:2] == ["A4",

@@ -204,5 +204,8 @@ def test_the_window_reads_the_setting():
     assert W.row_speed_factor(S({W.ROW_SPEED_KEY: 1.95})) == 1.95
     assert W.row_speed_factor(S({W.ROW_SPEED_KEY: 9})) == 2.0
     import inspect
-    assert "self.job.row_speed_factor = row_speed_factor(self._settings)" in \
-        inspect.getsource(W.TableMeasureWindow)
+    # (the new chart layout, 25 Nov 2026: decided for the chart in the one place that sets it)
+    src = inspect.getsource(W.TableMeasureWindow)
+    assert "_asked = row_speed_factor(self._settings)" in src
+    assert "self.job.row_speed_factor, self._row_speed_note = row_speed_for(self._sheet, _asked)" \
+        in src

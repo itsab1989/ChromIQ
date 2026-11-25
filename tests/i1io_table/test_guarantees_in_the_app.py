@@ -57,7 +57,10 @@ STEP6_MODULES = {"job.py", "caps.py", "usb_system.py", "diagnostics.py",
                  # 4.3.49: the table's remembered reach (records and learns; never sends)
                  "reach.py",
                  # 4.3.54: the row placement check (a veto on a row's readings; never sends)
-                 "placement.py"}
+                 "placement.py",
+                 # the new chart layout (25 Nov 2026): the row identity check (a veto and a
+                 # question on a row's readings; never sends)
+                 "identity.py"}
 
 
 def test_the_package_holds_the_five_moved_modules_and_the_job():

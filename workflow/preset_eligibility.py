@@ -339,7 +339,7 @@ def predicted_strips(recipe: dict, npat: int
     kw.setdefault("side_stamp", True)
     kw["area_target_count"] = npat
     geom = instruments.geom_from_build_kwargs(kw)
-    w_mm, h_mm = papers.dimensions_mm(kw["paper"])
+    w_mm, h_mm = papers.piece_mm_of(kw)
     lay = geometry.compute(geom, w_mm, h_mm, npat)
     steps = lay.steps_in_pass or 1
     per_page = lay.patches_per_page or 0

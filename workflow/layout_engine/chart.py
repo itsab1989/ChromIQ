@@ -40,6 +40,9 @@ class ChartResult:
     #: Why the layout may read less well (an i1iO chart, Job D: risky
     #: options are warned about, not refused), translated, for the log.
     warnings: tuple = ()
+    #: What the build did that a person should know and that is no risk (an
+    #: i1iO chart: a size of an earlier ChromIQ replaced), translated.
+    notes: tuple = ()
     #: R7: the patches that changed places so that no near-black patch sits
     #: next to a near-white one, as (location, location) pairs; and the
     #: pairs left because no swap could clear them.
@@ -54,6 +57,9 @@ class ChartResult:
     #: (`laid_out_patch_size_mm`), or None: what `{patchsize}` prints, for
     #: the chart notes stamped after the build (4.3.45).
     patch_size_mm: "tuple[float, float] | None" = None
+    #: An i1iO chart on a sheet larger than its table: the division it was
+    #: made with (`workflow.i1io.pieces.Plan.token`), recorded with the chart.
+    i1io_pieces: str = ""
 
 
 def build_ti2_from_ti1(
@@ -451,6 +457,16 @@ def build_chart(
     #: ("" = centred, "start"). No other instrument reads them.
     i1io_numbers_edge_mm: "float | None" = None,
     i1io_text_align: str = "",
+    #: i1iO only: the limits the recipe was made under
+    #: (`workflow.i1io.chart.LIMITS_KEY`; 0 = an earlier ChromIQ's). No other
+    #: instrument reads it.
+    i1io_limits: int = 0,
+    #: ...and the pieces a sheet larger than its table is divided into
+    #: (`workflow.i1io.pieces`; "" = worked out here, a token = as recorded)
+    i1io_pieces: str = "",
+    #: ...and the run's chart notes, printed as the last part of its name line
+    #: (only on a layout of today: a chart made before printed none)
+    i1io_notes: str = "",
     #: i1iSis only (a Beta, `workflow.isis.chart`): the model width, the
     #: header, tight margins, barcode, trailer, arrows, outline, corner
     #: labels, strip letters, row numbers, the notes band and the chart's
@@ -546,7 +562,9 @@ def build_chart(
         from workflow.i1io import chart as _i1io_chart
         # What the person asked for (patch size, labels) is kept inside the
         # table's limits; everything else is the i1iO's own.
-        _f = _i1io_chart.fixed_build_kwargs({
+        _asked = {
+            "paper": paper, _i1io_chart.LIMITS_KEY: i1io_limits,
+            "i1io_pieces": i1io_pieces,
             "patch_w": patch_w, "patch_h": patch_h,
             "strip_gap": strip_gap, "inter_patch": inter_patch,
             "margins": margins, "spacer_mode": spacer_mode,
@@ -581,8 +599,27 @@ def build_chart(
             "strip_label_offset_x_mm": strip_label_offset_x_mm,
             "text_edge": text_edge,
             _i1io_chart.NUMBERS_EDGE_KEY: i1io_numbers_edge_mm,
-            _i1io_chart.TEXT_ALIGN_KEY: i1io_text_align})
-        _i1io_chart.sheet_size(paper)
+            _i1io_chart.TEXT_ALIGN_KEY: i1io_text_align}
+        _i1io_chart.refuse_bad_pieces({**_asked, "paper": paper})
+        _i1io_said = _i1io_chart.old_size_message(_asked)
+        _f = _i1io_chart.fixed_build_kwargs(_asked)
+        # A SHEET LARGER THAN THE TABLE IS DIVIDED INTO PIECES: they are the
+        # pages laid out here, decided once, from what was asked for, and
+        # handed on as decided (never by the paper again)
+        from workflow.i1io import pieces as _i1io_pc
+        _i1io_plan = _i1io_pc.plan_of({**_asked, "instrument": "IO2"})
+        if _i1io_plan is None:
+            _i1io_chart.sheet_size(paper)
+        elif page_size is not None:
+            if "px" in (page_size["w"][1], page_size["h"][1]):
+                # the pixel rule replaces the size after the fact, and a page
+                # of pixels cannot be divided exactly
+                from core.i18n import tr as _tr
+                from workflow import measurement_messages as _mm
+                raise _i1io_chart.I1ioSheetRefused(
+                    _tr(_mm._I1IO_PIECES_PIXELS))
+            # inches: the paper code holds the size, which is what is divided
+            page_size = _page_px = None
         (patch_w, patch_h, pscale, sscale, spacer_on, spacer_mode,
          spacer_width, inter_patch, strip_gap, edge_spacers, margins,
          use_instrument_margins, layout_mode, patch_area_align,
@@ -775,6 +812,11 @@ def build_chart(
             _i1io_chart.ALIGN_KEY: patch_area_align,
             _i1io_chart.CROSSES_KEY: _i1io_crosses,
             _i1io_chart.CLIP_KEY: _i1io_clip,
+            # the sizes above are settled: no recipe of an earlier ChromIQ
+            _i1io_chart.LIMITS_KEY: _i1io_chart.LIMITS_NOW,
+            # ...and so is the division: the piece, or one piece
+            _i1io_pc.PIECES_KEY: (_i1io_plan.token if _i1io_plan is not None
+                                  else _i1io_pc.ONE),
             # the patch numbers' distance (review 3, item 3): without it
             # the geometry re-derived the default and the numbers never moved
             _i1io_chart.NUMBERS_EDGE_KEY: i1io_numbers_edge_mm}
@@ -885,6 +927,8 @@ def build_chart(
         **({_b_chart.HEAD_KEY: barbieri_head, "page_size": page_size}
            if _barb else {})})
     w_mm, h_mm = papers.dimensions_mm(paper)
+    if _i1io and _i1io_plan is not None:
+        w_mm, h_mm = _i1io_plan.piece_mm
     if _page_px is not None:
         # A side typed in pixels IS its pixel count: the page in millimetres
         # is that count at this resolution, unrounded, so every position on
@@ -1065,14 +1109,26 @@ def build_chart(
     # with the Beta on exactly as with it off.
     from workflow.page_output.support import page_output_enabled
     from workflow.page_output import support as _po
-    if page_output_enabled() and _po.needs_budget(
+    # AN i1iO SHEET OF SEVERAL PIECES is asked as well, whatever the Beta
+    # says: until its pages were pieces no chart on such a sheet was drawn,
+    # and its printed sheets are as large as the paper.
+    _divided = _i1io and _i1io_plan is not None
+    if _divided or page_output_enabled() and _po.needs_budget(
             page_size=page_size, dpi=dpi, paper=paper):
         _bw, _bh = (_page_px if _page_px is not None else
                     (_po.pixels_of(w_mm, dpi), _po.pixels_of(h_mm, dpi)))
         _device = target.n_channels >= 4 or raster.is_cmy_target(target)
-        _why = _po.budget_problem(_bw, _bh, layout.pages,
-                                  inks=target.n_channels, device=_device,
-                                  bit16=bool(bit16))
+        _kind = dict(inks=target.n_channels, device=_device,
+                     bit16=bool(bit16))
+        if _divided:
+            from workflow.i1io import sheets as _sheets
+            _why = _sheets.drawing_problem(_bw, _bh, layout.pages, **_kind)
+        else:
+            _why = _po.budget_problem(_bw, _bh, layout.pages, **_kind)
+        if not _why and _divided:
+            _why = _sheets.budget_problem(
+                _i1io_plan, dpi, inks=target.n_channels, device=_device,
+                bit16=bool(bit16))
         if _why:
             raise _po.PageBudgetError(_why)
 
@@ -1092,6 +1148,10 @@ def build_chart(
         # a page whose corner patches cannot be aimed at (`page_crosses`).
         _i1io_pages = _i1io_chart.page_crosses(target, layout, geom, w_mm,
                                                h_mm, _slots, _i1io_crosses)
+        # pages whose strips are too narrow to aim at corner patches: said, or
+        # refused in their own words before the sheet's check names the cross
+        _i1io_narrow = _i1io_chart.narrow_strip_notes(
+            geom, layout, w_mm, h_mm, _i1io_crosses, _i1io_pages)
         _i1io_warnings = list(_i1io_chart.check_sheet(
             geom, layout, w_mm, h_mm, crosses=_i1io_pages))
         # 4.3.57 (item 30): pages aimed at corner patches that lie close
@@ -1112,6 +1172,8 @@ def build_chart(
         # every page the names of the three patches when they are patches
         from dataclasses import replace as _replace
         _ti2_geom = _replace(geom, extra_keywords=tuple(geom.extra_keywords) + (
+            *(((_i1io_pc.KEYWORD, _i1io_plan.token),)
+              if _i1io_plan is not None else ()),
             (_i1io_chart.AIM_KEYWORD, _i1io_chart.aim_of(_i1io_crosses)),
             (_i1io_chart.AIM_DIGITS_KEYWORD,
              "yes" if any(_i1io_pages) else "no"),)
@@ -1215,6 +1277,11 @@ def build_chart(
         chart_date=chart_date, randomize=randomize,
         # `{patchsize}` (4.3.45): the patch as laid out, after any fitting
         patch_size_mm=_patch_size)
+    if _i1io:
+        _ctx.update(_i1io_chart.piece_contexts(_i1io_plan, layout))
+        if int(i1io_limits or 0) >= _i1io_chart.LIMITS_NOW:
+            _ctx[_i1io_chart.LOGO_CTX] = True
+            _ctx[_i1io_chart.NOTES_CTX] = str(i1io_notes or "")
     stamp_text = (stamp_summary_line(instrument, paper, dpi,
                                      layout.total_patches, seed,
                                      randomize=randomize)
@@ -1398,7 +1465,8 @@ def build_chart(
             crosses=_i1io_pages, slots=_slots,
             clip_content=clip_content_mode if _i1io_clip else "off",
             text_style=_i1io_text_style,
-            text_align=_i1io_chart.text_align_of(_f))
+            text_align=_i1io_chart.text_align_of(_f),
+            pieces_plan=_i1io_plan)
         # A NAME LINE WITH NO PAPER LEFT IS SAID, never dropped silently
         # (the whole-workflow drive: crosses off, a small right margin and
         # a strip cap left no free paper beside the last strip)
@@ -1419,6 +1487,25 @@ def build_chart(
                        else _mm._I1IO_LINE_LEFT_OFF)
             if _why not in _i1io_warnings:
                 _i1io_warnings.append(_why)
+        for _k, _pg in enumerate(_pages):
+            # …and chart notes that do not print whole
+            _why = _i1io_chart.note_said(
+                str((_pg.get("text_line") or {}).get("text") or ""),
+                _i1io_chart.page_note(_k, layout.pages, _ctx))
+            if _why:
+                _i1io_narrow = [*_i1io_narrow, _why]
+                break
+        if _i1io_plan is not None and layout.pages > 1:
+            # A PIECE IS TOLD BY ITS NUMBER: said when there was no room for it
+            for _k, _pg in enumerate(_pages, 1):
+                _no = f"{_k}/{layout.pages}"
+                if not str((_pg.get("text_line") or {}).get("text")
+                           or "").startswith(_no):
+                    from workflow import measurement_messages as _mm
+                    from core.i18n import tr as _tr
+                    _i1io_warnings.append(_tr(
+                        _mm._I1IO_PIECE_NUMBER_LOST).format(number=_no))
+                    break
 
     if _isis:
         _isis_chart.write_side_file(
@@ -1479,6 +1566,8 @@ def build_chart(
         # back to a later rebuild.
         chart_date=_ctx["date"],
         ramp_whites_added=ramps_arranged,
+        notes=(tuple([*([_i1io_said] if _i1io_said else []), *_i1io_narrow])
+               if _i1io else ()),
         warnings=(tuple(_i1io_warnings) if _i1io
                   else tuple(_isis_warnings) if _isis
                   else tuple(_b_warnings) if _barb else ()),
@@ -1486,6 +1575,8 @@ def build_chart(
         neighbour_patches_moved=_nb_count,
         slots=(list(_slots) if _slots is not None else None),
         patch_size_mm=_patch_size,
+        i1io_pieces=(_i1io_plan.token if _i1io and _i1io_plan is not None
+                     else ""),
     )
 
 

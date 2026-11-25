@@ -10,6 +10,7 @@ It is Qt-only UI glue — no engine logic beyond reading/writing the recipe.
 """
 from __future__ import annotations
 
+import functools
 import time
 from contextlib import contextmanager
 
@@ -324,8 +325,9 @@ def i1io_layout_summary() -> str:
         "made for the table reading it strip by strip: it is printed on a "
         "portrait sheet that you lay across the table, so its strips run "
         "along the arm, and every strip has blank paper at both ends so the "
-        "arm can speed up and slow down. Unless you switch them off, three "
-        "small numbered aiming crosses sit in the corners; without them you "
+        "first and the last patch are read whole, even when the sheet lies a "
+        "little off. Unless you switch them off, three "
+        "small numbered aiming crosses sit in three corners; without them you "
         "aim at three corner patches. The greyed boxes show the values an "
         "i1iO chart uses.")
 
@@ -351,8 +353,7 @@ def i1io_greyed_why() -> dict:
         "layout": tr(
             "The i1iO lays the patches out by their size, never to fill the "
             "page: the length of a patch along its strip decides how many "
-            "readings the table takes of it while the arm moves, so it is "
-            "held at 8.9 mm or more."),
+            "readings the table takes of it while the arm moves."),
         "scale": tr(
             "An i1iO patch and its spacers are set in millimetres (“Patch "
             "size” and “Spacer size”), so there is no base size here to "
@@ -400,14 +401,43 @@ def i1io_gap_help(which: str) -> str:
             "For the i1iO: an extra white gap between neighbouring patches "
             "along a strip, the direction the arm scans, on top of the "
             "spacers. None is the default: the spacers already give every "
-            "patch boundary a clear edge. Each millimetre here costs patches; "
-            "at most 20 % of the patch length is used, as i1Profiler allows.")
+            "patch boundary a clear edge. Each millimetre here costs patches. "
+            "Any gap the page has room for can be set.")
     return tr(
         "For the i1iO: a white gap between the strips. None is the default: "
-        "the i1Pro 2 reads a circle 4.5 mm across in the middle of each 8 mm "
-        "wide strip, so it does not see the neighbouring strips anyway. A "
-        "gap here only costs strips; add one only if a table owner finds that "
-        "readings pick up the strip next to them.")
+        "the i1Pro 2 reads a circle 4.5 mm across in the middle of each strip, "
+        "so with the usual 8 mm strips it does not see the neighbouring ones. "
+        "A gap here costs strips. Any gap the page has room for can be set.")
+
+
+def fill_i1io_layouts(combo, custom: bool = False) -> None:
+    """The i1iO's chart layouts into *combo* (Guided and Manual): Standard and
+    Compact, and Manual's "Custom", which only shows that the sizes are
+    neither's and cannot be chosen."""
+    combo.addItem(tr("Standard (10 × 8 mm)"), "standard")
+    combo.addItem(tr("Compact (8 × 8 mm)"), "compact")
+    if custom:
+        combo.addItem(tr("Custom"), "")
+        item = combo.model().item(2)
+        if item is not None:
+            item.setEnabled(False)
+
+
+def i1io_layout_help() -> str:
+    """The (i) of "Chart layout" while the i1iO table is chosen."""
+    return tr(
+        "How large the patches of an i1iO chart are.\n\n"
+        "  •  Standard (10 × 8 mm): patches 10 mm long along the strip and 8 mm "
+        "wide. This layout has been read on a real table. An A4 sheet holds "
+        "528 patches, a Letter sheet 506.\n"
+        "  •  Compact (8 × 8 mm): 638 patches on A4, 621 on Letter. It has not "
+        "been tried on a table yet. The patches are read in one movement of "
+        "the arm at a slower speed, and a row that lies too far from its "
+        "place, about 1 to 2 mm, is refused and read again, or patch by "
+        "patch. With the dual scan every patch is read by itself.\n\n"
+        "Both print the same coloured spacers of 1 mm between the patches. "
+        "In Manual the choice fills “Patch size” and “Spacer size”; you can "
+        "change them afterwards, and the choice then shows “Custom”.")
 
 
 def i1io_clip_help() -> str:
@@ -1223,6 +1253,12 @@ class LayoutOptionsPanel(QWidget):
             self._custom_turned_lbl.setWordWrap(True)
             self._custom_turned_lbl.setVisible(False)
             sel.addWidget(self._custom_turned_lbl, 3 + _ur, 0, 1, 4)
+            # an i1iO sheet larger than its table: what is printed and cut
+            self._i1io_pieces_note = QLabel("", self)
+            self._i1io_pieces_note.setWordWrap(True)
+            self._i1io_pieces_note.setVisible(False)
+            sel.addWidget(self._i1io_pieces_note, 5 + _ur, 0, 1, 4)
+            self.changed.connect(self._show_i1io_pieces)
             if self._page_beta:
                 # the page's pixel count, for every paper (the Beta)
                 _pop.build_pixel_readout(self, sel, 4 + _ur)
@@ -1927,6 +1963,32 @@ class LayoutOptionsPanel(QWidget):
         self.inter_patch.valueChanged.connect(self._sync_edge_spacers_box)
         self.strip_gap = mm()
         self.sig = mm()
+        # THE i1iO's "Chart layout" (a Beta): Standard or Compact, filling the
+        # boxes below it; built only while i1iO support is on, shown only for
+        # the i1iO
+        self.i1io_layout = None
+        from workflow.i1io.support import i1io_enabled as _io_on
+        if _io_on():
+            self.i1io_layout = ElidingComboBox(self)
+            fill_i1io_layouts(self.i1io_layout, custom=True)
+            from workflow import measurement_messages as _mm
+            self._i1io_layout_note = QLabel(tr(_mm._I1IO_COMPACT_INFO), self)
+            self._i1io_layout_note.setWordWrap(True)
+            self._i1io_layout_row = add_row(
+                self._patch_fields_grid, 2, tr("Chart layout:"),
+                self.i1io_layout,
+                tip=TooltipButton(tr("Chart layout (i1iO)"),
+                                  i1io_layout_help(), self))
+            self._patch_fields_grid.addWidget(self._i1io_layout_note, 3, 0, 1, 3)
+            for w in (*self._i1io_layout_row, self._i1io_layout_note):
+                if w is not None:
+                    w.setVisible(False)          # shown for the i1iO only
+            self.i1io_layout.activated.connect(self._i1io_layout_picked)
+            for w in (self.patch_x, self.patch_y, self.spacer_width,
+                      self.inter_patch, self.strip_gap):
+                w.valueChanged.connect(self._i1io_sync_layout)
+            self.spacer_mode.currentIndexChanged.connect(
+                self._i1io_sync_layout)
         self._patch_size_row = add_row(
                 self._patch_fields_grid, 0, tr("Patch size (mm):"),
                 cell(self.patch_x, QLabel("×", self), self.patch_y),
@@ -3225,7 +3287,7 @@ class LayoutOptionsPanel(QWidget):
                         "logo could not be recognised, the logo is left out. "
                         "It is also left out, never printed as the word, "
                         "where ChromIQ does not draw it: in the clip border's "
-                        "own text and on an i1iO table chart.")
+                        "own text.")
                     + "\n\n" + patchsize_help(),
                     self))
         add_row(stg, 1, tr("Preview:"), self.text_preview)
@@ -4073,7 +4135,8 @@ class LayoutOptionsPanel(QWidget):
         audit (2026-11-13, DESIGN_NOTE §22) un-greyed the alignment, the
         spacer size, the spacer colours and the token menu."""
         return tuple(c for c in (
-            self.dpi, self.patch_x, self.patch_y,
+            self.dpi, getattr(self, "i1io_layout", None),
+            self.patch_x, self.patch_y,
             getattr(self, "spacer_mode", None),
             getattr(self, "spacer_width", None),
             getattr(self, "custom_spacer_cb", None),
@@ -4282,21 +4345,31 @@ class LayoutOptionsPanel(QWidget):
             (alo, ahi), (clo, chi) = patch_limits_mm()
             # The engine's patch WIDTH is across a strip, its HEIGHT along it
             # (the scan direction).
-            for c, lo, hi, default in ((self.patch_x, clo, chi, 8.0),
-                                       (self.patch_y, alo, ahi, 10.0)):
+            # another instrument's patch or spacer, outside what an i1iO chart
+            # held before the wider limits, is never taken over: the rule of
+            # a recipe without the limits' marker (`asked_sizes`: one side out
+            # of range, and both are the i1iO's own)
+            from workflow.i1io.chart import asked_sizes
+            from workflow.i1io.table_facts import (PATCH_ACROSS_MM,
+                                                   PATCH_ALONG_MM)
+            _sw = getattr(self, "spacer_width", None)
+            own_y, own_x, own_spacer, _r = asked_sizes({
+                "patch_h": self.patch_y.value(), "patch_w": self.patch_x.value(),
+                "spacer_width": _sw.value() if _sw is not None else None})
+            for c, lo, hi, value in (
+                    (self.patch_x, clo, chi, own_x or PATCH_ACROSS_MM.value),
+                    (self.patch_y, alo, ahi, own_y or PATCH_ALONG_MM.value)):
                 saved["ranges"].append((c, c.minimum(), c.maximum(), c.value(),
                                         c.specialValueText()))
-                was_value = c.value()
                 c.setSpecialValueText("")
                 c.setRange(lo, hi)
-                if not was_value:
-                    c.setValue(default)
-            # The two gaps, in the i1iO's words and limits (`i1io_gap_help`).
+                c.setValue(value)
+            # The two gaps, in the i1iO's words (`i1io_gap_help`): upwards
+            # only the page (the reach, for the boxes).
             saved["gap_tips"] = [(c, c.toolTip()) for c in
                                  (self.strip_gap, self.inter_patch)]
-            for c, lo, hi in ((self.strip_gap, 0.0, 3.0),
-                              (self.inter_patch, 0.0,
-                               0.2 * max(self.patch_y.value(), 1.0))):
+            for c, lo, hi in ((self.strip_gap, 0.0, chi),
+                              (self.inter_patch, 0.0, ahi)):
                 saved["ranges"].append((c, c.minimum(), c.maximum(), c.value(),
                                         c.specialValueText()))
                 c.setRange(lo, hi)
@@ -4315,32 +4388,26 @@ class LayoutOptionsPanel(QWidget):
                     saved["gap_tips"].append((c, c.toolTip()))
                     c.setToolTip(tip)
             # The spacer size, inside the table's limits
-            # (`table_facts.spacer_width_mm`): 1 mm up to a fifth of the
-            # patch length; "auto" (0) is the 1 mm default.
-            from workflow.i1io.table_facts import SPACER_MM
+            # (`table_facts.spacer_width_mm`): from half a millimetre;
+            # "auto" (0) is the 1 mm default.
+            from workflow.i1io.table_facts import SPACER_MIN_MM, SPACER_MM
             sw = getattr(self, "spacer_width", None)
             if sw is not None:
                 saved["ranges"].append((sw, sw.minimum(), sw.maximum(),
                                         sw.value(), sw.specialValueText()))
-                was_value = sw.value()
                 sw.setSpecialValueText("")
-                sw.setRange(SPACER_MM.value,
-                            max(SPACER_MM.value,
-                                round(0.2 * max(self.patch_y.value(), 1.0), 2)))
-                if not was_value:
-                    sw.setValue(SPACER_MM.value)
+                sw.setRange(SPACER_MIN_MM.value, ahi)
+                sw.setValue(own_spacer or SPACER_MM.value)
             # The margins offer nothing below the safe minimum, and the label
             # size nothing above the largest an i1iO chart prints (review r3
-            # m1, M1); `_i1io_show_what_applies` sets the margins' minimums.
-            from workflow.i1io.table_facts import LABEL_MAX_MM
+            # m1, M1; `_i1io_hold_label_size`); `_i1io_show_what_applies` sets
+            # the margins' minimums.
             for c in (*self.margins.values(),
                       getattr(self, "indicator_size", None)):
                 if c is not None:
                     saved["ranges"].append((c, c.minimum(), c.maximum(),
                                             c.value(), c.specialValueText()))
-            size = getattr(self, "indicator_size", None)
-            if size is not None:
-                size.setMaximum(round(mm_to_pt(LABEL_MAX_MM.value), 1))
+            self._i1io_hold_label_size()
             # "Clip" (the patch numbers' distance) from 1 mm: at 0 the
             # engine reads the distance as unset and the numbers would hug
             # the patches instead (review 3, nit 6a: what is typed is what
@@ -4383,6 +4450,7 @@ class LayoutOptionsPanel(QWidget):
             self._i1io_saved = saved
             self._i1io_prev_least = None
             self._i1io_show_crosses_slot(saved)
+            self._i1io_show_layout(True)
             self._i1io_apply_clip_state()
             self._i1io_show_what_applies()
             if not getattr(self, "_i1io_rows_wired", False):
@@ -4391,8 +4459,16 @@ class LayoutOptionsPanel(QWidget):
                 rows = getattr(self, "show_indicators", None)
                 if rows is not None:
                     rows.toggled.connect(self._i1io_rows_toggled)
-                self.patch_y.valueChanged.connect(
-                    self._i1io_patch_length_changed)
+                # the largest label follows the patch size and the gaps
+                for name, sig in (("patch_x", "valueChanged"),
+                                  ("patch_y", "valueChanged"),
+                                  ("strip_gap", "valueChanged"),
+                                  ("inter_patch", "valueChanged"),
+                                  ("spacer_width", "valueChanged"),
+                                  ("spacer_mode", "currentIndexChanged")):
+                    w = getattr(self, name, None)
+                    if w is not None:
+                        getattr(w, sig).connect(self._i1io_label_room_changed)
                 # the margins' minimums follow the clip border and the labels
                 for name, sig in (("clip_enable", "currentIndexChanged"),
                                   ("clip_content_mode",
@@ -4435,6 +4511,7 @@ class LayoutOptionsPanel(QWidget):
         self._i1io_saved = None
         self._i1io_prev_least = None
         self._i1io_hide_crosses_slot(was)
+        self._i1io_show_layout(False)
         for control, enabled, tip in was["controls"]:
             try:
                 control.setEnabled(enabled)
@@ -4527,6 +4604,50 @@ class LayoutOptionsPanel(QWidget):
         for row in getattr(self, "_hm_rows", []):
             out.extend(row)
         return [w for w in out if w is not None]
+
+    def _i1io_layout_picked(self, _index: int) -> None:
+        """A person chose a chart layout: its sizes into the boxes."""
+        name = self.i1io_layout.currentData()
+        if name and getattr(self, "_i1io_saved", None) is not None:
+            from workflow.i1io.chart import layout_sizes
+            along, across, spacer = layout_sizes(name)
+            self.patch_y.setValue(along)
+            self.patch_x.setValue(across)
+            self.spacer_width.setValue(spacer)
+            # a layout prints coloured spacers and no gaps
+            self.spacer_mode.setCurrentIndex(
+                max(0, self.spacer_mode.findData("colored")))
+            self.strip_gap.setValue(0.0)
+            self.inter_patch.setValue(0.0)
+        self._i1io_sync_layout()
+
+    def _i1io_sync_layout(self, *_a) -> None:
+        """The "Chart layout" box shows the layout the boxes' numbers are, or
+        Custom; the compact layout's note only while they are its."""
+        box = getattr(self, "i1io_layout", None)
+        if box is None or getattr(self, "_i1io_saved", None) is None:
+            return
+        from workflow.i1io.chart import layout_named
+        name = layout_named(self.patch_y.value(), self.patch_x.value(),
+                            self.spacer_width.value(),
+                            spacer_mode=self.spacer_mode.currentData(),
+                            strip_gap=self.strip_gap.value(),
+                            inter_patch=self.inter_patch.value())
+        i = box.findData(name)
+        if i >= 0 and box.currentIndex() != i:
+            box.setCurrentIndex(i)
+        self._i1io_layout_note.setVisible(name == "compact")
+
+    def _i1io_show_layout(self, on: bool) -> None:
+        box = getattr(self, "i1io_layout", None)
+        if box is None:
+            return
+        for w in self._i1io_layout_row:
+            if w is not None:
+                w.setVisible(on)
+        self._i1io_layout_note.setVisible(False)
+        if on:
+            self._i1io_sync_layout()
 
     def _i1io_show_crosses_slot(self, saved: dict) -> None:
         """While the i1iO is chosen, its "Aiming crosses" box and (i) take the
@@ -4656,16 +4777,36 @@ class LayoutOptionsPanel(QWidget):
         if getattr(self, "_i1io_saved", None) is not None:
             self._i1io_show_what_applies()
 
-    def _i1io_patch_length_changed(self, *_a) -> None:
-        """The gap along a row may be at most 20 % of the patch length (what
-        the build uses, `table_facts.gaps_mm`): the box offers no more."""
+    def _i1io_hold_label_size(self) -> None:
+        """The label size box offers nothing above the largest label this
+        layout prints (`workflow.i1io.chart.label_max_of`)."""
+        size = getattr(self, "indicator_size", None)
+        if size is None:
+            return
+        from workflow.i1io.chart import LIMITS_KEY, LIMITS_NOW, label_max_of
+        sw = getattr(self, "spacer_width", None)
+        most = label_max_of({
+            "patch_h": self.patch_y.value(), "patch_w": self.patch_x.value(),
+            "strip_gap": self.strip_gap.value(),
+            "inter_patch": self.inter_patch.value(),
+            "spacer_width": sw.value() if sw is not None else None,
+            "spacer_mode": self.spacer_mode.currentData(),
+            LIMITS_KEY: LIMITS_NOW})
+        # a size that stood above a smaller room comes back with the room,
+        # unless the person set another one meanwhile (nothing shrinks for
+        # good because a patch was smaller for a moment)
+        wish, held = getattr(self, "_i1io_label_wish", (None, None))
+        asked = wish if wish is not None and size.value() == held \
+            else size.value()
+        top = round(mm_to_pt(most), 1)
+        size.setMaximum(top)
+        if size.value() != min(asked, top):
+            size.setValue(min(asked, top))
+        self._i1io_label_wish = (asked, size.value())
+
+    def _i1io_label_room_changed(self, *_a) -> None:
         if getattr(self, "_i1io_saved", None) is not None:
-            self.inter_patch.setMaximum(round(0.2 * self.patch_y.value(), 2))
-            from workflow.i1io.table_facts import SPACER_MM
-            sw = getattr(self, "spacer_width", None)
-            if sw is not None:
-                sw.setMaximum(max(SPACER_MM.value,
-                                  round(0.2 * self.patch_y.value(), 2)))
+            self._i1io_hold_label_size()
 
     #: The options Job D opened, as (control, recipe field): the i1iO's own
     #: values while it is chosen (review 3, item 4).
@@ -4734,6 +4875,10 @@ class LayoutOptionsPanel(QWidget):
         self.patch_y.setValue(PATCH_ALONG_MM.value)
         self.strip_gap.setValue(ROW_GAP_MM.value)
         self.inter_patch.setValue(0.0)
+        sw = getattr(self, "spacer_width", None)
+        if sw is not None:
+            from workflow.i1io.table_facts import SPACER_MM
+            sw.setValue(SPACER_MM.value)
         # …and the i1iO's own values of the options Job D opened (review 3,
         # item 4): what it had when a person last left it in this session,
         # else the safe factory values (no edge spacers, no offsets, no
@@ -5159,7 +5304,7 @@ class LayoutOptionsPanel(QWidget):
         if hasattr(self, "_custom_turn_timer"):
             self._custom_turn_timer.stop()
         w, h = self.custom_w.value(), self.custom_h.value()
-        if w > h:
+        if self._i1io_lies(w, h):
             for box, value in ((self.custom_w, h), (self.custom_h, w)):
                 box.blockSignals(True)
                 box.setValue(value)
@@ -6741,7 +6886,7 @@ class LayoutOptionsPanel(QWidget):
         try:
             r = self.apply_to_recipe(LayoutRecipe(instrument=inst, paper=paper))
             geom = instruments.geom_from_build_kwargs(r.build_kwargs())
-            w_mm, h_mm = papers.dimensions_mm(paper)
+            w_mm, h_mm = papers.piece_mm_of(r)
         except Exception:      # noqa: BLE001 — a preview is never fatal
             return None
         if w_mm <= 0 or h_mm <= 0:
@@ -7361,6 +7506,14 @@ class LayoutOptionsPanel(QWidget):
             act = menu.addAction(f"{{{tok}}} — {desc}")
             act.triggered.connect(
                 lambda _c=False, t=tok, tgt=target: self._insert_token_into(tgt, t))
+        # only while an i1iO sheet is cut into pieces (`piece_contexts`)
+        sheet = menu.addAction("{sheet}: " + tr(
+            "This printed sheet, e.g. “2/2”"))
+        sheet.setVisible(False)
+        sheet.triggered.connect(
+            lambda _c=False, tgt=target: self._insert_token_into(tgt, "sheet"))
+        menu.aboutToShow.connect(functools.partial(self._show_sheet_token,
+                                                   sheet))
         # Underline runs — a blank line to hand-write on (Knut). Insert several
         # in a row for a longer line; they join with no gap unless you type a
         # space between them.
@@ -7560,6 +7713,9 @@ class LayoutOptionsPanel(QWidget):
         """Drop ``{token}`` into *target* at the cursor."""
         self._insert_at_cursor(target, "{%s}" % token)
 
+    def _show_sheet_token(self, act) -> None:
+        act.setVisible(self._i1io_plan() is not None)
+
     def _insert_literal_into(self, target, text: str) -> None:
         """Drop literal *text* (e.g. an underline run or a newline) at the cursor."""
         self._insert_at_cursor(target, text)
@@ -7592,6 +7748,13 @@ class LayoutOptionsPanel(QWidget):
             # other values here; the chart prints the size it is laid out with
             "patchsize": self._sample_patch_size(),
         }
+        if self._i1io_chosen():
+            plan = self._i1io_plan()
+            ctx["sheet"] = ""
+            if plan is not None and plan.count > 1:
+                ctx.update(sheet=f"1/{_pages}",
+                           page=f"page 1/{_pages * plan.count}",
+                           pages=str(_pages * plan.count))
         # the build's own rule (4.3.44): plain known names filled in, anything
         # else as typed, `{logo}` left out where it is not drawn
         from workflow.layout_engine.raster import resolve_placeholders
@@ -7895,17 +8058,7 @@ class LayoutOptionsPanel(QWidget):
         if not hasattr(self, "_custom_size_lbl"):
             return
         i1io = self._i1io_chosen()
-        if getattr(self, "_units_choice", False):
-            # one pair of fields in the unit chosen, named after them
-            self._custom_size_lbl.setText(
-                tr("Printed sheet, upright, width × height:") if i1io
-                else tr("Custom size:"))
-        else:
-            self._custom_size_lbl.setText(
-                tr("Printed sheet, upright (mm), width × height:") if i1io
-                # three rows, each with its own unit (the page-output Beta)
-                else tr("Custom size:") if getattr(self, "_page_beta", False)
-                else tr("Custom size (mm):"))
+        self._custom_size_words(self._i1io_plan() is not None)
         shown = (i1io and self.paper is not None
                  and self.paper.currentData() == "__custom__")
         # THE NOTE BELONGS TO THE TURNED SIZE (4.3.34 review r2, b): the
@@ -7913,6 +8066,61 @@ class LayoutOptionsPanel(QWidget):
         # line gone. It comes back with the size, until a size is typed.
         self._custom_turned_lbl.setVisible(
             bool(shown and getattr(self, "_custom_turned_note", "")))
+
+    def _custom_size_words(self, divided: bool) -> None:
+        """The label of the custom size boxes (and nothing else: this is also
+        called while a value is still being taken over)."""
+        if not hasattr(self, "_custom_size_lbl"):
+            return
+        i1io = self._i1io_chosen()
+        if getattr(self, "_units_choice", False):
+            # one pair of fields in the unit chosen, named after them
+            self._custom_size_lbl.setText(
+                tr("Printed sheet, width × height:") if i1io and divided
+                else tr("Printed sheet, upright, width × height:") if i1io
+                else tr("Custom size:"))
+        else:
+            self._custom_size_lbl.setText(
+                tr("Printed sheet (mm), width × height:")
+                if i1io and divided
+                else tr("Printed sheet, upright (mm), width × height:") if i1io
+                # three rows, each with its own unit (the page-output Beta)
+                else tr("Custom size:") if getattr(self, "_page_beta", False)
+                else tr("Custom size (mm):"))
+
+    def _i1io_plan(self):
+        """The pieces of the sheet chosen (None: one piece, or no i1iO)."""
+        if self.paper is None or not self._i1io_chosen():
+            return None
+        from workflow.i1io import pieces
+        from workflow.layout_engine.papers import dimensions_mm
+        try:
+            return pieces.plan_for(dimensions_mm(self.selection()[1]))
+        except (ValueError, TypeError):
+            return None
+
+    def _show_i1io_pieces(self) -> None:
+        """The line under the paper, and what Pages counts, while the sheet is
+        cut into pieces."""
+        note = getattr(self, "_i1io_pieces_note", None)
+        if note is None:
+            return
+        plan = self._i1io_plan()
+        self._pages_lbl.setText(tr("Sheets:") if plan is not None
+                                else tr("Pages:"))
+        note.setVisible(plan is not None)
+        self._custom_size_words(plan is not None)
+        if plan is None:
+            return
+        from workflow.i1io import chart as _c
+        from workflow.i1io import pieces
+        try:
+            kw = self.get_recipe().build_kwargs()
+            n = pieces.patches_on_a_sheet(
+                _c.capacity(kw, _c.crosses_of(kw)), kw) * self.get_pages()
+            note.setText(pieces.info_text(plan, self.get_pages(), n))
+        except Exception:      # noqa: BLE001 - a line of help, never a blocker
+            note.setVisible(False)
 
     def _custom_size_edited(self, *_a) -> None:
         # a size typed again: the last "turned" line no longer applies
@@ -7964,6 +8172,16 @@ class LayoutOptionsPanel(QWidget):
             return
         self._turn_custom_upright()
 
+    @staticmethod
+    def _i1io_lies(w: float, h: float) -> bool:
+        """Whether a custom i1iO size is turned upright: a lying sheet that is
+        one piece on the table. A larger one is divided into pieces, whichever
+        way round it is typed (`workflow.i1io.pieces`)."""
+        if w <= h:
+            return False
+        from workflow.i1io.pieces import one_piece
+        return one_piece((w, h))
+
     def _turn_custom_upright(self) -> None:
         """AN i1iO CUSTOM SIZE IS THE PRINTED SHEET, UPRIGHT (review 6, item
         2). One typed lying down (210 × 148) was taken as it stood, the
@@ -7979,7 +8197,7 @@ class LayoutOptionsPanel(QWidget):
                 and self.paper.currentData() == "__custom__"):
             return
         w, h = self.custom_w.value(), self.custom_h.value()
-        if w <= h:
+        if not self._i1io_lies(w, h):
             return
         for box, value in ((self.custom_w, h), (self.custom_h, w)):
             box.blockSignals(True)
@@ -8012,7 +8230,7 @@ class LayoutOptionsPanel(QWidget):
                         _pop.custom_paper_code(self),
                         self.mode.currentData() or "default")
             w, h = int(self.custom_w.value()), int(self.custom_h.value())
-            if self._i1io_chosen() and w > h:
+            if self._i1io_chosen() and self._i1io_lies(w, h):
                 # the printed sheet, upright (`_turn_custom_upright`)
                 w, h = h, w
             paper = f"{w}x{h}"
@@ -8323,7 +8541,17 @@ class LayoutOptionsPanel(QWidget):
                     self._i1io_text_bold_off = (
                         getattr(r, "i1io_text_bold", None) is False)
                     r = _rp(r, chart_text_bold=not self._i1io_text_bold_off)
+                    # "auto" (0) is the i1iO's own size, and the boxes show it
+                    # (they start at the smallest patch and spacer, not there)
+                    # (and a size of an earlier ChromIQ, or of another
+                    # instrument, that an i1iO chart did not have, is the
+                    # i1iO's own, said once)
+                    from workflow.i1io.chart import with_own_sizes
+                    r, _said = with_own_sizes(r)
+                    if _said:
+                        self.notice.emit(_said)
                 self._set_recipe_impl(r)
+                self._i1io_label_wish = (None, None)     # the recipe's own
                 self._hold_fd9_greying()          # review r1 F5
                 # a loaded recipe's margins are its own: they are raised to
                 # the minimum, never moved along with it
@@ -8728,6 +8956,11 @@ class LayoutOptionsPanel(QWidget):
         _ne = getattr(self, "_i1io_numbers_edge", None)
         r.i1io_numbers_edge_mm = (None if r.instrument != "IO2" or _ne is None
                                   else float(_ne))
+        # what the boxes hold now is asked for under today's limits
+        r.i1io_limits = 2 if r.instrument == "IO2" else 0
+        # what is laid out from the panel is divided by the rule of today (a
+        # stored chart's own division stays in its record)
+        r.i1io_pieces = ""
         r.i1io_text_align = (getattr(self, "_i1io_text_align", "")
                              if r.instrument == "IO2" else "")
         r.i1io_clip_border = (self._i1io_clip_now()

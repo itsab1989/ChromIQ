@@ -287,9 +287,12 @@ def strip_windows_ok(plan) -> "int | None":
 #: ``strip_row_outside_area``  the row's run-up or run-out lies outside the area ChromIQ sends
 #:                             the arm to (the absolute backstop, the front cap, or a front not
 #:                             yet confirmed); the detail says which and where;
+#: ``strip_row_patches_too_short``  no recorded speed leaves every patch STRIP_MIN_READINGS clean
+#:                             readings, however short the row (until 4.3.65 said as "too long");
 #: ``strip_row_too_short``     the run is shorter than 10 mm (no strip move for that);
 #: ``strip_row_not_on_a_line`` a patch does not lie on the line of the run (a side file fault).
-STRIP_FALLBACK_REASONS = ("strip_row_too_long", "strip_row_outside_area", "strip_row_too_short",
+STRIP_FALLBACK_REASONS = ("strip_row_too_long", "strip_row_patches_too_short",
+                          "strip_row_outside_area", "strip_row_too_short",
                           "strip_row_not_on_a_line", "strip_only_some_patches",
                           "dual_row_patches_too_short")
 
@@ -318,6 +321,7 @@ def plan_strip_row(sheet: dict, page: int, index: int, alignment, front_y=None,
 
     * ``strip_only_some_patches``: a resume or a refinement wants only part of the row;
     * ``strip_row_too_long``: no recorded speed keeps it within the readings;
+    * ``strip_row_patches_too_short``: no recorded speed leaves every patch enough of them;
     * 4.3.53: ``strip_row_outside_area`` (the run-up or run-out leaves the target area: the
       same area every patch-by-patch target is judged by), ``strip_row_too_short``,
       ``strip_row_not_on_a_line`` (:func:`strip_refusal_id`)."""
@@ -329,6 +333,7 @@ def plan_strip_row(sheet: dict, page: int, index: int, alignment, front_y=None,
         raise RowRefused("strip_only_some_patches", page=page + 1, row=index + 1)
     from . import geometry as geo
     last = None
+    readable = False           # some speed leaves every patch its readings
     # 4.3.53 fix round (C3): the vendor's own first-pass speed for this row's patch pitch first
     for speed in speeds_to_try(row_pitch_mm(st)):
         try:
@@ -339,6 +344,7 @@ def plan_strip_row(sheet: dict, page: int, index: int, alignment, front_y=None,
                              **det) from None
         last = plans
         fewest = strip_windows_ok(plans)
+        readable = readable or (fewest is not None and fewest >= STRIP_MIN_READINGS)
         if plans.N <= STRIP_N_MAX and fewest is not None and fewest >= STRIP_MIN_READINGS:
             try:
                 sc.check_plan(plans, None, front_y, cap_y)
@@ -353,7 +359,8 @@ def plan_strip_row(sheet: dict, page: int, index: int, alignment, front_y=None,
                                                          int(round(q.xy[1]))))
                         for q in plans.patches)
             return RowPlan(page, index, "strip", pts, scan=plans)
-    raise RowRefused("strip_row_too_long", page=page + 1, row=index + 1,
+    raise RowRefused("strip_row_too_long" if readable else "strip_row_patches_too_short",
+                     page=page + 1, row=index + 1,
                      readings=last.N if last is not None else None, readings_max=STRIP_N_MAX)
 
 

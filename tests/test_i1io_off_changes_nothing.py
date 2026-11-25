@@ -269,6 +269,8 @@ HOOKED_FILES = {
     "workflow/measurement_report.py",  # names the i1iO; switch-gated
     "workflow/printer_edges.py",     # the crosses' boxes from .i1io.json
                                      # (review r3 m3); nothing read while off
+    "workflow/overhang.py",          # the cut lines of a printed sheet of pieces
+    "ui/file_guide.py",              # the printed sheets of a chart in pieces (Beta on)
     "main.py",                       # latches the switch
     "ui/dialogs/settings_dialog.py",  # the Beta row and its consent window
     "ui/dialogs/layout_options_panel.py",  # Manual's panel: its greying

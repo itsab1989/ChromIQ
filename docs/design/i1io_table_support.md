@@ -106,12 +106,13 @@ instrument to name.
   its source and its confidence are in `workflow/i1io/table_facts.py`.
 * Manual: margins (down to the safe minimum), patch area alignment (any of
   the nine places; nobody's pick: centred with the crosses, at the patch
-  numbers without them), patch size (8.9 to 20 mm along the strip, 7 to
-  20 mm across), spacers (Coloured, Black & white, None), spacer size (1 mm
-  up to a fifth of the patch length), own spacer colours, Inter-patch gap
-  (along a strip, at most 20 % of the patch length), Strip gap (between
-  strips, 0 to 3 mm), the aiming crosses, strip letters and patch numbers
-  on/off and size (at most 6 mm; a larger size moves the strips down, never
+  numbers without them), patch size (from 5.5 mm both ways: the 4.5 mm opening
+  and the arm's 0.5 mm landing error on each side; upwards what the page
+  holds), spacers (Coloured, Black & white, None), spacer size (from
+  0.5 mm), own spacer colours, Inter-patch gap (along a strip) and Strip gap
+  (between strips), both as wide as the page has room for, the aiming crosses, strip letters and patch numbers
+  on/off and size (at most the strip pitch less 1 mm, and what two digits
+  along the patch pitch leave; a larger size moves the strips down, never
   into the letters), their label patterns, face, underline and alignment,
   sheet text with its Insert menu, face and size, the clip border, paper,
   pages, randomisation, calibration and output are live (see "Label
@@ -202,7 +203,9 @@ away"; "guided mode gets the option as well".*
 |---|---|---|---|---|
 | default (10 x 8 mm, coloured spacers) | 528 | 552 | 506 | 528 |
 | no spacers | 572 | 598 | 552 | 576 |
-| maximum (no spacers, 7 mm across x 8.9 mm along) | 725 | 783 | 702 | 729 |
+| Compact (8 x 8 mm, coloured spacers) | 638 | 667 | 621 | 648 |
+| 7 mm across x 8.9 mm along, no spacers (the smallest until 4.3.65) | 725 | 783 | 702 | 729 |
+| maximum (5.5 x 5.5 mm, no spacers) | 1536 | 1632 | 1452 | 1540 |
 
 The "none" columns are Manual at its floor. Guided, which has no margin
 boxes, keeps the right edge's room for the name and page line without the
@@ -1981,3 +1984,126 @@ review.
   again; a page that then has no room for crosses it would need is warned about (10 to 86 mm) or
   refused (under 10 mm).
 * **Every countdown** ends with the switch-off line.
+
+### ⏳ Awaiting confirmation: the new chart layout, part 1: limits, sizes and the row identity check (2026-11-25)
+
+**Confirmed by:** *nobody yet.* The order for the build is the design of 25 November 2026 (its
+second challenge included); this section grows with the steps that follow.
+
+* **No upper limit but the page.** Patches from 5.5 mm both ways (the 4.5 mm opening and the arm's
+  0.5 mm landing error on each side), spacers from 0.5 mm (0 = none), gaps of any width the page
+  holds. Under 7 mm, under 10 mm along the strip and under a 1 mm spacer Create Chart says what
+  that means (M-I1IO-SMALL-PATCH with the neighbour's share of what the instrument sees at 1.2 mm
+  off, M-I1IO-SHORT-PATCH, a line about the spacer). The largest label is the strip pitch less 1 mm
+  (and what two digits along the patch pitch leave).
+* **A layout of an earlier ChromIQ, or of another instrument** (a recipe without `i1io_limits` 2,
+  which recipes made from now on carry; a bad value counts as none). Nothing changes size without
+  a word: M-I1IO-OLD-SIZE-REPLACED names what comes out differently, and only that, with the sizes
+  and the patches of a full sheet before and now; once, when it is taken over (Manual's panel, a
+  retarget: the Create Chart log) or at Generate.
+
+| the layout asks for | what is built |
+|---|---|
+| a patch outside 8.9 to 20 mm along or 7 to 20 mm across (one side is enough) | the i1iO's own patch, 10 x 8 mm, said |
+| a spacer under 1 mm | the i1iO's own, 1 mm, said |
+| a strip gap, inter-patch gap, spacer or label size that an earlier ChromIQ held smaller | as asked for (labels up to their largest), said |
+| anything else | as before, nothing said |
+
+* **Changed in this version, what ChromIQ allowed until 4.3.65:** patches 8.9 to 20 mm along and 7
+  to 20 mm across, spacers from 1 mm up to 0.2 of the patch's length, a strip gap up to 3 mm, an
+  inter-patch gap up to 2 mm, labels up to 6 mm. The numbers stay in `workflow/i1io/chart.py`
+  (`OLD_*`) only to say what a layout of that time comes out as now.
+* **Manual's label size** that the room of a moment held smaller comes back with the room, unless
+  another size was set meanwhile.
+* **Under 7.6 mm along the strip** no row can be read in one movement: said as that
+  (M-I1IO-SPOT-PATCH), from there to 10 mm as M-I1IO-SHORT-PATCH.
+* **Generate refuses what START would refuse:** at most 49 patches in a strip, 37 strips, 1813
+  patches on a page, 667 pages (54 / 42 / 2268 once larger pieces are signed off; the chart side
+  and the table package hold one constant each, pinned equal).
+* **Corner patches are aimed at only where one strip off is seen:** the angle mark 3 turns the
+  corner by when it is aimed one strip too far in, atan(strip pitch / distance between the aimed
+  patches 2 and 3), must be 1.5 degrees or more (the alignment's 1 degree plus the half degree an
+  honest alignment was recorded off). Below it the page keeps its crosses, said; without room for
+  them it is refused.
+* **A run spans at most the reach** (320 mm): the ends of a longer piece with its letters off are
+  floored.
+* **A row of patches too short for the instrument** is said to be that
+  (`strip_row_patches_too_short`; until 4.3.65 "too long").
+* **THE ROW IDENTITY CHECK** (`workflow/i1io/table/identity.py`). Every row that can be judged,
+  read in one movement or patch by patch, must look like itself: its colours against the chart's
+  own expected ones by rank correlation.
+
+| condition | what happens |
+|---|---|
+| fewer than 12 patches, or expected lightness spread under 20, or under 8 different lightnesses, or more than half the row one colour, or the row resembles itself shifted, or a calibration chart, or no expected colours | not judged: as before; the app log and the session log say why, row by row, and count them at the end of the sitting |
+| the row matches itself one or two patches off by 0.6 or more and by 0.25 better than in its place | refused, always; `strip_row_not_in_its_place` / `row_not_in_its_place`; the failed-row page follows; nothing of the row is kept |
+| the row matches its place by less than 0.5, or its measured lightness spreads by less than 5 (blank paper, the bed; the expected one spreads by 20 or more) | the person is asked once per laying of a page (M-I1IO-DRIVE-OTHER-PIECE / -OTHER-SHEET), in both modes; the arm is held, nothing is sent |
+| "It is the right sheet, and it was not moved" | the row is kept as read, no new reading; the page is not asked about again while the sheet lies there (a new laying is a new question), the refusal above stays; the next movement asks the hands-off GO first (with the guidance off: the countdown). A Stop pressed meanwhile is honoured after it, before anything moves |
+| "End measurement" (the footer's button: one way to end, always in the same place; the question itself has one answer), a closed window, a crash | nothing of the row is kept; the existing ending follows; Continue reads it again |
+| any other end of the question, Stop pressed at it, and any row the check dropped (also after an early end) unless the person goes on with Skip, or with "read it again" and Go | the page's aims are not used any more: no row is read and no step forward made on them; the homing runs on them as ever, then the sheet is laid and its three marks are aimed at again |
+| a row patch by patch that ends early with 12 patches or more read | judged without a question: a bad judgement drops it |
+| the lamp pass of a dual row whose second pass failed | judged too; kept only when it looks like itself |
+
+  A dropped row leaves nothing in the records, the row files, the M1 / M2 files, the cut's copies
+  of the values or the preview; its raw readings stay in the diagnostics under the reason. Every
+  earlier attempt of that row in the same sitting goes with it (a row patch by patch that ended
+  early with under 12 patches, a lamp pass, a row read before); an earlier sitting's row stays.
+  Rows that could not be judged stay, and the ending after the question names them. It ships on because a run
+  with this code on recorded rows of a real table (kept privately) kept 99 of 99 right rows, asked
+  about 9 of 9 rows of a wrong sheet and refused 198 of 198 rows moved by one patch.
+
+  **Not protected:** rows of under 12 patches, a shift of less than a patch, calibration charts,
+  rows of few colours, ink sets without expected colours.
+
+* **THE ARM NEVER DRIVES MORE THAN 20 mm PAST A CORNER PATCH AIMED AT** (safety review B2): a page
+  whose runs would end further out (patches longer than 20 mm) keeps its crosses, with a line that
+  says so, or is refused when the margins leave no room for them.
+* **START looks at where the chart's file sends the arm** (`pieces.check_places`, S3; charts of one
+  piece too): the page no larger than the table, every aim, patch and run end on the page (0.5 mm for
+  rounding), the 20 mm above. Otherwise M-I1IO-PIECES-RECORD, and the table is not opened.
+* A piece without crosses is laid "with its first strip at the top and patch 1 of it at the top left"
+  (S5). The notes of Compact and of a sheet in pieces say that they have run on a simulated table
+  only (S6).
+* **A SHEET LARGER THAN THE TABLE IS CUT INTO PIECES** (`workflow/i1io/pieces.py`). The pieces are the
+  chart's pages; the printed sheet is put together from them (`workflow/i1io/sheets.py`, in
+  `exports/`). Which pieces is decided once, at Generate, and recorded in the side file (schema 2),
+  the `.ti2` (CHROMIQ_I1IO_PIECES) and the recipe in `channels.json`. The side file and the `.ti2`
+  are the one truth: a stored recipe that says nothing takes theirs, one that says something else, a
+  damaged record and a division ChromIQ would not make are refused in words (Generate and Restore
+  Used Chart draw nothing, START does not open the table, M-I1IO-PIECES-RECORD) and described as
+  nothing.
+* **A chart of a newer ChromIQ** (side file schema above 2) has its own window, M-I1IO-CHART-NEWER:
+  once in Create Chart, and at START, where the table is not opened.
+* **Accepted by the coordinator (2026-11-25), still to be confirmed by a person:** the sheets are put
+  together when the chart is generated and again when Print Chart is looked at; when a
+  file that is not ChromIQ's has the name, ours is `<stem>-sheet_01-1.tif` and that file stays; Create Chart
+  shows the pieces, Print Chart the sheets; the table window and its page between two pieces have
+  one End measurement, the footer's.
+* **Each piece's number** (`1/2`) stands first in its name line and is the last to go. When there is
+  no room for it, one line says so, with the first piece's number as the example; all pieces lose
+  theirs. `{sheet}` is filled in only where a sheet holds two pieces or more: on a sheet of one piece
+  (Legal) it stays empty even when the chart takes several sheets.
+* **Print** prints a chart in pieces as its whole sheets or not at all, whatever other files stand
+  beside its pages; its pages are its own record's to say. Only the chart that was opened is asked: a
+  neighbour chart in the same folder is never shown or printed in its place. Images chosen by hand are
+  left as they are. Sheets that are not there or do not fit the pieces are put together again when the
+  tab is looked at and checked again before every print (M-I1IO-PIECES-REBUILD); without them nothing
+  is printed. The note says how to print, cut (at most 1 mm off) and lay (M-I1IO-PRINT-PIECES). The
+  previews of Create Chart and Measure show the pieces by name.
+* **Measuring a chart in pieces:** a piece is a page of the chart, so the order, the aims, Continue,
+  Refine, averaging and the row identity check are those of a chart of several pages. The window's
+  first page and the question before the arm moves begin with cutting the sheet and laying only this
+  piece, with no other paper on the bed and nothing over the white tile
+  (M-I1IO-DRIVE-PREPARE-PIECES, -SHEET-LAID-PIECE); the next piece is asked for by its number
+  (M-I1IO-DRIVE-NEXT-PIECE); the question whether the right piece lies there names pieces
+  (M-I1IO-DRIVE-OTHER-OF-PIECES, one answer, "It is the right piece, and it was not moved"). An uncut sheet, another piece
+  or another chart is seen by that question where a row can be judged; nothing of such a row is kept
+  unless the person confirms it.
+* **The i1iO's edge note** (M-EDGE-NOT-PRINTED's i1iO words) is about a paper the printer's
+  description has, of the chart's own size; a paper the printer does not know has no known edge, and
+  nothing is said of it. For a sheet of pieces it is worked out on the sheet
+  (M-I1IO-EDGE-MARKS-OF-PIECES). The cut lines are no text of the chart.
+
+Tests: `tests/i1io_table/bed_sim.py` (the simulated table reads what lies on it),
+`test_row_identity.py`, `test_row_identity_job.py`, `test_row_identity_window.py`,
+`test_i1io_layout_rows.py`, `tests/test_i1io_layout_limits.py`, `tests/test_i1io_layout_sizes.py`.

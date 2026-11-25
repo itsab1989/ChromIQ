@@ -64,6 +64,76 @@ def dimensions_mm(code: str) -> tuple[float, float]:
     return dims
 
 
+def code_of(size_mm) -> str:
+    """The paper code of a sheet of *size_mm*: a listed one of that size
+    (within a tenth of a millimetre), else ``"<W>x<H>"``."""
+    w, h = (float(v) for v in size_mm)
+    for code in PAPER_SIZES:
+        cw, ch = dimensions_mm(code)
+        if abs(cw - w) < 0.1 and abs(ch - h) < 0.1:
+            return code
+    return f"{round(w, 3):g}x{round(h, 3):g}"
+
+
+def piece_mm_of(source) -> tuple[float, float]:
+    """The page a chart is LAID OUT ON, in mm: *source* is build kwargs or a
+    `LayoutRecipe`. It is the paper (`dimensions_mm`) for every chart but an
+    i1iO chart on a sheet larger than its table: there it is the piece that
+    lies on the table (`workflow.i1io.pieces`; only with that Beta on)."""
+    if isinstance(source, dict):
+        instrument, paper = source.get("instrument"), source.get("paper")
+    else:
+        instrument = getattr(source, "instrument", None)
+        paper = getattr(source, "paper", None)
+    if instrument == "IO2":
+        from workflow.i1io.support import i1io_enabled
+        if i1io_enabled():
+            from workflow.i1io import pieces
+            return pieces.piece_mm_of(source)
+    return dimensions_mm(paper or "A4")
+
+
+def patches_on_a_sheet(per_page: int, source) -> int:
+    """The patches of one printed sheet whose pages hold *per_page* each: the
+    same, but for an i1iO sheet of several pieces (each piece is a page)."""
+    if (source.get("instrument") if isinstance(source, dict)
+            else getattr(source, "instrument", None)) == "IO2":
+        from workflow.i1io.support import i1io_enabled
+        if i1io_enabled():
+            from workflow.i1io import pieces
+            return pieces.patches_on_a_sheet(per_page, source)
+    return int(per_page)
+
+
+def sheets_of(pages: int, source) -> int:
+    """The printed sheets of *pages* chart pages (see `patches_on_a_sheet`)."""
+    if (source.get("instrument") if isinstance(source, dict)
+            else getattr(source, "instrument", None)) == "IO2":
+        from workflow.i1io.support import i1io_enabled
+        if i1io_enabled():
+            from workflow.i1io import pieces
+            return pieces.sheets_of(pages, source)
+    return int(pages)
+
+
+def is_divided(source) -> bool:
+    """Whether the sheet is cut into pieces (an i1iO chart on a sheet larger
+    than its table; a trimmed sheet of one piece too)."""
+    if (source.get("instrument") if isinstance(source, dict)
+            else getattr(source, "instrument", None)) == "IO2":
+        from workflow.i1io.support import i1io_enabled
+        if i1io_enabled():
+            from workflow.i1io import pieces
+            return pieces.plan_of(source) is not None
+    return False
+
+
+def pieces_on(source) -> int:
+    """The chart pages of one printed sheet: 1, but for an i1iO sheet of
+    several pieces."""
+    return patches_on_a_sheet(1, source)
+
+
 def label(code: str) -> str:
     """Human-readable label, falling back to the code for custom sizes."""
     return PAPER_LABELS.get(code, code)

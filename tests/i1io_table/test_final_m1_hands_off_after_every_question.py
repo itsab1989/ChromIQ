@@ -223,7 +223,26 @@ def _sc_window_questions(tmp_path, asking):
     return tl
 
 
-SCENARIOS = {"whole": _sc_whole, "cold": _sc_cold, "own_tile": _sc_own_tile,
+def _sc_identity(tmp_path, asking):
+    """The new chart layout (25 Nov 2026): the row identity check's question, on the bed that
+    reads another sheet than the chart's: "right" (the next row's GO comes first), then, on a
+    second table, "stop"."""
+    from tests.i1io_table import bed_sim as B
+    ch = B.build_chart(tmp_path, count=48)
+    other = B.build_chart(tmp_path, name="Other", colours=B.patch_set(48, seed=99), seed=9)
+    job, sim, helper, run = B.bed_job(tmp_path, ch, B.Bed(other.laid()),
+                                      ask_after_each_step=asking)
+    assert job.set_options(["-v", "-c", "1", "chart"]).ok
+    p = H.Person(job, sim, {J.Confirm.ROW_IDENTITY: "right"})
+    tl = _Timeline(job, sim)
+    ready_to_read(job, p)
+    for _ in range(2):
+        assert p.drive(job.read_row()).ok
+    _end_and_home(job, p)
+    return tl
+
+
+SCENARIOS = {"identity": _sc_identity, "whole": _sc_whole, "cold": _sc_cold, "own_tile": _sc_own_tile,
              "consent_in_a_row": _sc_consent_in_a_row, "failed_rows": _sc_failed_rows,
              "strip": _sc_strip, "front": _sc_front, "keep_measuring": _sc_keep_measuring,
              "window_questions": _sc_window_questions}

@@ -1,5 +1,44 @@
 # Changelog
 
+## v4.3.66
+
+**i1iO table (Beta): a new chart layout. Larger sheets are cut into pieces, patches can be smaller, and rows with enough different colours are checked against the chart.**
+
+### New
+
+- **Sheets larger than the table (Beta, off by default).** A3, A2, Tabloid and 13 x 19 inches can be chosen for the i1iO, and Manual takes any custom size up to 2000 mm, for example A1. ChromIQ prints the whole sheet with grey cut lines and measures one piece after the other. A3 holds 1056 patches, A2 2112. Every piece is a page of its own, with its own number, for example 2/4.
+- **Chart layout "Compact".** Patches of 8 x 8 mm, 638 on an A4 sheet instead of 528, in Guided and in Manual. Please try it patch by patch first.
+- **Free patch sizes.** Manual takes any patch from 5.5 mm and any gap and spacer the page holds. Create Chart says what a small patch can cost.
+- **The row identity check.** Rows with enough different colours are checked against the chart. Rows of fewer than 12 patches, calibration charts, rows of few colours and charts without expected colours are not judged, and the log says so. A row read one or two patches beside its place is refused. When the colours do not belong to the row at all, ChromIQ asks whether the right sheet lies on the table and keeps nothing until you answer. When the sheet was wrong, was moved or lies beside its place, the arm goes to its resting place and ChromIQ asks you to aim at the marks again.
+- **The run's chart notes and the {logo} placeholder** are now printed on i1iO charts, on every piece, on the line with the chart's name. They cost no patch.
+- **Print Chart shows and prints the whole sheets** of such a chart, with a note how to cut and lay them. ChromIQ builds the sheets again when they are missing or do not fit the pieces, and prints nothing when it cannot.
+
+### Changed
+
+- **Cut the sheet first.** On a chart in pieces the table window says which piece to lay, and speaks of pieces everywhere.
+- **One way to end.** The page between two pages of a table measurement had "End measurement" twice; it is now only in the window's footer.
+- **The i1iO's printer edge note** speaks only of a paper the printer has. Before, A2 on an A3+ printer was judged by A4, and the note said the aiming crosses would be cut off.
+- **Notes on an i1iO chart** no longer bring a warning about the right edge of the sheet, where nothing is printed.
+- **A chart whose patches are longer than 20 mm keeps its aiming crosses**, so that the arm never drives far past a place you aimed at.
+- **Row speed above 1.00 is not used** for charts with patches shorter than 9.5 mm, and ChromIQ says so.
+
+### Fixed
+
+- **A line break in the Sheet text of an i1iO chart** stopped Generate, or left the whole line off. It prints as a space now.
+- **A chart of a newer ChromIQ, or one whose record is damaged,** is no longer read by guess: Create Chart and START say what is wrong, and the arm does not move. START also looks whether every place in the chart's file lies on its page.
+- **Little windows with one button** could appear beside ChromIQ for a moment while the i1iO table's pages changed.
+
+### Internal
+
+- With the Beta off, and for every other instrument, nothing changes. A default i1iO chart of one page has the same patches at the same places, the same `.ti2` and the same page image as in 4.3.65. Its page changes when it carries chart notes or {logo}, or when its patches are longer than 20 mm and the crosses are switched off. The files that describe the layout (`.i1io.json`, `.channels.json`) have new fields.
+- The printed sheets are in the run's exports folder and can always be deleted.
+
+### Known issues
+
+- Tested with a simulated table only. Nobody has yet cut a sheet and measured its pieces on a real table, and rows of patches under 10 mm have not been read on one either.
+- Very large sheets at high resolution are refused when drawing or printing them would take more than about 9 GB of memory.
+- The new texts of this version are shown as proposed texts and may still be reworded.
+
 ## v4.3.65
 
 **Tools > Read single patches: with the matching Beta on, every reading keeps M0, M1 and M2, for the X-Rite i1Pro 3 and for the i1Pro 2.**

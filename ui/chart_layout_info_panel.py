@@ -160,6 +160,16 @@ class ChartLayoutInfoPanel(QGroupBox):
             self))
         v.addLayout(bottom)
 
+    def set_pieces(self, on: bool, column: str) -> None:
+        """The pages of *column* ("actual" / "estimate") are pieces that are
+        cut out of larger sheets (an i1iO chart): the row says so."""
+        cols = getattr(self, "_pieces_cols", None)
+        if cols is None:
+            cols = self._pieces_cols = {"actual": False, "estimate": False}
+        cols[column] = bool(on)
+        self._row_names["pages"].setText(tr("Pieces") if any(cols.values())
+                                         else tr("Pages"))
+
     # ------------------------------------------------------------------
     # Patch sizes within this many mm count as equal (estimate vs on screen): the
     # estimate is the exact geometric size, the on-screen value is read back from

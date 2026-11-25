@@ -33,6 +33,7 @@ TOOLS = {
     "scripts/userdrive.py", "scripts/onscreen_capture.py", "scripts/onscreen_capture_win.py",
     "scripts/capture_screens.py", "scripts/instrument_parity.py",
     "scripts/instrument_parity_drive.py", "scripts/compare_with_release.py",
+    "scripts/i1io_cut_check.py",
     "scripts/gate_tier.py", "scripts/session_cleanup.py", "scripts/disk_report.py",
     "scripts/em_dash_check.py", "scripts/make_demo_projects.py", "scripts/i18n_extract.py",
     "scripts/i18n_sync.py", "scripts/i18n_check_name_widths.py", "scripts/i18n_onscreen_audit.py",

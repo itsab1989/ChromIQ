@@ -120,6 +120,39 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 # M-PATCH-SIMILAR joined on 2026-10-15 (4.3.5 beta 8): Knut confirmed the
 # similar-patch rule for both tests (#182 6196599132); its card texts are ours.
 AWAITING_APPROVAL: "set[str]" = {
+    "M-I1IO-DRIVE-ROW-NOT-IN-PLACE-SPOT-PIECE",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-DRIVE-ROW-NOT-IN-PLACE-PIECE",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-DRIVE-END-CHOICES-AIM-AGAIN",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-DRIVE-ROW-AIM-AGAIN-PIECE",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-DRIVE-ROW-AIM-AGAIN",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-CHART-NEWER",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-DRIVE-ROW-PLACEMENT-REST-PIECE",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-DRIVE-ROW-M0-ONLY-STRIP-PIECE",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-DRIVE-ROW-M0-ONLY-PIECE",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-DRIVE-ROW-FAILED-STRIP-PIECE",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-DRIVE-ROW-FAILED-PIECE",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-DRIVE-OTHER-OF-PIECES",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-DRIVE-NEXT-PIECE",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-DRIVE-SHEET-LAID-PIECE",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-DRIVE-PREPARE-PIECES",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-EDGE-MARKS-OF-PIECES",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-NOTE-CUT",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-PIECES-REBUILD",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-PRINT-PIECES",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-PIECES-RECORD",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-PIECES-INFO",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-DRIVE-ROWS-NOT-JUDGED",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-SPOT-PATCH",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-ROW-SPEED-NOT-USED",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-COMPACT-INFO",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-DRIVE-ROW-NOT-IN-PLACE-SPOT",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-DRIVE-ROW-NOT-IN-PLACE",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-DRIVE-OTHER-SHEET",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-DRIVE-OTHER-PIECE",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-DRIVE-STRIP-PATCHES-SHORT",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-OLD-SIZE-REPLACED",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-SHORT-PATCH",                 # the new i1iO chart layout, 2026-11-25
+    "M-I1IO-SMALL-PATCH",                 # the new i1iO chart layout, 2026-11-25
     # 2026-11-21, after 4.3.54: the pace of a hand dual strip
     "M-DUAL-PASS-PACE",
     "M-DUAL-PASS-PACE-CLOSE",

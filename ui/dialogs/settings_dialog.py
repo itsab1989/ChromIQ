@@ -8693,7 +8693,7 @@ class SettingsDialog(QDialog):
         try:
             r = self._recipe_from_fields()
             geom = instruments.geom_from_build_kwargs(r.build_kwargs())
-            w_mm, h_mm = papers.dimensions_mm(r.paper)
+            w_mm, h_mm = papers.piece_mm_of(r)
             cap = geometry.patches_per_sheet(geom, w_mm, h_mm)
             layout = geometry.compute(geom, w_mm, h_mm, cap)
             rep = preflight.check(geom, layout, recipe=r)
@@ -8708,7 +8708,8 @@ class SettingsDialog(QDialog):
             if iw:
                 msgs.append((iw, False))
             html = (f"<span style='color:{ink_for('#1a8f3c')};font-weight:600'>"
-                    + tr("≈ {n} patches per sheet").format(n=cap) + "</span>")
+                    + tr("≈ {n} patches per sheet").format(
+                        n=papers.patches_on_a_sheet(cap, r)) + "</span>")
             for txt, is_err in msgs:
                 colour = ink_for("#e05252" if is_err else "#c47f17")
                 html += f"<br><span style='color:{colour}'>⚠ {txt}</span>"
@@ -11298,20 +11299,25 @@ def i1io_support_help() -> str:
            "  •  Create Chart: “i1iO 2 + i1Pro 2” in the Instrument list of "
            "Guided and of Manual. The chart is laid out for reading strip by "
            "strip with the table: an upright (portrait) sheet, A4, Letter or "
-           "any smaller size the table takes, that you lay across the table, "
+           "any size the table takes, that you lay across the table, "
            "so its strips run along the arm, patches of "
-           "10 × 8 mm (in Manual you can change the size) with coloured "
+           "10 × 8 mm, or 8 × 8 mm with the chart layout “Compact” (in Manual "
+           "you can choose any size from 5.5 mm), with coloured "
            "spacers between them, blank paper at both ends of every strip so "
-           "the arm can speed up and slow down, and three small numbered "
-           "aiming crosses in the corners that you aim the arm at. The "
+           "the first and the last patch are read whole, even when the sheet "
+           "lies a little off, and three small numbered "
+           "aiming crosses in three corners that you aim the arm at. The "
            "crosses are an option: switched off, you aim at three corner "
            "patches instead; in Guided the patch count stays the same, "
            "because their room is kept for the line with the chart's name and "
            "page number, and in Manual, with smaller margins, more patches "
            "can fit. When a chart has more "
            "patches than one sheet holds, it is printed on several numbered "
-           "sheets. The layout may still change once an i1iO owner has tested "
-           "it.\n"
+           "sheets. A sheet larger than the table, for example A3, A2, Tabloid "
+           "or 13 × 19 inches, is printed whole and cut into pieces: the table "
+           "measures one piece after the other, and the number on each piece "
+           "says which one it is. The layout may still change once an i1iO "
+           "owner has tested it.\n"
            "  •  Measure: when you press START MEASUREMENT with such a chart, "
            "ChromIQ drives the table. With IMPORT you can still bring back a "
            "measurement of the chart made in i1Profiler."),

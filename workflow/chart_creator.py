@@ -780,6 +780,10 @@ class ChartParams:
     # Recorded in the sidecar; reopening the chart binds its own .ti1 again,
     # as a patch set not written by targen always was.
     patch_set_given: "bool | None" = False
+    # Whether the printed sheets of an i1iO chart whose pages are pieces are
+    # built with it (`workflow.i1io.sheets`). Off for the live preview, which
+    # draws on every turn of a knob; the Print tab builds them then.
+    compose_sheets: bool = True
     # When the chart was laid out from an existing patch set (a preset, a loaded
     # .ti1, a prebuilt chart, or one applied from the editor), targen was NOT run
     # — so the command stamp shows the chart-LAYOUT name instead of a misleading
@@ -838,6 +842,9 @@ class ChartParams:
     #: …and its "Clip border" (off by default): the notes band down the
     #: sheet's left edge (`workflow.i1io.chart.CLIP_KEY`).
     i1io_clip_border: bool = False
+    # Guided's i1iO chart layout ("" / "standard" or "compact",
+    # `workflow.i1io.chart.LAYOUTS`, a Beta); Manual sets the sizes themselves
+    i1io_layout: str = ""
     #: Guided's i1iSis choices (a Beta, `workflow.isis.chart`): the model
     #: width ("standard" or "xl") and the notes band in the header (off by
     #: default). Manual's recipe holds its own.
@@ -1778,6 +1785,10 @@ class ChartCreator:
             # and its "Clip border" only when on (with the Notes box, as
             # Guided's i1Pro clip band), so every other chart's kwargs are
             # the ones they were.
+            from workflow.i1io.chart import (LIMITS_KEY, LIMITS_NOW,
+                                             layout_kwargs)
+            kw[LIMITS_KEY] = LIMITS_NOW
+            kw.update(layout_kwargs(getattr(params, "i1io_layout", "")))
             if not getattr(params, "i1io_crosses", True):
                 kw["i1io_crosses"] = False
             if getattr(params, "i1io_clip_border", False):
@@ -1834,8 +1845,9 @@ class ChartCreator:
             from workflow.layout_engine import geometry, instruments, papers
             kw = self._engine_kwargs(params)
             geom = instruments.geom_from_build_kwargs(kw)
-            w_mm, h_mm = papers.dimensions_mm(kw["paper"])
-            per_sheet = geometry.patches_per_sheet(geom, w_mm, h_mm)
+            w_mm, h_mm = papers.piece_mm_of(kw)
+            per_sheet = papers.patches_on_a_sheet(
+                geometry.patches_per_sheet(geom, w_mm, h_mm), kw)
             return per_sheet * max(1, int(params.pages))
         except Exception as exc:  # noqa: BLE001
             log.warning("engine patch estimate failed: %s", exc)
@@ -1941,6 +1953,7 @@ class ChartCreator:
                 kw["randomize"] = False
             if params.instrument == "XRISIS":
                 kw["isis_trailer_lines"] = self._isis_trailer_lines(params)
+            self._add_i1io_notes(kw, params)
             return kw
         # Guided mode has no editable margin boxes and no "Use instrument
         # margins" toggle, so the jig-safety threshold clamp is intentionally
@@ -1954,7 +1967,17 @@ class ChartCreator:
             kw["randomize"] = False
         if params.instrument == "XRISIS":
             kw["isis_trailer_lines"] = self._isis_trailer_lines(params)
+        self._add_i1io_notes(kw, params)
         return kw
+
+    @staticmethod
+    def _add_i1io_notes(kw: dict, params: "ChartParams") -> None:
+        """An i1iO chart (a Beta) prints the run's chart notes as the last
+        part of its name line, on every piece (its right edge holds the
+        crosses, so nothing is stamped there). As typed: `build_chart` fills
+        their placeholders in, page by page."""
+        if params.instrument == "IO2" and (params.chart_notes or "").strip():
+            kw["i1io_notes"] = params.chart_notes.strip()
 
     def _isis_trailer_lines(self, params: "ChartParams") -> list:
         """An i1iSis chart's notes and settings line (a Beta): nothing is
@@ -2113,6 +2136,8 @@ class ChartCreator:
             except Exception:  # noqa: BLE001 - a line, never a failure
                 log.debug("Barbieri summary lines unavailable", exc_info=True)
         elif not _is_isis(params.instrument):
+            for why in getattr(result, "notes", ()) or ():
+                on_line("[INFO] " + why)
             for why in getattr(result, "warnings", ()) or ():
                 on_line(tr("[WARNING] The i1iO table may not read this layout "
                            "well: {why}").format(why=why))
@@ -2176,8 +2201,31 @@ class ChartCreator:
                     self._stamp_tiff_metadata(tiffs, self._pending_params)
                 finally:
                     self._notes_build = None
+            self._compose_i1io_sheets(result, params, on_line)
 
         self._finish(tiffs)
+
+    def _compose_i1io_sheets(self, result, params: "ChartParams",
+                             on_line=None) -> None:
+        """The printed sheets of an i1iO chart whose pages are pieces, from
+        the pages just written. Derived files: what goes wrong here is logged
+        and built (or said) when the chart is printed, never a failed chart."""
+        try:
+            from workflow.i1io.support import i1io_enabled
+            if not i1io_enabled():
+                return
+            from workflow.i1io import sheets
+            if getattr(result, "i1io_pieces", "") and params.compose_sheets:
+                from core.i18n import tr
+                from workflow import measurement_messages as _mm
+                if on_line is not None:
+                    on_line(tr(_mm._I1IO_PIECES_BUILDING))
+                sheets.ensure(result.ti2_path)
+            else:
+                sheets.forget_of(result.ti2_path)
+        except Exception:  # noqa: BLE001 - derived files, built again at Print
+            log.warning("i1iO: the printed sheets were not built",
+                        exc_info=True)
 
     def _embed_layout_geometry(self, work_dir: Path, stem: str, result,
                                params: "ChartParams") -> None:
@@ -2215,13 +2263,15 @@ class ChartCreator:
                 # applied Preferences to a recipe that carried no style of its
                 # own — so this changes what a REBUILD does, never this build.
                 from dataclasses import replace as _replace
-                layout["recipe"] = _replace(
-                    params.layout_recipe, label_style_explicit=True).to_dict()
+                from workflow.layout_engine.presets import stored_recipe
+                layout["recipe"] = stored_recipe(_replace(
+                    params.layout_recipe, label_style_explicit=True), result)
             else:
                 # Store a real recipe (not raw build kwargs) so reloading doesn't
                 # lose fields like clip_border (which kwargs spell as nolpcbord)
                 # and the editor reproduces the exact layout (#93).
-                from workflow.layout_engine.presets import LayoutRecipe
+                from workflow.layout_engine.presets import (LayoutRecipe,
+                                                            stored_recipe)
                 _gkw = self._engine_build_kwargs(params)
                 _grec = LayoutRecipe.from_build_kwargs(_gkw)
                 if _grec.instrument == "IO2":
@@ -2233,7 +2283,7 @@ class ChartCreator:
                     # what Guided's i1iSis chart really used (a Beta)
                     from workflow.isis.chart import with_guided_values
                     _grec = with_guided_values(_grec)
-                layout["recipe"] = _grec.to_dict()
+                layout["recipe"] = stored_recipe(_grec, result)
                 # NOBODY CHOSE A GUIDED CHART'S MARGINS, AND THE NUMBERS THE
                 # RECIPE CARRIES ARE NOT THE ONES THE SHEET WAS LAID OUT TO.
                 #
@@ -2494,15 +2544,10 @@ class ChartCreator:
         # is not due to a missing parameter, or a setting that is empty."*
         # Nothing should hand the joiner a field with nothing in it.
         if (params.chart_notes or "").strip():
-            note = params.chart_notes.strip()
-            if ctx is not None and "{" in note:
-                from workflow.layout_engine.raster import resolve_keeping_logo
-                note = resolve_keeping_logo(note, ctx).strip()
-            elif "{logo}" in note:
-                # printed where no logo is drawn (an i1iSis chart's trailer):
-                # left out cleanly, never printed as the word
-                from workflow.layout_engine.raster import drop_the_logo
-                note = drop_the_logo(note).strip()
+            from workflow.layout_engine.raster import notes_line
+            # (without *ctx* printed where no logo is drawn, an i1iSis chart's
+            # trailer: a `{logo}` is left out cleanly, never the word)
+            note = notes_line(params.chart_notes, ctx)
             if note:
                 lines.append(note)
         if params.stamp_commands:

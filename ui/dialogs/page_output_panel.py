@@ -772,7 +772,7 @@ def custom_paper_code(panel: Any) -> str:
     """The ``"<W>x<H>"`` code of the custom page (fractions kept), turned
     upright for the i1iO as `selection` does."""
     w, h = custom_mm(panel)
-    if panel._i1io_chosen() and w > h:
+    if panel._i1io_chosen() and panel._i1io_lies(w, h):
         w, h = h, w
     return po.paper_code(w, h)
 
@@ -820,6 +820,31 @@ def needs_budget(panel: Any) -> bool:
     return po.needs_budget(dpi=_ppi(panel), paper=code)
 
 
+def divided_problem(panel: Any, pages: int = 1, *,
+                    words_only: bool = False) -> "str | None":
+    """Why the i1iO sheet on screen, when it is divided into pieces, is too
+    large to draw or to print (`i1io.sheets.budget_problem`), else None.
+    *pages* piece pages. *words_only*: without the sentence that nothing was
+    written (nothing was asked to be)."""
+    ask = getattr(panel, "_i1io_plan", None)
+    plan = ask() if callable(ask) else None
+    if plan is None:
+        return None
+    from workflow.i1io import sheets
+    bit16 = getattr(panel, "bit_depth", None) is not None and \
+        panel.bit_depth.currentData() == 16
+    kind = ink_kind(panel)
+    w, h = (po.pixels_of(v, _ppi(panel)) for v in plan.piece_mm)
+    why = (sheets.drawing_problem(w, h, pages, early=True, bit16=bit16,
+                                  **kind)
+           or sheets.budget_problem(plan, _ppi(panel), bit16=bit16,
+                                    early=True, **kind))
+    if why and words_only:
+        from workflow import measurement_messages as mm
+        why = why.removesuffix(" " + tr(mm._PAGE_NOTHING_WRITTEN))
+    return why
+
+
 def ink_kind(panel: Any) -> dict:
     """The chart's inks for the memory estimate (review F4): from the tab's
     Device Type when the panel has a source for it, else RGB."""
@@ -858,9 +883,13 @@ def refresh_readout(panel: Any) -> None:
             w=po.number(w), h=po.number(h), mpx=po.decimal(w * h / 1e6),
             ppi=_ppi(panel))
     kind = dict(ink_kind(panel), bit16=bit16)
-    over = needs_budget(panel) and \
+    divided = panel._i1io_plan() if hasattr(panel, "_i1io_plan") else None
+    over = divided is None and needs_budget(panel) and \
         po.estimated_bytes(w, h, pages, **kind) > po.MEMORY_BUDGET_BYTES
-    problem = size_problem(panel)
+    # an i1iO sheet of pieces: its pieces are drawn, and the sheet is printed
+    problem = size_problem(panel) or (
+        None if divided is None
+        else divided_problem(panel, pages * divided.count, words_only=True))
     if problem:
         # the typed size cannot be made at this resolution (R3-a): said,
         # never changed; the memory estimate of a page that will not be made

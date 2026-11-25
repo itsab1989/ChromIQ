@@ -3469,8 +3469,9 @@ class _NewChartDialog(QDialog):
                 rec.clip_border = self._eng_clip.isChecked()
                 rec.nolimit = self._eng_nocap.isChecked()
             geom = instruments.geom_from_build_kwargs(rec.build_kwargs())
-            w_mm, h_mm = papers.dimensions_mm(paper)
-            return geometry.patches_per_sheet(geom, w_mm, h_mm)
+            w_mm, h_mm = papers.piece_mm_of(rec)
+            return papers.patches_on_a_sheet(
+                geometry.patches_per_sheet(geom, w_mm, h_mm), rec)
         except Exception:
             return 0
 
@@ -8053,17 +8054,20 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
         """Build the engine Geom + paper mm for *recipe* (for spacer geometry)."""
         from workflow.layout_engine import instruments, papers
         geom = instruments.geom_from_build_kwargs(recipe.build_kwargs())
-        w_mm, h_mm = papers.dimensions_mm(recipe.paper)
+        w_mm, h_mm = papers.piece_mm_of(recipe)
         return geom, w_mm, h_mm
 
     def _engine_cap_per_page(self) -> int:
-        """Patches the engine fits on one sheet for the editor's current recipe,
-        or 0 when not resolvable. Used by the live "Pages" fill (#93)."""
+        """Patches the engine fits on one printed sheet for the editor's current
+        recipe, or 0 when not resolvable. Used by the live "Pages" fill (#93).
+        "Pages" are sheets here as in the New chart window and Create Chart:
+        an i1iO sheet of several pieces counts once."""
         try:
-            from workflow.layout_engine import geometry
+            from workflow.layout_engine import geometry, papers
             recipe = self._engine_panel.get_recipe()
             geom, w_mm, h_mm = self._engine_geom_from_recipe(recipe)
-            return geometry.patches_per_sheet(geom, w_mm, h_mm)
+            return papers.patches_on_a_sheet(
+                geometry.patches_per_sheet(geom, w_mm, h_mm), recipe)
         except Exception:  # noqa: BLE001 — best-effort
             return 0
 
@@ -8091,8 +8095,12 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
             for rgb in fresh:
                 self._grid.addItem(self._grid_item(rgb))
             self._renumber()
+            from workflow.layout_engine import papers
+            divided = papers.is_divided(self._engine_panel.get_recipe())
             self._status.setText(
-                tr("Filled to {p} pages — added {n} patches. Updating preview…")
+                (tr("Filled to {p} sheets: {n} patches added. Updating "
+                    "preview…") if divided else
+                 tr("Filled to {p} pages — added {n} patches. Updating preview…"))
                 .format(p=int(value), n=len(fresh)))
         self._engine_preview_timer.start()
 
@@ -8160,7 +8168,9 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
                     self._page = 0
                 self._show_image(tiffs[self._page])
                 self._update_page_nav()
-                self._sync_pages_spin(len(tiffs))   # keep "Pages" truthful (#93)
+                # keep "Pages" truthful (#93): the printed sheets
+                from workflow.layout_engine import papers as _papers
+                self._sync_pages_spin(_papers.sheets_of(len(tiffs), recipe))
                 # Cache spacer rects at the preview DPI so a preview click maps
                 # to the spacer the engine will recolour (#93).
                 from workflow.layout_engine import geometry, permutation
@@ -8883,7 +8893,8 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
         layout["engine_version"] = 1
         layout["seed"] = result.seed
         layout["color_rep"] = result.color_rep
-        layout["recipe"] = recipe.to_dict()
+        from workflow.layout_engine.presets import stored_recipe
+        layout["recipe"] = stored_recipe(recipe, result)
         # Top-level ``ink_channels`` so the preview can identify a multi-ink
         # chart's inks (the printtarg sidecar carries it too). Without it the
         # applied chart's preview could not decode a >4-channel TIFF and fell

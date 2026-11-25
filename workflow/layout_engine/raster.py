@@ -779,7 +779,7 @@ def strip_label_x_shift(geom, kw: dict) -> "StripLabelShift | None":
             return None
         dpi = int(kw.get("dpi") or 150)
         mm2px = dpi / 25.4
-        w_mm, h_mm = papers.dimensions_mm(kw.get("paper") or "A4")
+        w_mm, h_mm = papers.piece_mm_of(kw)
         layout = geometry.compute(geom, float(w_mm), float(h_mm), count)
         steps = int(layout.steps_in_pass or 0)
         if steps <= 0:
@@ -864,7 +864,7 @@ def strip_letters_against_markers(geom, kw: dict, tol_mm: float = 0.0
         def px(mm: float) -> int:
             return round(mm * mm2px)
 
-        w_mm, h_mm = papers.dimensions_mm(kw.get("paper") or "A4")
+        w_mm, h_mm = papers.piece_mm_of(kw)
         layout = geometry.compute(geom, float(w_mm), float(h_mm), count)
         steps = int(layout.steps_in_pass or 0)
         if steps <= 0:
@@ -1035,7 +1035,7 @@ def clip_lines_cut_across(geom, kw: dict, lines: "list[str]",
         return None
     try:
         from . import papers
-        pw, ph = papers.dimensions_mm(kw.get("paper") or "A4")
+        pw, ph = papers.piece_mm_of(kw)
         dpi = int(kw.get("dpi") or 300)
         mm2px = dpi / 25.4
         area = geometry.clip_area_px(geom, ph, dpi, pw, 0, 0.0)
@@ -1119,7 +1119,7 @@ def _provisional_strip_count(geom, kw: dict) -> int:
         total = int(kw.get("area_target_count") or 0)
         if total <= 0:
             return 0
-        w_mm, h_mm = papers.dimensions_mm(kw.get("paper") or "A4")
+        w_mm, h_mm = papers.piece_mm_of(kw)
         layout = geometry.compute(geom, float(w_mm), float(h_mm), total)
         steps = int(getattr(layout, "steps_in_pass", 0) or 0)
         if steps <= 0:
@@ -1447,7 +1447,8 @@ def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float, float, float, 
     if nlines and not float(kw.get("chart_text_size_mm") or 0.0):
         try:
             from . import papers as _papers
-            _pw_mm = float(_papers.dimensions_mm(str(kw.get("paper") or ""))[0])
+            _pw_mm = float(_papers.piece_mm_of(
+                {**kw, "paper": str(kw.get("paper") or "?")})[0])
             _cb = (float(kw.get("clip_border_width") or 0.0)
                    if float(kw.get("clip_border_width") or 0.0) > 0 else 0.0)
             _room = _tef.bottom_text_room_mm(
@@ -1510,6 +1511,10 @@ def resolve_placeholders(t: str, ctx: dict) -> str:
         # 4.3.42: a chart in fixed order prints no seed, and nothing of the
         # phrase that named it is left behind (`drop_the_seed`).
         t = drop_the_seed(t)
+    if t and "{sheet}" in t and ctx.get("sheet", None) == "":
+        # an i1iO chart whose sheets are one piece: no `{sheet}`, and nothing
+        # of what tied it to its neighbours (other charts know no `{sheet}`)
+        t = drop_the_token(t, "{sheet}")
     if t and LOGO_TOKEN in t:
         # `{logo}` is drawn only where `resolve_keeping_logo` keeps it for
         # the drawing; everywhere else it is left out cleanly, never printed
@@ -1535,15 +1540,12 @@ def resolve_placeholders(t: str, ctx: dict) -> str:
 _PLACEHOLDER = re.compile(r"(?<!\{)\{([A-Za-z_][A-Za-z0-9_]*)\}(?!\})")
 
 
-def drop_the_logo(t: str) -> str:
-    """*t* with every `{logo}` left out, for a place that cannot draw it
-    (the clip border's own text, an i1iO table chart, an i1iSis chart's
-    notes): the separator or bracket that tied it to its neighbour goes
-    with it, by the tidy-up rules of :func:`drop_the_seed`, so the line
-    reads as if it had never been typed."""
-    if LOGO_TOKEN not in t:
+def drop_the_token(t: str, token: str) -> str:
+    """*t* with every *token* left out, and with it the separator or bracket
+    that tied it to its neighbour (the tidy-up rules of `drop_the_seed`)."""
+    if token not in t:
         return t
-    t = t.replace(LOGO_TOKEN, _GONE)
+    t = t.replace(token, _GONE)
     for _ in range(8):
         before = t
         for rx, rep in _SEED_TIDY[:1]:
@@ -1553,6 +1555,15 @@ def drop_the_logo(t: str) -> str:
     for rx, rep in _SEED_TIDY[1:]:
         t = rx.sub(rep, t)
     return t.replace(_GONE, "")
+
+
+def drop_the_logo(t: str) -> str:
+    """*t* with every `{logo}` left out, for a place that cannot draw it
+    (the clip border's own text, an i1iSis chart's notes, an i1iO chart of
+    an earlier ChromIQ drawn again): the separator or bracket that tied it to its neighbour goes
+    with it, by the tidy-up rules of :func:`drop_the_seed`, so the line
+    reads as if it had never been typed."""
+    return drop_the_token(t, LOGO_TOKEN)
 
 
 # ---- {logo}: the ChromIQ wordmark inside a line of text (4.3.44) ------------
@@ -1746,6 +1757,18 @@ def draw_line_with_logo(img: Image.Image, xy, text: str, font,
         drawn.append(("text", x, piece))
         x += float(font.getlength(piece))
     return drawn
+
+
+def notes_line(notes: str, ctx: "dict | None") -> str:
+    """The run's chart notes as they are printed: with *ctx* their
+    placeholders filled in and `{logo}` left for the drawing; without it as
+    typed, a `{logo}` left out cleanly (printed where no logo is drawn)."""
+    note = str(notes or "").strip()
+    if ctx is not None and "{" in note:
+        return resolve_keeping_logo(note, ctx).strip()
+    if LOGO_TOKEN in note:
+        return drop_the_logo(note).strip()
+    return note
 
 
 def resolve_keeping_logo(t: str, ctx: dict) -> str:
@@ -2196,7 +2219,7 @@ def clip_content_reach_mm(geom, kw: dict) -> "float | None":
         return 0.0
     try:
         from . import papers
-        pw, ph = papers.dimensions_mm(kw.get("paper") or "A4")
+        pw, ph = papers.piece_mm_of(kw)
         dpi = int(min(300, int(kw.get("dpi") or 300)))
         lines = (len(clip_text_lines(kw.get("clip_text") or ""))
                  if mode == "text" else 0)
@@ -2503,7 +2526,7 @@ def _clear_the_side_stamp(geom, kw: dict, *, asked_l: float, floor: float,
     from workflow import text_edge_fit as _tef
     from . import papers
     try:
-        w_mm, h_mm = papers.dimensions_mm(kw.get("paper") or "A4")
+        w_mm, h_mm = papers.piece_mm_of(kw)
     except Exception:                     # noqa: BLE001 — unknown paper, no fix
         return geom
     if str(kw.get("orientation") or "").lower().startswith("land"):
@@ -2610,7 +2633,7 @@ def _rows_that_fit(geom, kw: dict) -> int:
         return 0
     from . import papers
     try:
-        _w, h_mm = papers.dimensions_mm(kw.get("paper") or "A4")
+        _w, h_mm = papers.piece_mm_of(kw)
     except Exception:              # noqa: BLE001 — an unknown paper is not fatal
         return 0
     if str(kw.get("orientation") or "").lower().startswith("land"):
@@ -3807,6 +3830,9 @@ def render_pages(
         # Per-page placeholder context: {page} = "page X/Y", plus the chart-wide
         # {project}/{paper}/… from text_ctx. Used for chart text + clip text.
         _pctx = dict(text_ctx or {})
+        # (a page's own values, an i1iO chart of pieces)
+        _pctx.update((_pctx.pop("_pages", None) or {}).get(page, {}))
+        _pctx = {k: v for k, v in _pctx.items() if not k.startswith("_")}
         _pctx["page"] = f"page {page + 1}/{layout.pages}"
         # `{logo}` stays in the Sheet text for the drawing below (4.3.44)
         _chart_text = resolve_keeping_logo(chart_text, _pctx)

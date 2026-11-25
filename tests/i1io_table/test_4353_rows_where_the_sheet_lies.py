@@ -402,6 +402,7 @@ def test_a_run_beyond_the_left_side_is_read_patch_by_patch_and_says_why(tmp_path
 
 @pytest.mark.parametrize("why, words", [
     ("strip_row_too_long", "too long"),
+    ("strip_row_patches_too_short", "too short"),
     ("strip_row_outside_area", "outside the part of the table"),
     ("strip_row_too_short", "not one straight run of at least 10 mm"),
     ("strip_row_not_on_a_line", "not one straight run of at least 10 mm"),

@@ -59,6 +59,9 @@ path construction are owned by `core/file_manager.py` via three classes:
       reports/                       # #127: things ChromIQ tells the user
         Quality_Check_N_<name>.txt / Refine_Strips_<name>.txt / report_*.json
       exports/                       # #127: hand-off files for other programs
+                                     # …and the printed sheets of an i1iO chart in
+                                     #   pieces: <stem>-sheet_01.tif, <stem>-sheets.json
+                                     #   (derived, rebuilt whenever they do not fit)
         <name>-colours.txt / <name>-i1profiler.txt / .pxf
       cache/                         # #127: tool intermediates — always safe to delete
         *-patchbox.cht / *-sample.cht / *-diag.tif

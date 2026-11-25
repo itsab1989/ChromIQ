@@ -34,6 +34,7 @@ here talks to a table.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -47,8 +48,12 @@ from . import table_facts as F
 #: custom paper sizes as well?"): every sheet that, laid across the table,
 #: lies inside the arm's reach (`sheet_size`), A4 and Letter first; Manual's
 #: "Custom..." takes any other size the same rule allows.
-GUIDED_PAPERS = ("A4", "Letter", "203x254", "148x210", "130x180", "127x178",
-                 "4x6", "10x15cm", "postcard")
+ONE_PIECE_PAPERS = ("A4", "Letter", "203x254", "148x210", "130x180",
+                    "127x178", "4x6", "10x15cm", "postcard")
+#: ...and the larger sheets, divided into pieces that are cut apart
+#: (`workflow.i1io.pieces`): A3, Tabloid, A2, A3+.
+DIVIDED_PAPERS = ("A3", "11x17", "329x483", "A2")
+GUIDED_PAPERS = ONE_PIECE_PAPERS + DIVIDED_PAPERS
 
 #: The largest sheet the i1iO has been tried with in each direction (A4's
 #: height, Letter's width): a larger one inside the reach builds, with a
@@ -112,6 +117,240 @@ def with_guided_size(recipe, kw: dict):
     return recipe
 
 
+#: THE LIMITS A RECIPE WAS MADE UNDER. Every i1iO recipe made from now on
+#: carries LIMITS_NOW (recipe field and build-kwargs key `i1io_limits`). A
+#: recipe without it was made when an i1iO chart held patches of OLD_PATCH_MM
+#: and spacers of at least OLD_SPACER_MM, whatever it asked for; a value
+#: outside those is the i1iO's own size now (`asked_sizes`), never a size the
+#: old chart did not have and nobody chose.
+LIMITS_KEY = "i1io_limits"
+LIMITS_NOW = 2
+OLD_PATCH_MM = ((8.9, 20.0), (7.0, 20.0))         # along, across
+OLD_SPACER_MM = 1.0
+
+
+def asked_sizes(kw: dict) -> "tuple[float | None, float | None, float | None, bool]":
+    """``(along, across, spacer, replaced)``: the sizes *kw* (build kwargs)
+    asks for, None = automatic. Without LIMITS_NOW a patch size outside
+    OLD_PATCH_MM or a spacer under OLD_SPACER_MM is automatic, and *replaced*
+    says so."""
+    def num(v):
+        try:
+            return float(v) if v else None
+        except (TypeError, ValueError):
+            return None
+    along, across = num(kw.get("patch_h")), num(kw.get("patch_w"))
+    spacer = num(kw.get("spacer_width"))
+    try:
+        limits = int(kw.get(LIMITS_KEY) or 0)
+    except (TypeError, ValueError):
+        limits = 0
+    if limits >= LIMITS_NOW:
+        return along, across, spacer, False
+    (alo, ahi), (clo, chi) = OLD_PATCH_MM
+    replaced = False
+    if ((along is not None and not alo - 1e-6 <= along <= ahi + 1e-6)
+            or (across is not None and not clo - 1e-6 <= across <= chi + 1e-6)):
+        along = across = None
+        replaced = True
+    if spacer is not None and spacer < OLD_SPACER_MM - 1e-6:
+        spacer = None
+        replaced = True
+    return along, across, spacer, replaced
+
+
+#: What ChromIQ allowed on an i1iO chart until 4.3.65. Used only to SAY what a
+#: layout of that time comes out as now (`size_changes`); nothing is held to
+#: these any more.
+OLD_STRIP_GAP_MAX_MM = 3.0
+OLD_INTER_PATCH_MAX_MM = 2.0
+OLD_SPACER_SHARE = 0.2                            # of the patch's length
+OLD_LABEL_MAX_MM = 6.0
+
+
+def _earlier_sizes(kw: dict) -> dict:
+    """The sizes an earlier ChromIQ (to 4.3.65) printed for *kw* on an i1iO
+    chart, as build kwargs of today."""
+    def num(key):
+        try:
+            return float(kw.get(key) or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+    (alo, ahi), (clo, chi) = OLD_PATCH_MM
+    along = min(max(num("patch_h") or F.PATCH_ALONG_MM.value, alo), ahi)
+    across = min(max(num("patch_w") or F.PATCH_ACROSS_MM.value, clo), chi)
+    return {"patch_h": along, "patch_w": across,
+            "spacer_width": min(
+                max(num("spacer_width") or F.SPACER_MM.value, OLD_SPACER_MM),
+                max(OLD_SPACER_MM, OLD_SPACER_SHARE * along)),
+            "strip_gap": min(max(num("strip_gap"), 0.0), OLD_STRIP_GAP_MAX_MM),
+            "inter_patch": min(max(num("inter_patch"), 0.0),
+                               OLD_INTER_PATCH_MAX_MM),
+            "indicator_size_mm": min(max(num("indicator_size_mm"), 0.0),
+                                     OLD_LABEL_MAX_MM)}
+
+
+def size_changes(kw: dict) -> "list[tuple[str, str, str, str, bool]]":
+    """What comes out differently of *kw* (build kwargs of a layout without
+    LIMITS_NOW): ``(name, asked, before, now, replaced)``, sizes as text in mm,
+    *before* what an earlier ChromIQ printed, *replaced* where the size asked
+    for is not used (`asked_sizes`). Empty for a layout made now, and for one
+    that comes out as it did."""
+    try:
+        if int(kw.get(LIMITS_KEY) or 0) >= LIMITS_NOW:
+            return []
+    except (TypeError, ValueError):
+        pass
+    from core.i18n import decimal_text
+    from workflow import measurement_messages as _mm
+
+    def d(v):
+        return decimal_text(round(float(v), 2))
+
+    def num(key):
+        try:
+            return float(kw.get(key) or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+    was, now = _earlier_sizes(kw), fixed_build_kwargs(kw)
+    labels = now[LABELS_KEY]
+    out = []
+
+    def add(name, asked, before, new, show=d):
+        """One size (or pair): listed when it is not what it was, or when what
+        was asked for (None: nothing was) is not used at all."""
+        replaced = asked is not None and new != asked
+        if before != new or replaced:
+            out.append((tr(name), show(asked if asked is not None else new),
+                        show(before), show(new), replaced))
+    asked = (num("patch_h") or F.PATCH_ALONG_MM.value,
+             num("patch_w") or F.PATCH_ACROSS_MM.value)
+    add("Patch size", asked, (was["patch_h"], was["patch_w"]),
+        (now["patch_h"], now["patch_w"]),
+        lambda v: f"{d(v[0])} × {d(v[1])}")
+    if now["spacer_mode"] != "none":
+        add("Spacer size", num("spacer_width") or None, was["spacer_width"],
+            now["spacer_width"])
+    add("Inter-patch gap", None, was["inter_patch"], now["inter_patch"])
+    add("Strip gap", None, was["strip_gap"], now["strip_gap"])
+    if labels.rows or labels.columns:
+        size = num("indicator_size_mm")
+        add(_mm._I1IO_SIZE_LABELS, None, was["indicator_size_mm"],
+            now["indicator_size_mm"] if size else was["indicator_size_mm"])
+    return out
+
+
+def _sheet_counts(kw: dict) -> "tuple[int, int] | None":
+    """``(before, now)``: the patches a full sheet of *kw* held and holds;
+    None when *kw* names no paper or no layout comes out of it."""
+    if not kw.get("paper"):
+        return None
+    try:
+        from workflow.layout_engine import geometry, instruments, papers
+        from . import pieces
+        w, h = papers.dimensions_mm(str(kw["paper"]))
+        if not pieces.one_piece((w, h)):
+            return None            # an earlier ChromIQ refused such a sheet
+        out = []
+        for k in ({**kw, **_earlier_sizes(kw), LIMITS_KEY: LIMITS_NOW}, kw):
+            k = {**k, "instrument": "IO2"}
+            out.append(int(geometry.patches_per_sheet(
+                instruments.geom_from_build_kwargs(k), w, h)))
+        return out[0], out[1]
+    except Exception:            # noqa: BLE001 - a line, never a blocker
+        return None
+
+
+def old_size_message(kw: dict) -> str:
+    """M-I1IO-OLD-SIZE-REPLACED for *kw*, translated: what is not as it was,
+    each size by its name, and the patches of a full sheet before and now;
+    "" when nothing is."""
+    changes = size_changes(kw)
+    if not changes:
+        return ""
+    from workflow import measurement_messages as _mm
+    said = []
+    for name, asked, before, new, replaced in changes:
+        said.append(tr(_mm._I1IO_SIZE_NOT_USED if replaced and before == new
+                       else _mm._I1IO_SIZE_NOT_USED_EITHER if replaced
+                       else _mm._I1IO_SIZE_NOT_HELD).format(
+            name=name, asked=asked, before=before, now=new))
+    counts = _sheet_counts(kw)
+    if counts and counts[0] != counts[1]:
+        said.append(tr(_mm._I1IO_SIZE_COUNTS).format(
+            before=counts[0], now=counts[1]))
+    return tr(_mm._I1IO_OLD_SIZE_REPLACED).format(changes="; ".join(said))
+
+
+def with_own_sizes(recipe) -> "tuple[object, str]":
+    """``(recipe, what was said)``: an i1iO *recipe* with its automatic sizes
+    (0: the patch, the spacer) written out as the i1iO's own, which is what
+    they build, its out-of-range sizes of an earlier ChromIQ (or of another
+    instrument) replaced by them (`asked_sizes`; the message, translated, or
+    ""), and the marker LIMITS_NOW. Every other size stays as it was asked
+    for; where an earlier ChromIQ held it smaller, the message says so.
+    Another instrument's recipe unchanged."""
+    if getattr(recipe, "instrument", None) != "IO2":
+        return recipe, ""
+    from dataclasses import replace
+    try:
+        kw = dict(recipe.build_kwargs())
+    except Exception:            # noqa: BLE001 - the sizes alone then
+        kw = {}
+    kw.update({"patch_h": recipe.patch_h_mm, "patch_w": recipe.patch_w_mm,
+               "spacer_width": recipe.spacer_width_mm,
+               LIMITS_KEY: getattr(recipe, "i1io_limits", 0)})
+    along, across, spacer, _replaced = asked_sizes(kw)
+    return replace(
+        recipe, patch_w_mm=across or F.PATCH_ACROSS_MM.value,
+        patch_h_mm=along or F.PATCH_ALONG_MM.value,
+        spacer_width_mm=spacer or F.SPACER_MM.value,
+        i1io_limits=LIMITS_NOW), old_size_message(kw)
+
+
+#: THE TWO CHART LAYOUTS (25 November 2026): "standard", the proven 10 x 8 mm,
+#: and "compact", 8 x 8 mm; both with the 1 mm spacer. A layout is nothing but
+#: its numbers: Manual's choice fills the boxes, a recipe keeps the boxes, and
+#: edited numbers are no layout's ("", shown as Custom). Guided has no boxes,
+#: so it keeps the name (`i1io_layout`).
+LAYOUT_STANDARD, LAYOUT_COMPACT = "standard", "compact"
+LAYOUTS = (LAYOUT_STANDARD, LAYOUT_COMPACT)
+
+
+def layout_sizes(name: str) -> "tuple[float, float, float]":
+    """``(along, across, spacer)`` in mm of the chart layout *name*."""
+    if name == LAYOUT_COMPACT:
+        return (F.COMPACT_ALONG_MM.value, F.COMPACT_ACROSS_MM.value,
+                F.SPACER_MM.value)
+    return F.PATCH_ALONG_MM.value, F.PATCH_ACROSS_MM.value, F.SPACER_MM.value
+
+
+def layout_named(along, across, spacer, *, spacer_mode="colored",
+                 strip_gap=0.0, inter_patch=0.0) -> str:
+    """The chart layout with these numbers (0 / None = automatic: the
+    standard's), or "" when no layout has them: a layout prints coloured
+    spacers and no gaps, so without them it is not that layout."""
+    if (spacer_mode or "colored") != "colored" or any(
+            abs(float(v or 0)) > 0.005 for v in (strip_gap, inter_patch)):
+        return ""
+    got = (float(along or 0) or F.PATCH_ALONG_MM.value,
+           float(across or 0) or F.PATCH_ACROSS_MM.value,
+           float(spacer or 0) or F.SPACER_MM.value)
+    for name in LAYOUTS:
+        if all(abs(a - b) < 0.005 for a, b in zip(got, layout_sizes(name))):
+            return name
+    return ""
+
+
+def layout_kwargs(name) -> dict:
+    """The build kwargs of Guided's chart layout *name*: the compact one's
+    sizes, nothing for the standard one (whose sizes are the defaults)."""
+    if str(name or "") != LAYOUT_COMPACT:
+        return {}
+    along, across, spacer = layout_sizes(LAYOUT_COMPACT)
+    return {"patch_h": along, "patch_w": across, "spacer_width": spacer}
+
+
 #: The build-kwargs key a caller sets for a GUIDED i1iO layout that hands
 #: margins on anyway (the Create Chart tab's estimate): Guided has no margin
 #: boxes, whatever the kwargs carry (review 5, item 4).
@@ -131,6 +370,8 @@ LABELS_KEY = "_i1io_labels"
 
 #: Schema of the side file (also in the `.ti2` keyword CHROMIQ_I1IO_LAYOUT).
 SCHEMA = 1
+#: ...of a chart whose pages are pieces of larger sheets.
+SCHEMA_PIECES = 2
 
 
 class I1ioSheetRefused(ValueError):
@@ -144,6 +385,10 @@ def paper_for(paper) -> str:
     paper = str(paper or "")
     if paper in GUIDED_PAPERS:
         return paper
+    # (a lying sheet of a size that is offered upright)
+    upright = {"594x420": "A2", "483x329": "329x483", "420x297": "A3"}
+    if paper in upright:
+        return upright[paper]
     return ("Letter" if paper in ("Letter", "LetterR", "Legal", "11x17")
             else "A4")
 
@@ -173,6 +418,16 @@ def i1io_paper_label(paper: str) -> str:
         w, h = dimensions_mm(paper)
     except (ValueError, TypeError):
         return str(paper)
+    from . import pieces
+    plan = pieces.plan_for((w, h))
+    if plan is not None:
+        # a sheet that is cut into pieces: named as it is printed, with them
+        from core.i18n import count_phrase
+        name = PAPER_LABELS.get(paper, f"{w:g} × {h:g} mm")
+        for tail in (" Portrait", " Landscape"):
+            name = name.removesuffix(tail)
+        return name + ", " + count_phrase(plan.count, tr("1 piece"),
+                                          tr("{n} pieces"))
     return f"{max(w, h):g} × {min(w, h):g} mm Landscape"
 
 
@@ -269,7 +524,8 @@ def label_wishes(kw: dict) -> Labels:
             kw.get("helper_marker_len") or 0.0) + 1.0)
     return Labels(columns=kw.get("row_indicators") is not False,
                   rows=kw.get("draw_indicators", True) is not False,
-                  size=label_size_mm(kw.get("indicator_size_mm")),
+                  size=label_size_mm(kw.get("indicator_size_mm"),
+                                     label_max_of(kw)),
                   edge=edge,
                   gap=max(0.0, _mm(kw.get("strip_indicator_gap"), 0.0)),
                   off_y=_mm(kw.get("strip_label_offset_mm"), 0.0),
@@ -296,14 +552,26 @@ def _mm(value, default: float) -> float:
         return default
 
 
-def label_size_mm(asked) -> float:
+def label_size_mm(asked, most: float) -> float:
     """The label size an i1iO chart prints for *asked* (0 = the engine's
-    automatic size): never above `table_facts.LABEL_MAX_MM` (review r3 M1)."""
+    automatic size): never above *most* (`label_max_of`, review r3 M1)."""
     try:
         size = float(asked or 0.0)
     except (TypeError, ValueError):
         size = 0.0
-    return min(max(size, 0.0), F.LABEL_MAX_MM.value)
+    return min(max(size, 0.0), float(most))
+
+
+def label_max_of(kw: dict) -> float:
+    """The largest label size on the chart of *kw* (build kwargs):
+    `table_facts.label_max_mm` at its strip pitch and patch pitch."""
+    along, across, spacer, _r = asked_sizes(kw)
+    along, across = F.patch_size_mm(along, across)
+    strip_gap, inter = F.gaps_mm(kw.get("strip_gap"), kw.get("inter_patch"))
+    none = (kw.get("spacer_mode") == "none"
+            or (kw.get("spacer_on") is False and kw.get("spacer_mode") is None))
+    between = inter + (0.0 if none else F.spacer_width_mm(spacer))
+    return F.label_max_mm(across + strip_gap, along + between)
 
 
 def fixed_build_kwargs(kw: dict) -> dict:
@@ -320,7 +588,8 @@ def fixed_build_kwargs(kw: dict) -> dict:
     out = dict(kw)
     # Engine terms: patch_h is the length ALONG a strip (the scan), patch_w
     # the width across it.
-    along, across = F.patch_size_mm(kw.get("patch_h"), kw.get("patch_w"))
+    asked_along, asked_across, asked_spacer, _r = asked_sizes(kw)
+    along, across = F.patch_size_mm(asked_along, asked_across)
     labels = label_wishes(kw)
     mode = kw.get("spacer_mode")
     if mode not in ("none", "colored", "bw"):
@@ -359,7 +628,7 @@ def fixed_build_kwargs(kw: dict) -> dict:
     out.update(
         patch_w=across, patch_h=along, pscale=1.0, sscale=1.0,
         spacer_on=mode != "none", spacer_mode=mode,
-        spacer_width=(F.spacer_width_mm(kw.get("spacer_width"), along)
+        spacer_width=(F.spacer_width_mm(asked_spacer)
                       if mode != "none" else None),
         inter_patch=inter_patch, strip_gap=strip_gap,
         # OPTIONS OPEN, DEFAULTS SAFE (the owner, 2026-11-13, Job D): the
@@ -382,7 +651,8 @@ def fixed_build_kwargs(kw: dict) -> dict:
         density=1, cm_stagger=False, nolpcbord=True, clip_band=0.0,
         clip_content_mode="off", chart_text="",
         stamp_command=False, side_stamp=False, strip_indicator_gap=0.0,
-        indicator_size_mm=label_size_mm(kw.get("indicator_size_mm")),
+        indicator_size_mm=label_size_mm(kw.get("indicator_size_mm"),
+                                        label_max_of(kw)),
         # the strip letters are drawn by `draw_furniture`, at the strips'
         # other end; the engine draws only the patch numbers
         draw_indicators=False, row_indicators=bool(labels.columns),
@@ -400,6 +670,16 @@ def fixed_build_kwargs(kw: dict) -> dict:
     )
     out[LABELS_KEY] = labels
     out[CROSSES_KEY] = crosses
+    # what an old recipe asked for outside its own limits is settled above:
+    # a second pass over *out* finds sizes of today
+    out[LIMITS_KEY] = LIMITS_NOW
+    # ...and so is whether the sheet is divided, decided on what was asked for
+    # (a recipe without the marker never is), and handed on as it was decided
+    from . import pieces
+    plan = pieces.plan_of({**kw, "instrument": "IO2"})
+    if plan is not None:
+        out[pieces.PIECES_KEY] = plan.token
+        out[pieces.PIECE_MM_KEY] = plan.piece_mm
     out[CLIP_KEY] = clip > 0
     if clip > 0:
         # THE CLIP BORDER (an option, off by default): the engine's notes
@@ -427,10 +707,29 @@ def least_margins_mm(kw: dict) -> "tuple[float, float, float, float]":
     patch numbers and the clip border, as asked for. The build floors the
     margins with this, and Manual's margin boxes offer nothing below it."""
     labels = label_wishes(kw)
-    return F.margins_mm(labels.rows, labels.size, numbers=labels.columns,
-                        crosses=crosses_of(kw), clip_mm=clip_width_of(kw),
-                        letter_band=letter_band_for(labels),
-                        numbers_edge=numbers_edge_of(kw))
+    top, right, bottom, left = F.margins_mm(
+        labels.rows, labels.size, numbers=labels.columns,
+        crosses=crosses_of(kw), clip_mm=clip_width_of(kw),
+        letter_band=letter_band_for(labels), numbers_edge=numbers_edge_of(kw))
+    # THE RUNS STAY INSIDE THE ARM'S REACH: the ends of a piece longer than
+    # it, with its letters off, are floored so that a run spans at most it
+    page_h = page_height_of(kw)
+    if page_h is not None:
+        top, bottom = F.run_ends_mm(page_h, top, bottom)
+    return top, right, bottom, left
+
+
+def page_height_of(kw: dict) -> "float | None":
+    """The length (mm) of the page the chart *kw* is laid out on, along its
+    strips; None when *kw* names no paper."""
+    paper = kw.get("paper")
+    if not paper:
+        return None
+    from . import pieces
+    try:
+        return float(pieces.piece_mm_of({**kw, "instrument": "IO2"})[1])
+    except (TypeError, ValueError):
+        return None
 
 
 #: The build-kwargs key for the patch numbers' distance from the paper edge
@@ -650,8 +949,7 @@ def capacity(kw: dict, crosses: bool, smallest: bool = False) -> int:
     if smallest:
         k["margins"] = least_margins_mm(k)
         k.pop(GUIDED_KEY, None)
-    paper = k.get("paper") or "A4"
-    w, h = papers.dimensions_mm(paper)
+    w, h = papers.piece_mm_of(k)
     return geometry.patches_per_sheet(instruments.geom_from_build_kwargs(k),
                                       w, h)
 
@@ -670,6 +968,27 @@ def sheet_size(paper: str) -> "tuple[float, float]":
         raise I1ioSheetRefused(tr(_mm._I1IO_SHEET_OVER_REACH).format(
             w=f"{w:g}", h=f"{h:g}", rx=f"{rx:g}", ry=f"{ry:g}"))
     return w, h
+
+
+def check_sheet_size(kw: dict) -> None:
+    """Refuse (`I1ioSheetRefused`) a sheet that is neither one piece
+    (`sheet_size`) nor can be divided into pieces (`pieces.plan_of`)."""
+    from . import pieces
+    refuse_bad_pieces(kw)
+    if pieces.plan_of({**kw, "instrument": "IO2"}) is None:
+        sheet_size(str(kw.get("paper") or "A4"))
+
+
+def refuse_bad_pieces(kw: dict) -> None:
+    """Refuse a recorded division that cannot be trusted
+    (`pieces.refuse_bad_record`), in words."""
+    from . import pieces
+    from workflow import measurement_messages as _mm
+    try:
+        pieces.refuse_bad_record(kw)
+    except pieces.PieceRecordError as exc:
+        pieces.log.warning("i1iO: the recorded division is refused: %s", exc)
+        raise I1ioSheetRefused(tr(_mm._I1IO_PIECES_RECORD_BAD)) from exc
 
 
 # ---- where everything goes, in mm on the portrait page -----------------------
@@ -766,6 +1085,41 @@ def on_page(crosses, page: int) -> bool:
     return bool(crosses)
 
 
+def page_shapes(layout) -> "list[tuple[int, int, int]]":
+    """``[(patches in the longest strip, strips, patches)]`` per page."""
+    out = []
+    steps = max(1, layout.steps_in_pass)
+    left = layout.total_patches
+    for _page in range(layout.pages):
+        n = min(left, layout.patches_per_page)
+        left -= n
+        out.append((min(n, steps), -(-n // steps), n))
+    return out
+
+
+def check_maxima(layout) -> None:
+    """Refuse (`I1ioSheetRefused`) a chart START would refuse for its shape:
+    more patches in a strip, strips or patches on a page, or pages, than
+    `table_facts.layout_maxima` (the table package's `caps.LAYOUT_MAXIMA` are
+    the same numbers). Before anything is written: never a chart that is
+    printed, cut and laid on the table and then cannot be measured."""
+    from workflow import measurement_messages as _mm
+    m = F.layout_maxima()
+
+    def refuse(text: str, n: int, most: int) -> None:
+        raise I1ioSheetRefused(tr(text).format(n=n, max=most))
+
+    if layout.pages > m["pages"]:
+        refuse(_mm._I1IO_OVER_SHEETS, layout.pages, m["pages"])
+    for per_row, rows, count in page_shapes(layout):
+        if rows > m["rows"]:
+            refuse(_mm._I1IO_OVER_STRIPS, rows, m["rows"])
+        if per_row > m["per_row"]:
+            refuse(_mm._I1IO_OVER_PER_STRIP, per_row, m["per_row"])
+        if count > m["per_page"]:
+            refuse(_mm._I1IO_OVER_PER_SHEET, count, m["per_page"])
+
+
 def check_sheet(geom, layout, w: float, h: float,
                 crosses: "bool | list" = True,
                 reach: "float | None" = None) -> "list[str]":
@@ -785,6 +1139,7 @@ def check_sheet(geom, layout, w: float, h: float,
     *reach*: how far the band's content reaches (mm from the paper edge,
     `raster.clip_content_reach_mm`), else the geometry's."""
     from workflow import measurement_messages as _mm
+    check_maxima(layout)
     warn: "list[str]" = []
 
     def risky(text: str) -> None:
@@ -836,12 +1191,42 @@ def check_sheet(geom, layout, w: float, h: float,
     return warn
 
 
+def size_notes(kw: dict) -> "list[str]":
+    """What a chart's sizes mean for reading it (*kw* after
+    `fixed_build_kwargs`), translated: patches so small that the instrument
+    can see the one beside, patches not yet read as strips, spacers nobody has
+    read."""
+    from core.i18n import decimal_text as d
+    from workflow import measurement_messages as _mm
+    out = []
+    along = float(kw.get("patch_h") or F.PATCH_ALONG_MM.value)
+    across = float(kw.get("patch_w") or F.PATCH_ACROSS_MM.value)
+    small = min(along, across)
+    share = 100.0 * F.neighbour_share(small)
+    if small < F.SMALL_PATCH_NOTE_MM.value - 1e-9 and share >= 0.05:
+        out.append(tr(_mm._I1IO_SMALL_PATCH).format(
+            share=d(share, 1), size=d(F.SMALL_PATCH_NOTE_MM.value)))
+    if along < F.STRIP_FROM_MM.value - 1e-9:
+        out.append(tr(_mm._I1IO_SPOT_PATCH).format(
+            size=d(F.STRIP_FROM_MM.value)))
+    elif along < F.SHORT_PATCH_NOTE_MM.value - 1e-9:
+        out.append(tr(_mm._I1IO_SHORT_PATCH).format(
+            size=d(F.SHORT_PATCH_NOTE_MM.value)))
+    spacer = kw.get("spacer_width")
+    if (kw.get("spacer_mode") != "none" and spacer
+            and float(spacer) < F.SPACER_MM.value - 1e-9):
+        out.append(tr(_mm._I1IO_THIN_SPACER).format(
+            size=d(F.SPACER_MM.value)))
+    return out
+
+
 def option_warnings(kw: dict) -> "list[str]":
     """What a person's own options put on the blank paper the arm runs on
     (Job D: allowed, and said, as other instruments' charts say it): edge
     spacers, and ruler helper markers along the top and bottom edges."""
     from workflow import measurement_messages as _mm
     out = []
+    out += size_notes(kw)
     if kw.get("edge_spacers"):
         out.append(tr(_mm._I1IO_EDGE_SPACERS))
     if kw.get("helper_markers") and kw.get("helper_markers_top_bottom", True):
@@ -965,6 +1350,55 @@ def corners_far_enough(cells: dict) -> bool:
     return math.dist(pts[0], pts[1]) >= need and math.dist(pts[1], pts[2]) >= need
 
 
+def strip_turn_deg(cells: dict, pitch_mm: float) -> float:
+    """By how much (degrees) mark 3 aimed one strip too far in turns the corner
+    at mark 2 on a page whose corner patches are *cells* (`corner_cells`):
+    ``atan(strip pitch / distance between the aimed patches 2 and 3)``."""
+    import math
+    try:
+        pts = [((c[3] + c[5]) / 2.0, (c[4] + c[6]) / 2.0)
+               for c in (cells["bottom-left"], cells["bottom-right"])]
+    except (KeyError, TypeError, IndexError):
+        return 0.0
+    span = math.dist(*pts)
+    return 90.0 if span <= 0 else math.degrees(math.atan2(pitch_mm, span))
+
+
+def strip_turn_needed_deg() -> float:
+    """The turn from which one strip off is seen for sure: the alignment's
+    own limit plus what an honest alignment may be off the other way."""
+    return F.ALIGN_ANGLE_TOL_DEG.value + F.ALIGN_HONEST_DEG.value
+
+
+def corners_tell_a_strip(cells: dict, pitch_mm: float) -> bool:
+    """Whether a corner patch aimed at one strip off would be seen
+    (`strip_turn_deg` against `strip_turn_needed_deg`): the alignment's angle
+    check is the only check that sees it, and what passes it is read a whole
+    strip off at one end and filed. Corner patches are aimed at only then."""
+    return strip_turn_deg(cells, pitch_mm) >= strip_turn_needed_deg() - 1e-9
+
+
+def past_the_aims_mm(geom, layout, w: float, h: float, page: int,
+                     cells: "dict | None" = None) -> float:
+    """How far (mm, along the strips) a run of page *page* ends beyond the
+    corner patches a person aims at: the arm drives there without anybody
+    having aimed so far (`F.PAST_THE_AIMS_MM`)."""
+    cells = cells or corner_cells(geom, layout, w, h, page)
+    aimed = [(cells[k][4] + cells[k][6]) / 2.0 for k in CORNERS[:3] if k in cells]
+    if not aimed:
+        return 0.0
+    out = 0.0
+    for _x, start, end, _col in scan_strips(page_patches(geom, layout, w, h, page)):
+        out = max(out, min(aimed) - start, end - max(aimed))
+    return out
+
+
+def runs_stay_by_the_aims(geom, layout, w: float, h: float, page: int,
+                          cells: "dict | None" = None) -> bool:
+    return (past_the_aims_mm(geom, layout, w, h, page, cells)
+            <= F.PAST_THE_AIMS_MM.value + 0.02)
+
+
 def page_crosses(target, layout, geom, w: float, h: float,
                  slots: "list[int]", crosses: bool) -> "list[bool]":
     """One answer per page: does it carry the crosses? All pages do when the
@@ -978,7 +1412,11 @@ def page_crosses(target, layout, geom, w: float, h: float,
     * a page whose corner holds no visible patch (near white,
       `visible`): paper is not a target;
     * 4.3.57 (item 30): a page whose corner patches lie too close together,
-      across or along the rows, to align on (`corners_far_enough`).
+      across or along the rows, to align on (`corners_far_enough`);
+    * a page whose strips are so narrow for their length that a corner patch
+      aimed at one strip off would not be seen (`corners_tell_a_strip`);
+    * a page whose patches are so long that a run ends more than
+      `F.PAST_THE_AIMS_MM` beyond the corner patches (`runs_stay_by_the_aims`).
 
     The crosses' places lie outside the patches: since 4.3.57 a chart
     without crosses keeps their margins unless a person lowers them by hand
@@ -1009,7 +1447,43 @@ def page_crosses(target, layout, geom, w: float, h: float,
             # unless a person lowered the margins by hand; then the build says
             # so, `corner_warnings`)
             ok = False
+        if ok and not corners_tell_a_strip(cells, float(geom.rrsp)):
+            # aimed one strip off, such a page would pass the alignment and be
+            # read wrongly: it keeps its crosses (where their room is free;
+            # else `narrow_strip_notes` refuses it)
+            ok = False
+        if ok and not runs_stay_by_the_aims(geom, layout, w, h, page, cells):
+            ok = False           # the same, for the arm's sake
         out.append(not ok)
+    return out
+
+
+def narrow_strip_notes(geom, layout, w: float, h: float, crosses: bool,
+                       pages: "bool | list") -> "list[str]":
+    """Of a chart asked for without crosses (*crosses* False): a line,
+    translated, when pages keep them because their strips are too narrow for
+    corner patches (`corners_tell_a_strip`), or their patches so long that the
+    arm would drive too far past them (`runs_stay_by_the_aims`); refused
+    (`I1ioSheetRefused`) when such a page has no room for them (margins lowered
+    by hand)."""
+    from workflow import measurement_messages as _mm
+    if crosses:
+        return []
+    out: "list[str]" = []
+    for page in range(layout.pages):
+        cells = corner_cells(geom, layout, w, h, page)
+        if len(cells) != 4:
+            continue
+        whys = []
+        if not corners_tell_a_strip(cells, float(geom.rrsp)):
+            whys.append((_mm._I1IO_NARROW_KEEPS_CROSSES, _mm._I1IO_NARROW_NO_ROOM))
+        if not runs_stay_by_the_aims(geom, layout, w, h, page, cells):
+            whys.append((_mm._I1IO_LONG_KEEPS_CROSSES, _mm._I1IO_LONG_NO_ROOM))
+        if whys and not crosses_fit(geom, layout, w, h, page):
+            raise I1ioSheetRefused(tr(whys[0][1]).format(page=page + 1))
+        for keeps, _no_room in whys:
+            if on_page(pages, page) and tr(keeps) not in out:
+                out.append(tr(keeps))
     return out
 
 
@@ -1296,6 +1770,46 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
                                   rgb, var))
             return tile.width, tile.height
 
+        def turned_line(txt: str, pen: "tuple[float, float]", size_px: int,
+                        family: str = "Inter", italic: bool = False,
+                        bold: bool = True) -> None:
+            """`turned_text` from its pen, with every `{logo}` drawn as the
+            wordmark on the text's baseline (the engine's own tile, turned:
+            whole quarter turns, no pixel is resampled)."""
+            from workflow.layout_engine import raster
+            if raster.LOGO_TOKEN not in txt:
+                turned_text(txt, pen, size_px, family=family, italic=italic,
+                            bold=bold, anchor="pen")
+                return
+            font, _path, _var = _font(size_px, family, italic, bold)
+            tile = raster.logo_tile(raster._cap_px(font))
+            if tile is None:
+                raster.log.info(
+                    "{logo} left out of the line %r: the text is %.1f px tall "
+                    "there, and the logo needs at least %d px to stay "
+                    "recognisable", txt, raster._cap_px(font),
+                    raster.LOGO_MIN_CAP_PX)
+                txt = raster.drop_the_logo(txt)
+            x, y = pen
+            for piece in raster.split_logo(txt):
+                if piece is not None:
+                    turned_text(piece, (x, y), size_px, family=family,
+                                italic=italic, bold=bold, anchor="pen")
+                    y -= font.getlength(piece) / s
+                    continue
+                im, base = tile
+                turned = im.transpose(Image.Transpose.ROTATE_90)
+                at = (px(x) - base, px(y) - im.width)
+                img.paste(turned.convert("RGB"), at, turned)
+                if geom_list is not None:
+                    # the wordmark has no vector form: the PDF takes the
+                    # pixels painted, as it does in the other charts' lines
+                    import numpy as np
+                    geom_list.append(("clip", at, np.asarray(img.crop(
+                        (*at, at[0] + turned.width, at[1] + turned.height)
+                    ).convert("RGB"))))
+                y -= im.width / s
+
         here = on_page(crosses, index)
         for mark in (marks(w, h) if here else ()):
             cx, cy = mark.centre_mm
@@ -1359,14 +1873,13 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
             # the sheet text in its own face and size (`SheetTextStyle`),
             # every part's visual middle on the one line
             for part in plan["parts"]:
-                turned_text(part["text"], (part["baseline_x"], part["y"]),
+                turned_line(part["text"], (part["baseline_x"], part["y"]),
                             part["size_px"], family=part["family"],
-                            italic=part["italic"], bold=part["bold"],
-                            anchor="pen")
+                            italic=part["italic"], bold=part["bold"])
         elif plan["text"]:
-            turned_text(plan["text"], (plan["text_baseline_x"],
+            turned_line(plan["text"], (plan["text_baseline_x"],
                                        plan["text_y"]),
-                        plan["text_size_px"], anchor="pen")
+                        plan["text_size_px"])
 
 
 #: The wordmark as the engine draws it on every other chart
@@ -1395,25 +1908,107 @@ TEXT_MIN_CHARS = 12
 TEXT_SEP = "  ·  "
 
 
+def piece_contexts(plan, layout) -> dict:
+    """What a placeholder says on ONE page where it differs from the whole
+    chart: ``{"sheet": ..., "_pages": {page index: {...}}}``, to be merged
+    into the chart's text context (`raster.render_pages` and `page_context`
+    take a page's own). On a chart whose sheets hold several pieces
+    `{patchcount}` is the piece's own count and `{sheet}` says which sheet
+    ("2/2"); on every other i1iO chart `{sheet}` is nothing."""
+    out: dict = {"sheet": ""}
+    if plan is None or plan.count < 2:
+        return out
+    sheets = -(-layout.pages // plan.count)
+    own = {}
+    for page in range(layout.pages):
+        n = min(layout.patches_per_page,
+                layout.total_patches - page * layout.patches_per_page)
+        own[page] = {"sheet": f"{plan.sheet_of(page)[0] + 1}/{sheets}",
+                     "patchcount": f"{max(0, n)} patches"}
+    out.update(own[0], _pages=own)
+    return out
+
+
+def page_context(text_ctx: "dict | None", index: int) -> dict:
+    """The placeholder values of page *index*: the chart's, with the page's
+    own over them (`piece_contexts`)."""
+    ctx = dict(text_ctx or {})
+    ctx.update((ctx.pop("_pages", None) or {}).get(index, {}))
+    return ctx
+
+
 def page_line_parts(name, index: int, pages: int, sheet_text: str = "",
                     text_ctx: "dict | None" = None) -> "tuple[str, str]":
     """The text line of page *index* in its two parts: ``(head, extra)``,
     the page "N/M" (more than one page) with the chart's name, and Manual's
-    sheet text with its fields filled in."""
+    sheet text with its fields filled in (the chart notes are `page_note`)."""
     head = str(name or "")
+    text_ctx = page_context(text_ctx, index)
     if pages > 1:
         head = f"{index + 1}/{pages}{TEXT_SEP}{head}" if head else \
             f"{index + 1}/{pages}"
-    extra = str(sheet_text or "").strip()
+    extra = one_line(sheet_text)
     if extra:
-        for key, value in (text_ctx or {}).items():
-            extra = extra.replace("{" + key + "}", str(value))
-        extra = extra.replace("{page}", f"{index + 1}/{pages}")
-        # `{logo}` is not drawn on an i1iO table chart: left out cleanly,
-        # never printed as the word (4.3.44 re-review)
+        if text_ctx.get("sheet") == "":
+            # no sheet of several pieces: `{sheet}` and what ties it to its
+            # neighbours are left out, as `{seed}` is
+            from workflow.layout_engine.raster import drop_the_token
+            extra = drop_the_token(extra, "{sheet}")
+        for key, value in text_ctx.items():
+            if not key.startswith("_"):
+                extra = extra.replace("{" + key + "}", str(value))
+        extra = extra.replace("{page}", f"{index + 1}/{pages}").strip()
+    if "{logo}" in extra and not text_ctx.get(LOGO_CTX):
+        # a chart of an earlier ChromIQ: `{logo}` was not drawn on it, and it
+        # is drawn again as it was printed
         from workflow.layout_engine.raster import drop_the_logo
         extra = drop_the_logo(extra).strip()
     return head, extra
+
+
+#: What no line can hold: line breaks, tabs and other control characters (a
+#: pasted text keeps them), with the blanks round them.
+_BREAKS = re.compile(r"[ ]*[\x00-\x1f\x7f-\x9f\u2028\u2029]"
+                     r"[ \x00-\x1f\x7f-\x9f\u2028\u2029]*")
+
+
+def one_line(text) -> str:
+    """*text* as one printed line: every line break and control character one
+    space (what is stored keeps them)."""
+    return _BREAKS.sub(" ", str(text or "")).strip()
+
+
+def note_said(text: str, note: str) -> str:
+    """What is said when a page's line *text* does not print the whole chart
+    notes *note* (M-I1IO-NOTE-CUT): shortened, or left off; "" when it does."""
+    if not note or text.endswith(note):
+        return ""
+    from workflow import measurement_messages as _mm
+    cut = text.endswith("…") and (TEXT_SEP + note[:NOTE_MIN_CHARS] in text
+                                  or text.startswith(note[:NOTE_MIN_CHARS]))
+    return tr(_mm._I1IO_NOTE_SHORTENED if cut else _mm._I1IO_NOTE_LEFT_OFF)
+
+
+def page_note(index: int, pages: int, text_ctx: "dict | None" = None) -> str:
+    """The chart notes as page *index* prints them, the last part of its line
+    and the first to be shortened (Basti's ruling, 25 November 2026):
+    with the page's own values, filled in by the engine's rule for notes."""
+    text_ctx = page_context(text_ctx, index)
+    note = str(text_ctx.get(NOTES_CTX) or "").strip()
+    if not note:
+        return ""
+    from workflow.layout_engine.raster import drop_the_logo, notes_line
+    note = one_line(notes_line(note, {
+        **{k: v for k, v in text_ctx.items() if not k.startswith("_")},
+        "page": f"page {index + 1}/{pages}"}))
+    if "{logo}" in note and not text_ctx.get(LOGO_CTX):
+        note = drop_the_logo(note).strip()
+    return note
+
+
+#: Keys of the text context (never placeholders: their names are none): the
+#: chart notes to print, and whether `{logo}` is drawn (a layout of today).
+NOTES_CTX, LOGO_CTX = "_notes", "_logo"
 
 
 def page_line_text(name, index: int, pages: int, sheet_text: str = "",
@@ -1424,6 +2019,26 @@ def page_line_text(name, index: int, pages: int, sheet_text: str = "",
     if head and extra:
         return f"{head}{TEXT_SEP}{extra}"
     return head or extra
+
+
+def _tlen(probe, t: str, font) -> float:
+    """The length of *t* in pixels, a `{logo}` as the wordmark it is drawn as
+    (the engine's own measure; a text without it as PIL measures it)."""
+    if "{logo}" in t:
+        from workflow.layout_engine.raster import line_length_px
+        return line_length_px(t, font)
+    return probe.textlength(t, font=font)
+
+
+def _upto(t: str, keep: int) -> str:
+    """The first *keep* characters of *t*, never ending inside a `{logo}`
+    (it goes as one)."""
+    i = t.find("{logo}")
+    while 0 <= i < keep:
+        if i + len("{logo}") > keep:
+            return t[:i]
+        i = t.find("{logo}", i + 1)
+    return t[:max(0, keep)]
 
 
 def _cap_mm(font, s: float) -> float:
@@ -1462,7 +2077,7 @@ def text_line_plan(w: float, h: float, full: str, dpi: int,
     text_font, _p, _v = _font(text_px, "Inter")
 
     def text_len(t: str) -> float:
-        return probe.textlength(t, font=text_font) / s if t else 0.0
+        return _tlen(probe, t, text_font) / s if t else 0.0
 
     def wordmark(size_mm: float):
         size_px = max(1, int(round(size_mm / 0.74 * s)))
@@ -1479,13 +2094,13 @@ def text_line_plan(w: float, h: float, full: str, dpi: int,
         keep = len(t)
         label = t
         while label and text_len(label) > length + 1e-9:
-            keep -= 1
+            keep = len(_upto(t, keep - 1))
             label = t[:keep] + "…" if keep > 0 else ""
         return label
 
     def short_min(t: str) -> float:
         return text_len(t if len(t) <= TEXT_MIN_CHARS
-                        else t[:TEXT_MIN_CHARS] + "…")
+                        else _upto(t, TEXT_MIN_CHARS) + "…")
 
     full = str(full or "")
     chosen, label = None, full
@@ -1583,7 +2198,7 @@ def _parts_at(parts, line_x: float, y: float, s: float, probe) -> list:
         out.append({"text": text, "family": family, "italic": bool(italic),
                     "bold": bool(bold), "size_px": int(size_px),
                     "baseline_x": line_x + _cap_mm(font, s) / 2.0, "y": y})
-        y -= probe.textlength(text, font=font) / s
+        y -= _tlen(probe, text, font) / s
     return out
 
 
@@ -1620,7 +2235,7 @@ def styled_line_plan(w: float, h: float, head: str, extra: str, dpi: int,
     head_part = f"{head}{TEXT_SEP}" if head else ""
 
     def plen(parts) -> float:
-        return sum(probe.textlength(t, font=f) for t, f in parts if t) / s
+        return sum(_tlen(probe, t, f) for t, f in parts if t) / s
 
     # …AND ALONG IT (review R4): the largest size at which the whole line
     # fits beside the full-size logo, down to the smallest capitals; when
@@ -1649,7 +2264,7 @@ def styled_line_plan(w: float, h: float, head: str, extra: str, dpi: int,
         while plen(((ht, text_font), (xt, xfont))) > length + 1e-9:
             if xt:
                 core = xt[:-1] if xt.endswith("…") else xt
-                core = core[:-1].rstrip()
+                core = _upto(core, len(core) - 1).rstrip()
                 xt = core + "…" if core else ""
                 if not xt:
                     ht = head      # no sheet text: no separator either
@@ -1669,7 +2284,7 @@ def styled_line_plan(w: float, h: float, head: str, extra: str, dpi: int,
         if keep <= len(head_part):
             return plen(((head_part[:keep] + "…", text_font),))
         return plen(((head_part, text_font),
-                     (extra[:keep - len(head_part)] + "…", xfont)))
+                     (_upto(extra, keep - len(head_part)) + "…", xfont)))
 
     def wordmark(size_mm: float):
         size_px = max(1, int(round(size_mm / 0.74 * s)))
@@ -1720,6 +2335,98 @@ def styled_line_plan(w: float, h: float, head: str, extra: str, dpi: int,
          (xt, style.family, style.italic, style.bold, xpx, xfont)],
         line_x, y, s, probe)
     return out
+
+
+def add_note(plan: dict, note: str, dpi: int, *, before=(), room: float, mid_y: float,
+             top_y: float, up: float, down: float,
+             style: "SheetTextStyle | None" = None, align: str = "") -> dict:
+    """*plan* (a text line) with the chart notes set after it: they get what
+    the line leaves of *room*, cut with "…" to fit, and nothing else of the
+    line changes for them (none where a part of *before* was shortened). Set in the sheet text's face, and no larger than
+    the sheet text that is there; across the line inside *up* and *down*
+    (mm from its middle). Centred about *mid_y*, or from *top_y* with
+    *align* "start". ``plan["note"]``: what is printed of it."""
+    plan["note"], plan["note_whole"] = "", not note
+    if not note or not (plan["text"] or plan["wordmark"]) or any(
+            part and part not in plan["text"] for part in before):
+        return plan
+    from PIL import Image, ImageDraw
+    s = dpi / 25.4
+    probe = ImageDraw.Draw(Image.new("L", (1, 1)))
+    parts = list(plan.get("parts") or ())
+    face = style or DEFAULT_TEXT_STYLE
+    if style is None:
+        px = int(plan["text_size_px"])
+    else:
+        px = _style_px(style, s)
+        if len(parts) > 1:
+            px = min(px, int(parts[-1]["size_px"]))
+    font = _font(px, face.family, face.italic, face.bold)[0]
+    probe_x = _font(200, face.family, face.italic, face.bold)[0]
+    floor = min(px, max(1, int(round(200 * (F.TEXT_MIN_CAP_MM.value * s)
+                                     / _cap_mm(probe_x, 1.0)))))
+    while True:
+        u, d = _across(probe, font, note + "Hgy…", s)
+        if u <= up + 1e-9 and d <= down + 1e-9:
+            break
+        if px <= floor:
+            return plan
+        px = max(floor, min(px - 1, int(px * 0.95)))
+        font = _font(px, face.family, face.italic, face.bold)[0]
+    sep = TEXT_SEP if plan["text"] else ""
+    y0, y1 = plan["group"]
+    left = room - (y1 - y0) - (0.0 if plan["text"] else WORDMARK_GAP_MM)
+
+    def fits(t: str) -> bool:
+        return _tlen(probe, sep + t, font) / s <= left + 1e-9
+
+    shown = note
+    if not fits(note):
+        # the longest beginning that fits, found by halving: a note has no
+        # limit and must not cost seconds
+        lo, hi = 0, len(note)
+        while hi - lo > 1:
+            mid = (lo + hi) // 2
+            if fits(_upto(note, mid).rstrip() + "…"):
+                lo = mid
+            else:
+                hi = mid
+        shown = _upto(note, lo).rstrip()
+        if len(shown) < NOTE_MIN_CHARS:
+            return plan
+        shown += "…"
+    length = _tlen(probe, sep + shown, font) / s
+    total = (y1 - y0) + (0.0 if plan["text"] else WORDMARK_GAP_MM) + length
+    start = top_y if align == "start" else mid_y + total / 2.0
+    by = start - y1
+    wm = plan["wordmark"]
+    if wm is not None:
+        wm["chrom_y"] += by
+        wm["iq_y"] += by
+        x0, b0, x1, b1 = wm["box"]
+        wm["box"] = (x0, b0 + by, x1, b1 + by)
+    plan["text_y"] += by
+    if not parts and plan["text"]:
+        parts = [{"text": plan["text"], "family": "Inter", "italic": False,
+                  "bold": True, "size_px": plan["text_size_px"],
+                  "baseline_x": plan["text_baseline_x"],
+                  "y": plan["text_y"] - by}]
+    for p in parts:
+        p["y"] += by
+    parts.append({"text": sep + shown, "family": face.family,
+                  "italic": bool(face.italic), "bold": bool(face.bold),
+                  "size_px": int(px),
+                  "baseline_x": plan["line_x"] + _cap_mm(font, s) / 2.0,
+                  "y": start - total + length})
+    plan["parts"] = parts
+    plan["group"] = (start - total, start)
+    plan["text"] += sep + shown
+    plan["note"], plan["note_whole"] = shown, shown == note
+    return plan
+
+
+#: A note of which fewer characters fit is left off.
+NOTE_MIN_CHARS = 4
 
 
 # ---- without the crosses: the text line only where it costs nothing --------
@@ -1779,7 +2486,10 @@ def _across(probe, font, txt: str, s: float) -> "tuple[float, float]":
     middle (half the capital height above the baseline) towards the glyph
     tops and towards the descenders."""
     ascent = font.getmetrics()[0]
-    bb = probe.textbbox((0, 0), txt or "H", font=font)
+    # (the wordmark stands on the baseline, as tall as the capitals, and its
+    # Q reaches below it: a line with `{logo}` is measured with such letters)
+    bb = probe.textbbox((0, 0), txt.replace("{logo}", "CQg") or "H",
+                        font=font)
     cap = _cap_mm(font, s)
     up = (ascent - bb[1]) / s - cap / 2.0
     down = (bb[3] - ascent) / s + cap / 2.0
@@ -1898,7 +2608,7 @@ def free_text_plan(spot: dict, head: str, extra: str, dpi: int,
         size -= 0.5
 
     def tlen(f, t: str) -> float:
-        return probe.textlength(t, font=f) / s if t else 0.0
+        return _tlen(probe, t, f) / s if t else 0.0
 
     def fit(f, t: str, length: float, least: int) -> "str | None":
         """*t*, shortened with "…" to *length*, never below *least*
@@ -1907,7 +2617,7 @@ def free_text_plan(spot: dict, head: str, extra: str, dpi: int,
             return t
         keep = len(t) - 1
         while keep >= least:
-            label = t[:keep].rstrip() + "…"
+            label = _upto(t, keep).rstrip() + "…"
             if tlen(f, label) <= length + 1e-9:
                 return label
             keep -= 1
@@ -2067,22 +2777,27 @@ def crosses_off_plan(geom, layout, w: float, h: float, page: int, head: str,
                      extra: str, dpi: int,
                      labels: "Labels | None" = None,
                      style: "SheetTextStyle | None" = None,
-                     align: str = "") -> dict:
+                     align: str = "", note: str = "") -> dict:
     """The text line of page *page* of a chart without the crosses: the best
     of the free spots (`free_spots`, `free_text_plan`), the bottom edge
-    when it keeps as much."""
-    best = None
+    when it keeps as much; the chart notes in what it leaves (`add_note`)."""
+    best, at = None, None
     for spot in free_spots(geom, layout, w, h, page, labels):
         plan = free_text_plan(spot, head, extra, dpi, style=style,
                               align=align)
         if best is None or _rank(plan) > _rank(best):
-            best = plan
+            best, at = plan, spot
     if best is None:
-        best = {"line_x": 0.0, "group": (0.0, 0.0), "text": "",
+        return {"line_x": 0.0, "group": (0.0, 0.0), "text": "",
                 "text_size_px": 1, "wordmark": None, "spot": None,
                 "kept": (), "name_whole": False, "name_small": False,
-                "text_baseline_x": 0.0, "text_y": 0.0}
-    return best
+                "text_baseline_x": 0.0, "text_y": 0.0, "note": "",
+                "note_whole": not note}
+    half = max(0.0, min(at["mid_y"] - at["y0"], at["y1"] - at["mid_y"]))
+    return add_note(best, note, dpi, before=(head, extra), room=2.0 * half,
+                    mid_y=at["mid_y"], top_y=at["mid_y"] + half,
+                    up=best["line_x"] - at["x0"],
+                    down=at["x1"] - best["line_x"], style=style, align=align)
 
 
 def line_plan(geom, layout, w: float, h: float, page: int, *, name: str,
@@ -2098,6 +2813,7 @@ def line_plan(geom, layout, w: float, h: float, page: int, *, name: str,
     page number, the chart name and the logo keep theirs."""
     pages = layout.pages
     head, extra = page_line_parts(name, page, pages, sheet_text, text_ctx)
+    note = page_note(page, pages, text_ctx)
     if crosses:
         if style is not None and extra:
             plan = styled_line_plan(w, h, head, extra, dpi, style, align)
@@ -2105,9 +2821,14 @@ def line_plan(geom, layout, w: float, h: float, page: int, *, name: str,
             plan = text_line_plan(w, h, page_line_text(
                 name, page, pages, sheet_text, text_ctx), dpi, align)
         plan.setdefault("spot", "between crosses 2 and 3")
-        return plan
+        m = marks(w, h)
+        x0, y0, x1, y1 = text_column(w, h)
+        return add_note(plan, note, dpi, before=(head, extra), room=y1 - y0,
+                        mid_y=(m[1].centre_mm[1] + m[2].centre_mm[1]) / 2.0,
+                        top_y=y1, up=plan["line_x"] - x0,
+                        down=x1 - plan["line_x"], style=style, align=align)
     return crosses_off_plan(geom, layout, w, h, page, head, extra, dpi,
-                            labels, style=style, align=align)
+                            labels, style=style, align=align, note=note)
 
 
 def crosses_off_effects(kw: dict, name: str = "", sheet_text: str = "",
@@ -2119,7 +2840,7 @@ def crosses_off_effects(kw: dict, name: str = "", sheet_text: str = "",
     "shortened" | "dropped", "logo": bool}``."""
     from workflow.layout_engine import geometry, instruments, papers
     k = {**kw, "instrument": "IO2", CROSSES_KEY: False}
-    w, h = papers.dimensions_mm(k.get("paper") or "A4")
+    w, h = papers.piece_mm_of(k)
     geom = instruments.geom_from_build_kwargs(k)
     per = geometry.patches_per_sheet(geom, w, h)
     pages = max(1, int(pages or 1))
@@ -2167,13 +2888,14 @@ LETTER_FONT = "JetBrains Mono"
 
 def letter_size_mm(geom, dpi: int, labels: "Labels | None") -> float:
     """The strip letters' size: Manual's, or the engine's automatic label
-    size (the patch numbers' own), never above LABEL_MAX_MM."""
+    size (the patch numbers' own), never above `table_facts.label_max_mm`."""
     from workflow.layout_engine import raster
     asked = float(labels.size) if labels is not None and labels.size else 0.0
     if not asked:
         asked = raster.effective_indicator_size_mm(geom, dpi, LETTER_FONT, 0.0)
+    most = F.label_max_mm(float(geom.rrsp), float(geom.plen) + float(geom.pspa))
     return min(asked, F.LETTER_AUTO_MM.value if not (
-        labels is not None and labels.size) else F.LABEL_MAX_MM.value)
+        labels is not None and labels.size) else most)
 
 
 def strip_letters(geom, layout, w: float, h: float, page: int, dpi: int,
@@ -2422,15 +3144,16 @@ def preview_checks(kw: dict):
         if count <= 0:
             return None, []
         dpi = int(kw.get("dpi") or 150)
-        w, h = (float(v) for v in papers.dimensions_mm(kw.get("paper")
-                                                       or "A4"))
+        try:
+            check_sheet_size({**kw, "instrument": "IO2"})
+        except I1ioSheetRefused as exc:
+            return None, [str(exc)]
+        w, h = (float(v) for v in papers.piece_mm_of(
+            {**kw, "instrument": "IO2"}))
         fixed = fixed_build_kwargs(kw)
         geom = instruments.geom_from_build_kwargs(kw)
         try:
-            sheet_size(str(kw.get("paper") or "A4"))
             layout = geometry.compute(geom, w, h, count)
-        except I1ioSheetRefused as exc:
-            return None, [str(exc)]
         except geometry.LayoutError:
             from workflow import measurement_messages as _mm
             return None, [tr(_mm._I1IO_SHEET_TOO_SMALL)]
@@ -2442,14 +3165,25 @@ def preview_checks(kw: dict):
         # the edge-spacer and ruler-marker warnings in the log only): the
         # sheet's own check, the options' and the letters' and numbers'
         warn: "list[str]" = []
+        _old = old_size_message(kw)
+        if _old:
+            warn.append(_old)
         # the name line: left off when no paper is free for it, as the build
         # says (`build_chart`)
         from workflow import measurement_messages as _mm
         _cr = bool(fixed[CROSSES_KEY])
+        _ctx = {NOTES_CTX: str(kw.get("i1io_notes") or ""), LOGO_CTX: True}
         for page in range(layout.pages):
             plan = line_plan(geom, layout, w, h, page,
                              name=str(kw.get("project") or "chart"),
-                             dpi=dpi, labels=labels, crosses=_cr)
+                             dpi=dpi, labels=labels, crosses=_cr,
+                             **({"sheet_text": str(kw.get("chart_text") or ""),
+                                 "style": text_style_of(kw), "text_ctx": _ctx}
+                                if _ctx[NOTES_CTX] else {}))
+            _said = note_said(plan.get("text") or "",
+                              page_note(page, layout.pages, _ctx))
+            if _said and plan.get("text") and _said not in warn:
+                warn.append(_said)
             # what the build records (`write_side_file`: the plan's text)
             if not plan.get("text"):
                 warn.append(tr(_mm._I1IO_LINE_LEFT_OFF_SMALL if _cr
@@ -2464,6 +3198,10 @@ def preview_checks(kw: dict):
             warn += check_sheet(geom, layout, w, h,
                                 crosses=fixed[CROSSES_KEY])
             warn += option_warnings(fixed)
+            if not fixed[CROSSES_KEY]:
+                warn += narrow_strip_notes(
+                    geom, layout, w, h, False,
+                    [True] * layout.pages)
             for why in furniture_warnings(geom, layout, w, h, dpi, labels,
                                           fixed[CROSSES_KEY], rule):
                 if why not in warn:
@@ -2595,7 +3333,7 @@ def write_side_file(path: Path, *, geom, layout, w: float, h: float,
                     slots: "list[int] | None" = None,
                     clip_content: str = "off",
                     text_style: "SheetTextStyle | None" = None,
-                    text_align: str = "") -> Path:
+                    text_align: str = "", pieces_plan=None) -> Path:
     """Write ``<stem>.i1io.json``: every mark, strip and patch in mm on the
     portrait page, what to aim at and where, for the measuring step.
     *slots* is the chart's own patch order (`sheet_slots`)."""
@@ -2661,9 +3399,20 @@ def write_side_file(path: Path, *, geom, layout, w: float, h: float,
                          "sample_id": sample_of[c[0]]}
                 for corner, c in corner_cells(geom, layout, w, h,
                                               page).items()}
+        if pieces_plan is not None:
+            # this page is a piece of a printed sheet: which sheet, which
+            # piece of it, and where it stands on the sheet
+            at, place = pieces_plan.sheet_of(page)
+            entry["piece"] = {"sheet": at + 1, "piece": place + 1,
+                              "place_mm": list(pieces_plan.places[place]),
+                              "turn": pieces_plan.turn}
         pages.append(entry)
     doc = {
-        "schema": SCHEMA,
+        # (schema 2: the pages are pieces of larger sheets, `sheet` says how)
+        "schema": SCHEMA if pieces_plan is None else SCHEMA_PIECES,
+        **({"sheet": {**pieces_plan.as_record(),
+                      "sheets": -(-layout.pages // pieces_plan.count)}}
+           if pieces_plan is not None else {}),
         "instrument": TARGET_INSTRUMENT,
         "table_model": TABLE_MODEL,
         "head_model": HEAD_MODEL,

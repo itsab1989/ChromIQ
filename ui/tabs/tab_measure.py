@@ -804,7 +804,7 @@ def edge_spacer_px_from_sidecar(ti2_path: "Path | None") -> int:
         recipe = layout.get("recipe") or {}
         from workflow.layout_engine import instruments
         from workflow.layout_engine.presets import build_kwargs_as_built
-        kw = build_kwargs_as_built(recipe)      # B8-1570: as it was built
+        kw = build_kwargs_as_built(recipe, ti2_path)  # B8-1570: as built
         if not kw.get("edge_spacers"):
             return 0
         geom = instruments.geom_from_build_kwargs(kw)
@@ -7607,6 +7607,38 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return True
         return False           # repaired — carry on and measure
 
+    def _blocked_by_the_pieces_record(self, chart) -> bool:
+        """True (and said, M-I1IO-PIECES-RECORD) when the record of which piece
+        of the printed sheet is which, or of where the patches lie on their
+        page, cannot be trusted: the table is not opened and nothing is
+        sent."""
+        from workflow.i1io import pieces
+        newer = False
+        try:
+            pieces.record_of(chart)
+            pieces.check_places(chart)
+            return False
+        except pieces.PieceRecordError as exc:
+            newer = isinstance(exc, pieces.NewerChartError)
+            log.warning("i1iO: START refused, the pieces' record: %s", exc)
+        from PyQt6.QtWidgets import QMessageBox
+        from workflow import measurement_messages as M
+        from ui.widgets import (fit_message_box_buttons,
+                                keep_message_box_inside_the_work_area)
+        title, body = (M.M_I1IO_CHART_NEWER.render(
+            sent=tr(M._I1IO_NOTHING_SENT)) if newer
+            else M.M_I1IO_PIECES_RECORD.render())
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        fit_message_box_buttons(box)
+        box.exec()
+        return True
+
     def _started_the_table_drive(self) -> bool:
         """True when START is answered by the i1iO table window (build step 9):
         i1iO support on, the loaded chart an i1iO 2 + i1Pro 2 chart of a
@@ -7629,6 +7661,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return False
         if sheet is None:
             return False
+        if self._blocked_by_the_pieces_record(chart):
+            return True
         if self._runner.is_running or getattr(self, "_table_window", None) is not None:
             return True
         if self._blocked_by_new_run() or self._blocked_by_missing_chart_file():
@@ -8100,12 +8134,16 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 self._table_aim_on_preview(ev)
             elif kind == "strip_fallback" and ev.get("why") in (
                     "strip_row_too_long", "strip_row_outside_area", "strip_row_too_short",
-                    "strip_row_not_on_a_line", "dual_row_patches_too_short"):
+                    "strip_row_not_on_a_line", "strip_row_patches_too_short",
+                    "dual_row_patches_too_short", "strip_row_not_in_its_place",
+                    "row_not_in_its_place"):
                 # round B: a strip row read patch by patch; 4.3.53: each reason in its own
                 # true words (until 4.3.52 a run outside the area said "too long")
                 from workflow import measurement_messages as M
                 self._log.appendPlainText(
-                    M.strip_fallback_text(ev.get("why"), ev.get("row", "?")))
+                    M.strip_fallback_text(
+                        ev.get("why"), ev.get("row", "?"), bool(isinstance((getattr(
+                            self, "_table_sheet", None) or {}).get("sheet"), dict))))
             elif kind == "row_start":
                 # round B: a strip session may read a row patch by patch (too long for one
                 # strip move, or chosen after a failed strip): ring its patches then
@@ -8123,6 +8161,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 self._table_highlight_row(int(ev.get("page") or 1) - 1,
                                           int(ev.get("row") or 0) - 1, [],
                                           status=str(ev.get("status") or "ended"))
+            elif kind == "row_dropped":
+                self._table_row_dropped(ev)
             elif kind == "patch_next":
                 if getattr(self, "_table_patch_by_patch", False) or \
                         getattr(self, "_table_row_kind", "") == "spot":
@@ -8179,6 +8219,37 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             self._preview.show_page(page)
         active = None if status else (row if 0 <= row < len(rows) else None)
         self._preview.set_table_rows(page, rows, done, active, failed)
+
+    def _table_row_dropped(self, ev: dict) -> None:
+        """The row identity check dropped a row: none of its readings is kept, so the painted
+        halves of its patches go, they count as unread again, and the row shows the mark of a
+        failed row; a row one patch off is said in the log."""
+        from workflow import measurement_messages as M
+        locs = [str(x) for x in (ev.get("locs") or ()) if x]
+        inputs = getattr(self, "_nb_inputs", None)
+        per_page: "dict[int, list]" = {}
+        for loc in locs:
+            if inputs is not None:
+                inputs.pop(loc, None)
+            page, box = self._locate_patch(loc)
+            if page >= 0 and box is not None:
+                per_page.setdefault(page, []).append(box)
+        for page, boxes in per_page.items():
+            self._preview.forget_patches(page, boxes)
+        self._progress_locs = set(getattr(self, "_progress_locs", ())) - set(locs)
+        if getattr(self, "_engine_patch_read", None):
+            self._engine_patch_read = set(self._engine_patch_read) - set(locs)
+            self._update_engine_read_map()
+        self._neighbour_forget(locs)
+        self._refresh_progress()
+        self._preview.highlight_patch(-1, None)
+        self._table_highlight_row(int(ev.get("page") or 1) - 1,
+                                  int(ev.get("row") or 0) - 1, [], status="failed")
+        if ev.get("why") in ("strip_row_not_in_its_place", "row_not_in_its_place"):
+            self._log.appendPlainText(
+                M.strip_fallback_text(
+                        ev.get("why"), ev.get("row", "?"), bool(isinstance((getattr(
+                            self, "_table_sheet", None) or {}).get("sheet"), dict))))
 
     def _table_row_cells(self, page: int) -> list:
         sheet = getattr(self, "_table_sheet", None) or {}

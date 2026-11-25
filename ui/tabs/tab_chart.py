@@ -2217,6 +2217,12 @@ _PHOTO_PAPER_TIP = (
 )
 
 
+def _paper_source(instr: str, paper: str) -> dict:
+    """What `layout_engine.papers` asks a sheet's page (or pieces) of, for an
+    instrument and a paper chosen on screen: a layout made now."""
+    return {"instrument": instr, "paper": paper, "i1io_limits": 2}
+
+
 def _paper_area_mm2(paper: str) -> float:
     """Sheet area in mm² for a printtarg -p value (named size or 'WxH')."""
     # Named sizes win over the "WxH" split so inch-designated codes like
@@ -4141,11 +4147,14 @@ def i1io_instrument_bullet_sheet() -> str:
         "moves your i1Pro 2 over the chart by itself. The chart is printed on "
         "an upright (portrait) sheet, A4, Letter or any smaller size the table "
         "takes, that you lay across the table, so its "
-        "strips run along the arm: patches of 10 × 8 mm with coloured "
+        "strips run along the arm: patches of 10 × 8 mm (or 8 × 8 mm with the "
+        "compact chart layout) with coloured "
         "spacers between them, and blank paper at both ends of every strip "
-        "so the arm can speed up and slow down. To show the table where the "
-        "sheet lies, you aim its arm at three points on it: by default three "
-        "small numbered aiming crosses in the corners (1 top left, 2 bottom "
+        "so the first and the last patch are read whole, even when the sheet "
+        "lies a little off. A larger sheet is printed whole and cut into "
+        "pieces, which the table reads one after the other. To show the table "
+        "where the sheet lies, you aim its arm at three points on it: by default three "
+        "small numbered aiming crosses in three corners (1 top left, 2 bottom "
         "left, 3 bottom right, as the sheet lies on the table). You can "
         "switch the crosses off; you then aim at the centres of three corner "
         "patches instead. In Guided their room is kept for the line with the "
@@ -4159,8 +4168,8 @@ def i1io_instrument_bullet_manual() -> str:
     """The i1iO bullet's second part: what Manual can change."""
     return tr(
         "In Manual you can change nearly every layout option, as for the "
-        "other instruments: the margins, the patch size (8.9 to 20 mm along "
-        "the strip, 7 to 20 mm across it), the spacers and gaps, the letters "
+        "other instruments: the margins, the patch size (from 5.5 mm; 7 mm or "
+        "more for values you can trust), the spacers and gaps, the letters "
         "and numbers with their patterns, typefaces, underline, offsets and "
         "distances, the sheet text, the ruler helper markers, and a clip "
         "border for notes along one long edge of the sheet (off by default; "
@@ -7681,6 +7690,21 @@ class TabChart(QWidget):
             dd_row.addSpacing(20)
             dd_row.addWidget(self._i1io_clip_check)
             dd_row.addWidget(self._i1io_clip_tooltip)
+            # …and, on a line of its own below, its "Chart layout" (the new
+            # chart layout, 2026-11-25): Standard or Compact.
+            from ui.dialogs.layout_options_panel import (fill_i1io_layouts,
+                                                         i1io_layout_help)
+            self._i1io_layout_label = QLabel(tr("Chart layout:"), inner)
+            self._i1io_layout_combo = QComboBox(inner)
+            fill_i1io_layouts(self._i1io_layout_combo)
+            self._i1io_layout_tooltip = TooltipButton(
+                tr("Chart layout (i1iO)"), i1io_layout_help(), inner,
+                min_width=600)
+            from workflow import measurement_messages as _mm
+            self._i1io_layout_note = QLabel(tr(_mm._I1IO_COMPACT_INFO), inner)
+            self._i1io_layout_note.setWordWrap(True)
+            self._i1io_layout_combo.currentIndexChanged.connect(
+                self._guided_i1io_layout_changed)
         if _isis_on():
             # THE i1iSis's GUIDED CHOICES (a Beta): the model width ("XL
             # models" for sheets wider than A4 or Letter) and the notes band
@@ -7736,6 +7760,15 @@ class TabChart(QWidget):
         dd_row.addWidget(self._td_tooltip)
         dd_row.addStretch()
         instr_layout.addLayout(dd_row)
+        if getattr(self, "_i1io_layout_combo", None) is not None:
+            _io_row = QHBoxLayout()
+            _io_row.addWidget(self._i1io_layout_label)
+            _io_row.addWidget(self._i1io_layout_combo)
+            _io_row.addWidget(self._i1io_layout_tooltip)
+            _io_row.addStretch()
+            instr_layout.addLayout(_io_row)
+            instr_layout.addWidget(self._i1io_layout_note)
+            self._show_guided_i1io_layout(False)
         layout.addWidget(instr_grp)
 
         # Paper
@@ -7773,6 +7806,11 @@ class TabChart(QWidget):
             min_width=600,
         ))
         paper_layout.addLayout(paper_row)
+        # an i1iO sheet larger than its table: what is printed and cut
+        self._i1io_pieces_note = QLabel("", inner)
+        self._i1io_pieces_note.setWordWrap(True)
+        self._i1io_pieces_note.setVisible(False)
+        paper_layout.addWidget(self._i1io_pieces_note)
         layout.addWidget(paper_grp)
 
         # Pages + left border
@@ -7781,7 +7819,8 @@ class TabChart(QWidget):
         pages_layout.setSpacing(6)
 
         pages_row = QHBoxLayout()
-        pages_row.addWidget(QLabel(tr("Number of pages:"), inner))
+        self._pages_row_lbl = QLabel(tr("Number of pages:"), inner)
+        pages_row.addWidget(self._pages_row_lbl)
         self._pages_spin = NoScrollSpinBox(inner)
         self._pages_spin.setRange(1, 20)
         self._pages_spin.setValue(1)
@@ -10020,7 +10059,10 @@ class TabChart(QWidget):
             geom = instruments.geom_from_build_kwargs(_kw)
             self._estimated_layout = self._predict_layout_info(
                 geom, r.paper, pages_req, npat=_npat,
-                dpi=getattr(r, "dpi", None))
+                dpi=getattr(r, "dpi", None),
+                # (how an i1iO sheet is cut into pieces stands in its recipe)
+                **({"source": r} if getattr(r, "instrument", "") == "IO2"
+                   else {}))
         except Exception:
             self._layout_info_panel.clear_estimate()
 
@@ -10182,6 +10224,18 @@ class TabChart(QWidget):
                            fd9_gap_mm=own.fd9_gap_mm,
                            inter_patch_mm=own.inter_patch_mm,
                            strip_gap_mm=own.strip_gap_mm)
+        if eng == "IO2" and getattr(recipe, "instrument", None) != "IO2":
+            # TURNED INTO AN i1iO RECIPE: a size the i1iO did not have before
+            # the wider limits (an i1Pro's 6 mm patch, a 0.4 mm spacer) is
+            # never taken over: the i1iO's own, and said once
+            from workflow.i1io.chart import with_own_sizes
+            out, said = with_own_sizes(replace(
+                recipe, instrument=eng, paper=paper, i1io_limits=0))
+            if said:
+                log.info("%s", said)
+                if getattr(self, "_log", None) is not None:
+                    self._on_log_line(said)
+            return out
         return replace(recipe, instrument=eng, paper=paper)
 
     def _sync_engine_panel_selection(self, instr: "str | None" = None,
@@ -11757,6 +11811,25 @@ class TabChart(QWidget):
                         "chart", exc_info=True)
         return profiling
 
+    def _say_if_chart_is_newer(self, ti2) -> None:
+        """M-I1IO-CHART-NEWER for an i1iO chart of a newer ChromIQ, once per
+        file as it is on disk; with i1iO support off nothing is read."""
+        try:
+            from workflow.i1io.support import i1io_enabled
+            if not i1io_enabled() or ti2 is None:
+                return
+            from workflow.i1io import pieces
+            stamp = (str(ti2), _file_stamp(Path(str(ti2)[:-4] + ".i1io.json")))
+            if stamp == getattr(self, "_newer_chart_said", None) or \
+                    not pieces.made_by_a_newer_chromiq(ti2):
+                return
+            self._newer_chart_said = stamp
+            from workflow import measurement_messages as M
+            title, body = M.M_I1IO_CHART_NEWER.render(sent="")
+            QTimer.singleShot(0, lambda: inform(self, title, body))
+        except Exception:      # noqa: BLE001 - a notice, never a blocker
+            log.debug("newer i1iO chart not asked about", exc_info=True)
+
     def _display_run_chart(self, ti2: Path, tiffs: list[Path], ti1: Path) -> None:
         """Show an existing chart (its pages, margins and own creation settings)
         in the Create-Chart tab and hand it to Print / Measure. Shared by
@@ -11775,6 +11848,7 @@ class TabChart(QWidget):
         # just switched to this run's verification chart.
         if self._reflected_active:
             self._leave_reflected()
+        self._say_if_chart_is_newer(ti2)
         self._preview.set_notice(None)     # a real chart is showing — drop guidance
         self._preview.load_tiff(list(tiffs))
         # Feed the Chart-layout-information panel and the margin inspector, so
@@ -12822,6 +12896,11 @@ class TabChart(QWidget):
                        and self._instr_combo.currentData() == "IO2"
                        and self._i1io_clip_check.isChecked())
                    else {}),
+                # …and its chart layout, only when it is not the standard one
+                **({"i1io_layout": self._guided_i1io_layout()}
+                   if (self._instr_combo.currentData() == "IO2"
+                       and self._guided_i1io_layout() != "standard")
+                   else {}),
                 # the i1iSis's model width and notes band (Beta), only for an
                 # i1iSis row
                 **({"isis_model": self._isis_model_combo.currentData(),
@@ -12897,6 +12976,8 @@ class TabChart(QWidget):
                 clip = getattr(self, "_i1io_clip_check", None)
                 if clip is not None:
                     clip.setChecked(bool(value))
+            elif field == "i1io_layout":
+                self._set_guided_i1io_layout(value)
             elif field == "isis_model":
                 box = getattr(self, "_isis_model_combo", None)
                 if box is not None:
@@ -16167,7 +16248,11 @@ class TabChart(QWidget):
         if spin is not None and not spin.isEnabled():
             actual = self._generated_page_count()
             if actual:
-                pages = actual
+                # the preview's pages are an i1iO sheet's pieces: the name
+                # counts sheets, as the Pages control does
+                from workflow.layout_engine import papers as _pap
+                pages = _pap.sheets_of(actual, _paper_source(str(instr),
+                                                             str(paper)))
         base_paper, orient = self._paper_name_and_orientation(str(paper))
         parts = [instr_lbl.get(str(instr), str(instr)), base_paper]
         if patches:
@@ -18512,7 +18597,7 @@ class TabChart(QWidget):
             rec_dict = layout.get("recipe") or {}
             if rec_dict:
                 from workflow.layout_engine.presets import LayoutRecipe
-                recipe = LayoutRecipe.from_dict(rec_dict)
+                recipe = LayoutRecipe.from_stored(rec_dict, ti2_path)
                 # The seed the chart was ACTUALLY built with (Knut, #130
                 # 2026-07-27: "the random seed must survive the restore and
                 # regeneration of the chart image"). The recipe records what
@@ -18794,6 +18879,7 @@ class TabChart(QWidget):
             if self._applied_active:
                 self._leave_applied()
             self._reflected_active = True
+            self._say_if_chart_is_newer(ti2_path)
             log.info("Create Chart: showing a chart loaded from elsewhere: %s",
                      ti2_path)
             self._reflected_ti2 = ti2_path
@@ -19952,6 +20038,8 @@ class TabChart(QWidget):
             # out the run's own chart through here too, which is a given set
             # only when the chart on screen already was one.
             params.patch_set_given = (not preview) or self._ti1_preset_active()
+            # a live preview builds no printed sheets of i1iO pieces
+            params.compose_sheets = not preview
             self._last_target_name = base_name
             self._log.clear()
             # VALUES OUTSIDE 0..100 IN A .ti1 PRESET (4.3.26, review r1 L5):
@@ -20008,7 +20096,7 @@ class TabChart(QWidget):
         try:
             from core.settings import thresholds_for_combo
             from workflow.layout_engine import papers
-            w_mm, h_mm = papers.dimensions_mm(paper)
+            w_mm, h_mm = papers.piece_mm_of(_paper_source(instr, paper))
             return thresholds_for_combo(
                 self._settings.get_margin_thresholds(), instr, w_mm, h_mm)
         except Exception:
@@ -20107,6 +20195,14 @@ class TabChart(QWidget):
                 and self._i1io_clip_check.isChecked()):
             # Guided's "Clip border" on (i1iO Beta), as the build has it
             kw.update(i1io_clip_border=True, clip_content_mode="notes")
+        if instr == "IO2" and guided:
+            # Guided's "Chart layout" (i1iO Beta), as the build has it
+            from workflow.i1io.chart import (LIMITS_KEY, LIMITS_NOW,
+                                             layout_kwargs)
+            kw[LIMITS_KEY] = LIMITS_NOW
+            for _k in ("patch_w", "patch_h", "spacer_width"):
+                kw.pop(_k, None)
+            kw.update(layout_kwargs(self._guided_i1io_layout()))
         if instr == "XRISIS" and guided:
             # Guided's i1iSis choices (Beta), as the build has them: no
             # margin boxes (5 mm each, i1Profiler's), the model width, the
@@ -20143,8 +20239,10 @@ class TabChart(QWidget):
             geom = self._engine_geom(instr, paper, dd=dd, td=td, eff_lb=eff_lb,
                                      nsl=nsl, pscale=pscale, margin=margin,
                                      guided=guided)
-            w_mm, h_mm = papers.dimensions_mm(paper)
-            return geometry.patches_per_sheet(geom, w_mm, h_mm)
+            src = _paper_source(instr, paper)
+            w_mm, h_mm = papers.piece_mm_of(src)
+            return papers.patches_on_a_sheet(
+                geometry.patches_per_sheet(geom, w_mm, h_mm), src)
         except Exception:
             return None
 
@@ -20173,6 +20271,8 @@ class TabChart(QWidget):
         if is_i1io_code(instr) and i1io_enabled():
             # Its own fixed layout, not a margin it does not use.
             from workflow.i1io import table_facts as _F
+            from workflow.i1io.chart import layout_sizes
+            _along, _across, _sp = layout_sizes(self._guided_i1io_layout())
             aim = getattr(self, "_i1io_aim_check", None)
             if aim is not None and not aim.isChecked():
                 return tr(
@@ -20181,15 +20281,15 @@ class TabChart(QWidget):
                     "(lay the sheet across the table), {run:g} mm of blank "
                     "paper at both ends of every strip, no aiming crosses: "
                     "you aim at the centres of three corner patches."
-                ).format(paper=paper, dpi=dpi, w=_F.PATCH_ALONG_MM.value,
-                         h=_F.PATCH_ACROSS_MM.value, run=_F.RUN_MM.value)
+                ).format(paper=paper, dpi=dpi, w=_along, h=_across,
+                         run=_F.RUN_MM.value)
             return tr(
                 "ChromIQ layout engine, i1iO table, {paper}, {dpi} dpi: "
                 "patches {w:g} × {h:g} mm in strips along the long side (lay "
                 "the sheet across the table), {run:g} mm of blank paper at "
                 "both ends of every strip, three numbered aiming marks."
-            ).format(paper=paper, dpi=dpi, w=_F.PATCH_ALONG_MM.value,
-                     h=_F.PATCH_ACROSS_MM.value, run=_F.RUN_MM.value)
+            ).format(paper=paper, dpi=dpi, w=_along, h=_across,
+                     run=_F.RUN_MM.value)
         # THE i1iSis BY ITS NAME, NEVER ITS CODE (the owner, 2026-11-15, on
         # 4.3.38: "ChromIQ layout engine · XRISIS · A4"). The other Beta
         # instruments name themselves here too (FD-9, i1iO table); the long-
@@ -20416,13 +20516,23 @@ class TabChart(QWidget):
             else:
                 self._layout_info_panel.clear_estimate()
 
+        # an i1iO sheet that is cut into pieces: the fields count sheets
+        divided = None
+        if guided_active and instr == "IO2":
+            from workflow.i1io import pieces as _pieces
+            divided = _pieces.plan_of(_paper_source(str(instr), paper))
+        self._show_guided_pieces(divided)
         if per_sheet is not None:
             if fixed and lay is not None:
                 # The armed patch set, laid out: `total_patches` is the count
                 # that will be ON the sheets (the designed set plus whatever
                 # fill-up the last strip takes) and `pages` is how many sheets
                 # that is. Both come from the panel's own layout.
-                total, shown_pages = lay.total_patches, lay.pages
+                # (sheets: an i1iO sheet larger than the table holds several
+                # of the layout's pages)
+                from workflow.layout_engine import papers as _pap
+                total, shown_pages = lay.total_patches, _pap.sheets_of(
+                    lay.pages, _paper_source(str(instr), paper))
             elif fixed:
                 # No engine layout to read (printtarg, or Manual with the panel
                 # away). The count is still the file's, and the sheets still
@@ -20440,12 +20550,20 @@ class TabChart(QWidget):
             # (`_guided_bound_set_pages_answer`)
             self._bound_set_pages = shown_pages if fixed else None
             self._guided_capacity = per_sheet * pages
+            if divided is not None:
+                self._i1io_pieces_note.setText(_pieces.info_text(
+                    divided, shown_pages, total))
             self._patch_count_lbl.setText(self._count_with_accent(str(total)))
             # "1 PAGES" sat on the first screen of the app, in the largest
             # type on the panel, with "Number of pages: 1" two inches above it.
             # Every other count-bearing line already uses `count_phrase`; this
             # one skipped it and thirteen translations inherited the mistake.
             _pages = count_phrase(shown_pages, tr("1 PAGE"), tr("{n} PAGES"))
+            if divided is not None:
+                _pages = (count_phrase(shown_pages, tr("1 SHEET"),
+                                       tr("{n} SHEETS")) + " · "
+                          + count_phrase(shown_pages * divided.count,
+                                         tr("1 PIECE"), tr("{n} PIECES")))
             self._patch_detail_lbl.setText(
                 tr("PATCHES · {pages} · {paper}").format(
                     pages=_pages, paper=paper.upper())
@@ -20889,6 +21007,8 @@ class TabChart(QWidget):
             # …and its "Clip border", for the i1iO only
             clip.setVisible(instr == "IO2")
             self._i1io_clip_tooltip.setVisible(instr == "IO2")
+        # …and its "Chart layout"
+        self._show_guided_i1io_layout(instr == "IO2")
         if getattr(self, "_isis_model_combo", None) is not None:
             # the i1iSis's model width and notes band, for the i1iSis only
             for w in (self._isis_model_combo, self._isis_model_tooltip,
@@ -23841,6 +23961,9 @@ class TabChart(QWidget):
                     self._settings.get("chart_i1io_crosses", True))
                 guided["i1io_clip_border"] = bool(
                     self._settings.get("chart_i1io_clip_border", False))
+                guided["i1io_layout"] = str(
+                    self._settings.get("chart_i1io_layout", "standard")
+                    or "standard")
             if getattr(self, "_isis_model_combo", None) is not None:
                 # the i1iSis's choices (Beta): the saved defaults
                 guided["isis_model"] = str(
@@ -23877,6 +24000,10 @@ class TabChart(QWidget):
                     and "i1io_clip_border" not in guided):
                 # …and one without its clip border answer had none
                 guided = {**guided, "i1io_clip_border": False}
+            if (getattr(self, "_i1io_layout_combo", None) is not None
+                    and "i1io_layout" not in guided):
+                # …and one without a chart layout was the standard one
+                guided = {**guided, "i1io_layout": "standard"}
             if getattr(self, "_isis_model_combo", None) is not None:
                 # an i1iSis-less row: the standard model, no notes band
                 guided = {"isis_model": "standard",
@@ -25179,8 +25306,9 @@ class TabChart(QWidget):
             from workflow.layout_engine import geometry, instruments, papers
             rec = panel.get_recipe()
             geom = instruments.geom_from_build_kwargs(rec.build_kwargs())
-            w_mm, h_mm = papers.dimensions_mm(rec.paper)
-            n = int(geometry.patches_per_sheet(geom, w_mm, h_mm))
+            w_mm, h_mm = papers.piece_mm_of(rec)
+            n = int(papers.patches_on_a_sheet(
+                geometry.patches_per_sheet(geom, w_mm, h_mm), rec))
             return n if n > 0 else None
         except Exception:      # noqa: BLE001 — a hint may never block
             log.debug("recipe capacity unavailable", exc_info=True)
@@ -27261,7 +27389,7 @@ class TabChart(QWidget):
             from workflow.layout_engine import (
                 calibration_ramps, geometry, instruments, papers,
             )
-            w_mm, h_mm = papers.dimensions_mm(kw.get("paper", "A4"))
+            w_mm, h_mm = papers.piece_mm_of(kw)
 
             def _steps_for(n: int) -> int:
                 g = instruments.geom_from_build_kwargs(
@@ -27420,7 +27548,7 @@ class TabChart(QWidget):
 
     def _predict_layout_info(self, geom, paper: str, pages_req: int,
                              npat: "int | None" = None,
-                             dpi: "int | None" = None):
+                             dpi: "int | None" = None, source=None):
         """Fill the Chart-layout-information panel with the engine's predicted
         grid (#93). With *npat* (the on-screen chart's patch count) the SAME
         patches are laid out under the current settings; otherwise a capacity-
@@ -27439,12 +27567,17 @@ class TabChart(QWidget):
         self._laid_out_patch_estimate = None
         try:
             from workflow.layout_engine import geometry, instruments, papers
-            w_mm, h_mm = papers.dimensions_mm(paper)
+            # (an i1iO sheet larger than the table: the pages laid out are its
+            # pieces, *pages_req* counts sheets)
+            src = source if source is not None else _paper_source(
+                str(getattr(geom, "key", "") or ""), paper)
+            w_mm, h_mm = papers.piece_mm_of(src)
             per_sheet = geometry.patches_per_sheet(geom, w_mm, h_mm)
             if not per_sheet:
                 panel.show_placeholder()
                 return None
-            total = npat if npat else per_sheet * max(1, pages_req)
+            total = npat if npat else papers.patches_on_a_sheet(
+                per_sheet, src) * max(1, pages_req)
             lay = geometry.compute(geom, w_mm, h_mm, total)
             rows = lay.steps_in_pass
             n0 = min(lay.total_patches, lay.patches_per_page)
@@ -27489,6 +27622,8 @@ class TabChart(QWidget):
             # COLUMN pitch across the page and not a row pitch down a strip.
             if hasattr(panel, "set_pitch_axis"):
                 panel.set_pitch_axis(_flat, column="estimate")
+            if hasattr(panel, "set_pieces"):
+                panel.set_pieces(papers.is_divided(src), "estimate")
             panel.set_estimate(total=lay.total_patches, rows=rows, cols=cols,
                                pages=lay.pages, patch_w=_pw, patch_h=_ph,
                                page_patches=n0, row_pitch=_pitch,
@@ -27554,6 +27689,8 @@ class TabChart(QWidget):
             if hasattr(panel, "set_pitch_axis"):
                 from workflow.hex_support import chart_is_flat_top as _cift
                 panel.set_pitch_axis(_cift(ti2), column="actual")
+            if hasattr(panel, "set_pieces"):
+                panel.set_pieces("CHROMIQ_I1IO_PIECES" in txt, "actual")
             panel.set_actual(total=total, rows=rows, cols=cols, pages=len(tiffs),
                              patch_w=pw, patch_h=ph, page_patches=page_patches,
                              row_pitch=pitch, fillup=fillup)
@@ -28352,6 +28489,20 @@ class TabChart(QWidget):
             seed=self._seed_for_prediction(r),
             randomize=bool(getattr(r, "randomize", True)),
             patch_size_mm=self._predicted_patch_size())
+        if getattr(r, "instrument", "") == "IO2":
+            # an i1iO piece prints its own count and sheet (the build's own
+            # `piece_contexts`)
+            try:
+                from workflow.layout_engine import papers as _pap
+                if _pap.is_divided(r):
+                    from workflow.i1io import chart as _ic
+                    from workflow.i1io import pieces as _ip
+                    ctx.update(_ic.piece_contexts(_ip.plan_of(r),
+                                                  self._estimated_layout))
+                    ctx.pop("_pages", None)
+            except Exception:      # noqa: BLE001 - a prediction is never fatal
+                log.debug("a piece's placeholders are not known", exc_info=True)
+            ctx.setdefault("sheet", "")
         ctx["page"] = f"page 1/{pages}"
         return ctx
 
@@ -28645,7 +28796,7 @@ class TabChart(QWidget):
                     rec = (doc.get("layout") or {}).get("recipe") or {}
                     if rec:
                         from workflow.layout_engine.presets import LayoutRecipe
-                        built = LayoutRecipe.from_dict(rec)
+                        built = LayoutRecipe.from_stored(rec, ti2)
                 self._notice_recipe_cache = (stamp, built)
             if built is None:
                 return live
@@ -28704,12 +28855,28 @@ class TabChart(QWidget):
             if not printer:
                 log.debug("printer edge note: no printer known")
                 return None
+            from workflow.i1io.support import i1io_enabled
+            own_size = False
+            if i1io_enabled():
+                from workflow.i1io import sheets as _sheets
+                from workflow.i1io.support import pages_are_i1io_chart
+                own_size = pages_are_i1io_chart(tiffs)
+                ti2 = _sheets.chart_of_pages(tiffs) if own_size else None
+                si = _sheets.info(ti2) if ti2 is not None else None
+                if si is not None:
+                    # what is printed is the sheet, not the piece shown here
+                    # (not built yet: the Print tab says it)
+                    if not all(f.is_file() for f in si.sheet_files):
+                        return None
+                    tiffs = si.sheet_files
             from workflow import printer_edges as PE
             from workflow import measurement_messages as _mm
             from workflow.page_geometry import read_tiff_dimensions_points
             w_pt, h_pt = read_tiff_dimensions_points(Path(tiffs[0]))
             chart_mm = (w_pt * PE.MM_PER_PT, h_pt * PE.MM_PER_PT)
-            edges, paper = PE.edges_for(printer, chart_mm, self._settings)
+            edges, paper = PE.edges_for(
+                printer, chart_mm, self._settings,
+                **({"own_size": True} if own_size else {}))
             if not edges.any():
                 return None
             pages = [(Path(t), 0) for t in tiffs]
@@ -28910,8 +29077,11 @@ class TabChart(QWidget):
                         # the i1iO's own letters, held and checked as the
                         # build holds and checks them (review 3, items 2, 5)
                         from workflow.i1io import chart as _i1io_chart
+                        # (with the run's chart notes, the line's last part)
+                        _edit = getattr(self, "_manual_chart_notes_edit", None)
                         _xs, _i1io_furniture = _i1io_chart.preview_checks(
-                            _kw_notes)
+                            {**_kw_notes, "i1io_notes":
+                             _edit.text() if _edit is not None else ""})
             except Exception:      # noqa: BLE001 — a notice, never a blocker
                 _xs = None
             _xs_line = strip_label_x_held_notice(_xs)
@@ -29327,6 +29497,10 @@ class TabChart(QWidget):
             _cb = getattr(self, "_manual_stamp_cmd_check", None)
             if _cb is not None:
                 _stamp_on = bool(_cb.isChecked())
+            if getattr(r, "instrument", "") == "IO2":
+                # an i1iO chart prints nothing down its right edge (the notes
+                # are on its name line: `preview_checks` says what is cut)
+                _notes_text, _stamp_on = "", False
             # THE SIZE THE NOTE IS ACTUALLY PRINTED AT decides how much paper it
             # needs, so the Sheet text frame's Size is part of the question
             # (Knut, 2026-09-11). 0 is the box's "auto", which shrinks to
@@ -29615,7 +29789,7 @@ class TabChart(QWidget):
                 try:
                     from workflow import tiff_metadata as _tmeta
                     from workflow.layout_engine import papers as _papers
-                    _pw, _ph = _papers.dimensions_mm(str(r.paper))
+                    _pw, _ph = _papers.piece_mm_of(r)
                     # THE RESERVE THE STAMPER USES, ON ALL THREE EDGES, and
                     # this asked the raw "Clip" box for every one of them.
                     # `_eff_edge` is the side reserve the sheet really keeps
@@ -30159,7 +30333,7 @@ class TabChart(QWidget):
                         from workflow.layout_engine import geometry as _gm2
                         from workflow.layout_engine import raster as _ras
                         from workflow.layout_engine import papers as _pp
-                        _pw2, _ph2 = _pp.dimensions_mm(str(r.paper))
+                        _pw2, _ph2 = _pp.piece_mm_of(r)
                         _area = _gm2.clip_area_mm(geom, _ph2, _pw2,
                                                   _clip_lines, _clip_size_pt)
                         if _area is not None:
@@ -30214,7 +30388,7 @@ class TabChart(QWidget):
                             _ras3.resolve_placeholders(
                                 getattr(r, "clip_text", "") or "",
                                 self._text_placeholder_context(r)))
-                        _pw3, _ph3 = _pp3.dimensions_mm(str(r.paper))
+                        _pw3, _ph3 = _pp3.piece_mm_of(r)
                         _area3 = _gm3.clip_area_mm(geom, _ph3, _pw3, 0, 0.0)
                         if _b_lines and _area3 is not None:
                             _dpi3 = float(getattr(r, "dpi", 300) or 300)
@@ -30970,7 +31144,7 @@ class TabChart(QWidget):
                 # A4. The recipe always knows its paper.
                 try:
                     from workflow.layout_engine import papers as _papers
-                    _pw = float(_papers.dimensions_mm(r.paper)[0])
+                    _pw = float(_papers.piece_mm_of(r)[0])
                 except Exception:      # noqa: BLE001 — never block on this
                     _pw = float(getattr(report, "page_w_mm", 0.0) or 0.0)
                 # AND THE CLIP BORDER IS THE THIRD THING THAT BOUNDS IT
@@ -31426,6 +31600,10 @@ class TabChart(QWidget):
         rec = LayoutRecipe.from_channels_json(ch)
         if rec is None:
             return None                      # printtarg chart — no engine layout
+        try:
+            papers.piece_mm_of(rec)
+        except ValueError:
+            return None             # an i1iO chart whose record is not trusted
         # AN FD-9 CHART NEVER CARRIES HELPER MARKERS (4.3.25, F11): a dash
         # 2 to 4 mm from the edge would stop the FD-9 finding its marks, and
         # its builder draws none, so the preview must not show any either.
@@ -31517,7 +31695,7 @@ class TabChart(QWidget):
         kwargs = rec.build_kwargs()
         kwargs["area_target_count"] = int(m.group(1))
         geom = instruments.geom_from_build_kwargs(kwargs)
-        w_mm, h_mm = papers.dimensions_mm(rec.paper)
+        w_mm, h_mm = papers.piece_mm_of(rec)
         if w_mm <= 0 or h_mm <= 0:
             return None
         lay = geometry.compute(geom, w_mm, h_mm, int(m.group(1)))
@@ -31849,7 +32027,7 @@ class TabChart(QWidget):
             if rec is None:
                 return 0
             geom = instruments.geom_from_build_kwargs(rec.build_kwargs())
-            w_mm, h_mm = papers.dimensions_mm(rec.paper)
+            w_mm, h_mm = papers.piece_mm_of(rec)
             return max(0, int(geometry.patches_per_sheet(geom, w_mm, h_mm)))
         except Exception as exc:  # noqa: BLE001 — never block a hint
             log.debug("last-page capacity unavailable: %s", exc)
@@ -31898,7 +32076,7 @@ class TabChart(QWidget):
                 return None
             total = int(m.group(1))
             geom = instruments.geom_from_build_kwargs(rec.build_kwargs())
-            w_mm, h_mm = papers.dimensions_mm(rec.paper)
+            w_mm, h_mm = papers.piece_mm_of(rec)
             per = geometry.patches_per_sheet(geom, w_mm, h_mm)
             if per <= 0 or total <= 0:
                 return None
@@ -32208,6 +32386,19 @@ class TabChart(QWidget):
         panel = getattr(self, "_manual_layout_panel", None)
         if panel is None or self._mode_name() != "manual":
             return False
+        try:
+            # an i1iO sheet of several pieces is asked whatever the Beta says
+            from ui.dialogs import page_output_panel as _pop
+            # …with all the pieces it would be drawn in
+            _lay = getattr(self, "_estimated_layout", None)
+            why = _pop.divided_problem(
+                panel, max(1, int(getattr(_lay, "pages", 0) or 0)))
+        except Exception:      # noqa: BLE001 - the build checks it again
+            log.debug("i1iO sheet budget pre-check failed", exc_info=True)
+            why = None
+        if why:
+            self._log.appendPlainText("[ERROR] " + why)
+            return True
         if not getattr(panel, "_page_beta", False):
             # THE BETA OFF, A CHART MADE WITH IT HELD ON SCREEN: refused here,
             # before the patch set, its exports or meta.json are touched (the
@@ -32924,6 +33115,8 @@ class TabChart(QWidget):
             if getattr(self, "_i1io_clip_check", None) is not None:
                 s.set("chart_i1io_clip_border",
                       bool(self._i1io_clip_check.isChecked()))
+            if getattr(self, "_i1io_layout_combo", None) is not None:
+                s.set("chart_i1io_layout", self._guided_i1io_layout())
         if (params.instrument == "XRISIS"       # i1iSis (Beta) only
                 and getattr(self, "_isis_model_combo", None) is not None):
             s.set("chart_isis_model",
@@ -33178,6 +33371,9 @@ class TabChart(QWidget):
                                     and getattr(self, "_i1io_clip_check",
                                                 None) is not None
                                     and self._i1io_clip_check.isChecked()),
+            # …and its chart layout
+            i1io_layout          = (self._guided_i1io_layout()
+                                    if instr == "IO2" else ""),
             # the i1iSis's model width and notes band (Beta)
             isis_model           = (str(self._isis_model_combo.currentData()
                                         or "standard")
@@ -33196,19 +33392,66 @@ class TabChart(QWidget):
                                     is not None else ""),
         )
 
+    def _guided_i1io_layout(self) -> str:
+        """Guided's i1iO chart layout, "standard" where there is no choice."""
+        box = getattr(self, "_i1io_layout_combo", None)
+        return str(box.currentData() or "standard") if box is not None \
+            else "standard"
+
+    def _set_guided_i1io_layout(self, name) -> None:
+        box = getattr(self, "_i1io_layout_combo", None)
+        if box is not None:
+            box.setCurrentIndex(max(0, box.findData(str(name or "standard"))))
+
+    def _show_guided_i1io_layout(self, on: bool) -> None:
+        """Guided's "Chart layout" line, for the i1iO only; the compact
+        layout's note only while it is chosen."""
+        if getattr(self, "_i1io_layout_combo", None) is None:
+            return
+        for w in (self._i1io_layout_label, self._i1io_layout_combo,
+                  self._i1io_layout_tooltip):
+            w.setVisible(on)
+        self._i1io_layout_note.setVisible(
+            on and self._guided_i1io_layout() == "compact")
+
+    def _show_guided_pieces(self, plan) -> None:
+        """Guided's "Number of pages" counts sheets while the sheet is cut into
+        pieces (an i1iO chart), and the line under the paper says so."""
+        lbl = getattr(self, "_pages_row_lbl", None)
+        if lbl is not None:
+            lbl.setText(tr("Number of sheets:") if plan is not None
+                        else tr("Number of pages:"))
+        note = getattr(self, "_i1io_pieces_note", None)
+        if note is not None:
+            note.setVisible(plan is not None)
+
+    def _guided_i1io_layout_changed(self, *_a) -> None:
+        self._show_guided_i1io_layout(
+            self._instr_combo.currentData() == "IO2")
+        self._update_patch_count()
+
     def _manual_i1io_context(self) -> dict:
         """The chart name and pages Manual's "Aiming crosses" (i) uses."""
         spin = getattr(self, "_manual_pages_spin", None)
+        # the chart's pages: its sheets times the pieces of each
+        from workflow.layout_engine import papers as _pap
+        n = 1
+        try:
+            n = _pap.pieces_on(self._manual_layout_panel.get_recipe())
+        except Exception:      # noqa: BLE001 - a help text
+            log.debug("the pieces of Manual's sheet are not known",
+                      exc_info=True)
         return {"name": self._preview_target_name("manual") or "",
-                "pages": int(spin.value()) if spin is not None else 1}
+                "pages": n * (int(spin.value()) if spin is not None else 1)}
 
     def _guided_i1io_crosses_source(self) -> dict:
         """What Guided's "Aiming crosses" (i) is worked out from: the chart
         Guided would build now (`ChartCreator._engine_build_kwargs`)."""
         params = self._collect_guided()
         kw = self._creator._engine_build_kwargs(params)
+        from workflow.layout_engine import papers as _pap
         return {"kw": kw, "name": self._preview_target_name("guided") or "",
-                "pages": int(params.pages or 1),
+                "pages": int(params.pages or 1) * _pap.pieces_on(kw),
                 "paper_label": self._paper_combo.currentText()}
 
     def _collect_manual(self) -> ChartParams:
@@ -33598,6 +33841,7 @@ class TabChart(QWidget):
         if getattr(self, "_i1io_clip_check", None) is not None:
             self._i1io_clip_check.setChecked(
                 bool(s.get("chart_i1io_clip_border", False)))
+        self._set_guided_i1io_layout(s.get("chart_i1io_layout", "standard"))
         if getattr(self, "_isis_model_combo", None) is not None:
             i = self._isis_model_combo.findData(
                 str(s.get("chart_isis_model", "standard") or "standard"))

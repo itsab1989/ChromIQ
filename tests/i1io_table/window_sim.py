@@ -31,7 +31,25 @@ class SlowTransport(ss.SimTransport):
         return super().write(data, *a, **k)
 
 
+class _NoExpectedColours:
+    """The simulated readers read colours of their own, not the chart's, so the row identity
+    check must have no expected colours (it would ask about every row, and be right): whatever
+    the window hands the job is not taken. The bed (bed_sim) reads the sheet and takes it."""
+
+    @staticmethod
+    def of(base):
+        class SimJob(base):
+            expected_lab = property(lambda self: None, lambda self, v: None)
+            expected_why = property(lambda self: "the simulated readers read colours of their own",
+                                    lambda self, v: None)
+        SimJob.__name__ = base.__name__
+        return SimJob
+
+
 class WindowSim:
+    #: True: the readings come from the sheet on the bed (bed_sim.BedWindowSim)
+    reads_the_sheet = False
+
     def __init__(self, faults=None, delay_s: float = 0.0, cold: bool = False,
                  app_marker_place=None, press: bool = False, aims=None, **simkw):
         self.faults = faults
@@ -71,7 +89,8 @@ class WindowSim:
             self.sim.inject(kind, cid)
         self.helper = RS.HelperSim(self.sim, self.faults)
         transport = self.transport = SlowTransport(self.sim, self.delay_s)
-        job = J.TableJob(sheet, page, run=run, stamp=stamp,
+        cls = J.TableJob if self.reads_the_sheet else _NoExpectedColours.of(J.TableJob)
+        job = cls(sheet, page, run=run, stamp=stamp,
                          open_transport=lambda: transport,
                          preflight=lambda: H.OK_PREFLIGHT, other_program=lambda: False,
                          guided=guided, ask_after_each_step=self.report_switch,

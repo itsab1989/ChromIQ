@@ -42,6 +42,7 @@ driver; never let a driver open a real device.
 | `tests/i1io_table/session_sim.py` | the i1iO 2 table as recorded, on a virtual clock; raises on any line it must never get |
 | `tests/i1io_table/part_c_sim.py` | the table with computed moves and the measuring area, fake spot and strip readers with faults |
 | `tests/i1io_table/reader_sim.py` | ChromIQ's helper process behind the app's own reader code |
+| `tests/i1io_table/bed_sim.py` | what LIES on the simulated i1iO 2 table: a printed image at a true pose (shifted, turned, another piece, another chart, uncut), read through the 4.5 mm opening where the arm stands, strips and patch by patch |
 | `tests/i1io_table/window_sim.py` | all of the above behind the real panel (`WindowSim.factory` replaces `ui/i1io_table_window.py::JOB_FACTORY`) |
 | `tests/i1io_table/window_person.py` | a simulated person pressing the panel's buttons by their labels |
 | `tests/i1io_table/job_harness.py` | drives the table's job headless with a scripted person |
@@ -144,9 +145,9 @@ you are changing, read it, and copy its pattern. Their names say the round they 
 
 <!-- BEGIN GENERATED: python scripts/make_tools_index.py -->
 
-Every file in `scripts/` (569 in all), by topic. TOOL: reusable, kept working. example: a one-off check kept as a worked pattern; it may need adapting, and one marked "maintainer's paths" will not run unchanged on another machine. "needs" is read from the source by a heuristic. Read a script before you run it, and set CHROMIQ_SETTINGS_FILE first (scripts/README.md).
+Every file in `scripts/` (570 in all), by topic. TOOL: reusable, kept working. example: a one-off check kept as a worked pattern; it may need adapting, and one marked "maintainer's paths" will not run unchanged on another machine. "needs" is read from the source by a heuristic. Read a script before you run it, and set CHROMIQ_SETTINGS_FILE first (scripts/README.md).
 
-### Driven instruments and recordings (13)
+### Driven instruments and recordings (14)
 
 | file | kind | what it does | needs |
 |---|---|---|---|
@@ -154,6 +155,7 @@ Every file in `scripts/` (569 in all), by topic. TOOL: reusable, kept working. e
 | `scripts/drive_before_stable_b8_504_757_1342.py` | example | Before 4.3.0 stable: B8-504, B8-757 and B8-1342, driven ON SCREEN. | display, settings sandbox |
 | `scripts/drive_stable_fixes_a.py` | example | On-screen proof for B8-638, B8-756 and B8-1078, in REAL windows. | display, settings sandbox |
 | `scripts/driven_instrument_proof_driver.py` | TOOL | TEMPLATE: an on-screen proof driver for an instrument ChromIQ drives itself. | display, settings sandbox, ArgyllCMS |
+| `scripts/i1io_cut_check.py` | TOOL | Is a printed i1iO sheet to scale, and do its pieces lie where the side file says? | - |
 | `scripts/make_i1profiler_probe.py` | example | Build a self-identifying probe patch set for i1Profiler (#120). | - |
 | `scripts/planted_faults.py` | TOOL | Test the tests: plant small faults in COPIES of the tree, one at a time, and see which a chosen test selection catches. | - |
 | `scripts/recording_timeline.py` | TOOL | Turn a USB recording of an instrument's own program into a timeline and a command list. | - |

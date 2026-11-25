@@ -1,0 +1,408 @@
+{
+ "cases": {
+  "guided_127by178": {
+   "chart.channels.json": "f8e0a02ca8b0e47a0945d28e83bba4bf570a72c0534077a2e21605016b0b5080",
+   "chart.i1io.json": "1291294709c5bda886c0495a6d1f11e076c44afd6e2d48fce50bf6e0eff5a1c2",
+   "chart.strips.json": "4b27c877e1581eca26bcb3d8fa279b11c984faf2c2e102f264e4648d798bff81",
+   "chart.ti2": "fc05e3ce355789b5056281f99b8ac10302633c36ff2c2fc0b10d740da4e644bf"
+  },
+  "guided_148by210": {
+   "chart.channels.json": "366e75adaef15fbcea04945f2e1a69a53f6fa0921bbde315567accc6106ddac0",
+   "chart.i1io.json": "8b55c2481d97a6454aef9ac4892865d56c0cd286bccbd3c6421c6e332c8a35e8",
+   "chart.strips.json": "b9cfd125adb179e2f496fa4dcf262825d09d8f0dbac207378d6c10be7df4f694",
+   "chart.ti2": "695fcf9ec0694042103711bac18fc5faec40f153521d6679ae2ad6960e930584"
+  },
+  "guided_203by254": {
+   "chart.channels.json": "0e05c3723fc007221b9dbc3894a207702d8dc42b84d24b412e2f1e4818197e72",
+   "chart.i1io.json": "ad1b2c3eb1845c9a232c104ebdfdb752c1254402102422641e43d8986a45d5a6",
+   "chart.strips.json": "f76f938b319a24ee425e015e69a7a4ffb78889fe141e4ef2c45e422ffdce6663",
+   "chart.ti2": "ba2be7a1b2a1b7c2b927ae1315884d4e977c30b30962c2c7884aba1f8dcb05c3"
+  },
+  "guided_216by310": {
+   "chart.channels.json": "bc4b92a8d0f0910abc06cd8944c913c778277810c6662cc0b6899c817cd8f9e5",
+   "chart.i1io.json": "7a4caac01d3ea409e912131b1df2d4751211058cd6ee6b3c6420c46b8d6d4039",
+   "chart.strips.json": "1e060e0ff436c3734c23117ac9efae15a8b8e383c7195660200c7fefd56430db",
+   "chart.ti2": "d53d688650b50fe17aeb3c7808fd2671e5f2681aa881b6f992923539cd51ffab"
+  },
+  "guided_230by320": {
+   "chart.channels.json": "359eb2a6f55036cea3324c8dc2621db6a8438862a054d2a7c68b8a66723249b5",
+   "chart.i1io.json": "82aef6598ea0d4a0330b59c27d4eab5b9bbd6158188e017042374d6e2c7b128c",
+   "chart.strips.json": "8b2e4d66071eb359247e7d3128f7a2c188bc8242cf2e97b4d320558bf8957e4a",
+   "chart.ti2": "b5d2e64cebe18db44d5eb7c7326ef1afa6cf1896e3cc980c8d95c0b1d47c4562"
+  },
+  "guided_4by6": {
+   "chart.channels.json": "27c7855a664c4a7f15473894e738cf4e08a55c86a5eb9d5ba0281c7c100a1bca",
+   "chart.i1io.json": "6273eba35c015ab7d619075b387fdc976d0e49fffedfaa030dbd1cc90f76d082",
+   "chart.strips.json": "37c1e3e958e811ec1c6e05edcf70f965ec52dddfd237dff1e8fefbcbcb51aee2",
+   "chart.ti2": "0f888e0120f8b6dcf891ddec2925586f1f6ad7a6dbda4fd4577cb825c44ee788"
+  },
+  "guided_60by297": {
+   "chart.channels.json": "cb29e55ca7fd508f6374e21ffcd11ba8a661cc2cd9d4aa2a6a830ad18ec13df7",
+   "chart.i1io.json": "162d811788b6dcc85a863ff18e0454f395ddb24f1346d3e1580b90cd39680e4e",
+   "chart.strips.json": "6d0b4e0de12fefa4ccb270300ab9182808610f90c508e9916b42276f18010a2b",
+   "chart.ti2": "484e342b68361ffc10739bfaf92d64b1471412111af6d1369250e10fd2e0cdbd"
+  },
+  "guided_A4": {
+   "chart.channels.json": "176ec2c4f4433438a22df981a35fbe57af919db8e7749779b6202e6552bbf15c",
+   "chart.i1io.json": "c53e4266735587e0f6a27ec0d7ad365873990a61f3a99905ac25c19f1bd4ab67",
+   "chart.strips.json": "57a8c337bc7da06b34ec99179957cc3bfcf4a1d5145d106a59cef0c903e12547",
+   "chart.ti2": "111544e475fc18037d61a2133ec576756fc932b3e27edea34823948f2276c833"
+  },
+  "guided_A4_calibration": {
+   "chart.channels.json": "17cdb07178043f0851765cbafba2e532a6dbc3ce909ecc31dd6473d683be7713",
+   "chart.i1io.json": "c428dad10a2fc6e3347f7c3d66b82a3a5faf07282bb46aaab94a1e3ea70c70ec",
+   "chart.strips.json": "7067e1df193314808e37194ada0d49281109605b978a842fcf1904b4d59e016d",
+   "chart.ti2": "2b79d1d070b18bb28eda1169760f7042a3776b2582995f5d185fc4dca26273ad"
+  },
+  "guided_A4_clip": {
+   "chart.channels.json": "efdcc0b39ed9e41bc6add977307ba713a59bd29326b1d998efae9c2bf8c00760",
+   "chart.i1io.json": "d72bcb0bad2dc77038b95c1cde2217dbb95cc8e971718e0a8b75b0dd51435c52",
+   "chart.strips.json": "edd86053ae8a93fac68141b39e840329c43af2ba08975bf9cb9e115559455dfe",
+   "chart.ti2": "4a1966b841cabcdcd97c067071ac430f516ba1d16525e8142806e51d7432826e"
+  },
+  "guided_A4_nocross": {
+   "chart.channels.json": "487687ca4e5612f47198625665d1ff701f04669f727989b97b03a57d78200db1",
+   "chart.i1io.json": "c53e4266735587e0f6a27ec0d7ad365873990a61f3a99905ac25c19f1bd4ab67",
+   "chart.strips.json": "57a8c337bc7da06b34ec99179957cc3bfcf4a1d5145d106a59cef0c903e12547",
+   "chart.ti2": "748dd41c2d0e0a7588e0f3d43c7c5aeb5bae85812df869c171745ae72b4dec18"
+  },
+  "guided_A4_two_pages": {
+   "chart.channels.json": "d5d193d8be3215af99b40886ba52694ffdf5100b002567e40dde833739f80157",
+   "chart.i1io.json": "c89c173df116ab9e315d72202f723bbcf55fdbe4b9743264a7a628c8952694be",
+   "chart.strips.json": "9c85e2ef9728f9d43121787aca2e909c14e8a5b3b514e922b947e947236d9602",
+   "chart.ti2": "f1ee038ce61a183636f49f9e2d7e3cfa1bb70a55985d1501c9f5c608ca6a6aa8"
+  },
+  "guided_Letter": {
+   "chart.channels.json": "a898a7eb498cad628ee20296b41a55ce73a710c90e80b96cb86e1121b3748001",
+   "chart.i1io.json": "589bab15833a4eb956d00479ce64a32e1b98c1eb93e22d89ad4a840fca694f12",
+   "chart.strips.json": "399037effd044ff4f9dc2d8f10add3902f9b8467d9f9034736bf83cd4c70f5fc",
+   "chart.ti2": "7497e6f4c28631ae7b9f59e2d3bf47cd2e1fd6022745906091319e38253a1146"
+  },
+  "guided_Letter_calibration": {
+   "chart.channels.json": "cd489c200566e2178cd98598d3c1f53060001f6660c683272d1d12e34d9dd9dd",
+   "chart.i1io.json": "2f979cb0c9780d48fed6125a2b528d851065734d84826873cb8118353b166dd5",
+   "chart.strips.json": "1804d3e7992737cd4ab58e94b16468946d2f0e6c2934be265ac53fa5c5081179",
+   "chart.ti2": "c19e767fc7f5285783f55b9a1b64196c5b390b5bf985dc78cb5e07b1b70049b2"
+  },
+  "guided_Letter_clip": {
+   "chart.channels.json": "24ca9b831f637f5554705f0b1fa73870fa40104a0e224a01b48b1e211358c048",
+   "chart.i1io.json": "82fa903f63a4823394c1098ad5046243337dfcf4f8eb0b3b77511a2c6ec96b3e",
+   "chart.strips.json": "3639b938129cea5645143d3bdc5cde626960b0af0ab0ff34e725b3389c4f8536",
+   "chart.ti2": "82f364501bb8c805081db27d8ca8c774ecbc5b5153bcea856f1183d3ed60c128"
+  },
+  "guided_Letter_nocross": {
+   "chart.channels.json": "5d3a9589eacfeadb3f633f781c2aa2539fa5c802a066674dd936195016330321",
+   "chart.i1io.json": "ba2d6ed657f002579e2f522cfe8c24b4309d07085acab7850168338721755007",
+   "chart.strips.json": "399037effd044ff4f9dc2d8f10add3902f9b8467d9f9034736bf83cd4c70f5fc",
+   "chart.ti2": "f95f963600490278d0abf7863bb908d58a52205db56f969a521f4943fbf74fb0"
+  },
+  "guided_Letter_two_pages": {
+   "chart.channels.json": "d81a226144f19873954a97c33e86129325e6ae236eab848e727ac03d88278022",
+   "chart.i1io.json": "7a0ac293e120be05e02e7303bd14d71eaae54d4f4ec56439dde778d7c66aba6f",
+   "chart.strips.json": "83774f026eedf9e646b38be117b9f57f4105dba699428e99f49f5387c45e4689",
+   "chart.ti2": "8b92c92d672152d49e5eba8169ba0c50396d440a89935a7a47ef197c88e52a8f"
+  },
+  "manual_127by178": {
+   "chart.channels.json": "5f901ba6e0245f484fa079292f9c2c103043971f5de9a511bd6c44d31615ba60",
+   "chart.i1io.json": "1291294709c5bda886c0495a6d1f11e076c44afd6e2d48fce50bf6e0eff5a1c2",
+   "chart.strips.json": "4b27c877e1581eca26bcb3d8fa279b11c984faf2c2e102f264e4648d798bff81",
+   "chart.ti2": "fc05e3ce355789b5056281f99b8ac10302633c36ff2c2fc0b10d740da4e644bf"
+  },
+  "manual_127by178_nocross": {
+   "chart.channels.json": "a5be5b25c3e26cddb5f03365ad721dd73f21c86b11309278d3acba35c0b1dbc8",
+   "chart.i1io.json": "cb250937b177be41d4653be391fc37bd534687126d406a2afdafe90940e183b5",
+   "chart.strips.json": "4b27c877e1581eca26bcb3d8fa279b11c984faf2c2e102f264e4648d798bff81",
+   "chart.ti2": "77f50496dbe838121dddd9a1ceb97955d7270c03e025ef5990fcff1779dd9a94"
+  },
+  "manual_148by210": {
+   "chart.channels.json": "499cb863a5d49db6ce5da31c789416b9a2c84f907b5a5c9b153ae657d8d42ea3",
+   "chart.i1io.json": "8b55c2481d97a6454aef9ac4892865d56c0cd286bccbd3c6421c6e332c8a35e8",
+   "chart.strips.json": "b9cfd125adb179e2f496fa4dcf262825d09d8f0dbac207378d6c10be7df4f694",
+   "chart.ti2": "695fcf9ec0694042103711bac18fc5faec40f153521d6679ae2ad6960e930584"
+  },
+  "manual_148by210_nocross": {
+   "chart.channels.json": "112c9bdc8a4f778daaf88c43e595c34b0365b7634fa8c9378260e546a7a92f81",
+   "chart.i1io.json": "e3d95302f2e10abbde9ff2d71516fbb8b9c172b629727e7a57946a165241dc33",
+   "chart.strips.json": "b9cfd125adb179e2f496fa4dcf262825d09d8f0dbac207378d6c10be7df4f694",
+   "chart.ti2": "b6a601aad695b58cd380cddca6eaa17f2df937b97b386e240f3b8bd784ee3f84"
+  },
+  "manual_203by254": {
+   "chart.channels.json": "68b1d817f460c6866042352bd42f4990be2dad44bc82963b83c0a0c63f9dfe9a",
+   "chart.i1io.json": "ad1b2c3eb1845c9a232c104ebdfdb752c1254402102422641e43d8986a45d5a6",
+   "chart.strips.json": "f76f938b319a24ee425e015e69a7a4ffb78889fe141e4ef2c45e422ffdce6663",
+   "chart.ti2": "ba2be7a1b2a1b7c2b927ae1315884d4e977c30b30962c2c7884aba1f8dcb05c3"
+  },
+  "manual_203by254_nocross": {
+   "chart.channels.json": "b827bf828407abe4092aa821a7c1b027cb48394b8b900d7c446f33a6029ead49",
+   "chart.i1io.json": "e399ea4f0899878299c0c5481c2834b0a290343e0a9e6220f8740a7097a3f917",
+   "chart.strips.json": "f76f938b319a24ee425e015e69a7a4ffb78889fe141e4ef2c45e422ffdce6663",
+   "chart.ti2": "1f1a498e3cf05a387d2f990d445529df94091bc3a1f229eb61f28e51c0a8d117"
+  },
+  "manual_216by310": {
+   "chart.channels.json": "9cc0087df8123899afd0a985b66450b4bb99bd735803d78266184e73ea9dd468",
+   "chart.i1io.json": "7a4caac01d3ea409e912131b1df2d4751211058cd6ee6b3c6420c46b8d6d4039",
+   "chart.strips.json": "1e060e0ff436c3734c23117ac9efae15a8b8e383c7195660200c7fefd56430db",
+   "chart.ti2": "d53d688650b50fe17aeb3c7808fd2671e5f2681aa881b6f992923539cd51ffab"
+  },
+  "manual_216by310_nocross": {
+   "chart.channels.json": "f4d4960b513896b69e3c5bc8a260ff470040a621359328d50f07c36cb69ec61e",
+   "chart.i1io.json": "d7d4f1838cfce99f1a0a74eac840fa9bf9eb2ae5fa463814db7280822281dc0b",
+   "chart.strips.json": "1e060e0ff436c3734c23117ac9efae15a8b8e383c7195660200c7fefd56430db",
+   "chart.ti2": "30d652e44daea1f1730fe3713265e1a4b5d04b9a2a36c913f3fa50206f8a6a8e"
+  },
+  "manual_230by320": {
+   "chart.channels.json": "76497f4077be38b8e9a6bb535decf94020ab1f43e52a51c950070e4dd3cc021f",
+   "chart.i1io.json": "82aef6598ea0d4a0330b59c27d4eab5b9bbd6158188e017042374d6e2c7b128c",
+   "chart.strips.json": "8b2e4d66071eb359247e7d3128f7a2c188bc8242cf2e97b4d320558bf8957e4a",
+   "chart.ti2": "b5d2e64cebe18db44d5eb7c7326ef1afa6cf1896e3cc980c8d95c0b1d47c4562"
+  },
+  "manual_230by320_nocross": {
+   "chart.channels.json": "6b899da1a6a9c00ff2b71467d93fbde86ea30eb14379d9fb69dabd4f5db00c0d",
+   "chart.i1io.json": "b494b2088f4db19da82d84fec525c1af3ff06e679bdf7e11444ffc1b031c104b",
+   "chart.strips.json": "8b2e4d66071eb359247e7d3128f7a2c188bc8242cf2e97b4d320558bf8957e4a",
+   "chart.ti2": "9e3c6bd235c91b9595a6e9947a4e30ca085d703544cc73faad60ee9ed19d7d06"
+  },
+  "manual_4by6": {
+   "chart.channels.json": "701be2e79281139e1e9b160e045f44466c0e22693b015edd8dc617633997843e",
+   "chart.i1io.json": "6273eba35c015ab7d619075b387fdc976d0e49fffedfaa030dbd1cc90f76d082",
+   "chart.strips.json": "37c1e3e958e811ec1c6e05edcf70f965ec52dddfd237dff1e8fefbcbcb51aee2",
+   "chart.ti2": "0f888e0120f8b6dcf891ddec2925586f1f6ad7a6dbda4fd4577cb825c44ee788"
+  },
+  "manual_4by6_nocross": {
+   "chart.channels.json": "db65b3fd1a841033ed8abb9205fe382f322e52c12f6e42527cd6e423ad1157d0",
+   "chart.i1io.json": "6273eba35c015ab7d619075b387fdc976d0e49fffedfaa030dbd1cc90f76d082",
+   "chart.strips.json": "37c1e3e958e811ec1c6e05edcf70f965ec52dddfd237dff1e8fefbcbcb51aee2",
+   "chart.ti2": "095b0f937ac4b440b5030fa9369427f285201adc94eaa988b6ae2ddd1bcaaf20"
+  },
+  "manual_60by297": {
+   "chart.channels.json": "bf269fcd5a3fdf9acabbe3645604d2c0a7aff92c05b9c273e1342c070b1158ab",
+   "chart.i1io.json": "162d811788b6dcc85a863ff18e0454f395ddb24f1346d3e1580b90cd39680e4e",
+   "chart.strips.json": "6d0b4e0de12fefa4ccb270300ab9182808610f90c508e9916b42276f18010a2b",
+   "chart.ti2": "484e342b68361ffc10739bfaf92d64b1471412111af6d1369250e10fd2e0cdbd"
+  },
+  "manual_60by297_nocross": {
+   "chart.channels.json": "20186b2c35fc9b34dd0b95ae23f96c07ab8707a5a6500794bb91674afa2b5661",
+   "chart.i1io.json": "162d811788b6dcc85a863ff18e0454f395ddb24f1346d3e1580b90cd39680e4e",
+   "chart.strips.json": "6d0b4e0de12fefa4ccb270300ab9182808610f90c508e9916b42276f18010a2b",
+   "chart.ti2": "cbedcf1842a7de3bc0771a0da818c92eb173f8b25c7ee3cfd3421216183112bb"
+  },
+  "manual_A4": {
+   "chart.channels.json": "6fff131c5f2c089cb350c4ec5cfd9054093c8d28a2c8d774a7948f87bdd41071",
+   "chart.i1io.json": "c53e4266735587e0f6a27ec0d7ad365873990a61f3a99905ac25c19f1bd4ab67",
+   "chart.strips.json": "57a8c337bc7da06b34ec99179957cc3bfcf4a1d5145d106a59cef0c903e12547",
+   "chart.ti2": "111544e475fc18037d61a2133ec576756fc932b3e27edea34823948f2276c833"
+  },
+  "manual_A4_12x10": {
+   "chart.channels.json": "f4b3a4168376cc287c1b21b4d36d875a58a9c9ccffab21fb9ead6ff3c994e996",
+   "chart.i1io.json": "87a9f7e93177f4c080b95d8d8f6c0ab7957f5b3d0f4d7fb1ae5a8786a198ba6f",
+   "chart.strips.json": "bbdc7b1f5c0bd692ce95ddd5a33654fd24ecfecf15aed682d7da613da84217e1",
+   "chart.ti2": "28994e475a394b484fa0802c883185e4fc4fba97e96a750e50bf1c97e8e5e514"
+  },
+  "manual_A4_16bit": {
+   "chart.channels.json": "213504708c59b682e93c3f056e6f73576c29bb36f6eded5835453d3015ed5c54",
+   "chart.i1io.json": "1c4a8d162777a096fb46b132b15c3895af80bdfeb83ac0d8bcefcc935a7375a7",
+   "chart.strips.json": "c0b77bbd72a7661650a35ab9bf319fd781960d349cc308984b7897dd46e81b0f",
+   "chart.ti2": "3016d00aaab720fca73a7098411ee2b6b0682566c16bf3cc7f599b8db1a4699e"
+  },
+  "manual_A4_89x8": {
+   "chart.channels.json": "dcdf96b701b9d0b9f5cd2235129c301bdf5b589cb418d669fae10e7b283cf318",
+   "chart.i1io.json": "f5e2cd37fe59f49987cf753083633728c4b2696ab9b6166a91db68f813e581ca",
+   "chart.strips.json": "a3646277dba1c8184433a160f8ff416eac4119fe429248bbe7e95ab5f57e3c48",
+   "chart.ti2": "0de3f93e7a9a1f7e6d4bf92a54133897e96b362ff1ac4e1a07859844e9961c54"
+  },
+  "manual_A4_bw": {
+   "chart.channels.json": "94c9b37f7e1e1696541da1b77e5527b90bdc064abb96c0a28587b82252ec6127",
+   "chart.i1io.json": "c53e4266735587e0f6a27ec0d7ad365873990a61f3a99905ac25c19f1bd4ab67",
+   "chart.strips.json": "57a8c337bc7da06b34ec99179957cc3bfcf4a1d5145d106a59cef0c903e12547",
+   "chart.ti2": "111544e475fc18037d61a2133ec576756fc932b3e27edea34823948f2276c833"
+  },
+  "manual_A4_calibration": {
+   "chart.channels.json": "ce5143ae988bbbc1f3554c5c2840512f6fe7ce084267ff564f8748372750029b",
+   "chart.i1io.json": "c428dad10a2fc6e3347f7c3d66b82a3a5faf07282bb46aaab94a1e3ea70c70ec",
+   "chart.strips.json": "7067e1df193314808e37194ada0d49281109605b978a842fcf1904b4d59e016d",
+   "chart.ti2": "2b79d1d070b18bb28eda1169760f7042a3776b2582995f5d185fc4dca26273ad"
+  },
+  "manual_A4_clip": {
+   "chart.channels.json": "3fcd8893bdc3a17c473505fbc83697835f455a7af23d3be5102b11edb9f31f76",
+   "chart.i1io.json": "d72bcb0bad2dc77038b95c1cde2217dbb95cc8e971718e0a8b75b0dd51435c52",
+   "chart.strips.json": "edd86053ae8a93fac68141b39e840329c43af2ba08975bf9cb9e115559455dfe",
+   "chart.ti2": "4a1966b841cabcdcd97c067071ac430f516ba1d16525e8142806e51d7432826e"
+  },
+  "manual_A4_cmyk": {
+   "chart.channels.json": "4d4d3370ac136462ec7e6657a84e583383445d58df7e6ca6af0d861c849e9e19",
+   "chart.i1io.json": "c53e4266735587e0f6a27ec0d7ad365873990a61f3a99905ac25c19f1bd4ab67",
+   "chart.strips.json": "57a8c337bc7da06b34ec99179957cc3bfcf4a1d5145d106a59cef0c903e12547",
+   "chart.ti2": "24897395f78bc5e4426ec59232ff8ef130b06403a61ae40bd7ef4e9836490fef"
+  },
+  "manual_A4_edge_spacers": {
+   "chart.channels.json": "ff5f794b148e5b6008344bdb045f2e6329f2a1be7fbfb6d295ed4857f5f86ad4",
+   "chart.i1io.json": "cfe50d0c0301e105a7685de3d24b37362d8bfc33e2bf7f132465d0941e36249a",
+   "chart.strips.json": "00b413557973ee94e22c12db12d917456d3cd762f157252f15cd78fa6ba93912",
+   "chart.ti2": "5d843828404898bec2c251fdf0c08dcdb47f1e39b63891d02018232f7505a9d4"
+  },
+  "manual_A4_gaps": {
+   "chart.channels.json": "ffa3ef562c6bf65895f7e4ef8bb71a6198e4f68c1d771b8f5e38b70d43139c89",
+   "chart.i1io.json": "b44419f2d675848c446bba634d37a66e61a32ceb254f4c5d53b63f9fc60a86f2",
+   "chart.strips.json": "ae452dd1d1e3bcc741d2a9c9fa968be18a72c018c66e4b2c24d9a025d939a945",
+   "chart.ti2": "81ca5cccb46050d54fdfc95dc14b7fb601bcd94ccb6ea45512cbb42f34526e7e"
+  },
+  "manual_A4_label6": {
+   "chart.channels.json": "98519d58c756526c1150951f6d04d8f023426ae2e1c892b94108b6ce9b8199ff",
+   "chart.i1io.json": "4e8cf26bfb1525214e8ba006da70f7ca225c60463da45ab839908cabbdf42618",
+   "chart.strips.json": "c2c57b82ca400d39199bb31de643917e92ad8cbec0f38119706bdeaef013c39e",
+   "chart.ti2": "5d843828404898bec2c251fdf0c08dcdb47f1e39b63891d02018232f7505a9d4"
+  },
+  "manual_A4_nocross": {
+   "chart.channels.json": "c6caa2e75ea0cb434f0d545823608f236d383e7687b9baa0fa47a62fdae1b1d7",
+   "chart.i1io.json": "c53e4266735587e0f6a27ec0d7ad365873990a61f3a99905ac25c19f1bd4ab67",
+   "chart.strips.json": "57a8c337bc7da06b34ec99179957cc3bfcf4a1d5145d106a59cef0c903e12547",
+   "chart.ti2": "748dd41c2d0e0a7588e0f3d43c7c5aeb5bae85812df869c171745ae72b4dec18"
+  },
+  "manual_A4_nolabels": {
+   "chart.channels.json": "7617f45e1a14520ae9b0486a40d57079df03063bbaa4882ad1d1dd3719dc569b",
+   "chart.i1io.json": "d4bcd333652318f03f567a71d2c9e20f0c4cda031ba79b2fcd2a06c3195ab506",
+   "chart.strips.json": "57a8c337bc7da06b34ec99179957cc3bfcf4a1d5145d106a59cef0c903e12547",
+   "chart.ti2": "111544e475fc18037d61a2133ec576756fc932b3e27edea34823948f2276c833"
+  },
+  "manual_A4_noletters": {
+   "chart.channels.json": "8df6149b22d039824bda3eb3784ad2502e9736043c84fcb697f6d0db801fd661",
+   "chart.i1io.json": "d4bcd333652318f03f567a71d2c9e20f0c4cda031ba79b2fcd2a06c3195ab506",
+   "chart.strips.json": "57a8c337bc7da06b34ec99179957cc3bfcf4a1d5145d106a59cef0c903e12547",
+   "chart.ti2": "111544e475fc18037d61a2133ec576756fc932b3e27edea34823948f2276c833"
+  },
+  "manual_A4_none": {
+   "chart.channels.json": "3dfc99cdb671aec63372b4c513fba5d7f6ff131daf4b73e7e7d06d162f065229",
+   "chart.i1io.json": "54eec9b786b2f61d90ae656d36be82e25975f4cb54ba0c18167e3b4cc15987d8",
+   "chart.strips.json": "8629fd4fe3f27493eb9f2fca1a097406f6bd4d0ab5df7d047de2552ef8b52217",
+   "chart.ti2": "0de3f93e7a9a1f7e6d4bf92a54133897e96b362ff1ac4e1a07859844e9961c54"
+  },
+  "manual_A4_pdf": {
+   "chart.channels.json": "38f6e8b0d23ba739ccbdcc53be31401f436c2aff2020e0f61e192ece7c9101cf",
+   "chart.i1io.json": "1c4a8d162777a096fb46b132b15c3895af80bdfeb83ac0d8bcefcc935a7375a7",
+   "chart.strips.json": "c0b77bbd72a7661650a35ab9bf319fd781960d349cc308984b7897dd46e81b0f",
+   "chart.ti2": "3016d00aaab720fca73a7098411ee2b6b0682566c16bf3cc7f599b8db1a4699e"
+  },
+  "manual_A4_sheet_text": {
+   "chart.channels.json": "8edac409f05aba11328a3a57eb54aea74224cf9ce0a46bff3acaf00a2578a5a2",
+   "chart.i1io.json": "c89c173df116ab9e315d72202f723bbcf55fdbe4b9743264a7a628c8952694be",
+   "chart.strips.json": "9c85e2ef9728f9d43121787aca2e909c14e8a5b3b514e922b947e947236d9602",
+   "chart.ti2": "f1ee038ce61a183636f49f9e2d7e3cfa1bb70a55985d1501c9f5c608ca6a6aa8"
+  },
+  "manual_A4_verification": {
+   "chart.channels.json": "b254c16e541a984538a085e43788f113dc0f5183754ce423c2e683271c929b29",
+   "chart.i1io.json": "54c25cb6442708c7138b4d26013f621bac25a850684f6ae32cfc967cd169efcc",
+   "chart.strips.json": "68158f019ea8917eaa42454468daff8ec3189a58598c31b38b7117e7b7d43705",
+   "chart.ti2": "1640ca7ab97909424934b67e3a39419ced80b0d63d973187df5244744d9e08fd"
+  },
+  "manual_Letter": {
+   "chart.channels.json": "6951efec5d3941371918d26dbf45aae12dd86b62ed0907702843faa7b81b6b29",
+   "chart.i1io.json": "589bab15833a4eb956d00479ce64a32e1b98c1eb93e22d89ad4a840fca694f12",
+   "chart.strips.json": "399037effd044ff4f9dc2d8f10add3902f9b8467d9f9034736bf83cd4c70f5fc",
+   "chart.ti2": "7497e6f4c28631ae7b9f59e2d3bf47cd2e1fd6022745906091319e38253a1146"
+  },
+  "manual_Letter_12x10": {
+   "chart.channels.json": "9ada738a26fc3e236fa24d8ab5f68e6ef518cf4d6a905a9c665243ed83139892",
+   "chart.i1io.json": "44e0ede6560e634448d1ad2398001945012b53a7522682da9bbde3ee8a17f56b",
+   "chart.strips.json": "7561efee8943e91e51b9f248587c7fc00d5c921583cfe22ea67b548b455a0afc",
+   "chart.ti2": "42593ae0adc605274e4126c82fe563430e5a249538c205df2379d9bf26973a57"
+  },
+  "manual_Letter_16bit": {
+   "chart.channels.json": "4cc60c6af95016e5c7562386fc3b54ad75a08d9e83292215db66d6a4db202f81",
+   "chart.i1io.json": "3e06ff0439b39d2e22cc79a45462824ee4816809e7a9440b872e258cbc9cdb89",
+   "chart.strips.json": "28f01ad365edbc98ff9822aad7d3da485bef74526d2cdfe4776a137e8070e5ba",
+   "chart.ti2": "9c30b45534958559fc0c7ee1677e0f233b490f35c7cc08b409f62f66bf0a73fb"
+  },
+  "manual_Letter_89x8": {
+   "chart.channels.json": "3fb42ff466c379203e0688a7a8f324d0ea1eb137e98a0590a71a30c065a90e39",
+   "chart.i1io.json": "d7591221c88d75454396724dbab4e6ade1d5c8473a8644d04dbadd149070949b",
+   "chart.strips.json": "cb3298b4dbe5963485adf1ea267600aa2537366f15ee432e6574cf5d44a5116c",
+   "chart.ti2": "e4db821ff2ab6ff12d952a394462a9d2ae52954400ad417f3283285a73765a19"
+  },
+  "manual_Letter_bw": {
+   "chart.channels.json": "7ca18eb1702c12d5b12d6b0f1efe54c5c224c6f40591895ee54cedf88beb1c4e",
+   "chart.i1io.json": "589bab15833a4eb956d00479ce64a32e1b98c1eb93e22d89ad4a840fca694f12",
+   "chart.strips.json": "399037effd044ff4f9dc2d8f10add3902f9b8467d9f9034736bf83cd4c70f5fc",
+   "chart.ti2": "7497e6f4c28631ae7b9f59e2d3bf47cd2e1fd6022745906091319e38253a1146"
+  },
+  "manual_Letter_calibration": {
+   "chart.channels.json": "b7b2f9bdd3b7518b275f63333ea15ecb2ae7f5bcf5d531d4ee649b31d7e964e8",
+   "chart.i1io.json": "2f979cb0c9780d48fed6125a2b528d851065734d84826873cb8118353b166dd5",
+   "chart.strips.json": "1804d3e7992737cd4ab58e94b16468946d2f0e6c2934be265ac53fa5c5081179",
+   "chart.ti2": "c19e767fc7f5285783f55b9a1b64196c5b390b5bf985dc78cb5e07b1b70049b2"
+  },
+  "manual_Letter_clip": {
+   "chart.channels.json": "412e14fb8cf957c7a443e6b4f89476c2d4091affb738c529f6ebc4c95cb950fe",
+   "chart.i1io.json": "82fa903f63a4823394c1098ad5046243337dfcf4f8eb0b3b77511a2c6ec96b3e",
+   "chart.strips.json": "3639b938129cea5645143d3bdc5cde626960b0af0ab0ff34e725b3389c4f8536",
+   "chart.ti2": "82f364501bb8c805081db27d8ca8c774ecbc5b5153bcea856f1183d3ed60c128"
+  },
+  "manual_Letter_cmyk": {
+   "chart.channels.json": "2559e3d70fe2a146d9ad3ef719ca66bc64f006585654c1827d6fda62d541a2fe",
+   "chart.i1io.json": "589bab15833a4eb956d00479ce64a32e1b98c1eb93e22d89ad4a840fca694f12",
+   "chart.strips.json": "399037effd044ff4f9dc2d8f10add3902f9b8467d9f9034736bf83cd4c70f5fc",
+   "chart.ti2": "5340925b4ddf2287e73d1ed2220b6fd7514050742c71a99b33f179e9557e9894"
+  },
+  "manual_Letter_edge_spacers": {
+   "chart.channels.json": "974f398cd766e1caa31b4b294f13ff4a149a458f34bf03380b062a719e76c59a",
+   "chart.i1io.json": "589bab15833a4eb956d00479ce64a32e1b98c1eb93e22d89ad4a840fca694f12",
+   "chart.strips.json": "399037effd044ff4f9dc2d8f10add3902f9b8467d9f9034736bf83cd4c70f5fc",
+   "chart.ti2": "7497e6f4c28631ae7b9f59e2d3bf47cd2e1fd6022745906091319e38253a1146"
+  },
+  "manual_Letter_gaps": {
+   "chart.channels.json": "db3de0c358a41f1c5f92445aecac3a4e1515a699414742329ef4b498d9cde1bf",
+   "chart.i1io.json": "5aece8a116fc72fc59a1ef6a252ee4246779e9f3676e34421c77b6b0f8c6aeb1",
+   "chart.strips.json": "04b44eb7e7f11b6d3bd9b152e3e871c23791c8780225a9d7e8e1f149e6478b17",
+   "chart.ti2": "5238b0fe051e50249680b9662acfbd8c5f425fdbe9c0f426cd2f20adc87e4022"
+  },
+  "manual_Letter_label6": {
+   "chart.channels.json": "a670ec87ffd6b8b8983ae1fe76df67fc8182d3085eaf05eaf7c399084e3a3d20",
+   "chart.i1io.json": "161f7daddc83d737aae5ec1529a7a6fab1ae5888cc8eaf260bc0d0f07f9c902d",
+   "chart.strips.json": "878f83fc752a0fff1a5b696f02e056219bd66b536642904c6be6b8df4a9a144d",
+   "chart.ti2": "025b8ed9adddecf0b4d401602c2e51ee7e608fb4368612df850e90a9b1e5087f"
+  },
+  "manual_Letter_nocross": {
+   "chart.channels.json": "2c43fa1bf37d84f79442e1c5790de1492c1d282172ff07a776ba3c412c73f78f",
+   "chart.i1io.json": "ba2d6ed657f002579e2f522cfe8c24b4309d07085acab7850168338721755007",
+   "chart.strips.json": "399037effd044ff4f9dc2d8f10add3902f9b8467d9f9034736bf83cd4c70f5fc",
+   "chart.ti2": "f95f963600490278d0abf7863bb908d58a52205db56f969a521f4943fbf74fb0"
+  },
+  "manual_Letter_nolabels": {
+   "chart.channels.json": "6d7a167a9de5da3f31564ed08e30033e3996e94656f6345f6817aaba35db3109",
+   "chart.i1io.json": "f7113e9cbec6791271cf67a78790f39a949213ad2090730b5b6c7c20ce39f8cc",
+   "chart.strips.json": "399037effd044ff4f9dc2d8f10add3902f9b8467d9f9034736bf83cd4c70f5fc",
+   "chart.ti2": "7497e6f4c28631ae7b9f59e2d3bf47cd2e1fd6022745906091319e38253a1146"
+  },
+  "manual_Letter_noletters": {
+   "chart.channels.json": "0d2a116e74d63313bb2778f3ffe67369f36434cde997b3b9cfbfbab4150ab678",
+   "chart.i1io.json": "f7113e9cbec6791271cf67a78790f39a949213ad2090730b5b6c7c20ce39f8cc",
+   "chart.strips.json": "399037effd044ff4f9dc2d8f10add3902f9b8467d9f9034736bf83cd4c70f5fc",
+   "chart.ti2": "7497e6f4c28631ae7b9f59e2d3bf47cd2e1fd6022745906091319e38253a1146"
+  },
+  "manual_Letter_none": {
+   "chart.channels.json": "1d759d58e18486648b433feedc3928e108ee9d4cd801f35c5f0ff74bf8c7a7db",
+   "chart.i1io.json": "caadd1ca43d76ea63a5ead8c6e61438506af75430750a516534ee8c9c2609e58",
+   "chart.strips.json": "3f99dec4dd34f8808a3d2629d37a7f4de9f1d113f262c3169c0af649dbdea1d0",
+   "chart.ti2": "e4db821ff2ab6ff12d952a394462a9d2ae52954400ad417f3283285a73765a19"
+  },
+  "manual_Letter_pdf": {
+   "chart.channels.json": "c5e57c6270970dc7f42f96dce9bea702073085ef876fdfdd8c70ce03712c7372",
+   "chart.i1io.json": "3e06ff0439b39d2e22cc79a45462824ee4816809e7a9440b872e258cbc9cdb89",
+   "chart.strips.json": "28f01ad365edbc98ff9822aad7d3da485bef74526d2cdfe4776a137e8070e5ba",
+   "chart.ti2": "9c30b45534958559fc0c7ee1677e0f233b490f35c7cc08b409f62f66bf0a73fb"
+  },
+  "manual_Letter_sheet_text": {
+   "chart.channels.json": "9253a224df8b3014f725bcdc1531442a51beea79a8bb419785680ff4ed80da4e",
+   "chart.i1io.json": "7a0ac293e120be05e02e7303bd14d71eaae54d4f4ec56439dde778d7c66aba6f",
+   "chart.strips.json": "83774f026eedf9e646b38be117b9f57f4105dba699428e99f49f5387c45e4689",
+   "chart.ti2": "8b92c92d672152d49e5eba8169ba0c50396d440a89935a7a47ef197c88e52a8f"
+  },
+  "manual_Letter_verification": {
+   "chart.channels.json": "3fe9cd5e2666ba28f85338c2484bb8a0db83c97dcb003aa3c5633df456362cb0",
+   "chart.i1io.json": "feb2c14319fec39bd86cd148f1c121f5325e572b1d5a671cd9f800d5edd52f2f",
+   "chart.strips.json": "463b41bfc1a84f2b7a212db643944a008890f70006fc96b6bdb23bb9788e8aea",
+   "chart.ti2": "90d944c4bc8a9283825b33e63fde833ac3938f7a2fbe7fc3dde2b4585b80814e"
+  }
+ },
+ "note": "SHA-256 of the geometry files of every i1iO case (tests/_i1io_baseline.py), made by the 4.3.65 release tree",
+ "release": "4.3.65"
+}

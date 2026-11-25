@@ -38,6 +38,12 @@ Every line was missing from the first brief of the i1iO 2 table drive and cost a
 - [ ] A level check after calibration; the chart's identity (and a verification's date)
       recorded per session, so readings never complete another chart.
 
+- [ ] The simulated device reads WHAT LIES ON IT (an image at a true place), never the expected
+      values: only then can a test show a wrong sheet, another page, a shift or an uncut sheet
+      (`tests/i1io_table/bed_sim.py`).
+- [ ] Every row is held against what the chart expects before it is kept; what is dropped leaves
+      nothing in any file anybody reads, also after a crash (`workflow/i1io/table/identity.py`).
+
 ## Presentation and parity
 
 - [ ] In the Measure tab under START, like a hand measurement; never a blocking window over

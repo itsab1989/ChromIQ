@@ -346,7 +346,7 @@ def _derive_area_patch_size(kw: dict) -> tuple[float, float] | None:
     # minimum, then grow to fill", exactly like a typed value. (by_grid likewise
     # always fills.) So area-first never falls back to the loose patch-first size.
     try:
-        w_mm, h_mm = papers.dimensions_mm(kw.get("paper", "A4"))
+        w_mm, h_mm = papers.piece_mm_of(kw)
     except Exception:
         return None
     # Provisional geometry (patch-first, auto patch size) for the usable area
@@ -653,7 +653,7 @@ def pinned_grid_shortfall(kw: dict) -> "tuple[int, int, int, int] | None":
     if size is None:
         return None
     try:
-        w_mm, h_mm = papers.dimensions_mm(kw.get("paper", "A4"))
+        w_mm, h_mm = papers.piece_mm_of(kw)
     except Exception:          # noqa: BLE001
         return None
     got = realised_grid(kw, w_mm, h_mm, size[0], size[1])

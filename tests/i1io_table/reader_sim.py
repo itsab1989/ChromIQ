@@ -820,7 +820,7 @@ def make_run(tmp_path: Path, sheet: dict, name: str = "Table-Target"):
 def make_reading_job(tmp_path, sheet=None, aims=None, faults=None, run=True, stamp=STAMP,
                      instrument=None, helper_check=None, ask_after_each_step=True, sim=None,
                      app_marker_place=None, press=False, latency_guard=None, reach_store=None,
-                     job_class=None, **simkw):
+                     job_class=None, helper_class=None, **simkw):
     """A table job with the simulated table AND the simulated helper behind the app's reader.
     *press*: round B's button wait is offered (the simulated helper's FakePressProc).
     Returns (job, sim, helper, run)."""
@@ -832,7 +832,7 @@ def make_reading_job(tmp_path, sheet=None, aims=None, faults=None, run=True, sta
     sheet = sheet or H.demo_sheet()
     if sim is None:
         sim = csim.CSimTable(part_c=True, aims=list(aims or H.demo_aims(sheet)), **simkw)
-    helper = HelperSim(sim, faults)
+    helper = (helper_class or HelperSim)(sim, faults)
     if run is True:
         r = make_run(tmp_path, sheet)
     elif run:

@@ -4548,306 +4548,85 @@
   "padding_patches": 0
  },
  "table_facts": {
-  "REACH_MM": {
-   "value": [
-    320.0,
-    230.0
-   ],
-   "source": "X-Rite i1iO 3 product page; Northlight Images review of the first i1iO. Not published for the i1iO 2, and the recordings only spanned 263 x 154 mm between aimed corners: the tester must confirm the arm reaches all three marks",
-   "confidence": "PUBLISHED"
-  },
-  "APERTURE_MM": {
-   "value": 4.5,
-   "source": "X-Rite i1Pro 2 specification (workflow.layout_engine.instruments.STRIP_READ_APERTURE_MM)",
-   "confidence": "VERIFIED"
-  },
-  "PATCH_RANGE_ALONG_MM": {
-   "value": [
-    6.0,
-    20.0
-   ],
-   "source": "i1Profiler workflow files (docs/dev_pxwf_format.md)",
-   "confidence": "VERIFIED"
-  },
-  "PATCH_RANGE_ACROSS_MM": {
-   "value": [
-    7.0,
-    20.0
-   ],
-   "source": "i1Profiler workflow files (docs/dev_pxwf_format.md)",
-   "confidence": "VERIFIED"
-  },
-  "SCAN_READING_INTERVAL_S": {
-   "value": 0.005004,
-   "source": "i1pro2_side RESULTS 6.1 (every trigger of both recordings)",
-   "confidence": "VERIFIED"
-  },
-  "SCAN_SPEEDS_MM_S": {
-   "value": [
-    138.0,
-    88.0,
-    54.0
-   ],
-   "source": "PROTOCOL 4.4; i1pro2_side RESULTS 6.1-6.2",
-   "confidence": "LIKELY"
-  },
-  "SCAN_TRIGGER_DELAY_S": {
-   "value": [
-    0.1,
-    0.8
-   ],
-   "source": "i1pro2_side RESULTS 6.1",
-   "confidence": "LIKELY"
-  },
-  "ARGYLL_MIN_SAMPLES": {
-   "value": 3,
-   "source": "native/instlib/i1pro_imp.c MIN_SAMPLES",
-   "confidence": "VERIFIED"
-  },
-  "SCAN_DESIGN_SPEED_MM_S": {
-   "value": 88.0,
-   "source": "ours: i1Profiler's middle speed",
-   "confidence": "OURS"
-  },
-  "SCAN_SAFE_READINGS": {
-   "value": 20,
-   "source": "ours: about 1.5 x the fastest recorded pass",
-   "confidence": "OURS"
-  },
-  "SCAN_GAP_MM": {
-   "value": 1.0,
-   "source": "ours: X-Rite's supported-targets note; i1Profiler's 20 % gap limit",
-   "confidence": "OURS"
-  },
-  "SPACER_MM": {
-   "value": 1.0,
-   "source": "printtarg's i1Pro spacer (instruments.py, i1 branch)",
-   "confidence": "VERIFIED"
-  },
-  "SPACER_MODE": {
-   "value": "colored",
-   "source": "ours: the contrast-maximising spacers ChromIQ prints for handheld strips",
-   "confidence": "OURS"
-  },
-  "ROW_GAP_MM": {
-   "value": 0.0,
-   "source": "ours: aperture 4.5 mm in an 8 mm row; arm accuracy unpublished",
-   "confidence": "OURS"
-  },
-  "ROW_GAP_MAX_MM": {
-   "value": 3.0,
-   "source": "ours",
-   "confidence": "OURS"
-  },
-  "GAP_MAX_FRACTION": {
-   "value": 0.2,
-   "source": "i1Profiler driver: 'gaps size too large (more than 20% of the patch length)'",
-   "confidence": "VERIFIED"
-  },
-  "TESTER_CHART_PITCH_MM": {
-   "value": [
-    9.54,
-    8.2
-   ],
-   "source": "PROTOCOL 3.1",
-   "confidence": "LIKELY"
-  },
-  "TABLE_UNIT_MM": {
-   "value": 0.1,
-   "source": "PROTOCOL 3.1",
-   "confidence": "LIKELY"
-  },
-  "TOP_EDGE_TOWARDS_PARKING": {
-   "value": true,
-   "source": "PROTOCOL 3.1 (axes of the aligned corners)",
-   "confidence": "VERIFIED"
-  },
-  "AIMING_ORDER": {
-   "value": [
-    "top-left",
-    "bottom-left",
-    "bottom-right"
-   ],
-   "source": "PROTOCOL 4.3",
-   "confidence": "VERIFIED"
-  },
-  "PATCH_ALONG_MM": {
-   "value": 10.0,
-   "source": "ours: above min_patch_length_mm() = 8.81",
-   "confidence": "OURS"
-  },
-  "PATCH_ACROSS_MM": {
-   "value": 8.0,
-   "source": "ours: aperture plus 1.75 mm each side",
-   "confidence": "OURS"
-  },
-  "RUN_MM": {
-   "value": 10.0,
-   "source": "ours: run_in_mm(88) = 8.8, rounded up",
-   "confidence": "OURS"
-  },
-  "LABEL_SIZE_MM": {
-   "value": 2.5,
-   "source": "ours: the smallest size that still reads well in print",
-   "confidence": "OURS"
-  },
-  "LABEL_SIZE_RANGE_MM": {
-   "value": [
-    2.0,
-    4.0
-   ],
-   "source": "ours",
-   "confidence": "OURS"
-  },
-  "LABEL_MAX_MM": {
-   "value": 6.0,
-   "source": "ours: the narrowest strip pitch (7 mm) less 1 mm",
-   "confidence": "OURS"
-  },
-  "LABEL_CLEAR_MM": {
-   "value": 1.0,
-   "source": "ours: aperture 4.5 mm in an 8 mm row, plus 1 mm",
-   "confidence": "OURS"
-  },
-  "ROW_LABEL_EDGE_MM": {
-   "value": 5.0,
-   "source": "ours",
-   "confidence": "OURS"
-  },
-  "NUMBERS_EDGE_MM": {
-   "value": 10.0,
-   "source": "ours: past every printer edge ChromIQ knows, inside the 20 mm side band",
-   "confidence": "OURS"
-  },
-  "LABEL_TURN_DEG": {
-   "value": 90,
-   "source": "ours: the sheet lies a quarter turn clockwise",
-   "confidence": "OURS"
-  },
-  "ROW_LABEL_GAP_MM": {
-   "value": 1.0,
-   "source": "ours",
-   "confidence": "OURS"
-  },
-  "RUN_EDGE_MM": {
-   "value": 2.0,
-   "source": "ours: so a run never starts on the paper edge",
-   "confidence": "OURS"
-  },
-  "MARK_INSET_MM": {
-   "value": 11.0,
-   "source": "ours: the cross stays 8 mm from the paper edge, clear of the widest unprintable edge seen (6.4 mm, a Canon PRO-300 description, on screen 2026-11-13)",
-   "confidence": "OURS"
-  },
-  "MARK_CROSS_MM": {
-   "value": 6.0,
-   "source": "ours",
-   "confidence": "OURS"
-  },
-  "MARK_LINE_MM": {
-   "value": 0.3,
-   "source": "ours: thin enough to put the sight's cross hair on",
-   "confidence": "OURS"
-  },
-  "MARK_FRAME_MM": {
-   "value": 5.0,
-   "source": "ours: makes the cross easy to find",
-   "confidence": "OURS"
-  },
-  "MARK_DIGIT_MM": {
-   "value": 4.0,
-   "source": "ours",
-   "confidence": "OURS"
-  },
-  "BAND_MM": {
-   "value": 15.0,
-   "source": "ours: mark inset 11 + half the cross 3 + 1 mm clear",
-   "confidence": "OURS"
-  },
-  "TEXT_LINE_MM": {
-   "value": 8.5,
-   "source": "ours",
-   "confidence": "OURS"
-  },
-  "PRINTER_EDGE_MM": {
-   "value": 5.0,
-   "source": "the engine's default page margin for text (text_edge); the hold and the ring: unknown",
-   "confidence": "OURS"
-  },
-  "WORDMARK_MM": {
-   "value": 4.0,
-   "source": "ours",
-   "confidence": "OURS"
-  },
-  "WORDMARK_MIN_MM": {
-   "value": 2.0,
-   "source": "ours: the smallest label size",
-   "confidence": "OURS"
-  },
-  "MARK_CLEAR_MM": {
-   "value": 1.0,
-   "source": "ours",
-   "confidence": "OURS"
-  },
-  "AIM_CROSSES": {
-   "value": true,
-   "source": "ours: easier and safer to aim at than a patch",
-   "confidence": "OURS"
-  },
-  "CORNER_MAX_L": {
-   "value": 60.0,
-   "source": "ours: clearly darker than paper (L* about 95)",
-   "confidence": "OURS"
-  },
-  "CORNER_MIN_C": {
-   "value": 25.0,
-   "source": "ours",
-   "confidence": "OURS"
-  },
-  "CORNER_DARK_L": {
-   "value": 45.0,
-   "source": "ours",
-   "confidence": "OURS"
-  },
-  "CORNER_NEVER_L": {
-   "value": 85.0,
-   "source": "ours: near white is not aimed at",
-   "confidence": "OURS"
-  },
-  "TEXT_MIN_CAP_MM": {
-   "value": 1.5,
-   "source": "ours: 6 pt type, still legible in print",
-   "confidence": "OURS"
-  },
-  "TEXT_EDGE_MM": {
-   "value": 10.0,
-   "source": "ours: = NUMBERS_EDGE_MM, past every printer edge ChromIQ knows",
-   "confidence": "OURS"
-  },
-  "LETTER_EDGE_MM": {
-   "value": 4.0,
-   "source": "ours: the engine's own text edge",
-   "confidence": "OURS"
-  },
-  "LETTER_AUTO_MM": {
-   "value": 5.0,
-   "source": "ours: the engine's automatic label size, 4.9 mm",
-   "confidence": "OURS"
-  },
-  "MARK_SIDE_MM": {
-   "value": 15.0,
-   "source": "ours: mark inset 11 + half the cross 3 + 1 clear",
-   "confidence": "OURS"
-  },
-  "ALIGN_WITH_CROSSES": {
-   "value": "center",
-   "source": "ours",
-   "confidence": "OURS"
-  },
-  "ALIGN_WITHOUT_CROSSES": {
-   "value": "center-left",
-   "source": "ours",
-   "confidence": "OURS"
-  }
+  "REACH_MM": [
+   320.0,
+   230.0
+  ],
+  "APERTURE_MM": 4.5,
+  "PATCH_RANGE_ALONG_MM": [
+   6.0,
+   20.0
+  ],
+  "PATCH_RANGE_ACROSS_MM": [
+   7.0,
+   20.0
+  ],
+  "SCAN_READING_INTERVAL_S": 0.005004,
+  "SCAN_SPEEDS_MM_S": [
+   138.0,
+   88.0,
+   54.0
+  ],
+  "SCAN_TRIGGER_DELAY_S": [
+   0.1,
+   0.8
+  ],
+  "ARGYLL_MIN_SAMPLES": 3,
+  "SCAN_DESIGN_SPEED_MM_S": 88.0,
+  "SCAN_SAFE_READINGS": 20,
+  "SCAN_GAP_MM": 1.0,
+  "SPACER_MM": 1.0,
+  "SPACER_MODE": "colored",
+  "ROW_GAP_MM": 0.0,
+  "ROW_GAP_MAX_MM": 3.0,
+  "TESTER_CHART_PITCH_MM": [
+   9.54,
+   8.2
+  ],
+  "TABLE_UNIT_MM": 0.1,
+  "TOP_EDGE_TOWARDS_PARKING": true,
+  "AIMING_ORDER": [
+   "top-left",
+   "bottom-left",
+   "bottom-right"
+  ],
+  "PATCH_ALONG_MM": 10.0,
+  "PATCH_ACROSS_MM": 8.0,
+  "RUN_MM": 10.0,
+  "LABEL_SIZE_MM": 2.5,
+  "LABEL_SIZE_RANGE_MM": [
+   2.0,
+   4.0
+  ],
+  "LABEL_MAX_MM": 6.0,
+  "LABEL_CLEAR_MM": 1.0,
+  "ROW_LABEL_EDGE_MM": 5.0,
+  "NUMBERS_EDGE_MM": 10.0,
+  "LABEL_TURN_DEG": 90,
+  "ROW_LABEL_GAP_MM": 1.0,
+  "RUN_EDGE_MM": 2.0,
+  "MARK_INSET_MM": 11.0,
+  "MARK_CROSS_MM": 6.0,
+  "MARK_LINE_MM": 0.3,
+  "MARK_FRAME_MM": 5.0,
+  "MARK_DIGIT_MM": 4.0,
+  "BAND_MM": 15.0,
+  "TEXT_LINE_MM": 8.5,
+  "PRINTER_EDGE_MM": 5.0,
+  "WORDMARK_MM": 4.0,
+  "WORDMARK_MIN_MM": 2.0,
+  "MARK_CLEAR_MM": 1.0,
+  "AIM_CROSSES": true,
+  "CORNER_MAX_L": 60.0,
+  "CORNER_MIN_C": 25.0,
+  "CORNER_DARK_L": 45.0,
+  "CORNER_NEVER_L": 85.0,
+  "TEXT_MIN_CAP_MM": 1.5,
+  "TEXT_EDGE_MM": 10.0,
+  "LETTER_EDGE_MM": 4.0,
+  "LETTER_AUTO_MM": 5.0,
+  "MARK_SIDE_MM": 15.0,
+  "ALIGN_WITH_CROSSES": "center",
+  "ALIGN_WITHOUT_CROSSES": "center-left"
  }
 }

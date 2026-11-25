@@ -227,7 +227,8 @@ Layout:
       `workflow/i1io/chart.py::check_sheet`); for a camera or scanner type
       reader, the instrument's own detector on a synthetic scan of every
       page.
-- [ ] **2.12** Printer edge note (`workflow/printer_edges.py`): marks the
+- [ ] **2.12** Printer edge note (`workflow/printer_edges.py`; a printed sheet
+      that is not a chart page: `workflow/overhang.py`): marks the
       instrument needs are never called "text"; advice that can be followed
       (example `workflow/measurement_messages.py::M_I1IO_EDGE_MARKS_NOT_PRINTED`).
 - [ ] **2.13** Papers: `workflow/layout_engine/papers.py::list_papers`,
@@ -366,6 +367,11 @@ passes the sheet check, and the four nets of Stage 1 are still green.
       recorded recipe.
 - [ ] **5.6** The chart records what it was made with; a missing record
       reads as "unknown" (example `workflow/i1io/chart.py::aim_recorded`).
+- [ ] **5.6b** A fact worked out at Generate has ONE writer and ONE reader: the
+      chart's own files are the truth, a stored recipe is held against them, a
+      contradiction is refused in words (example
+      `workflow/layout_engine/presets.py::stored_recipe`,
+      `workflow/i1io/pieces.py::record_of`).
 - [ ] **5.7** Recipes, presets and a project saved by the previous release
       build byte-identical charts with the branch (Stage 10).
 
@@ -387,6 +393,9 @@ comparison output in the pull request.
       illuminant and observer: `ui/ti2_loader.py::spectral_options_unavailable`.
 - [ ] **6.3** Side files: `core/file_manager.py::CHART_COMPANION_SUFFIXES`
       and `workflow/chart_import.py::_CHART_EXTS`.
+- [ ] **6.3b** Files derived from a chart carry a mark, are checked against what
+      they were made from before every use, and only marked ones are deleted
+      (example `workflow/i1io/sheets.py::is_ours`).
 - [ ] **6.4** `.ti2` header lines through the engine's writer; a `.ti3` of
       your own carries `CREATED`, and a test proves `colprof` accepts it.
       TIFF stamped like other charts
@@ -642,6 +651,9 @@ and the full session runs against the simulator. For a device that moves:
       (`scripts/capture_screens.py::build_app`, then
       `scripts/capture_screens.py::set_theme`), show the right version and
       no leftover from an earlier step.
+
+- [ ] **9.12** Files of the instrument's own are in the file guide
+      (`ui/file_guide.py`), behind its Beta.
 
 **Done means:** the language, em dash, message catalogue, specification and
 guide tests of 10.7 pass, and the translation review is named in the pull

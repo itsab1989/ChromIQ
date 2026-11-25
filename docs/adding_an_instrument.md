@@ -1797,6 +1797,9 @@ nobody's fault: most are invisible until somebody knows to look.
 | A driven instrument in a blocking window over the Measure tab | The tab's own measurement area, like a hand measurement ([section 12b](#12b-instruments-chromiq-drives-itself-the-whole-process-step-by-step), step 6). |
 | A simulator that answered with what we believed the device does | Mark beliefs, and replace them with the first real answer (section 12b, step 4). |
 | A text that promised more than the code did ("before every move") | Write texts last, against the code and its tests (section 12b, step 8). |
+| A derived fact stored in three files, each believed by somebody | One truth, one writer, one reader; the others are held against it (below). |
+| A note added to a line and everything before it got smaller | Set the old line first, exactly as it was; the new part takes what is left (below). |
+| A derived file deleted by its name's pattern | Mark what you write, delete only what carries the mark, record what you are working on first (below). |
 
 ### Four of them, told in a little more detail
 
@@ -1832,6 +1835,38 @@ tried, another was refuted, and the most serious fault of the round was
 found only by typing into the real resolution box, which no reading had
 suggested. A review that measures says which of its findings it measured;
 one that cannot measure something says so.
+
+**One truth of a derived fact.** When the i1iO's chart was first cut into
+pieces, how a sheet is cut stood in the side file, in the `.ti2` and in the
+stored recipe. Two writers stored it and a third one forgot, so one chart read as
+two different ones. What held in the end: the fact is worked out once, at
+Generate; one function writes it wherever a recipe is stored, and a test fails
+for a writer that does not use it; the chart's own two files are the truth, and a
+stored recipe is held against them by the one function that reads it; what
+contradicts, is damaged or comes from a newer version is refused in words and
+described as nothing, never as a guess. Check the stored value as hard as a file
+from a stranger: every number finite and in range, and only what your own rule
+could have made.
+
+**A new part of an old line.** The run's notes were first appended to the text of
+the chart's name line, and a long note made the sheet text smaller. Now the line
+is planned exactly as without the note, and the note is set into what is left:
+charts without one stay byte for byte the same, and the long note can only
+shorten itself.
+
+**Files you derive.** The printed sheets are built from the pages and can always
+be built again. So: a checksum record says whether they fit, and they are checked
+before every use; every image carries a mark of its own, and only marked files
+are ever deleted; the names being worked on are recorded before the work starts,
+so a killed run is cleaned by name and not by pattern; the free space is asked
+first; and any failure leaves nothing that could be used by hand.
+
+**Proving that old charts stay the same** ([section 9b](#9b-proving-it-for-every-preset-the-byte-identity-loop)).
+Before the first line of a layout change, build every default case of the
+instrument from the released version with fixed seeds and dates, keep the files
+outside the repository, and compare after every step. A small copy of the digests
+of the geometry files (no pixels: fonts differ by machine) goes into the
+repository as a test.
 
 The checklist's last stage lists every mistake with the test or check that
 catches it.

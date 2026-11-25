@@ -7,7 +7,7 @@ simulator only (no hardware).
 | session caps (now DERIVED from the chart)        | test_caps_*                                  |
 | per-stage caps and runs                          | test_the_per_step_numbers_are_the_testers,   |
 |                                                  | test_a_stage_runs_at_most_as_often_as_*      |
-| SPOT_ROW_PATCHES_MAX (now: the row, max 33)      | test_a_row_beyond_the_layouts_longest_*      |
+| SPOT_ROW_PATCHES_MAX (now: the row, max 49)      | test_a_row_beyond_the_layouts_longest_*      |
 | PAGE_PATCHES_MAX / PAGE_ROWS_MAX (now derived)   | test_a_page_beyond_the_layouts_densest_*     |
 | CREEP_STEPS_MAX, CREEP_PAUSE_S, CREEP_STEP       | test_the_creep_*                             |
 | C_HOME needs                                     | test_the_homing_needs_*                      |
@@ -126,13 +126,14 @@ def test_caps_formula_is_the_stated_one():
 
 
 EXTREMES = {
-    "densest page (990 = 30 x 33)": cp.ChartShape(((33,) * 30,)),
-    "longest row (33)": cp.ChartShape(((33,),)),
-    "most rows (30)": cp.ChartShape(((1,) * 30,)),
+    # the new chart layout (25 Nov 2026): 5.5 mm patches on a piece of at most A4 / Letter
+    "densest page (1813 = 37 x 49)": cp.ChartShape(((49,) * 37,)),
+    "longest row (49)": cp.ChartShape(((49,),)),
+    "most rows (37)": cp.ChartShape(((1,) * 37,)),
     "most pages (667, 10,000 patches)": cp.ChartShape(tuple((15,) for _ in range(666))
                                                       + ((10,),)),
-    "the largest chart (105 pages of 990)": cp.ChartShape(tuple((33,) * 30
-                                                                for _ in range(105))),
+    "a large chart (105 pages of 1813)": cp.ChartShape(tuple((49,) * 37
+                                                             for _ in range(105))),
 }
 
 
@@ -163,9 +164,9 @@ def test_caps_the_layouts_extreme_charts_are_never_refused(name):
 
 
 @pytest.mark.parametrize("shape,what", [
-    (cp.ChartShape(((34,),)), "per_row"),
-    (cp.ChartShape(((1,) * 31,)), "rows"),
-    (cp.ChartShape(((33,) * 30 + (1,),)), "rows"),
+    (cp.ChartShape(((50,),)), "per_row"),
+    (cp.ChartShape(((1,) * 38,)), "rows"),
+    (cp.ChartShape(((49,) * 37 + (1,),)), "rows"),
     (cp.ChartShape(tuple((1,) for _ in range(668))), "pages"),
 ])
 def test_a_row_or_page_beyond_the_layouts_maxima_is_refused(shape, what):
@@ -175,14 +176,14 @@ def test_a_row_or_page_beyond_the_layouts_maxima_is_refused(shape, what):
 
 
 def test_a_row_beyond_the_layouts_longest_row_is_refused_by_the_job():
-    job, sim, _t = H.make_job(sheet=shaped_sheet([34]))
+    job, sim, _t = H.make_job(sheet=shaped_sheet([50], along=5.5))
     r = H.Person(job, sim).drive(job.open())
     assert (r.kind, r.reason) == (J.Kind.REFUSED, "chart_beyond_layout_maxima")
     assert r.detail["what"] == "per_row" and sim.received == []
 
 
 def test_a_page_beyond_the_layouts_densest_page_is_refused_by_the_job():
-    job, sim, _t = H.make_job(sheet=shaped_sheet([30] * 31))
+    job, sim, _t = H.make_job(sheet=shaped_sheet([30] * 38, across=5.5))
     r = H.Person(job, sim).drive(job.open())
     assert r.reason == "chart_beyond_layout_maxima" and sim.received == []
 
@@ -219,10 +220,13 @@ def test_a_session_that_exceeds_its_derived_cap_is_stopped():
     assert p.drive(job.home()).kind == J.Kind.REFUSED and len(sim.received) == n
 
 
-def test_a_densest_page_aligns_within_its_caps_on_the_simulator():
-    """The 990-patch page (30 rows of 33) on the largest sheet: opened, aligned (the creep if
-    the front zone is needed), checked and homed, well inside its derived caps."""
-    sheet = shaped_sheet([33] * 30)
+@pytest.mark.parametrize("rows,kw", [
+    ([49] * 37, {"along": 5.5, "across": 5.5, "w": 215.9, "h": 297.0}), ([33] * 30, {})],
+    ids=("37 rows of 49 on the largest piece", "30 rows of 33 on 230 x 320"))
+def test_a_densest_page_aligns_within_its_caps_on_the_simulator(rows, kw):
+    """The densest page (5.5 mm patches) and the densest of the largest sheet: opened, aligned
+    (the creep if the front zone is needed), checked and homed, well inside its derived caps."""
+    sheet = shaped_sheet(rows, **kw)
     from workflow.i1io.table import scan as sc
     origin = (1720, 500)
     aims = [(int(round(origin[0] - 10 * u[0])), int(round(origin[1] + 10 * u[1])))

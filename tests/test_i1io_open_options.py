@@ -85,7 +85,7 @@ def test_an_offset_down_the_page_keeps_the_runs_on_the_paper(tmp_path):
     """Chart offset Y 10 used to push the last run to the paper's edge (a
     warning); fitted, the block keeps its floor and nothing is said."""
     result, _side = _build(tmp_path, offset_y=10.0)
-    assert not any("arm to reach its speed" in w for w in result.warnings)
+    assert not any("too little blank paper" in w for w in result.warnings)
 
 
 # ---- edge spacers and ruler helper markers: allowed, and said ----------------

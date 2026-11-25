@@ -9,7 +9,7 @@ the audit un-greyed four:
 
 * "Patch area alignment" (any of the nine places; nobody's pick = centred
   between the crosses, or at the patch numbers without them);
-* "Spacer size" (1 mm up to a fifth of the patch length);
+* "Spacer size" (from half a millimetre; until 4.3.65 1 mm to a fifth);
 * "Custom spacer colours" and its swatches;
 * the sheet text's "Insert" token menu.
 
@@ -164,17 +164,28 @@ def test_nobodys_alignment_is_the_i1ios_own(tmp_path):
     assert a["pages"] == b["pages"]
 
 
-@pytest.mark.parametrize("asked,length,got", [
-    (None, 10.0, 1.0), (0.3, 10.0, 1.0), (1.5, 10.0, 1.5), (5.0, 10.0, 2.0),
-    (3.5, 20.0, 3.5), (9.0, 20.0, 4.0)])
-def test_the_spacer_size_is_held_inside_the_tables_limits(asked, length, got):
+@pytest.mark.parametrize("asked,got", [
+    (None, 1.0), (0.0, 1.0), (0.3, 0.5), (0.5, 0.5), (1.5, 1.5), (5.0, 5.0),
+    (30.0, 30.0)])
+def test_the_spacer_size_has_a_floor_and_no_other_limit(asked, got):
+    """From half a millimetre up; upwards only the page (25 Nov 2026: until
+    4.3.65 1 mm to a fifth of the patch)."""
     from workflow.i1io import chart as C, table_facts as F
-    assert F.spacer_width_mm(asked, length) == pytest.approx(got)
-    kw = C.fixed_build_kwargs({"spacer_width": asked, "patch_h": length})
+    assert F.spacer_width_mm(asked) == pytest.approx(got)
+    kw = C.fixed_build_kwargs({"spacer_width": asked, "patch_h": 10.0,
+                               C.LIMITS_KEY: C.LIMITS_NOW})
     assert kw["spacer_width"] == pytest.approx(got)
     assert C.fixed_build_kwargs({"spacer_width": 2.0,
                                  "spacer_mode": "none"})["spacer_width"] \
         is None
+
+
+@pytest.mark.parametrize("strip,between", [(0.0, 0.0), (3.0, 2.0),
+                                           (12.0, 25.0)])
+def test_the_gaps_have_no_limit_but_the_page(strip, between):
+    from workflow.i1io import chart as C
+    kw = C.fixed_build_kwargs({"strip_gap": strip, "inter_patch": between})
+    assert (kw["strip_gap"], kw["inter_patch"]) == (strip, between)
 
 
 @pytest.mark.parametrize("width", [1.0, 2.0])
@@ -268,9 +279,15 @@ def test_the_greyed_boxes_show_what_an_i1io_chart_uses(panel):
     assert panel.layout_mode.currentData() == "patch_first"
     assert panel.patch_align.currentData() == "center"
     assert panel.spacer_width.value() == F.SPACER_MM.value
-    assert panel.spacer_width.maximum() == pytest.approx(2.0)
-    panel.patch_y.setValue(15.0)
-    assert panel.spacer_width.maximum() == pytest.approx(3.0)
+    # no limit but the reach (until 4.3.65 a fifth of the patch length)
+    for box, lo, hi in ((panel.spacer_width, F.SPACER_MIN_MM.value, 320.0),
+                        (panel.inter_patch, 0.0, 320.0),
+                        (panel.strip_gap, 0.0, 230.0),
+                        (panel.patch_y, 5.5, 320.0), (panel.patch_x, 5.5, 230.0)):
+        assert (box.minimum(), box.maximum()) == pytest.approx((lo, hi))
+        panel.patch_y.setValue(15.0)
+        assert box.maximum() == pytest.approx(hi)
+        panel.patch_y.setValue(10.0)
 
 
 def test_alignment_follows_the_crosses_until_a_person_picks(panel):

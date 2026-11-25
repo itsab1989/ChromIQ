@@ -238,8 +238,8 @@ def test_manual_offers_the_i1io_and_greys_what_it_does_not_read(chart_tab):
     assert [panel.paper.itemData(j) for j in range(panel.paper.count())][:2] \
         == ["A4", "Letter"]
     # width across a strip, height along it (the scan)
-    assert (panel.patch_y.minimum(), panel.patch_y.maximum()) == (8.9, 20.0)
-    assert (panel.patch_x.minimum(), panel.patch_x.maximum()) == (7.0, 20.0)
+    assert (panel.patch_y.minimum(), panel.patch_y.maximum()) == (5.5, 320.0)
+    assert (panel.patch_x.minimum(), panel.patch_x.maximum()) == (5.5, 230.0)
     assert (panel.patch_x.value(), panel.patch_y.value()) == (8.0, 10.0)
     assert panel.spacer_mode.currentData() == "colored"
     assert panel.spacer_mode.isEnabled()

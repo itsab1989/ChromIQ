@@ -123,6 +123,8 @@ POPUP_SOUND = {
     "usb_missing": "INSTRUMENT_ERROR", "stored_white_refused": "INSTRUMENT_ERROR",
     "white_later_refused": "INSTRUMENT_ERROR",
     "pending_marker": "INSTRUMENT_ERROR",
+    # the row identity check asks whether the right piece lies on the table
+    "row_identity": "INSTRUMENT_ERROR",
     # fix round, S-1 (awaiting confirmation): the countdown before the arm moves with the
     # guidance off, as its pop-up opens (W-1), through the person's sound settings: Knut's
     # "attention" sound (measurement_window_sounds.md §4b)
@@ -359,6 +361,27 @@ def row_speed_factor(settings) -> float:
         return 1.0
 
 
+def row_speed_for(sheet: dict, factor: float) -> "tuple[float, str]":
+    """``(the factor this chart is read with, what to say)``: a "Row speed" above 1.00 never acts
+    on a chart whose patches are shorter along the strip than `table_facts.ROW_SPEED_FROM_MM`
+    (9.5 mm): it is 1.00 there, and said (M-I1IO-ROW-SPEED-NOT-USED). A factor of 1.00 or below
+    acts on every chart. Decided BEFORE the table is opened, so the wire gate and the rows agree."""
+    from workflow.i1io.table_facts import ROW_SPEED_FROM_MM
+    try:
+        along = float((sheet or {}).get("patch_mm")[1])
+        if not along > 0.0:
+            raise ValueError(along)
+    except (TypeError, ValueError, IndexError):
+        # no patch length to go by: never faster than ChromIQ's own speed
+        return min(factor, 1.0), ""
+    if factor <= 1.0 + 1e-9 or along >= ROW_SPEED_FROM_MM.value - 1e-9:
+        return factor, ""
+    from core.i18n import decimal_text as d
+    from workflow import measurement_messages as M
+    return 1.0, M.M_I1IO_ROW_SPEED_NOT_USED.render(
+        factor=d(factor, 2), mm=d(round(along, 2)), from_mm=d(ROW_SPEED_FROM_MM.value))[1]
+
+
 def extra_logging(settings) -> bool:
     """4.3.52: "Keep the table's detailed log" (on by default: the data is still needed)."""
     try:
@@ -549,6 +572,19 @@ def stamp_text(stamp: str) -> str:
 
 # ---- words for the job's ids --------------------------------------------------------------------
 
+def in_pieces(sheet) -> bool:
+    """Whether the chart's pages are pieces of a larger sheet that is cut (its side file says it)."""
+    return bool(isinstance(sheet, dict) and isinstance(sheet.get("sheet"), dict))
+
+
+def piece_choice_label(kind: str, value: str) -> "str | None":
+    """The button of `choice_label` that speaks of the piece on a chart in pieces, else None."""
+    return {
+        ("sheet_laid", "yes"): tr("The piece is laid, and my hands are away from the table"),
+        ("row_identity", "right"): tr("It is the right piece, and it was not moved"),
+    }.get((kind, value))
+
+
 def choice_label(kind: str, value: str) -> str:
     """The button for one choice of one confirmation."""
     labels = {
@@ -603,6 +639,8 @@ def choice_label(kind: str, value: str) -> str:
         ("row_failed_strip", "rest patch by patch"): tr("Rest patch by patch"),
         ("row_failed_strip", "skip"): tr("Skip it"),
         ("row_failed_strip", "stop"): tr("End this step"),
+        ("row_identity", "right"): tr("It is the right sheet, and it was not moved"),
+        ("row_identity", "stop"): tr("End measurement"),
         ("end_of_session", "save"): tr("Save and stop"),
         ("end_of_session", "discard"): tr("Discard and stop"),
         ("end_of_session", "keep measuring"): tr("Keep measuring"),
@@ -616,7 +654,8 @@ WITHDRAW = {"go": "back", "sheet_laid": "stop", "aimed": "stop", "front_choice":
             "first_visit": "no", "pending_marker": "stop",
             "ready_to_open": "stop", "reader_consent": "no", "calibration_place": "stop",
             "calibration_own_tile": "stop", "calibration_reseated": "stop",
-            "row_failed": "stop", "row_failed_strip": "stop", "start_up": "i1profiler",
+            "row_failed": "stop", "row_failed_strip": "stop", "row_identity": "stop",
+            "start_up": "i1profiler",
             "arm_felt": "not sure"}
 
 #: the pages that show one of the JOB's questions (answered through ``job.answer`` or the
@@ -626,7 +665,7 @@ JOB_QUESTION_PAGES = frozenset({
     "pending_marker", "ready_to_open", "start_up", "go", "sheet_laid", "arm_felt", "aimed",
     "front_choice", "first_visit", "reader_consent", "calibration_place",
     "calibration_own_tile", "calibration_reseated", "row_failed", "row_failed_strip",
-    "end_of_session", "report_after_step", "home_at_end",
+    "row_identity", "end_of_session", "report_after_step", "home_at_end",
     # 4.3.50 fix round: the homing's question, still open after "Not now"
     "home_not_now",
     # 4.3.52: the job's START_UP question, as the unguided page asks it
@@ -639,6 +678,10 @@ STOP_REASONS = ("stopped_before_the_next_move", "stopped_between_patches",
 #: the choices the window offers (the job's ``CHOICES``, in the order shown; "skip" at the free
 #: arm is not offered: every answer but "free" ends the alignment the same way)
 SHOWN_CHOICES = {"arm_felt": ("free", "holds", "not sure"),
+                 # ONE way to end, always in the same place (the coordinator, 2026-11-25): the
+                 # footer's "End measurement" withdraws the question with its own "stop" (WITHDRAW)
+                 # and goes to the ending; the question itself has one answer
+                 "row_identity": ("right",),
                  # 4.3.51 (review of 4.3.50): the page explains "Go forward carefully, my hands
                  # are away" first, and the app shows a page's confirming answer first (its
                  # dialogs use the Windows button order on every platform, main.py; the table's
@@ -646,29 +689,81 @@ SHOWN_CHOICES = {"arm_felt": ("free", "holds", "not sure"),
                  "front_choice": ("go on", "back")}
 
 
+def strips_named(rows: "list[dict]", pages: int = 1, pieces: bool = False) -> str:
+    """Rows as their strips' letters: "A, C", on a chart of several pages "page 1: A, C; page 2:
+    B" (the table's "row" is the chart's strip)."""
+    by: "dict[int, list[str]]" = {}
+    for r in rows:
+        by.setdefault(int(r["page"]), []).append(str(r["strip"]))
+    if int(pages or 1) <= 1:
+        return ", ".join(s for v in by.values() for s in v)
+    return "; ".join((tr("piece {n}: {strips}") if pieces else tr("page {n}: {strips}")).format(
+        n=k, strips=", ".join(v)) for k, v in sorted(by.items()))
+
+
+def rows_not_judged_text(rows: "list[dict]", pages: int = 1, pieces: bool = False) -> str:
+    """What the ending says about rows read before the question that could not be judged
+    (`TableJob.rows_not_judged`); "" without any."""
+    if not rows:
+        return ""
+    from workflow import measurement_messages as M
+    return M.M_I1IO_DRIVE_ROWS_NOT_JUDGED.render(
+        strips=strips_named(rows, pages, pieces))[1]
+
+
+def row_identity_page(d: dict, pieces: bool = False) -> "tuple[str, str]":
+    """The title and text of the question whether the right sheet lies on the table (the row
+    identity check). *d*: the job's detail (row, page, pages, other). *pieces*: the chart's pages
+    are pieces of a larger sheet."""
+    from workflow import measurement_messages as M
+    other = str(d.get("other") or "").split()
+    tail = ""
+    if len(other) == 2 and other[0] == "row":
+        tail = tr("; they look like row {n}").format(n=other[1])
+    elif len(other) == 2 and other[0] == "page":
+        tail = (tr("; they look like piece {n}") if pieces else
+                tr("; they look like page {n}")).format(n=other[1])
+    if pieces:
+        return M.M_I1IO_DRIVE_OTHER_OF_PIECES.render(page=d.get("page", "?"), other=tail)
+    if int(d.get("pages") or 1) > 1:
+        return M.M_I1IO_DRIVE_OTHER_PIECE.render(page=d.get("page", "?"), other=tail)
+    return M.M_I1IO_DRIVE_OTHER_SHEET.render(other=tail)
+
+
 def step_done_text(step: str, detail: dict, page: "int | None" = None,
-                   reason: str = "", patches: "list | None" = None) -> str:
+                   reason: str = "", patches: "list | None" = None,
+                   pieces: bool = False) -> str:
     """What the step that just ran did, for M-I1IO-DRIVE-REPORT's first paragraph. *page*
     (1-based) when the step's own result does not name it (a row that failed and was ended:
     found on screen, the text said "page ?"). *reason*: the step's refusal, when it ended
-    without reading its row (review 11, S-4: a failed row was reported as read)."""
+    without reading its row (review 11, S-4: a failed row was reported as read). *pieces*: the
+    chart's pages are pieces of a larger sheet."""
     if step == "read_row":
         row = detail.get("row", "?")
         pg = detail.get("page") or page or "?"
         status = detail.get("status", "")
         if reason in STOP_REASONS or reason == "stopped_by_person":
-            return tr("The arm moved along row {row} of page {page}, but the row was not "
-                      "read to its end, because you pressed Stop.").format(row=row, page=pg)
+            return (tr("The arm moved along row {row} of piece {page}, but the row was not "
+                       "read to its end, because you pressed Stop.") if pieces else
+                    tr("The arm moved along row {row} of page {page}, but the row was not "
+                       "read to its end, because you pressed Stop.")).format(row=row, page=pg)
         if status in ("failed", "skipped") or reason == "stopped_after_a_failed_row" \
                 or (reason and status != "read"):
-            return tr("The arm moved along row {row} of page {page}; the row could not be "
-                      "read.").format(row=row, page=pg)
+            return (tr("The arm moved along row {row} of piece {page}; the row could not be "
+                       "read.") if pieces else
+                    tr("The arm moved along row {row} of page {page}; the row could not be "
+                       "read.")).format(row=row, page=pg)
         if detail.get("row_kind") == "strip":
-            return tr("The arm drove along row {row} of page {page} while the instrument read "
-                      "it as a strip, and ChromIQ found its patches in the "
-                      "readings.").format(row=row, page=pg)
-        return tr("The arm moved along row {row} of page {page} and read its "
-                  "patches.").format(row=row, page=pg)
+            return (tr("The arm drove along row {row} of piece {page} while the instrument "
+                       "read it as a strip, and ChromIQ found its patches in the readings.")
+                    if pieces else
+                    tr("The arm drove along row {row} of page {page} while the instrument read "
+                       "it as a strip, and ChromIQ found its patches in the "
+                       "readings.")).format(row=row, page=pg)
+        return (tr("The arm moved along row {row} of piece {page} and read its patches.")
+                if pieces else
+                tr("The arm moved along row {row} of page {page} and read its "
+                   "patches.")).format(row=row, page=pg)
     if patches and step == "align":
         return tr("The arm moved to the place where you aim it, the table let go of it, and "
                   "you aimed it at patches {a}, {b} and {c}.").format(
@@ -683,8 +778,13 @@ def step_done_text(step: str, detail: dict, page: "int | None" = None,
     }.get(step, tr("The table did the step that was described."))
 
 
-def rows_read_line(page, pages, read, rows) -> str:
-    """"Page 1 of 2: 3 of 22 rows read." with its singular (review 11, NOTE)."""
+def rows_read_line(page, pages, read, rows, pieces: bool = False) -> str:
+    """"Page 1 of 2: 3 of 22 rows read." with its singular (review 11, NOTE); "Piece" on a chart in
+    pieces."""
+    if pieces:
+        return (tr("Piece {page} of {pages}: {read} of 1 row read.") if rows == 1 else
+                tr("Piece {page} of {pages}: {read} of {rows} rows read.")).format(
+            page=page, pages=pages, read=read, rows=rows)
     if rows == 1:
         return tr("Page {page} of {pages}: {read} of 1 row read.").format(
             page=page, pages=pages, read=read)
@@ -925,8 +1025,31 @@ def table_state_text(a0) -> str:
         "measurement.")
 
 
-def reason_text(rid: str, detail: "dict | None" = None) -> str:
-    """Why a step was refused or stopped, in a sentence (M-I1IO-DRIVE-REFUSED's {why})."""
+def piece_reason_text(rid: str) -> "str | None":
+    """`reason_text` where it speaks of a page, for a chart in pieces; None for every other."""
+    return {
+        "chart_page_without_three_aim_points": tr(
+            "A piece of this chart does not name the three points to aim at (three crosses, or "
+            "three corner patches), so the table cannot be aimed at it. Please make the chart "
+            "again in Create Chart. Nothing was sent to the table."),
+        "rows_read_again_limit": tr("Two rows of this piece have been read again already, "
+                                    "which is the most a piece allows."),
+        "row_not_in_chart": tr("That row is not on this piece."),
+        "page_read": tr("Every row of this piece has been read."),
+        "no_more_pages": tr("There is no further piece to read."),
+        "nothing_missing_on_this_page": tr("Nothing is missing on this piece."),
+        "an_earlier_page_is_to_be_read_first": tr("An earlier piece has to be read first."),
+        "ran_as_often_as_allowed": tr("This step has run as often as a piece allows."),
+    }.get(rid)
+
+
+def reason_text(rid: str, detail: "dict | None" = None, pieces: bool = False) -> str:
+    """Why a step was refused or stopped, in a sentence (M-I1IO-DRIVE-REFUSED's {why}). *pieces*:
+    the chart's pages are pieces of a larger sheet."""
+    if pieces:
+        own = piece_reason_text(rid)
+        if own is not None:
+            return own
     d = detail or {}
     texts = {
         "chart_not_for_i1io2_with_i1pro2": tr(
@@ -1007,6 +1130,18 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
         "strip_placement_not_confirmed": tr(
             "the readings did not confirm where the patches are in this row, so ChromIQ did "
             "not use them"),
+        # the row identity check (workflow/i1io/table/identity.py)
+        "strip_row_not_in_its_place": tr(
+            "the colours show that the row was read one or two patches beside its place, so "
+            "ChromIQ did not use them"),
+        "row_not_in_its_place": tr(
+            "the colours show that the row was read one or two patches beside its place, so "
+            "ChromIQ did not use them"),
+        "row_not_of_this_piece": tr("the colours were not the colours of this row, so ChromIQ did "
+                                    "not use them"),
+        "ended_at_the_row_identity_question": tr(
+            "You ended the measurement because the colours ChromIQ read are not the colours of "
+            "this row. Nothing of that row is kept."),
         "strip_plan_refused": tr("the strip move was not inside the part of the table ChromIQ "
                                  "uses"),
         "strip_reader_not_running": tr("ChromIQ's reading program had stopped"),
@@ -1025,6 +1160,8 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
                                       "own speed for it"),
         "strip_failed": tr("the strip could not be read"),
         "strip_row_too_long": tr("the row is too long for one strip move"),
+        "strip_row_patches_too_short": tr("the patches are too short for enough readings of "
+                                          "each while the arm moves"),
         "strip_row_outside_area": tr("the strip would start or end outside the part of the "
                                      "table ChromIQ may send the arm to now"),
         "strip_row_too_short": tr("the row is not one straight run of at least 10 mm"),
@@ -2217,8 +2354,10 @@ class TableMeasureWindow(QFrame):
             role = self._answer_box.buttonRole(b)
             b.setStyleSheet("")
             waiting = b in self._not_ready
+            # the row identity check's one answer keeps values that looked wrong: it is never the
+            # filled button that invites a quick press
             b.setObjectName("primary" if role == R.AcceptRole and (b.isEnabled() or waiting)
-                            else "")
+                            and self._page_id_now() != "row_identity" else "")
             if role == R.DestructiveRole:
                 mark_destructive(b)
             b.style().unpolish(b)
@@ -2533,12 +2672,18 @@ class TableMeasureWindow(QFrame):
             self._sync_popup_footer()
 
     def _clear_page(self) -> None:
+        # HIDDEN BEFORE ITS PARENT IS TAKEN AWAY: a layout that just got a widget has queued a
+        # "show it unless somebody hid it" for it (QLayout.addWidget, also from `_flow_choices`
+        # when the panel is resized). A page cleared before that came left a button without a
+        # parent that then showed itself as a little window of its own, for as long as a nested
+        # event loop kept its deletion waiting. An explicit hide cancels it
         self._ready_timer.stop()
         self._not_ready = []
         box = getattr(self, "_answer_box", None)
         if box is not None:
             for b in list(box.buttons()):
                 box.removeButton(b)
+                b.hide()
                 b.setParent(None)
                 b.deleteLater()
             self._button_roles = {}
@@ -2547,6 +2692,7 @@ class TableMeasureWindow(QFrame):
                 it = lay.takeAt(0)
                 w = it.widget()
                 if w is not None:
+                    w.hide()
                     w.setParent(None)
                     w.deleteLater()
 
@@ -2698,6 +2844,7 @@ class TableMeasureWindow(QFrame):
         "pending_marker", "ready_to_open", "start_up", "go", "sheet_laid", "arm_felt", "aimed",
         "front_choice", "first_visit", "reader_consent", "calibration_place",
         "calibration_own_tile", "calibration_reseated", "row_failed", "row_failed_strip",
+        "row_identity",
         # 4.3.50: the homing of the ending (and its question still open after "Not now")
         "home_at_end", "home_not_now",
         # 4.3.52: the START rule's one question (the arm not at its resting place)
@@ -2965,12 +3112,15 @@ class TableMeasureWindow(QFrame):
         rows = self._rows_on_page()
         status = j.row_status.get(j.page, {})
         read = sum(1 for v in status.values() if v == "read")
-        lines.append(rows_read_line(j.page + 1, pages, read, rows))
+        lines.append(rows_read_line(j.page + 1, pages, read, rows, in_pieces(self._sheet)))
         missing = sorted(k + 1 for k, v in status.items() if v in ("failed", "skipped"))
+        pc = in_pieces(self._sheet)
         if len(missing) == 1:
-            lines.append(tr("Missing on this page: row {row}.").format(row=missing[0]))
+            lines.append((tr("Missing on this piece: row {row}.") if pc else
+                          tr("Missing on this page: row {row}.")).format(row=missing[0]))
         elif missing:
-            lines.append(tr("Missing on this page: rows {rows}.").format(
+            lines.append((tr("Missing on this piece: rows {rows}.") if pc else
+                          tr("Missing on this page: rows {rows}.")).format(
                 rows=", ".join(str(m) for m in missing)))
         n = j.accepted_in_this_session()
         lines.append(tr("Readings taken in this measurement: 1.") if n == 1 else
@@ -3037,6 +3187,23 @@ class TableMeasureWindow(QFrame):
                      off_mm=ev.get("off_mm"), what=ev.get("what"))
             except Exception:      # noqa: BLE001 - a log line never stops a row
                 pass
+        if _kind in ("row_identity", "row_dropped"):
+            # the row identity check: one line per row, judged or not, and every row dropped
+            try:
+                from core.app_log import line
+                if _kind == "row_identity":
+                    line("table row identity", row=ev.get("row"), page=ev.get("page"),
+                         judged="yes" if ev.get("judged") else "no",
+                         why=ev.get("why") or None, verdict=ev.get("verdict"), own=ev.get("own"),
+                         shifted=ev.get("shifted"), at=ev.get("shift"),
+                         other=ev.get("other"), what=ev.get("what"))
+                else:
+                    line("table row dropped", row=ev.get("row"), page=ev.get("page"),
+                         why=ev.get("why"), patches=len(ev.get("locs") or ()),
+                         earlier_attempts=ev.get("earlier") or None,
+                         _level=logging.WARNING)
+            except Exception:      # noqa: BLE001 - a log line never stops a row
+                pass
         live = getattr(self, "_live", None)
         if not live:
             return
@@ -3049,11 +3216,14 @@ class TableMeasureWindow(QFrame):
             live["patch_row"] = True
         elif kind == "strip_move":
             live["patch_row"] = False
+        pc = in_pieces(self._sheet)
         if kind == "row_start":
-            live["now"] = tr("Now: moving to row {row} of page {page}.").format(
+            live["now"] = (tr("Now: moving to row {row} of piece {page}.") if pc else
+                           tr("Now: moving to row {row} of page {page}.")).format(
                 row=ev.get("row", "?"), page=ev.get("page", "?"))
         elif kind == "patch_next":
-            live["now"] = tr("Now: reading row {row} of page {page}, patch {loc}.").format(
+            live["now"] = (tr("Now: reading row {row} of piece {page}, patch {loc}.") if pc else
+                           tr("Now: reading row {row} of page {page}, patch {loc}.")).format(
                 row=ev.get("row", "?"), page=ev.get("page", "?"), loc=ev.get("loc", "?"))
         elif kind == "patch_read":
             live["readings"] = int(live.get("readings", 0)) + 1
@@ -3073,20 +3243,29 @@ class TableMeasureWindow(QFrame):
             from workflow import measurement_messages as M
             why = ev.get("why")
             # 4.3.53: every reason in its own true words (M.strip_fallback_text)
-            live["now"] = (M.strip_fallback_text(why, ev.get("row", "?"))
+            live["now"] = (M.strip_fallback_text(why, ev.get("row", "?"), pc)
                            or tr("Now: row {row} is read patch by patch, because only some of "
                                  "its patches are to be read.").format(row=ev.get("row", "?")))
         elif kind == "strip_move" and ev.get("dual_pass") == "lamp":
-            live["now"] = tr("Now: the arm drives along row {row} of page {page} while the "
-                             "instrument reads it with its lamp (the first of two passes).").format(
+            live["now"] = (
+                tr("Now: the arm drives along row {row} of piece {page} while the instrument "
+                   "reads it with its lamp (the first of two passes).") if pc else
+                tr("Now: the arm drives along row {row} of page {page} while the "
+                   "instrument reads it with its lamp (the first of two passes).")).format(
                 row=ev.get("row", "?"), page=ev.get("page", "?"))
         elif kind == "strip_move" and ev.get("dual_pass") == "uv":
-            live["now"] = tr("Now: the arm drives straight back along row {row} of page {page} "
-                             "while the instrument reads it with its UV light (the second "
-                             "pass).").format(row=ev.get("row", "?"), page=ev.get("page", "?"))
+            live["now"] = (
+                tr("Now: the arm drives straight back along row {row} of piece {page} while "
+                   "the instrument reads it with its UV light (the second pass).") if pc else
+                tr("Now: the arm drives straight back along row {row} of page {page} "
+                   "while the instrument reads it with its UV light (the second "
+                   "pass).")).format(row=ev.get("row", "?"), page=ev.get("page", "?"))
         elif kind == "strip_move":
-            live["now"] = tr("Now: the arm drives along row {row} of page {page} while the "
-                             "instrument reads it as a strip.").format(
+            live["now"] = (
+                tr("Now: the arm drives along row {row} of piece {page} while the instrument "
+                   "reads it as a strip.") if pc else
+                tr("Now: the arm drives along row {row} of page {page} while the "
+                   "instrument reads it as a strip.")).format(
                 row=ev.get("row", "?"), page=ev.get("page", "?"))
         if self._busy and self._state.isVisible():
             self._state.setText(self.live_state_text())
@@ -3108,7 +3287,8 @@ class TableMeasureWindow(QFrame):
             lines.append(second_move_line())
         lines.append(rows_read_line(live.get("page", 1),
                                     self.job.pages_in_chart() if self.job else 1,
-                                    len(live.get("rows_read", ())), live.get("rows", 0)))
+                                    len(live.get("rows_read", ())), live.get("rows", 0),
+                                    in_pieces(self._sheet)))
         n = int(live.get("readings", 0))
         lines.append(tr("Readings taken in this measurement: 1.") if n == 1 else
                      tr("Readings taken in this measurement: {n} (a patch read again counts "
@@ -3207,7 +3387,7 @@ class TableMeasureWindow(QFrame):
 
     def _show_error(self, exc: BaseException) -> None:
         from workflow import measurement_messages as M
-        title, body = _refused(M, reason_text("unexpected_error"))
+        title, body = _refused(M, self._reason("unexpected_error"))
         self._show("error", title, body, [(tr("End measurement"), self._on_end_pressed)])
         self._after_stop_controls()
 
@@ -3291,6 +3471,15 @@ class TableMeasureWindow(QFrame):
             pass
         self._build_job()
 
+    def _rows_at_row_speed(self) -> bool:
+        """Whether this session reads rows as strips in one scan, the only reading "Row speed"
+        acts on: patch by patch and with the dual scan its note says nothing."""
+        return self._dual is None and self.job is not None and self.job.row_kind == "strip"
+
+    def _row_speed_said(self) -> str:
+        note = getattr(self, "_row_speed_note", "") or ""
+        return note if note and self._rows_at_row_speed() else ""
+
     def _build_job(self) -> None:
         page = 0
         self.job = JOB_FACTORY(self._sheet, page, self._run, self._stamp,
@@ -3300,7 +3489,27 @@ class TableMeasureWindow(QFrame):
         # D-4b (Preferences > Beta, off by default): the table's stored white tile values
         self.job.stored_tile_white = stored_tile_white(self._settings)
         # 4.3.54: "Row speed" (Preferences > Beta): the factor on a strip row's speed
-        self.job.row_speed_factor = row_speed_factor(self._settings)
+        # (the new chart layout: never above 1.00 on a chart of short patches, decided here, before
+        # the table is opened, and said on the first page or in the log and the notice area)
+        _asked = row_speed_factor(self._settings)
+        self.job.row_speed_factor, self._row_speed_note = row_speed_for(self._sheet, _asked)
+        if self._row_speed_note:
+            try:
+                from core.app_log import line
+                line("table row speed not used", setting=f"{_asked:.2f}", used="1.00",
+                     patch_mm=(self._sheet.get("patch_mm") or [None, None])[1])
+            except Exception:      # noqa: BLE001 - a record only
+                pass
+        # the row identity check: the colours this chart expects (the table package reads no
+        # chart for it), or why there are none
+        try:
+            from core.file_manager import Calibration
+            from workflow.i1io.expected import expected_lab
+            self.job.expected_lab, self.job.expected_why = expected_lab(
+                getattr(self.job, "_chart_ti2", None),
+                calibration=isinstance(self._run, Calibration))
+        except Exception:      # noqa: BLE001 - the rows are then not judged, and the logs say so
+            log.debug("the chart's expected colours could not be read", exc_info=True)
         # 4.3.52: where the i1Pro 2 is calibrated (Preferences > Beta): the job takes it as its
         # place, so the window never answers a question of the job itself
         self.job.calibration_place_preference = calibration_place(self._settings)
@@ -3336,7 +3545,7 @@ class TableMeasureWindow(QFrame):
         lines = "\n".join(
             tr("•  Started on {when}: {why}").format(
                 when=stamp_text(e.get("stamp", "")),
-                why=reason_text(str(e.get("belongs_elsewhere") or "")))
+                why=self._reason(str(e.get("belongs_elsewhere") or "")))
             for e in sessions)
         title, body = M.M_I1IO_DRIVE_EARLIER_ELSEWHERE.render(sessions=lines)
         self._show("earlier_elsewhere", title, body,
@@ -3471,8 +3680,14 @@ class TableMeasureWindow(QFrame):
             self.job.page = first
         from workflow import measurement_messages as M
         pages = self.job.pages_in_chart()
-        title, body = M.M_I1IO_DRIVE_PREPARE.render(page=self.job.page + 1, pages=pages)
+        title, body = (M.M_I1IO_DRIVE_PREPARE_PIECES.render(
+            page=self.job.page + 1, pages=pages, corner=self._corner_text())
+            if in_pieces(self._sheet) else
+            M.M_I1IO_DRIVE_PREPARE.render(page=self.job.page + 1, pages=pages))
         notes = [n for n in (getattr(self, "_reads_note", ""), self._options_note) if n]
+        if self._row_speed_said():
+            notes.append(self._row_speed_note)
+            body = self._row_speed_note + "\n\n" + body
         if getattr(self, "_reads_note", ""):
             body = self._reads_note + "\n\n" + body
         if self._options_note:
@@ -3543,12 +3758,20 @@ class TableMeasureWindow(QFrame):
         return tr("Guided, step by step measurement is off. You can switch it on in "
                   "Preferences > Beta.")
 
+    def guidance_bar_text(self) -> str:
+        """What the notice area says while the guidance is off: a "Row speed" that is not used
+        for this chart stands there too, since the first page that says it is not shown, and it
+        comes back after every countdown."""
+        note = self._row_speed_said()
+        text = self.guidance_notice_text()
+        return note + " " + text if note else text
+
     def _guidance_notice(self) -> None:
         """The Measure tab's notice area while the guidance is off (never raises)."""
         try:
             j = self.job
             if j is not None and not j.guided:
-                text = self.guidance_notice_text()
+                text = self.guidance_bar_text()
                 self.notice.emit(text)
                 self._say(text)
         except Exception:      # noqa: BLE001
@@ -3609,6 +3832,9 @@ class TableMeasureWindow(QFrame):
 
     def _after_ok(self, res) -> None:
         step = res.step
+        if (res.detail or {}).get("stop_asked_at_the_question"):
+            self._show_stopped_by_you(res)
+            return
         if step == "open" and res.detail.get("table") == "cold":
             self._call(self.job.start_up)
             return
@@ -3751,7 +3977,12 @@ class TableMeasureWindow(QFrame):
         # a page with nothing missing (a resume, an adopted session) is never aligned or read
         left = j.rows_left() if j.page_has_something_to_read() else []
         want = bool(left or self._again_rows)
-        if want and j.alignment is None:
+        if want and (j.alignment is None or getattr(j, "aims_void", False)):
+            st = j.state()
+            if out and not (st.arm_free and st.mode_on):
+                # the aims were given up with the arm held over the sheet (the row identity
+                # check): home first, as before every sheet that is laid
+                return (j.home, tr("Bringing the arm home first."), home_txt)
             return (j.align, tr("Aiming at the sheet..."), None)
         if want and j.front_need is not None and j.front_reached() < j.front_need:
             return (j.creep, tr("Moving the arm forward slowly..."),
@@ -3770,8 +4001,14 @@ class TableMeasureWindow(QFrame):
             return (_PageDone(self, home=False).fire, None, None)
         return (None, None, None)
 
+    def _reason(self, rid: str, detail: "dict | None" = None) -> str:
+        """`reason_text` in this chart's words."""
+        return reason_text(rid, detail, in_pieces(self._sheet))
+
     def _row_move_text(self, row: int) -> str:
-        return tr("the arm moves to row {row} of page {page} and reads it").format(
+        return (tr("the arm moves to row {row} of piece {page} and reads it")
+                if in_pieces(self._sheet) else
+                tr("the arm moves to row {row} of page {page} and reads it")).format(
             row=row, page=self.job.page + 1)
 
     def _report_next_text(self, res) -> str:
@@ -3839,7 +4076,9 @@ class TableMeasureWindow(QFrame):
             log.debug("the table's log could not be opened", exc_info=True)
 
     def _row_status(self, row: int) -> str:
-        return tr("Reading row {row} of {rows} on page {page} of {pages}...").format(
+        return (tr("Reading row {row} of {rows} on piece {page} of {pages}...")
+                if in_pieces(self._sheet) else
+                tr("Reading row {row} of {rows} on page {page} of {pages}...")).format(
             row=row, rows=self._rows_on_page(), page=self.job.page + 1,
             pages=self.job.pages_in_chart())
 
@@ -3950,7 +4189,9 @@ class TableMeasureWindow(QFrame):
                 # 2026-11-21: a table just switched on with its aiming mode still on (a0 511800)
                 body += "\n\n" + M.M_I1IO_DRIVE_START_UP_AIMING.render()[1]
         elif kind == "sheet_laid":
-            title, body = M.M_I1IO_DRIVE_SHEET_LAID.render(page=page)
+            title, body = (M.M_I1IO_DRIVE_SHEET_LAID_PIECE.render(
+                page=page, corner=self._corner_text())
+                if in_pieces(self._sheet) else M.M_I1IO_DRIVE_SHEET_LAID.render(page=page))
         elif kind == "aimed":
             patch = d.get("patch") if d.get("target") == "patch" else None
             if patch:
@@ -3998,32 +4239,39 @@ class TableMeasureWindow(QFrame):
                    # 4.3.54: the second row of this page the row placement check refused
                    else M.M_I1IO_DRIVE_ROW_PLACEMENT_REST if d.get("offer_rest")
                    else M.M_I1IO_DRIVE_ROW_FAILED_STRIP)
-            title, body = msg.render(
+            title, body = M.of_pieces(msg, in_pieces(self._sheet)).render(
                 row=d.get("row", "?"), page=d.get("page", page),
-                why=as_clause(reason_text(d.get("why", ""))))
+                why=as_clause(self._reason(d.get("why", ""))))
             if not d.get("again_allowed", True):
-                why = (reason_text("dual_calibration_not_found_again")
+                why = (self._reason("dual_calibration_not_found_again")
                        if d.get("why") == "dual_calibration_not_kept"
-                       else reason_text("calibration_due") if d.get("calibration_due")
-                       else reason_text("rows_read_again_limit"))
+                       else self._reason("calibration_due") if d.get("calibration_due")
+                       else self._reason("rows_read_again_limit"))
                 body += "\n\n" + M.M_I1IO_DRIVE_ROW_NOT_AGAIN.render(why=why)[1]
         elif kind == "row_failed":
             msg = (M.M_I1IO_DRIVE_ROW_M0_ONLY if d.get("m0_kept")
                    else M.M_I1IO_DRIVE_ROW_FAILED)
-            title, body = msg.render(
+            title, body = M.of_pieces(msg, in_pieces(self._sheet)).render(
                 row=d.get("row", "?"), page=d.get("page", page),
-                why=as_clause(reason_text(d.get("why", ""))))
+                why=as_clause(self._reason(d.get("why", ""))))
             if not d.get("again_allowed", True):
-                why = (reason_text("dual_calibration_not_found_again")
+                why = (self._reason("dual_calibration_not_found_again")
                        if d.get("why") == "dual_calibration_not_kept"
-                       else reason_text("calibration_due") if d.get("calibration_due")
-                       else reason_text("rows_read_again_limit"))
+                       else self._reason("calibration_due") if d.get("calibration_due")
+                       else self._reason("rows_read_again_limit"))
                 body += "\n\n" + M.M_I1IO_DRIVE_ROW_NOT_AGAIN.render(why=why)[1]
+        elif kind == "row_identity":
+            title, body = row_identity_page(d, in_pieces(self._sheet))
         elif kind == "end_of_session":
             self._ask_end(res)
             return
         else:
             title, body = kind, ""
+        if kind in ("row_failed", "row_failed_strip") and d.get("aim_again"):
+            # the row identity check's refusal: the one way on after the sheet was moved. First,
+            # so that it is seen without scrolling (found on screen)
+            body = (M.M_I1IO_DRIVE_ROW_AIM_AGAIN_PIECE if in_pieces(self._sheet)
+                    else M.M_I1IO_DRIVE_ROW_AIM_AGAIN).render()[1] + "\n\n" + body
         if kind == "go" and d.get("again"):
             body = M.M_I1IO_DRIVE_GO.render()[1]
         self._pending_kind = kind
@@ -4033,7 +4281,8 @@ class TableMeasureWindow(QFrame):
             # one page that offers it (four answers fit in one row in every language)
             drop = "patch by patch" if d.get("offer_rest") else "rest patch by patch"
             values = tuple(v for v in values if v != drop)
-        buttons = [(choice_label(kind, v), self._answer_slot(v)) for v in values]
+        buttons = [((piece_choice_label(kind, v) if in_pieces(self._sheet) else None)
+                    or choice_label(kind, v), self._answer_slot(v)) for v in values]
         made = self._show(kind, title, body, buttons)
         if kind in ("row_failed", "row_failed_strip") and not d.get("again_allowed", True):
             made[0].setEnabled(False)
@@ -4176,7 +4425,8 @@ class TableMeasureWindow(QFrame):
         title, body = M.M_I1IO_DRIVE_REPORT.render(step=step_done_text(
             step, res.detail, page=self.job.page + 1,
             reason=res.reason if res.kind != OK else "",
-            patches=self._aim_patches()), next=self._report_next_text(res))
+            patches=self._aim_patches(), pieces=in_pieces(self._sheet)),
+            next=self._report_next_text(res))
         self._report_res = res
         buttons = [(choice_label(REPORT, v), _Report(self, v).fire)
                    for v in ("as described", "something wrong", "not sure")]
@@ -4218,14 +4468,25 @@ class TableMeasureWindow(QFrame):
             pass
         return None
 
+    def _corner_text(self) -> str:
+        """What lies at the top left of the piece that is laid now: mark 1, or on a piece without
+        crosses its first patch."""
+        from workflow import measurement_messages as M
+        try:
+            patch = any(a.get("target") == "patch"
+                        for a in self._sheet["pages"][self.job.page]["aim_points"])
+        except (KeyError, IndexError, TypeError, AttributeError):
+            patch = False
+        return tr(M._I1IO_CORNER_PATCH if patch else M._I1IO_CORNER_MARK)
+
     def _show_next_page(self, res) -> None:
         from workflow import measurement_messages as M
         nxt = res.detail.get("page", self.job.page + 1)
-        title, body = M.M_I1IO_DRIVE_NEXT_PAGE.render(page=getattr(self, "_page_done", nxt - 1),
-                                                      next=nxt)
-        self._show("next_page", title, body,
-                   [(tr("End measurement"), self._on_end_pressed),
-                    (tr("Go on"), self._next)])
+        title, body = (M.M_I1IO_DRIVE_NEXT_PIECE if in_pieces(self._sheet)
+                       else M.M_I1IO_DRIVE_NEXT_PAGE).render(
+            page=getattr(self, "_page_done", nxt - 1), next=nxt)
+        # one way to end, always in the same place: the footer's End measurement
+        self._show("next_page", title, body, [(tr("Go on"), self._next)])
 
     # ---- refusals, stops, problems ------------------------------------------------------
     def _on_refused(self, res) -> None:
@@ -4388,7 +4649,7 @@ class TableMeasureWindow(QFrame):
         detail = dict(res.detail or {})
         if self._aim_patches():
             detail["aim_target"] = "patch"
-        why = reason_text(res.reason, detail)
+        why = self._reason(res.reason, detail)
         if res.reason == "measurement_not_written" and getattr(self, "_archived", False):
             why += " " + tr("Your previous measurement was moved to the run's old folder for "
                             "this Save. If this measurement ends without a Save, ChromIQ puts "
@@ -4529,7 +4790,7 @@ class TableMeasureWindow(QFrame):
                        "The table answered the homing with an error code instead of reporting "
                        "it finished."),
                    "table_refused_a_line": tr("The table refused the homing command.")}.get(
-                res.reason) or reason_text(res.reason, res.detail)
+                res.reason) or self._reason(res.reason, res.detail)
             title, body = M.M_I1IO_DRIVE_HOME_TRY_FAILED.render(
                 why=why, where=where,
                 way=M.M_I1IO_DRIVE_ARM_WAY_OUT.render()[1], log=self._log_name)
@@ -4594,12 +4855,12 @@ class TableMeasureWindow(QFrame):
             title, body = M.M_I1IO_DRIVE_STILL_AIMING.render(log=self._log_name, sent=self._what_was_sent())
         elif msg is None and wb == "none" and res.reason in ("stopped_by_person",
                                                              "cancelled_by_person"):
-            title, body = _refused(M, reason_text(res.reason))
+            title, body = _refused(M, self._reason(res.reason))
         elif msg is None and opening:
             # 4.3.50 fix round (MUST-1): a stop at the opening read nothing: no "your readings
             # so far are kept, and you can still save them"
             title, body = M.M_I1IO_DRIVE_STOPPED_AT_OPENING.render(log=self._log_name)
-            body = reason_text(res.reason, res.detail) + "\n\n" + body
+            body = self._reason(res.reason, res.detail) + "\n\n" + body
         else:
             j = self.job
             if msg is None and wb == "end_then_start_again" and j is not None \
@@ -4618,12 +4879,12 @@ class TableMeasureWindow(QFrame):
                 body += self._stopped_extras()
             if wb in SWITCH_OFF_WAYS:
                 # review 14, M-1: "Switch the table off now" first, then why
-                body = body + "\n\n" + reason_text(res.reason, res.detail)
+                body = body + "\n\n" + self._reason(res.reason, res.detail)
             elif wb == "home_after_stop":
                 # 4.3.52: the page itself says where the arm is and what ChromIQ can do (short)
                 pass
             else:
-                why = reason_text(res.reason, res.detail)
+                why = self._reason(res.reason, res.detail)
                 if wb == "end_then_start_again" and j is not None and j.phase == "open":
                     # 4.3.48: why ChromIQ does not bring the arm home itself this time
                     why += " " + tr("ChromIQ brings the arm home itself only after a stop at "
@@ -4994,7 +5255,26 @@ class TableMeasureWindow(QFrame):
                          else tr("You have read {n} patches in this session.").format(n=n))
         # review 10, S-6: the table's own variant of M-END's choices (§M-PROPOSED): no
         # "window" to close, and no em dash
-        body = read_line + " " + M.M_I1IO_DRIVE_END_CHOICES.render()[1]
+        # what Keep measuring does depends on the aims: never both wordings on one page
+        body = read_line + " " + (M.M_I1IO_DRIVE_END_CHOICES_AIM_AGAIN
+                                  if getattr(self.job, "aims_void", False)
+                                  else M.M_I1IO_DRIVE_END_CHOICES).render()[1]
+        # the person ended because the sheet looked wrong: rows read before that and never
+        # judged stay (nothing is deleted without the person), and are named here, first
+        try:
+            rows = self.job.rows_not_judged()
+        except Exception:      # noqa: BLE001 - a sentence, never the ending
+            log.debug("i1iO table: the rows not judged were not listed", exc_info=True)
+            rows = []
+        text = rows_not_judged_text(rows, len((self._sheet or {}).get("pages") or ()),
+                                    in_pieces(self._sheet))
+        if text:
+            body = text + "\n\n" + body
+            from core.app_log import line
+            line("table rows not judged before the question", rows=len(rows),
+                 what="; ".join(f"page {r['page']} strip {r['strip']}: {r['read']} read, "
+                                f"{r['why'] or 'not judged'}" for r in rows),
+                 _level=logging.WARNING)
         if not self._switch_off_needed():
             # (review 14, M-1: while a move may still wait, the switch-off line is first and
             # nothing here says ChromIQ brings the arm home)
@@ -5106,6 +5386,7 @@ class TableMeasureWindow(QFrame):
 
     def _after_close(self, res) -> None:
         self._closed_job = True
+        _applog_row_identity_total(self.job)
         _remember_table_after(self, self.job)
         self._moving_controls(False)
         self._end_btn.setVisible(False)
@@ -5395,7 +5676,7 @@ class TableMeasureWindow(QFrame):
                 if getattr(self, "_page_id", "") == "countdown":
                     self._show_working()          # closes the pop-up (condition 2)
                 if self._guidance_off_now():
-                    self.notice.emit(self.guidance_notice_text())
+                    self.notice.emit(self.guidance_bar_text())
                 elif self.job is not None and getattr(self.job, "turned_guided", None):
                     self.notice.emit(self.turned_guided_text())
                 else:
@@ -5675,6 +5956,7 @@ def _applog_table_opened(win) -> None:
              dual_scan=getattr(job, "dual", None) is not None,
              stored_tile_white=bool(getattr(job, "stored_tile_white", False)),
              row_placement_check=_row_placement_check(),
+             row_identity_check=_row_identity_check(),
              popups=bool(getattr(win, "_popups", False)))
     except Exception:      # noqa: BLE001
         pass
@@ -5687,6 +5969,33 @@ def _row_placement_check() -> str:
         return "on" if P.ROW_PLACEMENT_CHECK else "off"
     except Exception:      # noqa: BLE001
         return "unknown"
+
+
+def _row_identity_check() -> str:
+    """"on" or "off" (the table code's ship switch of the row identity check)."""
+    try:
+        from workflow.i1io.table import identity as I
+        return "on" if I.ROW_IDENTITY_CHECK else "off"
+    except Exception:      # noqa: BLE001
+        return "unknown"
+
+
+def _applog_row_identity_total(job) -> None:
+    """One line per sitting: how many rows the row identity check judged, how it judged them, and
+    how many it could not judge, with the reasons and how often each came."""
+    try:
+        t = dict(getattr(job, "identity_tally", None) or {})
+        if not t:
+            return
+        from core.app_log import line
+        why = {k: n for k, n in t.items() if k.startswith("not judged: ")}
+        line("table row identity total", rows=sum(t.values()), ok=t.get("ok", 0),
+             asked=t.get("ask", 0), confirmed_by_person=t.get("confirmed", 0),
+             refused=t.get("shifted", 0), not_judged=sum(why.values()),
+             why="; ".join(f"{n} x {k[len('not judged: '):]}" for k, n in
+                           sorted(why.items())) or None)
+    except Exception:      # noqa: BLE001 - a record only
+        pass
 
 
 def _applog_table_result(win, res) -> None:

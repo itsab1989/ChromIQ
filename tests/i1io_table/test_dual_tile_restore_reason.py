@@ -104,7 +104,7 @@ def test_reading_again_not_possible_names_the_real_reason():
     """M-I1IO-DRIVE-ROW-NOT-AGAIN: for dual_calibration_not_kept its own sentence, not the
     calibration_due one, in both the strip and the patch-by-patch page"""
     src = (ROOT / "ui" / "i1io_table_window.py").read_text(encoding="utf-8")
-    block = ('why = (reason_text("dual_calibration_not_found_again")\n'
+    block = ('why = (self._reason("dual_calibration_not_found_again")\n'
              '                       if d.get("why") == "dual_calibration_not_kept"\n'
-             '                       else reason_text("calibration_due") if d.get("calibration_due")')
+             '                       else self._reason("calibration_due") if d.get("calibration_due")')
     assert src.count(block) == 2

@@ -155,6 +155,10 @@ ALTERNATES: dict[str, Any] = {
 
 #: Recipe fields that are not an option of their own, and why.
 NOT_A_CANDIDATE = {
+    "i1io_pieces": "the pieces a stored i1iO chart on a large sheet was made "
+                   "as, recorded by Generate (tests/test_i1io_pieces.py)",
+    "i1io_limits": "the limits an i1iO recipe was made under, bookkeeping the "
+                   "panel always writes as today's",
     "instrument": "the instrument itself",
     "seed": "the shuffle seed of one build",
     "seed_fixed": "kept by the randomisation row",

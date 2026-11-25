@@ -123,6 +123,11 @@ NOT_AN_I1IO_OPTION = {
                      "barbieri_marks", "barbieri_size"),
                     "the Barbieri chart's own option; not the i1iO's"),
     "instrument": "the instrument itself, set by its own selector",
+    "i1io_pieces": "the division a chart on a large sheet was MADE with: "
+                   "recorded by Generate (tests/test_i1io_pieces.py), never "
+                   "a person's option kept by the panel",
+    "i1io_limits": "the limits the recipe was made under, bookkeeping "
+                   "(tests/test_i1io_layout_sizes.py)",
     "seed": "the shuffle seed of one build, not a setting",
     "seed_fixed": "kept by the randomisation row; walked for every "
                   "instrument by the preset tests",
@@ -407,6 +412,24 @@ def test_guided_keeps_its_i1io_controls(chart_tab, attr):
     tab._apply_ui_state(state)
     QApplication.processEvents()
     assert box.isChecked() is value
+
+
+def test_guided_keeps_its_chart_layout(chart_tab):
+    from PyQt6.QtWidgets import QApplication
+    tab, s, _t = chart_tab
+    tab._switch_mode("guided")
+    tab._shared_set("guided", "instrument", "IO2")
+    QApplication.processEvents()
+    tab._set_guided_i1io_layout("compact")
+    tab._on_save_defaults()
+    assert s.get("chart_i1io_layout") == "compact"
+    state = json.loads(json.dumps(tab._collect_ui_state()))
+    tab._set_guided_i1io_layout("standard")
+    tab._on_save_defaults()
+    assert s.get("chart_i1io_layout") == "standard"
+    tab._apply_ui_state(state)
+    QApplication.processEvents()
+    assert tab._guided_i1io_layout() == "compact"
 
 
 # ---- the preset bar's "modified" --------------------------------------------

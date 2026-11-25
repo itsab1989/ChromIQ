@@ -733,6 +733,23 @@ def _rows(turned: "bool | None" = None):
     ]
     if turned:
         _exports += _turned_rows()
+    from workflow.i1io.support import i1io_enabled
+    if i1io_enabled():
+        _exports += [
+            ("{name}-sheet_01.tif, {name}-sheet_02.tif …", "runs/runN/exports",
+             tr("The printable sheets of an i1iO chart whose paper is larger "
+                "than the table. Print these, then cut them along the grey "
+                "lines: the pieces you get are the pages of the chart. ChromIQ puts "
+                "them together again whenever they are missing or do not fit "
+                "the pieces. A verification chart keeps its own in "
+                "verifications/exports, a calibration chart in cal/exports."),
+             tr("Create Chart, Print Chart (beta option)")),
+            ("{name}-sheets.json", "runs/runN/exports",
+             tr("Which pieces stand on each of those sheets, and the checksums "
+                "by which ChromIQ knows that a sheet fits its pieces. Always "
+                "safe to delete."),
+             tr("Create Chart, Print Chart (beta option)")),
+        ]
     return [
         (tr("The three files that matter"), [
             ("{name}_01.tif, {name}_02.tif …", "runs/runN", tr("The printable chart pages. Print these."), tr("Create Chart")),

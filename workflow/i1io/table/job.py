@@ -64,6 +64,7 @@ from pathlib import Path
 from . import caps as cp
 from . import dual_rows as dl
 from . import geometry as geo
+from . import identity as idn
 from . import lines as cl
 from . import measurement as ms
 from . import placement as pl
@@ -111,6 +112,10 @@ class Confirm:
     ROW_FAILED = "row_failed"                 # APP_DESIGN 9: read it again / skip / stop
     #: round B: a STRIP row failed: read it again as a strip / patch by patch / skip / stop
     ROW_FAILED_STRIP = "row_failed_strip"
+    #: the row identity check (identity.py): the colours just read are not this row's; is the
+    #: right piece on the table? "right": the row is kept as read, the question is not asked
+    #: again for this page; "stop" (End the measurement): the row is dropped, the step stops
+    ROW_IDENTITY = "row_identity"
     # step 8: the end of a session (M-END's three buttons; M-END-EMPTY asks nothing)
     END = "end_of_session"                    # save (and stop) / keep measuring / discard
 
@@ -138,6 +143,7 @@ CHOICES = {
     #: 4.3.54 (the row placement check's fix round): "rest patch by patch", offered once per page
     #: after its second row the check refused (the window shows it only then)
     Confirm.ROW_FAILED_STRIP: ("again", "patch by patch", "rest patch by patch", "skip", "stop"),
+    Confirm.ROW_IDENTITY: ("right", "stop"),
     Confirm.END: ("save", "keep measuring", "discard"),
 }
 #: what the reader consent stands for (tester 0.5.1's READER_CONSENT, as facts; the window words
@@ -223,6 +229,172 @@ NOTE_MAX_CHARS = 2000
 NOTE_CUT_MARK = " [cut: the note was longer]"
 
 
+#: a strip row refused because it does not lie in its place: by its edges (placement.py) or by
+#: its colours (identity.py). Both count for "the rest of the page patch by patch", both are read
+#: again at ChromIQ's own speed, neither leaves a lamp pass behind
+PLACE_REASONS = (stp.PLACEMENT_REASON, idn.REASON_STRIP)
+#: while a row's values stand on the disk and are nobody's yet (it is being judged, or the person
+#: is asked about it) this file stands beside them; its end is the row's record. A START that
+#: finds one without a record removes the values (`remove_unjudged_leftovers`): a killed app
+#: leaves nothing of such a row
+JUDGING_SUFFIX = ".judging"
+
+
+def _files_in(folder) -> "set[Path]":
+    try:
+        return {p for p in Path(folder).iterdir() if p.is_file()}
+    except OSError:
+        return set()
+
+
+def _set_aside(files, more, log=None) -> "list[tuple[Path, bytes]]":
+    """The files taken into memory and off the disk, while the person is asked whether the right
+    sheet lies there: whatever ends the app now leaves nothing of the row. A file that cannot be
+    taken off the disk (held by another program, Windows) is emptied, and said (*log*)."""
+    out = []
+    for f in list(files) + list(more):
+        f = Path(f)
+        try:
+            data = f.read_bytes()
+        except OSError:
+            continue
+        out.append((f, data))
+        try:
+            f.unlink()
+        except OSError as exc:
+            try:
+                f.write_bytes(b"")
+                what = "emptied instead"
+            except OSError:
+                what = "left where it is until the row is settled"
+            if log is not None:
+                log("DATA", f"{f.name} could not be taken off the disk "
+                            f"({type(exc).__name__}): {what}")
+    return out
+
+
+def _bring_back(files) -> None:
+    for f, data in files:
+        tmp = f.with_name(f.name + ".part")
+        tmp.write_bytes(data)
+        os.replace(tmp, f)
+
+
+def _value_files(folder: Path, name: str, rec: "dict | None" = None) -> "list[Path]":
+    """Every file of the attempt *name* in its row folder that holds a patch's values: the row
+    file, the M1 / M2 files, the cut's copies of the values and what the second pass is worked
+    out from. The raw readings (``.readings.csv``, ``.spec.csv``, ``.raw``) are not among them:
+    they stay in the diagnostics, named as refused."""
+    folder = Path(folder)
+    out = [folder / f"{name}{e}" for e in (".ti3", ".cut.ti3", "_uv.cut.ti3", ".dual_in.txt",
+                                           ".dual_out.txt", ".lamp_only_cut.json")]
+    out += sorted(folder.glob(f"{name}.strip*.ti3")) + sorted(folder.glob(f"{name}.*.part"))
+    if rec:
+        if rec.get("reader_ti3"):
+            out.append(folder / str(rec["reader_ti3"]))
+        cond = rec.get("conditions")
+        out += [folder / str(v) for v in (cond.values() if isinstance(cond, dict) else ())]
+    return list(dict.fromkeys(out))
+
+
+def _unlink(files) -> int:
+    n = 0
+    for f in files:
+        try:
+            Path(f).unlink()
+            n += 1
+        except OSError:
+            pass
+    return n
+
+
+def _readings_refused(folder: Path, name: str, reason: str) -> None:
+    """The raw readings of an attempt stay, named as refused."""
+    import csv
+    import io
+    f = Path(folder) / f"{name}.readings.csv"
+    try:
+        rows = list(csv.reader(io.StringIO(f.read_text(encoding="utf-8"))))
+        p, w = rows[0].index("plausible"), rows[0].index("why")
+        for r in rows[1:]:
+            r[p], r[w] = "False", reason
+        buf = io.StringIO()
+        csv.writer(buf).writerows(rows)
+        f.write_text(buf.getvalue(), encoding="utf-8")
+    except (OSError, ValueError, IndexError):
+        pass
+
+
+def empty_row_records(folder, page: int, row: int, reason: str, log=None) -> "list[str]":
+    """What the recorded attempts of row *row* of page *page* (1-based) in the sitting *folder*
+    kept: the records emptied, their files of values and M1 / M2 removed, their raw readings
+    named as refused. Returns the locations that were kept; never raises."""
+    kept: "list[str]" = []
+    for f, old in ms.row_records([folder]):
+        if (old.get("page"), old.get("row")) != (page, row):
+            continue
+        old.pop("_session", None)
+        name = str(old.get("name") or f.name[:-len(ms.ROW_RECORD_SUFFIX)])
+        locs = [str(a.get("loc", "")) for a in old.get("accepted") or []]
+        kept += [q for q in locs if q not in kept]
+        _unlink(_value_files(f.parent, name, old))
+        # (the row folder is this row's alone: one step reads one row)
+        _unlink(_files_in(f.parent / "conditions"))
+        for r in old.get("failed") or []:
+            r.pop("xyz", None)
+        old.update(accepted=[], reader_ti3=None, conditions=None, dropped_later=reason)
+        if locs:
+            old["refused_readings"] = len(locs)
+        old.pop("m0_only", None)
+        try:
+            f.write_text(json.dumps(old, indent=1, default=str), encoding="utf-8")
+        except OSError:
+            if log is not None:
+                log("DATA", f"{name}: its record could not be rewritten; its files of values "
+                            "are gone")
+        _readings_refused(f.parent, name, reason)
+        if locs and log is not None:
+            log("DATA", f"{name}: {len(locs)} readings of an earlier attempt of row {row} are "
+                        f"dropped with it ({reason})")
+    return kept
+
+
+def remove_unjudged_leftovers(session_dirs) -> "list[str]":
+    """The values a killed app left of rows nobody had judged or answered about (a JUDGING file
+    without the row's record): removed, the raw readings kept. Returns what was removed, as
+    ``<sitting>/<row folder>/<name>``; never raises."""
+    gone = []
+    for sdir in session_dirs:
+        try:
+            found = sorted(Path(sdir).glob("*/*" + JUDGING_SUFFIX))
+        except OSError:
+            continue
+        for m in found:
+            name, folder = m.name[:-len(JUDGING_SUFFIX)], m.parent
+            if not (folder / f"{name}{ms.ROW_RECORD_SUFFIX}").is_file():
+                try:
+                    doc = json.loads(m.read_text(encoding="utf-8"))
+                    before, asked = set(doc["conditions_before"]), doc.get("asked")
+                except (OSError, ValueError, KeyError, TypeError, AttributeError):
+                    before, asked = set(), None
+                _unlink(_value_files(folder, name))
+                _unlink([f for f in _files_in(folder / "conditions") if f.name not in before])
+                if asked:
+                    # ended at the question without an answer: as if the person had said no
+                    empty_row_records(sdir, int(asked[0]), int(asked[1]), idn.REASON_ENDED)
+                gone.append(f"{Path(sdir).name}/{folder.name}/{name}")
+            _unlink([m])
+    return gone
+
+
+def _strip_of(loc: str) -> str:
+    """The strip's own label in a patch location ("C7" is in strip C; a chart whose patches have
+    the letters and its strips the numbers names them the other way round: "7C")."""
+    loc = str(loc)
+    head = loc.rstrip("0123456789")
+    return head or loc.rstrip("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz") or loc
+
+
 def clean_note(note) -> str:
     """A person's free text, made safe for the log and the JSON: control characters (newlines,
     tabs, escapes) become spaces, runs of spaces one, at most NOTE_MAX_CHARS kept. The scrub of
@@ -299,7 +471,7 @@ COUNTDOWN_AFTER = frozenset({Confirm.SHEET_LAID, Confirm.FRONT_CHOICE})
 #: here before any test passes
 ALWAYS_ASKED = frozenset({Confirm.AIMED, Confirm.MARKER, Confirm.CAL_PLACE,
                           Confirm.CAL_OWN_TILE, Confirm.CAL_RESEAT, Confirm.ROW_FAILED,
-                          Confirm.ROW_FAILED_STRIP})
+                          Confirm.ROW_FAILED_STRIP, Confirm.ROW_IDENTITY})
 #: 4.3.52 (the owner's ruling of 2026-11-20): a just-switched-on table gets its recorded
 #: start-up wherever the arm is, so the question "is the arm at its resting place?" no longer
 #: changes what is sent and is not asked. True brings back 4.3.48-4.3.52's gate: the unguided
@@ -872,6 +1044,12 @@ class TableJob:
         self.caps: "cp.Caps | None" = None
         self.phase = "new"            # new, open, closed
         self.alignment: "geo.Alignment | None" = None
+        #: the row identity check (safety review, 25 Nov 2026, B1): a person may have laid or
+        #: moved the sheet since the aims (the question whether the right sheet lies there was
+        #: not answered "right", or a row refused as beside its place ended the step). No row is
+        #: read and no step forward is made on these aims any more: the homing (which still runs
+        #: on them, so it runs exactly as ever) drops them, and new ones follow
+        self.aims_void = False
         self.front_need: "int | None" = None
         #: 4.3.50: the alignment whose front question was answered "go on" (its creep asks no
         #: GO and no first visit before its first step); None: none
@@ -985,6 +1163,23 @@ class TableJob:
         #: was offered patch by patch once; the pages whose rest the person chose patch by patch
         self.placement_refused_rows: "dict[int, set]" = {}
         self.rest_offered: "set[int]" = set()
+        #: the row identity check (identity.py): the colours the chart expects, {location: Lab}
+        #: (D50), given by the window at START (this package reads no chart for it), or why there
+        #: are none; and the pages (0-based) whose sheet the person has confirmed: the question
+        #: is not asked again there, the veto stays
+        self.expected_lab: "dict[str, tuple] | None" = None
+        self.expected_why = "no expected colours were given"
+        self.identity_confirmed: "set[int]" = set()
+        #: the pages (0-based) where the colours refused a row since their last aims: the rest
+        #: is not offered patch by patch there (R3)
+        self.colours_refused: "set[int]" = set()
+        #: the row sequence number at which the person ended at that question (0: never): the
+        #: ending names the rows read up to there that nobody could judge (`rows_not_judged`)
+        self.identity_ended_at = 0
+        self._stop_at_the_question = False
+        #: how the check judged this sitting's rows, every judgement counted: "ok", "ask",
+        #: "confirmed" (asked before on this page), "shifted", "not judged: <why>"
+        self.identity_tally: "dict[str, int]" = {}
         self.rest_by_patch: "set[int]" = set()
         self._press_factory = press_factory or None
         self._press = None
@@ -1584,7 +1779,13 @@ class TableJob:
         # review 8, S-1: Stop was pressed while this question was shown: the step ends here,
         # before the move the answer would allow (the reader, if open, is finished by the
         # step's own way out)
-        stop = PersonStopped(STOPPED_BEFORE_THE_NEXT_MOVE) if self._stale_stop(step) else None
+        # ...but nothing moves for "It is the right sheet": the row is kept as its page says, and
+        # the stop is honoured right after it, at the row's end (read_row)
+        stop = None
+        if kind == Confirm.ROW_IDENTITY and value == "right":
+            self._stop_at_the_question = self._pause_stop
+        elif self._stale_stop(step):
+            stop = PersonStopped(STOPPED_BEFORE_THE_NEXT_MOVE)
         return self._drive(value, throw=stop)
 
     def cancel(self) -> StepResult:
@@ -1882,6 +2083,8 @@ class TableJob:
 
     def _open(self):
         sheet = self.sheet
+        # 0. what a killed app left of a row nobody had judged or answered about (nothing sent)
+        self._remove_leftovers()
         # 1. a strip move that may still wait (a marker from an earlier START): the person
         #    says the table was switched off and on since; the marker is kept, acknowledged
         markers = self._unacknowledged_markers()
@@ -2184,7 +2387,7 @@ class TableJob:
         if step == "align" and not (rest or (d.arm_free is True and d.mode_on)):
             return "arm_not_at_rest_or_free_after_alignment"
         if step == "creep":
-            if self.alignment is None:
+            if self.needs_aims():
                 return "needs_alignment"
             if not self.out_known() and d.arm_free is not True:
                 return "arm_not_out_on_the_sheet"
@@ -2813,6 +3016,7 @@ class TableJob:
         skipped = [pg + 1 for pg in range(self.page + 1, later[0])]
         self.page = later[0]
         self.alignment = self.fit = None
+        self.aims_void = False
         self.front_need = None
         return self._result("next_page", Kind.OK, page=self.page + 1, passed_over=skipped)
 
@@ -3344,9 +3548,20 @@ class TableJob:
         return again
         yield  # pragma: no cover  (a generator)
 
+    def needs_aims(self) -> bool:
+        """Whether this page must be aimed at (again) before anything of it is read."""
+        return self.alignment is None or self.aims_void
+
+    def _void_the_aims(self, why: str) -> None:
+        """B1: the aims of this page are not used for another row (:attr:`aims_void`)."""
+        self.aims_void = True
+        self.diag.log("DATA", f"page {self.page + 1}: {why}: the page is aimed at again before "
+                              "another row of it is read")
+
     def _alignment_homed(self) -> None:
         self.arrived = []
         self.alignment = None
+        self.aims_void = False
         self.front_need = None
         self.fit = None
         self._apply_reach()
@@ -3373,6 +3588,9 @@ class TableJob:
                 raise PersonStopped("sheet_not_laid")
             # its "yes" is the page's hands-off GO (the page says so, and that the arm moves)
             self._go_page = self.page
+            # S1: a sheet laid now is a new sheet: "It is the right sheet" was said about the
+            # one before it
+            self.identity_confirmed.discard(self.page)
             self._check_other_program()
             yield from self._hands_off("align")
             # part B's recorded way out to the alignment start, the arm let go there
@@ -3457,6 +3675,8 @@ class TableJob:
                              {"aims_mm": al.aims_mm, "readings": al.readings, "M": al.M,
                               "checks": al.checks})
         self.alignment = al
+        self.aims_void = False
+        self.colours_refused.discard(self.page)
         fit = page_fit(sheet, self.page, al)
         self.fit = fit
         self._block["data"]["fit"] = fit
@@ -4127,7 +4347,7 @@ class TableJob:
                 return "needs_calibration"
             return None
         # a row
-        if self.alignment is None:
+        if self.needs_aims():
             return "needs_alignment"
         if not self.out_known() and d.arm_free is not True:
             return "arm_not_out_on_the_sheet"
@@ -4981,15 +5201,24 @@ class TableJob:
             # 4.3.54: after the SECOND row of this page the row placement check refused, the
             # rest of the page is offered patch by patch, once
             offer_rest = False
-            if plan.kind == "strip" and rec["why"] == stp.PLACEMENT_REASON:
+            # dropped by the row identity check, whatever the row's own reason says (R1)
+            beside = bool(rec.get("identity_dropped"))
+            if beside:
+                self.colours_refused.add(self.page)
+            if plan.kind == "strip" and rec["why"] in PLACE_REASONS and not beside:
                 refused = self.placement_refused_rows.setdefault(self.page, set())
                 refused.add(plan.index)
-                offer_rest = len(refused) >= 2 and self.page not in self.rest_offered
+                # (R3: a page where the COLOURS refused a row lies beside its place patch by patch
+                # too: the rest is never offered there, the page says to aim again)
+                offer_rest = (len(refused) >= 2 and self.page not in self.rest_offered
+                              and self.page not in self.colours_refused)
                 if offer_rest:
                     self.rest_offered.add(self.page)
                     self.diag.log("DATA", f"page {self.page + 1}: the row placement check "
                                           f"refused its rows {sorted(r + 1 for r in refused)}; "
                                           "the rest of the page is offered patch by patch")
+            # B1: the aims of a dropped row are given up (:meth:`_drop_row`) until the person chose
+            # a way on that keeps them: skip, or again and then GO
             ans = yield Ask(ask, {
                 "row": plan.index + 1, "page": self.page + 1, "why": rec["why"],
                 # 4.3.50: the row's M0 readings are kept (its M1 / M2 are not): a dual row
@@ -5005,7 +5234,7 @@ class TableJob:
                 and not self._calibration_due_for(len(plan.patches)),
                 "rows_read_again": self.rows_again.get(self.page, 0),
                 "calibration_due": self._calibration_due_for(len(plan.patches)),
-                "offer_rest": offer_rest})
+                "offer_rest": offer_rest, "aim_again": beside})
             if ans == "rest patch by patch":
                 self.rest_by_patch.add(self.page)
                 self.diag.log("DATA", f"page {self.page + 1}: the person chose to read the rest "
@@ -5019,6 +5248,7 @@ class TableJob:
                 if go != "yes":
                     raise PersonStopped("person_chose_back", row=plan.index + 1)
                 self._go_page = self.page
+                self.aims_void = False
                 self.rows_again[self.page] = self.rows_again.get(self.page, 0) + 1
                 plan = sp.plan_row(self.sheet, self.page, plan.index, self.alignment,
                                    self._table.front_y, cap_y=self._cap(), kind="spot", only_locs=self.only_locs)
@@ -5036,15 +5266,22 @@ class TableJob:
                 if go != "yes":
                     raise PersonStopped("person_chose_back", row=plan.index + 1)
                 self._go_page = self.page
+                self.aims_void = False
                 self.rows_again[self.page] = self.rows_again.get(self.page, 0) + 1
                 self._grant_for_row(plan)
                 attempt += 1
                 continue
             if ans == "skip":
+                self.aims_void = False
                 self.row_status[self.page][plan.index] = "skipped"
                 rec["status"] = "skipped"
                 break
             self.row_status[self.page][plan.index] = "failed"
+            if beside:
+                # B1 / S4: the person ended the step: new aims, then this row first
+                self.row_status[self.page].pop(plan.index)
+                self.rows_again[self.page] = self.rows_again.get(self.page, 0) + 1
+                self._grant_for_row(plan)
             raise PersonStopped("stopped_after_a_failed_row", row=plan.index + 1)
         out = {"row": plan.index + 1, "page": self.page + 1, "status": rec["status"],
                "read": len(rec["accepted"]), "patches": len(plan.patches),
@@ -5056,6 +5293,11 @@ class TableJob:
             # honoured (nothing follows without a new step) and does not reach the next row
             self._pause_stop = False
             out["stop_asked_during_the_last_patch"] = True
+            if self._stop_at_the_question:
+                # Stop was pressed while the person was asked about this row, which is kept as
+                # answered: the stop's own page follows
+                out["stop_asked_at_the_question"] = True
+                self._stop_at_the_question = False
             self._go_page = None          # the person pressed stop: GO before the next move
         n_next = len(plan.patches)
         if self._calibration_due_for(n_next):
@@ -5082,8 +5324,27 @@ class TableJob:
         readings: "list[dict]" = []
         reader = None
         opened = False
+        finished = False
+        cond_before = _files_in(folder / "conditions")
+        #: the row identity check: not None while this row's readings are nobody's yet (the
+        #: reason they are dropped for, whatever ends the row now)
+        drop: "str | None" = None
+        judged = False
+        judging: "Path | None" = None
         self._progress(event="row_start", row=plan.index + 1, kind=plan.kind,
                        locs=[p.loc for p in plan.patches])
+
+        def end_reader():
+            """The row's reader ended (once); its file's name into the record."""
+            nonlocal finished
+            if finished or reader is None:
+                return
+            finished = True
+            if opened:
+                ti3 = self._finish_reader(reader)
+                rec["reader_ti3"] = ti3.name if ti3 is not None and ti3.is_file() else None
+            else:
+                self._close_reader(reader)
         try:
             here = d.position()
             self._free_arm_inside(here)
@@ -5134,6 +5395,26 @@ class TableJob:
                     self._progress(event="patch_read", row=plan.index + 1, loc=p.loc,
                                    xyz=list(got.get("xyz") or []))
                 last_t = got["t"]
+            # THE ROW IDENTITY CHECK, before anything of the row counts: the reader is ended
+            # (its file is complete), the row judged on its own readings
+            drop = idn.REASON_SPOT
+            judging = self._judging(folder, name, cond_before)
+            end_reader()
+            verdict = self._judge_row(plan, rec, readings)
+            judged = True
+            if verdict == "shifted":
+                raise _RowFailed(idn.REASON_SPOT, "")
+            if verdict == "ask":
+                # the candidate stays unwritten until the answer: the files the reader wrote
+                # are taken off the disk, so that whatever ends this sitting leaves nothing
+                drop = idn.REASON_ENDED
+                aside = _set_aside([folder / rec["reader_ti3"]] if rec["reader_ti3"] else [],
+                                   _files_in(folder / "conditions") - cond_before,
+                                   self.diag.log)
+                self._asked_about(judging, plan)
+                yield from self._ask_row_identity(plan, rec)
+                _bring_back(aside)
+            drop = None
             rec["status"] = "read"
             self._progress(event="row_end", row=plan.index + 1, status="read")
         except _RowFailed as f:
@@ -5147,15 +5428,23 @@ class TableJob:
                        why=getattr(exc, "reason", type(exc).__name__))
             raise
         finally:
-            if reader is not None:
-                if opened:
-                    ti3 = self._finish_reader(reader)
-                    rec["reader_ti3"] = ti3.name if ti3 is not None and ti3.is_file() else None
-                else:
-                    self._close_reader(reader)
-            rec["accepted"] = [{"sample_id": r["sample_id"], "loc": r["loc"], "xyz": r["xyz"]}
-                               for r in readings if r.get("plausible")]
-            if self.dual is not None and opened:
+            if judging is None and opened and readings:
+                judging = self._judging(folder, name, cond_before)
+            end_reader()
+            if not judged and opened and readings:
+                # the row ended early (Stop, a doubt, a reading that failed): what was read so
+                # far is judged too when it is enough; a bad judgement drops it, nobody is asked
+                verdict = self._judge_row(plan, rec, readings)
+                drop = {"shifted": idn.REASON_SPOT,
+                        "ask": idn.REASON_ENDED}.get(verdict)
+            if drop is not None:
+                self._drop_row(plan, rec, drop, folder, readings=readings,
+                               conditions=_files_in(folder / "conditions") - cond_before)
+            else:
+                rec["accepted"] = [
+                    {"sample_id": r["sample_id"], "loc": r["loc"], "xyz": r["xyz"]}
+                    for r in readings if r.get("plausible")]
+            if self.dual is not None and opened and drop is None:
                 # the dual scan: the row's M1 / M2 files, in step with its readings
                 rec["conditions"] = self._dual_row_conditions(
                     folder, folder / rec["reader_ti3"] if rec["reader_ti3"] else None)
@@ -5168,6 +5457,7 @@ class TableJob:
                                    loc=None)
             self.diag.write_json(f"{self._block['folder']}/{name}{ms.ROW_RECORD_SUFFIX}", rec)
             self._write_readings(folder, name, readings + rec["failed"])
+            self._settled(judging)
             self._block["data"].setdefault("rows", []).append(
                 {k: rec[k] for k in ("page", "row", "attempt", "status", "why", "reader_ti3")}
                 | {"read": len(rec["accepted"]), "failed": len(rec["failed"]),
@@ -5347,18 +5637,18 @@ class TableJob:
         reads it again) at ChromIQ's own speed for its patches, factor 1.00, never again at the
         factor's; the detailed table log says so. Anything else: the plan as it was.
         4.3.54 release integration (the two branches together): a row the ROW PLACEMENT CHECK
-        refused (stp.PLACEMENT_REASON) that was read at a factor other than 1.00 takes the same
+        (or the row identity check, PLACE_REASONS) refused that was read at a factor other than 1.00 takes the same
         way, so the person's fast setting cannot refuse the same row again and again at the same
         speed; a row read at 1.00 (or already re-planned at 1.00) and refused by the check keeps
         the check's own path unchanged (the same plan, read again as the person answers)."""
         if plan.kind != "strip" or self.dual is not None or rec.get("why") not in (
                 "strip_speed_not_as_sent", "strip_move_refused_by_the_table",
-                stp.PLACEMENT_REASON):
+                *PLACE_REASONS):
             return plan
         note = getattr(getattr(plan, "scan", None), "speed_note", None) or {}
         if rec["why"] == "strip_move_refused_by_the_table" and not note:
             return plan                     # ChromIQ's own speed was refused: nothing to change
-        if rec["why"] == stp.PLACEMENT_REASON and (
+        if rec["why"] in PLACE_REASONS and (
                 not note or note.get("refused")
                 or abs(float(note.get("factor", 1.0)) - 1.0) <= 1e-9):
             return plan                     # read at ChromIQ's own speed: the check's own path
@@ -5422,6 +5712,8 @@ class TableJob:
                               "factor": round(float(self.row_speed_factor), 2),
                               "edge_mm": round(sc.plan_edge_mm(scan_plan), 2)}
         scan = None
+        drop: "str | None" = None          # the row identity check, as in _row_attempt
+        judging: "Path | None" = None
         self._progress(event="row_start", row=plan.index + 1, kind="strip",
                        locs=[p.loc for p in plan.patches])
         try:
@@ -5517,6 +5809,7 @@ class TableJob:
             self._arrived_at(scan_plan.end)
             # 4.3.53: both ends are places this table's motors brought the opening to
             self._learn_strip_ends(res, scan_plan)
+            judging = self._judging(folder, name)
             cut = stp.cut_row(scan_plan, str(folder), res.fired,
                               uniform_row=self._uniform_row(scan_plan))
             stp.save_cut_info(str(folder), name, cut)
@@ -5526,6 +5819,21 @@ class TableJob:
             self._placement_record(rec, plan, cut.info.get("placement"))
             if not cut.ok:
                 raise _RowFailed(cut.reason, str(cut.info.get("loc") or ""))
+            # THE ROW IDENTITY CHECK, before anything of the row is written
+            drop = idn.REASON_STRIP
+            verdict = self._judge_row(plan, rec, [{"loc": loc, "xyz": x}
+                                                  for _sid, loc, _v, x in cut.patches])
+            if verdict == "shifted":
+                raise _RowFailed(idn.REASON_STRIP, "")
+            if verdict == "ask":
+                drop = idn.REASON_ENDED
+                self._close_reader(scan)         # no reader waits while the person looks
+                scan = None
+                aside = _set_aside([folder / f"{name}.cut.ti3"], (), self.diag.log)
+                self._asked_about(judging, plan)
+                yield from self._ask_row_identity(plan, rec)
+                _bring_back(aside)
+            drop = None
             row_file = f"{name}.strip{stp.ROW_FILE_SUFFIX}"
             stp.write_row_file(str(folder / row_file), cut, self.options_report.options)
             rec["reader_ti3"] = row_file
@@ -5548,7 +5856,10 @@ class TableJob:
         finally:
             if scan is not None:
                 self._close_reader(scan)
+            if drop is not None:
+                self._drop_row(plan, rec, drop, folder)
             self.diag.write_json(f"{self._block['folder']}/{name}{ms.ROW_RECORD_SUFFIX}", rec)
+            self._settled(judging)
             self._block["data"].setdefault("rows", []).append(
                 {k: rec[k] for k in ("page", "row", "attempt", "status", "why", "reader_ti3")}
                 | {"read": len(rec["accepted"]), "failed": 0, "kind": "strip",
@@ -5582,6 +5893,8 @@ class TableJob:
                             for q in lamp.patches], lamp.aperture_mm, dual=True)
         uv = sp.uv_pass_of(lamp)
         scan = None
+        drop: "str | None" = None          # the row identity check, as in _row_attempt
+        judging: "Path | None" = None
         results: dict = {}
         self._progress(event="row_start", row=plan.index + 1, kind="strip",
                        locs=[p.loc for p in plan.patches], dual=True)
@@ -5707,6 +6020,7 @@ class TableJob:
                 _wl2, urows = sc.read_spec_csv(str(folder / f"{uv.name}.spec.csv"))
             except (OSError, ValueError):
                 raise _RowFailed("strip_readings_unreadable", "") from None
+            judging = self._judging(folder, name)
             cut = dl.cut_dual(lamp, uv, lrows, urows, wavelengths=wl,
                               uniform_row=self._uniform_row(lamp))
             cut.wavelengths = list(wl)
@@ -5741,6 +6055,15 @@ class TableJob:
                 why = sp.plausible(xyz)
                 if why or not all(math.isfinite(v) for v in xyz):
                     raise _RowFailed("strip_patch_implausible", q.loc)
+            # THE ROW IDENTITY CHECK (the lamp pass: the UV pass belongs to the same row and
+            # starts within half a millimetre of its own plan), before any row file
+            drop = idn.REASON_STRIP
+            verdict = self._judge_row(plan, rec, [{"loc": q.loc, "xyz": x}
+                                                  for q, x in zip(plan.patches, xyz0)])
+            if verdict == "shifted":
+                raise _RowFailed(idn.REASON_STRIP, "")
+            # from here the row is this one's, or nobody's until the person has answered
+            drop = idn.REASON_ENDED if verdict == "ask" else None
             dl.write_dual_in(str(folder / f"{name}.dual_in.txt"), cut)
             comp = scan.dual_compute(name, self.dual.scale)
             rec["dual_compute"] = {k: comp.get(k) for k in ("ok", "why", "pairing", "n",
@@ -5752,6 +6075,17 @@ class TableJob:
                                           len(plan.patches), len(cut.wavelengths))
             except (OSError, ValueError):
                 raise _RowFailed("record", "") from None
+            if verdict == "ask":
+                aside = _set_aside([folder / f"{name}.dual_in.txt",
+                                    folder / f"{name}.dual_out.txt",
+                                    folder / f"{name}.cut.ti3",
+                                    folder / f"{uv.name}.cut.ti3"], (), self.diag.log)
+                self._close_reader(scan)         # no reader waits while the person looks
+                scan = None
+                self._asked_about(judging, plan)
+                yield from self._ask_row_identity(plan, rec)
+                _bring_back(aside)
+            drop = None
             white = dl.white_for_place(self.cal_place)
             kws = dl.dual_keywords(self.dual, white)
             row_file = f"{name}.strip{stp.ROW_FILE_SUFFIX}"
@@ -5778,7 +6112,7 @@ class TableJob:
             # only the second pass (UV) failed or was refused: the row keeps its lamp pass as
             # M0 only (its M1 / M2 are missing; every other row keeps its own). The row still
             # counts as failed, so the person is asked as before and may read it again
-            if f.reason not in ("lamp_pass_timing_off", stp.PLACEMENT_REASON) and getattr(
+            if f.reason not in ("lamp_pass_timing_off", *PLACE_REASONS) and getattr(
                     results.get("lamp"), "kind", None) == "done":
                 self._keep_lamp_pass(rec, plan, lamp, folder, name, f.reason)
             self._progress(event="row_end", row=plan.index + 1, status="failed", loc=f.loc)
@@ -5793,7 +6127,10 @@ class TableJob:
         finally:
             if scan is not None:
                 self._close_reader(scan)
+            if drop is not None:
+                self._drop_row(plan, rec, drop, folder)
             self.diag.write_json(f"{self._block['folder']}/{name}{ms.ROW_RECORD_SUFFIX}", rec)
+            self._settled(judging)
             self._block["data"].setdefault("rows", []).append(
                 {k: rec[k] for k in ("page", "row", "attempt", "status", "why", "reader_ti3")}
                 | {"read": len(rec["accepted"]), "failed": 0, "kind": "strip", "dual": True,
@@ -5812,6 +6149,180 @@ class TableJob:
                                          if self._chart_ti2 is not None else {})
         vals = [dev.get(q.loc) for q in plan.patches]
         return bool(vals) and None not in vals and len(set(vals)) == 1
+
+    # ---- the row identity check (identity.py) ------------------------------------------------
+    def _row_locs(self, page: int, index: int) -> "list[str]":
+        try:
+            return [q["loc"] for q in self.sheet["pages"][page]["strips"][index]["patches"]]
+        except (KeyError, IndexError, TypeError):
+            return []
+
+    def _other_rows(self, page: int, index: int) -> "list[tuple[str, list[str]]]":
+        """The rows that could lie in this one's place: its neighbours, and the same row of
+        every other page (named as the logs and the question name them)."""
+        out = []
+        for k in (index - 1, index + 1):
+            if k >= 0 and self._row_locs(page, k):
+                out.append((f"row {k + 1}", self._row_locs(page, k)))
+        for p in range(len(self.sheet.get("pages") or [])):
+            if p != page and self._row_locs(p, index):
+                out.append((f"page {p + 1}", self._row_locs(p, index)))
+        return out
+
+    def _judge_row(self, plan, rec: dict, readings) -> "str | None":
+        """The row identity check on what was read of a row ([{loc, xyz}, ...], the plausible
+        ones): its verdict into the row's record (scores, never a colour), one line in the
+        detailed table log, and one event for the app log. "shifted" (refused), "ask" (the
+        person is asked, once per page), else None. A row of a page the person has confirmed is
+        never asked about again; the veto stays."""
+        xyz = {r["loc"]: r["xyz"] for r in readings
+               if r.get("xyz") is not None and r.get("plausible", True)}
+        expected = self.expected_lab or {}
+        try:
+            lab = {loc: stp.lab_d50(x) for loc, x in xyz.items()}
+            others = self._other_rows(plan.page, plan.index)
+        except Exception as exc:      # noqa: BLE001 - never in the place of the table's own error
+            self.diag.log("DATA", "row identity: the readings could not be converted: "
+                                  f"{type(exc).__name__}")
+            lab, others = {}, []
+        v = idn.judge(lab, self._row_locs(plan.page, plan.index), expected, others)
+        if not expected and self.expected_why and idn.ROW_IDENTITY_CHECK:
+            v["why"] = self.expected_why
+        rec["identity"] = idn.record(v)
+        verdict = v["verdict"] if v["judged"] else None
+        if verdict == "ask" and plan.page in self.identity_confirmed:
+            rec["identity"]["confirmed_by_the_person"] = True
+            verdict = None
+        text = idn.summary(v)
+        key = (f"not judged: {v['why']}" if not v["judged"]
+               else "confirmed" if rec["identity"].get("confirmed_by_the_person")
+               else v["verdict"])
+        self.identity_tally[key] = self.identity_tally.get(key, 0) + 1
+        if rec["identity"].get("confirmed_by_the_person"):
+            text += "; the person said it is the right sheet"
+        self.diag.log("DATA", f"row {plan.index + 1} of page {plan.page + 1}: {text}")
+        self._progress(event="row_identity", row=plan.index + 1, judged=v["judged"],
+                       verdict=v["verdict"], what=text, **{
+                           k: rec["identity"][k] for k in ("own", "shifted", "shift", "other",
+                                                           "why")})
+        return verdict if verdict in ("shifted", "ask") else None
+
+    def _ask_row_identity(self, plan, rec: dict):
+        """A generator: the question whether the right sheet lies on the table (at most once per
+        laying of a page). "right": the row counts as read, and the page is not asked about again
+        while that sheet lies there. Anything
+        else: PersonStopped (the caller drops the row; "stop" goes to the existing stopped
+        page). Nothing is sent for it; hands may go to the sheet, so the next movement is
+        preceded by the hands-off GO, exactly as after a failed row."""
+        self._go_page = None
+        # whatever ends this question unanswered, the row is not read
+        self.row_status.setdefault(plan.page, {})[plan.index] = "failed"
+        before, self.identity_ended_at = self.identity_ended_at, self._row_seq
+        # B1: whatever ends this question but "right", the sheet may be another one or lie
+        # elsewhere from here on
+        void, self.aims_void = self.aims_void, True
+        ans = yield Ask(Confirm.ROW_IDENTITY, {
+            "row": plan.index + 1, "page": plan.page + 1,
+            "pages": len(self.sheet.get("pages") or []), "kind": plan.kind,
+            "other": rec["identity"]["other"]})
+        if ans != "right":
+            self._void_the_aims("the question about the sheet was not answered with “right”")
+            raise PersonStopped("ended_at_the_row_identity_question", row=plan.index + 1)
+        self.aims_void = void
+        if self._pause_stop:
+            # Stop was pressed at the question, then "right": whoever stops to look may move it
+            self._void_the_aims("Stop was pressed at the question about the sheet")
+        self.identity_ended_at = before
+        self.identity_confirmed.add(plan.page)
+        rec["identity"]["confirmed_by_the_person"] = True
+        self.diag.log("DATA", f"row {plan.index + 1} of page {plan.page + 1}: the person says "
+                              "the right sheet lies on the table; the row is kept as read, and "
+                              "this page is not asked about again")
+
+    def _judging(self, folder: Path, name: str, cond_before=()) -> "Path | None":
+        """This row's values are about to stand on the disk and are nobody's yet (JUDGING_SUFFIX);
+        None when it could not be written (a record only: nothing is ever assembled without the
+        row's record)."""
+        m = Path(folder) / f"{name}{JUDGING_SUFFIX}"
+        try:
+            m.parent.mkdir(parents=True, exist_ok=True)
+            m.write_text(json.dumps({"conditions_before": sorted(f.name for f in cond_before)}),
+                         encoding="utf-8")
+        except OSError:
+            return None
+        return m
+
+    def _asked_about(self, marker: "Path | None", plan) -> None:
+        """The question about this row opens: a kill from here on is the answer "no" (the next
+        START then empties the row's earlier attempts of this sitting too)."""
+        if marker is None:
+            return
+        try:
+            doc = json.loads(marker.read_text(encoding="utf-8"))
+            doc["asked"] = [plan.page + 1, plan.index + 1]
+            marker.write_text(json.dumps(doc), encoding="utf-8")
+        except (OSError, ValueError):
+            pass
+
+    def _settled(self, marker: "Path | None") -> None:
+        """The row's record is written: what stands beside it is settled."""
+        if marker is not None:
+            _unlink([marker])
+
+    def _drop_row(self, plan, rec: dict, reason: str, folder: Path, readings=None,
+                  conditions=(), keep_why: bool = False) -> None:
+        """A row the identity check dropped leaves nothing anybody can use: the record names the
+        reason and how many readings were refused, the reader's file, the M1 / M2 files and
+        every other file of values of this attempt are gone (the raw readings stay in the
+        diagnostics, under that reason), and the preview takes the painted patches off. The
+        EARLIER ATTEMPTS of this row in this sitting go with it (`_drop_earlier_attempts`).
+        Never raises."""
+        n = len(readings) if readings is not None else len(plan.patches)
+        _unlink(_value_files(folder, rec["name"], rec) + [Path(c) for c in conditions])
+        for r in readings or []:
+            r["plausible"], r["why"] = False, reason
+        for r in rec.get("failed") or []:
+            r.pop("xyz", None)
+        rec.update(accepted=[], reader_ti3=None, conditions=None, status="failed",
+                   refused_readings=n)
+        rec.pop("m0_only", None)
+        if not keep_why:
+            rec["why"] = reason
+        # B1 / R1: what lies there is not what was aimed at, or lies elsewhere: however this row
+        # ended (refused, the question, a reading that failed, Stop), its aims are given up
+        rec["identity_dropped"] = reason
+        self.aims_void = True
+        self.diag.log("DATA", f"row {plan.index + 1} of page {plan.page + 1}: {reason}; none of "
+                              f"its {n} readings is kept")
+        earlier = self._drop_earlier_attempts(plan, reason)
+        try:
+            self._progress(event="row_dropped", row=plan.index + 1, why=reason,
+                           locs=[p.loc for p in plan.patches] + [
+                               q for q in earlier if q not in {p.loc for p in plan.patches}],
+                           earlier=len(earlier))
+        except Exception:      # noqa: BLE001 - the preview's matter
+            pass
+
+    def _drop_earlier_attempts(self, plan, reason: str) -> "list[str]":
+        """What earlier attempts of *plan*'s row in THIS sitting kept (a row patch by patch that
+        a reading or Stop ended early, too short to be judged; a lamp pass; a row read before):
+        the sheet that was read then is the one that does not belong there, as far as anybody
+        knows, so the row's records, files and M1 / M2 files are emptied as the dropped one's.
+        An earlier sitting's rows stay. Returns the locations that were kept; never raises."""
+        kept: "list[str]" = []
+        folder = getattr(self.diag, "folder", None)
+        if folder is None:
+            return kept
+        kept = empty_row_records(folder, plan.page + 1, plan.index + 1, reason, self.diag.log)
+        self.row_speed_marks.pop((plan.page, plan.index), None)
+        # a measurement of this sitting put together before (a row end, a question) may hold them
+        if kept and self.run is not None and self.stamp is not None:
+            try:
+                out = Path(self.run.i1io_table_measurement(self.stamp))
+                _unlink([out, *_files_in(out.parent / "conditions")])
+            except (OSError, ValueError):
+                pass
+        return kept
 
     def _placement_record(self, rec: dict, plan, check) -> None:
         """4.3.54: the row placement check's verdict (placement.py) into the row's record, the
@@ -5854,6 +6365,16 @@ class TableJob:
         for xyz in xyz0:
             if sp.plausible(xyz) or not all(math.isfinite(v) for v in xyz):
                 return False
+        # the row identity check: the lamp pass on its own is judged too, and never kept on a
+        # veto or where the person would be asked (the row is offered again as it is)
+        verdict = self._judge_row(plan, rec, [{"loc": q.loc, "xyz": x}
+                                              for q, x in zip(plan.patches, xyz0)])
+        if verdict in ("shifted", "ask"):
+            self.diag.log("DATA", f"{name}: the lamp pass is not kept on its own (the row "
+                                  "identity check)")
+            self._drop_row(plan, rec, idn.REASON_STRIP if verdict == "shifted"
+                           else idn.REASON_ENDED, folder, keep_why=True)
+            return False
         white = dl.white_for_place(self.cal_place)
         row_file = f"{name}.strip{stp.ROW_FILE_SUFFIX}"
         c0 = dl.condition_cut(lamp, cut, cut.lamp)
@@ -6175,6 +6696,39 @@ class TableJob:
         self.diag.log("DATA", "dual scan filed: " + json.dumps(out))
         return out
 
+    def _sitting_folders(self) -> "list[Path]":
+        """Every sitting of this place (run, calibration or verification date)."""
+        try:
+            return sorted(p for p in Path(self.run.i1io_table_dir).iterdir() if p.is_dir())
+        except (OSError, AttributeError, TypeError):
+            return []
+
+    def _remove_leftovers(self) -> None:
+        """What a killed app left of a row nobody had judged or answered about."""
+        for what in remove_unjudged_leftovers(
+                d for d in self._sitting_folders() if d.name != self.stamp):
+            self.diag.log("DATA", f"{what}: the values of a row that was not settled when the "
+                                  "app ended are removed (its raw readings stay)")
+
+    def rows_not_judged(self) -> "list[dict]":
+        """The rows of this sitting that hold accepted readings and that the row identity check
+        could not judge, read before the person ended at its question: ``[{page, row, strip,
+        read, why}]``, in reading order (empty when that never happened)."""
+        out: "dict[tuple, dict]" = {}
+        folder = getattr(self.diag, "folder", None)
+        for _f, rec in (ms.row_records([folder]) if folder is not None else ()):
+            key = (int(rec.get("page") or 0), int(rec.get("row") or 0))
+            if not rec.get("accepted") or int(rec.get("seq") or 0) > self.identity_ended_at:
+                continue
+            v = rec.get("identity") or {}
+            if v.get("judged"):
+                out.pop(key, None)           # a later attempt of it was judged
+                continue
+            loc = str(rec["accepted"][0].get("loc", ""))
+            out[key] = {"page": key[0], "row": key[1], "strip": _strip_of(loc),
+                        "read": len(rec["accepted"]), "why": str(v.get("why") or "")}
+        return [out[k] for k in sorted(out)]
+
     def accepted_in_this_session(self) -> int:
         if self.run is None or self.stamp is None:
             return 0
@@ -6477,6 +7031,7 @@ class TableJob:
         interrupted by a crash, a logout or a power cut, with or without a pending marker)."""
         if self.run is None:
             return []
+        self._remove_leftovers()            # before anything is offered to be completed
         return [e.as_dict() for e in se.earlier_sessions(self.run, exclude=self.stamp,
                                                          chart_ti2=self._chart_ti2)]
 
@@ -6742,7 +7297,12 @@ class TableJob:
             self.diag.write_json("notes.json", self.session_notes)
         # step 8: the session's summary (beside summary.json, which the analysis script and
         # the log's RESULT blocks already carry): how it ended, and what it read
+        if self.identity_tally:
+            self.diag.log("DATA", "row identity, this sitting's rows: " + json.dumps(
+                self.identity_tally, sort_keys=True))
         self.diag.write_json("session_summary.json", {
+            "row_identity": dict(self.identity_tally),
+            "rows_not_judged_before_the_question": self.rows_not_judged(),
             "job": JOB_VERSION, "ending": self.ended or "no_ending",
             "pages": len(self.sheet.get("pages", [])),
             "rows": {str(pg + 1): {str(r + 1): v for r, v in rows.items()}

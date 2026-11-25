@@ -194,7 +194,7 @@ def test_moving_between_the_boxes_in_an_inactive_window_does_not_turn(
     """The application's focus widget is None while another window is
     active; the panel asks its own window where the focus is."""
     p = io_panel
-    _set(p, 320, 297)
+    _set(p, 300, 220)
     other = QWidget()
     qtbot.addWidget(other)
     other.show()
@@ -204,11 +204,11 @@ def test_moving_between_the_boxes_in_an_inactive_window_does_not_turn(
     assert p.window().focusWidget() is p.custom_h
     p.custom_w.editingFinished.emit()
     qtbot.wait(50)
-    assert _sizes(p) == (320.0, 297.0)
+    assert _sizes(p) == (300.0, 220.0)
     p._elsewhere.setFocus(Qt.FocusReason.OtherFocusReason)
     p.custom_h.editingFinished.emit()
-    qtbot.waitUntil(lambda: p.custom_w.value() == 297.0, timeout=2000)
-    assert _sizes(p) == (297.0, 320.0)
+    qtbot.waitUntil(lambda: p.custom_w.value() == 220.0, timeout=2000)
+    assert _sizes(p) == (220.0, 300.0)
 
 
 # ---- the three leftovers of the release review (r2), 2026-11-14 -------------

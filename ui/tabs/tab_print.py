@@ -1084,6 +1084,8 @@ class TabPrint(QWidget):
         self._preview = TiffPreview(right)
         # beta 12: a run's chart page is shown as it will print
         self._preview.set_print_preview(True)
+        # an i1iO chart in pieces: the note is about the sheet that is shown
+        self._preview.page_changed.connect(self._on_i1io_sheet_shown)
         # the indicator's icon carries this tab's own accent (Basti)
         from ui.styles import SPEC_AMBER as _chip_accent
         self._preview.set_chip_accent(_chip_accent)
@@ -1119,6 +1121,7 @@ class TabPrint(QWidget):
         depends on files on disk (the chart's colorimetric-reference marker,
         the run's profile) which can change while this tab is hidden."""
         super().showEvent(event)
+        self._i1io_build_waiting_sheets()
         self._recheck_default_printer()
         if not getattr(self, "_printers_loaded", False):
             self._printers_loaded = True
@@ -1142,16 +1145,153 @@ class TabPrint(QWidget):
 
     # ------------------------------------------------------------------
 
-    def load_tiffs(self, paths: list[Path]) -> None:
-        """Called by main window after chart generation."""
+    def load_tiffs(self, paths: list[Path], *, by_hand: bool = False) -> None:
+        """Called by main window after chart generation.
+
+        THE PAGES OF AN i1iO CHART IN PIECES ARE SHOWN AND PRINTED AS ITS
+        SHEETS (`workflow.i1io.sheets`): swapped here, so every caller gets
+        it, whatever else lies beside the chart: a chart in pieces is printed
+        as its sheets or not at all. Images chosen by hand (*by_hand*, "Load
+        TIFF Image") are never swapped and never checked."""
+        paths = [p if isinstance(p, tuple) else Path(p) for p in paths or []]
+        self._i1io_pages, self._i1io_said = [], ""
+        self._i1io_no_sheets, self._i1io_ti2 = False, None
+        if not by_hand:
+            paths = self._i1io_sheets_for(paths)
         self._tiff_pages = paths
         if paths:
             self._preview.set_notice(None)     # a real chart — drop guidance
         self._preview.load_tiff(paths)
-        self._set_print_buttons_enabled(bool(paths))
+        self._set_print_buttons_enabled(bool(paths)
+                                        and not self._i1io_no_sheets)
         self._update_colour_row_visible()
         self._preselect_paper_for_chart()
         self._update_edge_note()
+
+    #: The pages a chart in pieces was loaded with while its sheets wait to be
+    #: built, what is said about its sheets, and whether there are none.
+    _i1io_pages: "list[Path]" = []
+    _i1io_said = ""
+    _i1io_no_sheets = False
+    #: The chart whose sheets are shown (None: no sheets of a chart).
+    _i1io_ti2: "Path | None" = None
+
+    def _i1io_sheets_for(self, paths: "list[Path]") -> "list[Path]":
+        """The printed sheets in place of *paths* when one of those is a page
+        of an i1iO chart in pieces; else *paths*.
+
+        Which pages that chart has is its own record's to say: copies and
+        other files beside it are nobody's pages, and one that is missing
+        means no sheets. A folder's list can hold a neighbour chart's pages
+        too (``c*.tif`` finds those of ``c-A3``): only the chart that was
+        opened is asked, whose name every one of *paths* begins with, and
+        whatever it is, the neighbour is never shown or printed in its place.
+        Sheets that are not there, or not of these pages,
+        are built when the tab is on screen (a chart drawn on every turn of a
+        knob in Create Chart builds none); until then, and when they cannot
+        be built, the pieces are shown and nothing is printed."""
+        try:
+            from workflow.i1io.support import (chart_names_i1io,
+                                               i1io_enabled)
+            if not paths or not i1io_enabled():
+                return paths
+            from workflow.i1io import sheets
+            from core.stem_paths import without_ext
+            charts = {}
+            for p in paths:
+                ti2 = sheets.chart_of_pages([p])
+                if ti2 is not None:
+                    charts[without_ext(ti2, ".ti2").name] = ti2
+            shared = [s for s in charts
+                      if all(Path(p).name.startswith(s) for p in paths)]
+            opened = charts[min(shared, key=len)] if shared else None
+            if opened is None or chart_names_i1io(opened) is not True:
+                return paths
+        except Exception:      # noqa: BLE001 - every other chart as ever
+            log.debug("i1iO sheets not asked about", exc_info=True)
+            return paths
+        try:
+            si = sheets.info(opened)
+            if si is None:
+                return paths
+            if sheets.fits(si):
+                self._i1io_ti2 = opened
+                return si.sheet_files
+            self._i1io_no_sheets = True    # until they are built
+            if not self.isVisible():
+                self._i1io_pages = paths
+                return paths
+            out = self._i1io_put_together(opened)
+            self._i1io_no_sheets, self._i1io_ti2 = False, opened
+            self._i1io_said = self._i1io_text("_I1IO_PIECES_REBUILD")
+            return out
+        except Exception as exc:      # noqa: BLE001 - said, never printed
+            self._i1io_cannot(exc)
+            return paths
+
+    def _i1io_put_together(self, ti2: Path) -> "list[Path]":
+        """The sheets of *ti2*, built, with the busy cursor and a line that
+        says what takes the time."""
+        from workflow.i1io import sheets
+        self._set_status(self._i1io_text("_I1IO_PIECES_BUILDING"))
+        self._status_lbl.repaint()
+        QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
+        try:
+            return sheets.ensure(ti2)
+        finally:
+            QApplication.restoreOverrideCursor()
+            self._set_status("")
+
+    def _i1io_cannot(self, exc: Exception) -> None:
+        """No sheets: nothing is printed, and why is said."""
+        from core.i18n import decimal_text
+        from workflow.i1io import sheets
+        log.warning("i1iO: no sheets to print: %s", exc,
+                    exc_info=not isinstance(exc, sheets.SheetsUnavailable))
+        self._i1io_no_sheets = True
+        self._i1io_said = self._i1io_text("_I1IO_PIECES_NO_SHEETS")
+        if isinstance(exc, sheets.NoRoom):
+            self._i1io_said = self._i1io_text("_I1IO_PIECES_NO_ROOM").format(
+                need=decimal_text(exc.need / 1e9, 1),
+                free=decimal_text(exc.free / 1e9, 1))
+
+    @staticmethod
+    def _i1io_text(name: str) -> str:
+        from workflow import measurement_messages as M
+        return tr(getattr(M, name))
+
+    def _i1io_build_waiting_sheets(self) -> None:
+        """The tab is on screen, or something is about to be printed: the sheets
+        that were waiting are built now, and sheets that do not fit their
+        pages any more are built again (none is ever printed unchecked). The
+        sheet that was shown stays the one shown."""
+        shown = self._preview.current_page()
+        if self._i1io_pages:
+            self.load_tiffs(list(self._i1io_pages))
+        elif self._i1io_ti2 is None:
+            return
+        else:
+            try:
+                from workflow.i1io import sheets
+                si = sheets.info(self._i1io_ti2)
+                if si is None or not self._i1io_ti2.is_file():
+                    raise sheets.SheetsUnavailable(
+                        "the chart of these sheets is not a chart in pieces "
+                        "any more")
+                if sheets.fits(si) and si.sheet_files == self._tiff_pages:
+                    return
+                # (whatever lies there now: its own pages, or none)
+                before = list(self._tiff_pages)
+                self.load_tiffs(list(si.pages) or before)
+                if self._i1io_ti2 is None and not self._i1io_no_sheets:
+                    self._i1io_cannot(sheets.SheetsUnavailable(
+                        "no page of the chart is there"))
+            except Exception as exc:      # noqa: BLE001 - nothing is printed
+                self._i1io_cannot(exc)
+            if self._i1io_no_sheets:
+                self._set_print_buttons_enabled(False)
+                self._update_edge_note()
+        self._preview.show_page(shown)
 
     def has_pages(self) -> bool:
         """Whether this tab currently holds printable page images.
@@ -1985,13 +2125,14 @@ class TabPrint(QWidget):
         nothing (§3.2 A11), and the external route hands the files over
         instead of printing.
         """
+        from core.file_manager import beside_the_chart
         from workflow import verification_print as vp
         colour = self._cm_selected_colour()
         route = self._cm_selected_route()
         converted_dir = None
         chart_dir = (Path(self._current_ti2).parent
                      if self._current_ti2 is not None
-                     else Path(pages[0][0]).parent)
+                     else beside_the_chart(pages[0][0]).parent)
         out_dir = chart_dir / "cache"
 
         # B7 (#182 5959070209): the printer calibration. A profile built from
@@ -2101,7 +2242,10 @@ class TabPrint(QWidget):
                 self._pending_print_record = (Path(self._current_ti2), pending)
 
         if route == vp.ROUTE_EXTERNAL:
+            from core.file_manager import sheet_of_chart
             folder = converted_dir if converted_dir is not None else (
+                Path(pages[0][0]).parent
+                if sheet_of_chart(pages[0][0]) is not None else
                 Path(self._current_ti2).parent if self._current_ti2 is not None
                 else Path(pages[0][0]).parent)
             from core.preset_store import reveal_in_file_manager
@@ -2530,11 +2674,13 @@ class TabPrint(QWidget):
             from workflow.i1io.support import i1io_enabled
             if i1io_enabled():
                 from workflow.i1io.support import pages_are_i1io_chart
+                text = self._i1io_pieces_note()
                 pages = [p for p, _f in (getattr(self._preview, "_pages", None)
                                          or [])]
                 from workflow.i1io.support import aim_for_pages
                 aim = (aim_for_pages(pages[:1])
-                       if pages and pages_are_i1io_chart(pages[:1]) else None)
+                       if pages and not text
+                       and pages_are_i1io_chart(pages[:1]) else None)
                 if aim == "corner patches":
                     text = tr(
                         "This i1iO chart is shown as it lies on the table. It "
@@ -2575,6 +2721,32 @@ class TabPrint(QWidget):
             text = self._barbieri_print_note()
         lbl.setText(text)
         lbl.setVisible(bool(text))
+
+    def _on_i1io_sheet_shown(self, _page: int) -> None:
+        if self._i1io_ti2 is not None:
+            self._update_i1io_load_note()
+
+    def _i1io_pieces_note(self) -> str:
+        """For an i1iO chart in pieces (M-I1IO-PRINT-PIECES): printing, cutting
+        and laying it; what is said about its sheets first. "" else."""
+        from workflow.i1io import sheets
+        from workflow.i1io.support import aim_for_pages
+        if self._i1io_no_sheets or self._i1io_ti2 is None:
+            return self._i1io_said
+        si = sheets.info(self._i1io_ti2)
+        if si is None:
+            return ""
+        # the sheet that is shown says how many pieces IT holds
+        sheet = min(self._preview.current_page(), max(0, si.sheets - 1))
+        n = len(si.pages_of(sheet))
+        text = (self._i1io_text("_I1IO_PRINT_PIECES_ONE") if n == 1 else
+                self._i1io_text("_I1IO_PRINT_PIECES").format(
+                    n=n, example=f"2/{len(si.pages)}"))
+        lay = {"crosses": "_I1IO_PRINT_LAY_CROSSES",
+               "corner patches": "_I1IO_PRINT_LAY_PATCHES"}.get(
+            aim_for_pages(self._tiff_pages[:1]), "_I1IO_PRINT_LAY_EITHER")
+        return " ".join(v for v in (self._i1io_said, text,
+                                    self._i1io_text(lay)) if v)
 
     def _isis_feed_note(self) -> str:
         """For an i1iSis chart (Beta on): how the sheet is fed, and whether
@@ -2659,7 +2831,13 @@ class TabPrint(QWidget):
                 chart_pt = read_tiff_dimensions_points(pages[0][0])
                 chart_mm = (chart_pt[0] * PE.MM_PER_PT,
                             chart_pt[1] * PE.MM_PER_PT)
-                edges, paper = PE.edges_for(printer, chart_mm, self._settings)
+                from workflow.i1io.support import (i1io_enabled,
+                                                   pages_are_i1io_chart)
+                own_size = i1io_enabled() and pages_are_i1io_chart(
+                    [p for p, _f in pages])
+                edges, paper = PE.edges_for(
+                    printer, chart_mm, self._settings,
+                    **({"own_size": True} if own_size else {}))
                 if edges.any():
                     shift = (0.0, 0.0)
                     paper_pt = (paper[0] / PE.MM_PER_PT, paper[1] / PE.MM_PER_PT)
@@ -3271,7 +3449,7 @@ class TabPrint(QWidget):
         if self._current_ti2 is not None:
             self._current_ti2 = None
             self.ti2_replaced.emit()
-        self.load_tiffs([Path(p) for p in paths])
+        self.load_tiffs([Path(p) for p in paths], by_hand=True)
         self._set_status(tr(
             "Image loaded for printing (no colour management). To measure a "
             "chart afterwards, open its .ti2 with “Open Chart File "
@@ -3292,7 +3470,8 @@ class TabPrint(QWidget):
         return True
 
     def _on_print_current(self) -> None:
-        if not self._preview._pages:
+        self._i1io_build_waiting_sheets()
+        if not self._preview._pages or self._i1io_no_sheets:
             return
         if self._blocked_by_new_run():
             return
@@ -3308,7 +3487,8 @@ class TabPrint(QWidget):
         self._print_pages(pages)
 
     def _on_print_all(self) -> None:
-        if not self._preview._pages:
+        self._i1io_build_waiting_sheets()
+        if not self._preview._pages or self._i1io_no_sheets:
             return
         if self._blocked_by_new_run():
             return

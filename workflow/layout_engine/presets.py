@@ -31,6 +31,15 @@ SUPPORTED_INSTRUMENTS = ("i1", "p3", "CM", "41", "51", "SS", "CR30")
 TEXT_EDGE_DEFAULT_MM = 4.0
 
 
+def _limits_of(value) -> int:
+    """A stored ``i1io_limits`` as a number; a bad one is none (a preset never
+    fails to load for it)."""
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def stored_layout_mode(d: dict) -> str:
     """The layout mode of a stored recipe dict that does not name one (B8-1542).
 
@@ -67,7 +76,21 @@ def stored_layout_mode(d: dict) -> str:
 HIDES_PATCH_CONTROLS_KEY = "area_first_hides_patch_controls"
 
 
-def build_kwargs_as_built(recipe) -> dict:
+def stored_recipe(recipe, result) -> dict:
+    """THE RECIPE AS IT IS STORED WITH A CHART (``channels.json``, layout
+    block): *recipe* (a `LayoutRecipe`) with what its build *result* resolved.
+    The one function every writer of a chart's record uses (Create Chart's
+    Manual and Guided, the patch set editor), so none can leave out the
+    division an i1iO chart on a large sheet was made with
+    (`workflow.i1io.pieces`: never the rule of a later version)."""
+    d = recipe.to_dict()
+    token = getattr(result, "i1io_pieces", "")
+    if token:
+        d["i1io_pieces"] = token
+    return d
+
+
+def build_kwargs_as_built(recipe, chart=None) -> dict:
     """The engine kwargs a chart was BUILT with, for the helpers that describe a
     sheet already made (B8-1570): the edge-spacer width behind "Show only
     measured patches", the margin inspector's ink bounds, the hexagon ring cap,
@@ -82,11 +105,14 @@ def build_kwargs_as_built(recipe) -> dict:
     So a stored recipe dict without :data:`HIDES_PATCH_CONTROLS_KEY` gets the
     three back, exactly as the engine was handed them then. A live
     :class:`LayoutRecipe`, or a dict this version wrote, is described by
-    today's rule."""
+    today's rule.
+
+    *chart*: the chart's ``.ti2``; an i1iO chart's division is then held
+    against its own record (`LayoutRecipe.from_stored`)."""
     if isinstance(recipe, LayoutRecipe):
         return recipe.build_kwargs()
     d = dict(recipe or {})
-    r = LayoutRecipe.from_dict(d)
+    r = LayoutRecipe.from_stored(d, chart)
     kw = r.build_kwargs()
     if r.layout_mode == "area_first" and not d.get(HIDES_PATCH_CONTROLS_KEY):
         kw["pscale"] = r.pscale
@@ -240,6 +266,16 @@ class LayoutRecipe:
     #: other values for every other chart. Written only for "IO2" when set.
     i1io_numbers_edge_mm: "float | None" = None
     i1io_text_align: str = ""
+    #: The limits an i1iO recipe was made under (`workflow.i1io.chart.
+    #: LIMITS_KEY`): 2 for every recipe made from the new chart layout on; 0
+    #: (an older recipe, or one carried over from another instrument): sizes
+    #: outside the old limits are the i1iO's own. Written only for "IO2".
+    i1io_limits: int = 0
+    #: i1iO: which pieces a sheet larger than the table is divided into, "" =
+    #: automatic. A STORED CHART's recipe holds the division it was made with
+    #: (`workflow.i1io.pieces.Plan.token`); read from a chart without one it is
+    #: "one" (`from_channels_json`). Written only for "IO2" and only a token.
+    i1io_pieces: str = ""
     #: THE i1iSis CHART'S OWN OPTIONS (a Beta, `workflow.isis.chart`): the
     #: model width ("" / "standard" or "xl"), the header length, tight
     #: margins, the barcode, the trailer, the feed arrows, the dashed
@@ -546,6 +582,11 @@ class LayoutRecipe:
             d.pop("i1io_numbers_edge_mm", None)
         if self.instrument != "IO2" or not self.i1io_text_align:
             d.pop("i1io_text_align", None)
+        if self.instrument != "IO2" or not self.i1io_limits:
+            d.pop("i1io_limits", None)
+        if self.instrument != "IO2" or not str(
+                self.i1io_pieces or "").startswith("v1;"):
+            d.pop("i1io_pieces", None)
         for _f, _dflt in ISIS_FIELD_DEFAULTS.items():
             if self.instrument != "XRISIS" or d.get(_f) == _dflt:
                 d.pop(_f, None)
@@ -591,6 +632,10 @@ class LayoutRecipe:
         # SAVED BEFORE 4.3.39: no dark/light reordering (see the field).
         kw["avoid_dark_light_neighbours"] = bool(
             d.get("avoid_dark_light_neighbours", False))
+        if "i1io_limits" in kw:
+            kw["i1io_limits"] = _limits_of(kw["i1io_limits"])
+        if "i1io_pieces" in kw:
+            kw["i1io_pieces"] = str(kw["i1io_pieces"] or "")
         # The page-output Beta's fields, read safely (absent = not used).
         if "page_size" in kw or "tiff_res_unit" in kw:
             from workflow.page_output.support import clean_page_size, RES_UNITS
@@ -656,6 +701,8 @@ class LayoutRecipe:
                                   is None
                                   else float(d["i1io_numbers_edge_mm"])),
             i1io_text_align=str(d.get("i1io_text_align") or ""),
+            i1io_limits=_limits_of(d.get("i1io_limits")),
+            i1io_pieces=str(d.get("i1io_pieces") or ""),
             **{_f: d[_f] for _f in ISIS_FIELD_DEFAULTS if _f in d},
             **{_f: d[_f] for _f in BARBIERI_FIELD_DEFAULTS if _f in d},
             show_strip_indicators=bool(d.get("draw_indicators", True)),
@@ -745,6 +792,23 @@ class LayoutRecipe:
         return r
 
     @classmethod
+    def from_stored(cls, d: dict, chart=None) -> "LayoutRecipe":
+        """`from_dict` for the recipe STORED WITH A CHART: it is what the
+        chart was made as, so an i1iO chart without a recorded division is
+        one piece, whatever a later rule would make of its sheet, and with
+        *chart* (its ``.ti2``) the division is the chart's own record's, or
+        one that is refused (`workflow.i1io.pieces.recipe_token`)."""
+        r = cls.from_dict(d)
+        if r.instrument == "IO2":
+            from workflow.i1io.support import i1io_enabled
+            if i1io_enabled():
+                from workflow.i1io.pieces import recipe_token
+                r.i1io_pieces = recipe_token(r.i1io_pieces, chart)
+            else:
+                r.i1io_pieces = r.i1io_pieces or "one"
+        return r
+
+    @classmethod
     def from_channels_json(cls, path) -> "LayoutRecipe | None":
         """Load the engine recipe stored in a chart's ``channels.json`` layout
         block, or ``None`` if the chart wasn't built by the ChromIQ engine.
@@ -763,7 +827,10 @@ class LayoutRecipe:
         rec = lay.get("recipe")
         if not isinstance(rec, dict):
             return None
-        r = cls.from_dict(rec)
+        name = str(path)
+        r = cls.from_stored(
+            rec, name[:-len(".channels.json")] + ".ti2"
+            if name.endswith(".channels.json") else None)
         if isinstance(lay.get("seed"), int):
             r.seed = lay["seed"]
         return r
@@ -964,6 +1031,10 @@ class LayoutRecipe:
             kw["i1io_numbers_edge_mm"] = float(self.i1io_numbers_edge_mm)
         if self.instrument == "IO2" and self.i1io_text_align:
             kw["i1io_text_align"] = self.i1io_text_align
+        if self.instrument == "IO2" and self.i1io_limits:
+            kw["i1io_limits"] = int(self.i1io_limits)
+        if self.instrument == "IO2" and self.i1io_pieces:
+            kw["i1io_pieces"] = self.i1io_pieces
         # The i1iSis chart's own options, only those that differ from its
         # defaults (see the fields).
         if self.instrument == "XRISIS":
@@ -1105,6 +1176,7 @@ def default_recipe(instrument: str = "i1", paper: str = "A4", *, mode: str | Non
                                                    PATCH_ALONG_MM, ROW_GAP_MM,
                                                    SPACER_MODE, margins_mm)
             t, rt, b, lt = margins_mm(True)
+            r.i1io_limits = 2          # `workflow.i1io.chart.LIMITS_NOW`
             r.patch_w_mm, r.patch_h_mm = PATCH_ACROSS_MM.value, PATCH_ALONG_MM.value
             r.strip_gap_mm, r.inter_patch_mm = ROW_GAP_MM.value, 0.0
             r.layout_mode = "patch_first"

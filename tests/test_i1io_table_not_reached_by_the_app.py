@@ -119,7 +119,10 @@ def test_the_package_exists_and_is_complete():
         # 4.3.49: the table's remembered reach (records and learns; sends nothing)
         "reach.py",
         # 4.3.54: the row placement check (a veto on a row's readings; sends nothing)
-        "placement.py"}
+        "placement.py",
+        # the new chart layout (25 Nov 2026): the row identity check (a veto and a question on
+        # a row's readings; sends nothing)
+        "identity.py"}
 
 
 #: build step 9: the only app modules that may import the package, and only lazily

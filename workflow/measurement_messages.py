@@ -9520,6 +9520,20 @@ M_I1IO_EDGE_MARKS_NOT_PRINTED = _m(
     "edge than this, set it under Preferences \u25b8 Printing \u25b8 "
     "\u201cEdge this printer does not print\u201d.",
     approved=False)
+#: The same for a printed sheet that is cut into pieces.
+M_I1IO_EDGE_MARKS_OF_PIECES = _m(
+    "M-I1IO-EDGE-MARKS-OF-PIECES",
+    "Aiming marks of the sheet's pieces fall where your printer does not print",
+    "\u26a0 {printer} leaves an edge of the paper unprinted: {edges} "
+    "({source}). On this sheet, small numbered crosses of its pieces lie in "
+    "that edge {where}, so they would be missing or cut off on paper. ChromIQ "
+    "finds every patch of a piece from its three crosses, so please do not "
+    "print the sheet like this. What you can do: print it on a printer that "
+    "prints closer to the edge of the paper, or print it at 100 % in the "
+    "middle of a larger paper and cut it along the grey lines as usual. If "
+    "your printer leaves a different edge than this, set it under Preferences "
+    "\u25b8 Printing \u25b8 \u201cEdge this printer does not print\u201d.",
+    approved=False)
 #: The same for its strip letters, patch numbers and name line, which the
 #: table does not read and which sit in fixed places: never "printed text"
 #: with the text advice, which names controls an i1iO chart greys. {lost}:
@@ -9560,6 +9574,34 @@ _I1IO_SHEET_NOT_PORTRAIT = ("An i1iO chart is printed on an upright (portrait) "
 _I1IO_SHEET_OVER_REACH = ("This sheet ({w} x {h} mm), laid across the table, "
                           "is larger than the area the i1iO's arm can reach "
                           "({rx} x {ry} mm). Choose a smaller sheet.")
+_I1IO_PIECE_NUMBER_LOST = ("There is no room on piece {number} for its number, which says "
+                           "which piece it is. Write it on the back of the piece before "
+                           "you cut the sheet, or make the margins larger.")
+#: …and for drawing the pieces: {pieces} ("40 pieces").
+_I1IO_PIECES_OVER_BUDGET = (
+    "This chart would be drawn as {pieces}, at {w} x {h} pixels ({mpx} "
+    "megapixels) per piece. Drawing it would need about {gb} GB of memory, and "
+    "ChromIQ keeps to {limit} GB so that it never runs out of memory. To make "
+    "it fit, lower the resolution, choose 8 bit if 16 bit is chosen, or use "
+    "fewer patches so that the chart takes fewer sheets, and generate the "
+    "chart again.")
+_I1IO_PIECES_RECORD_BAD = (
+    "the chart's own record of its pages cannot be trusted. It is damaged, does "
+    "not fit the chart's other files, belongs to another sheet, or was written "
+    "by a newer ChromIQ. Nothing was drawn. Choose the paper again in Create "
+    "Chart and generate a new chart, or use the ChromIQ this chart was made "
+    "with.")
+#: {w} {h} pixels, {mpx} megapixels, {gb} gigabytes; {tail} is one of
+#: `_PAGE_NOTHING_WRITTEN` and `_PAGE_NOT_DRAWN`.
+_I1IO_SHEET_OVER_BUDGET = (
+    "The printed sheet of this chart would be {w} x {h} pixels ({mpx} "
+    "megapixels). Getting it ready to print would need about {gb} GB of "
+    "memory, and ChromIQ keeps to {limit} GB so that it never runs out of "
+    "memory. To make it fit, lower the resolution, choose 8 bit if 16 bit is "
+    "chosen, or choose a smaller paper, and generate the chart again.")
+_I1IO_PIECES_PIXELS = ("This sheet is larger than the i1iO table, so it is divided "
+                       "into pieces, and a size typed in pixels cannot be divided "
+                       "exactly. Type the size in millimetres or inches.")
 _I1IO_SHEET_TOO_SMALL = ("This sheet is too small for one strip of patches "
                          "with the margins, the aiming crosses and the labels "
                          "it needs. Choose a larger sheet, make the patches "
@@ -9583,6 +9625,20 @@ _I1IO_SIZE_UNTESTED = ("This sheet ({w} x {h} mm) is larger than A4 or Letter "
                        "in one direction. It lies inside the area the arm can "
                        "reach as X-Rite publishes it, but no sheet of this "
                        "size has been tried on a table yet.")
+#: What one page of an i1iO chart may hold (`table_facts.layout_maxima`):
+#: refused before anything is written (START's own check is the same).
+_I1IO_OVER_PER_STRIP = ("This layout has {n} patches in one strip. The i1iO "
+                        "table can measure at most {max}. Make the patches "
+                        "longer along the strip.")
+_I1IO_OVER_STRIPS = ("This layout has {n} strips on one sheet. The i1iO table "
+                     "can measure at most {max}. Make the patches wider "
+                     "across the strip.")
+_I1IO_OVER_PER_SHEET = ("This layout has {n} patches on one sheet. The i1iO "
+                        "table can measure at most {max}. Make the patches "
+                        "larger.")
+_I1IO_OVER_SHEETS = ("This chart needs {n} sheets. The i1iO table can measure "
+                     "at most {max} in one chart. Use fewer patches or a "
+                     "larger sheet.")
 _I1IO_PATCH_OFF_SHEET = ("A patch would lie partly off the sheet. Make the margins, "
                          "the chart offset or the patch size smaller.")
 _I1IO_PATCH_ON_CROSS = ("A patch would touch an aiming cross. Make the margins larger"
@@ -9601,10 +9657,142 @@ _I1IO_CORNERS_TOO_CLOSE = ("On page {page}, the corner patches you would aim at 
                            "least 10 mm apart. The margins you set leave no room for the "
                            "crosses on that page. Make the margins larger: that page then "
                            "keeps its crosses.")
+#: A page whose strips are so narrow for their length that a corner patch
+#: aimed at one strip off would not be seen (`chart.corners_tell_a_strip`)
+_I1IO_NARROW_KEEPS_CROSSES = (
+    "The aiming crosses are kept although you switched them off: these strips "
+    "are so narrow that aiming at a corner patch one strip off would go "
+    "unnoticed, and patches would be read in the wrong strip. With wider "
+    "strips the crosses can be switched off.")
+_I1IO_NARROW_NO_ROOM = (
+    "On page {page} the strips are so narrow that aiming at a corner patch "
+    "one strip off would go unnoticed, so the page needs its aiming crosses, "
+    "and the margins you set leave no room for them. Make the margins larger "
+    "or the strips wider.")
+#: A page whose patches are so long that a run ends more than 20 mm beyond
+#: its corner patches (`chart.runs_stay_by_the_aims`)
+_I1IO_LONG_KEEPS_CROSSES = (
+    "The aiming crosses are kept although you switched them off: these patches "
+    "are so long that the arm would drive more than 20 mm past the patches you "
+    "aim at. With patches up to 20 mm long the crosses can be switched off.")
+_I1IO_LONG_NO_ROOM = (
+    "On page {page} the patches are so long that the arm would drive more than "
+    "20 mm past the patches you aim at, so the page needs its aiming crosses, "
+    "and the margins you set leave no room for them. Make the margins larger "
+    "or the patches shorter along the strip.")
+#: What a chart's sizes mean for reading it (`chart.size_notes`): {share} the
+#: neighbour's part of what the instrument sees, 1.2 mm off
+_I1IO_SMALL_PATCH = (
+    "These patches are so small that the instrument can see the one beside "
+    "it. When the instrument stands 1.2 mm off (an ordinary aim and the arm's "
+    "own landing error together), {share} % of what it sees belongs to the "
+    "neighbour, and the values can be wrong by several dE without a warning. "
+    "Choose {size} mm or more for values you can trust.")
+_I1IO_SHORT_PATCH = (
+    "Patches under {size} mm have not been read as strips on a table yet. A "
+    "row that cannot be placed safely is refused and read again.")
+_I1IO_SPOT_PATCH = (
+    "Patches under {size} mm along the strip are too short to be read in one "
+    "movement of the arm. The table reads each of them by itself, which takes "
+    "much longer.")
+_I1IO_THIN_SPACER = (
+    "Spacers under {size} mm have not been tried on a table yet. They leave "
+    "less of an edge between two patches for a row to be placed by.")
+#: Under the paper while a sheet larger than the table is chosen (Guided and
+#: Manual): {sheets} "1 sheet" / "2 sheets", {pieces} "2 pieces" / "1 piece"
+_I1IO_PIECES_INFO = (
+    "{sheets}, {pieces}, {patches} patches. You print the whole sheet and cut "
+    "it into its pieces. The table measures one piece after the other. So far "
+    "this has been tried on a simulated table only, not on a real one. The "
+    "preview here shows the pieces; the Print Chart tab shows the whole "
+    "sheets.")
+#: The chart notes on the name line of an i1iO chart: said at Generate and in
+#: "Measured from Preview" when they do not print whole.
+_I1IO_NOTE_SHORTENED = (
+    "The chart notes are longer than the free place on the line with the "
+    "chart's name, so they are printed shortened, ending with “…”. They stay "
+    "stored as you typed them.")
+_I1IO_NOTE_LEFT_OFF = (
+    "There is no free place for the chart notes on the line with the chart's "
+    "name, so they are not printed on this sheet. They stay stored as you "
+    "typed them.")
+#: The Print tab's line for a chart whose printed sheets are cut into pieces:
+#: how to print, cut and lay it. {n} pieces on the sheet shown, {example} the number
+#: printed on one of them ("2/4").
+_I1IO_PRINT_PIECES = (
+    "This sheet holds {n} pieces. Print it at 100 %, without scaling, then cut "
+    "along the grey lines, not more than 1 mm off. Every piece is a page of "
+    "its own: lay one on the table, aim, measure it, then take the next. The "
+    "number on each piece, for example {example}, says which one it is.")
+_I1IO_PRINT_PIECES_ONE = (
+    "This sheet holds one piece of the chart. Print it at 100 %, without "
+    "scaling, then cut along the grey lines, not more than 1 mm off, and lay "
+    "the piece on the table.")
+_I1IO_PRINT_LAY_CROSSES = (
+    "Lay a piece so that its cross 1 is at the top left and the chart's name "
+    "reads the right way up.")
+_I1IO_PRINT_LAY_PATCHES = (
+    "Lay a piece so that its first strip is at the top and patch 1 of it at "
+    "the top left. It has no aiming crosses: you aim at the centres of the "
+    "top-left, bottom-left and bottom-right patches.")
+_I1IO_PRINT_LAY_EITHER = (
+    "Lay a piece so that its letters and numbers read the right way up. If it "
+    "has numbered aiming crosses, cross 1 is then at the top left; if it has "
+    "none, you aim at the centres of the top-left, bottom-left and "
+    "bottom-right patches.")
+#: The sheets were not there, or not of these pages: built again.
+_I1IO_PIECES_REBUILD = (
+    "The sheets to print were not ready, so ChromIQ has put them together "
+    "from the chart's pieces.")
+#: The status line (and the Create Chart log) while that happens.
+_I1IO_PIECES_BUILDING = (
+    "Putting the sheets to print together from the chart's pieces. This can "
+    "take some seconds.")
+#: Not enough free space to do it. {need} and {free} gigabytes.
+_I1IO_PIECES_NO_ROOM = (
+    "The sheets to print cannot be put together: that takes about {need} GB of "
+    "free space on the disk the project is on, and {free} GB are free. Nothing "
+    "can be printed from here until there is room. Free some space, then open "
+    "this tab again.")
+#: The sheets cannot be built: nothing is printed.
+_I1IO_PIECES_NO_SHEETS = (
+    "The sheets to print cannot be put together: a piece's image is missing or "
+    "does not fit the chart, the chart file (.ti2) is not there, or the record "
+    "of the pieces is damaged. Nothing can be printed from here. Bring the "
+    "chart's files back from a backup, use Restore Used Chart in Create Chart, "
+    "or generate the chart again.")
+#: "Chart layout: Compact" (Guided and Manual): what it is and what is not
+#: known about it, under the choice while it is chosen
+_I1IO_COMPACT_INFO = (
+    "Compact: patches of 8 × 8 mm, about a fifth more on a sheet. So far tried "
+    "on a simulated table only, not on a real one. The patches are read in one movement of the arm at a "
+    "slower speed. A row that lies too far from its place, about 1 to 2 mm, "
+    "is refused and read again, or patch by patch. With the dual scan every "
+    "patch is read by itself.")
+#: A layout of an earlier ChromIQ, or carried over from another instrument
+#: (`chart.asked_sizes`), said once when it is taken over or built.
+_I1IO_OLD_SIZE_REPLACED = (
+    "This layout was saved by an earlier ChromIQ, or it comes from another "
+    "instrument, and some of its sizes come out differently on an i1iO chart "
+    "now: {changes}. You can set every size in Manual.")
+#: ...its parts, one per size ({name} as the layout panel names it): a size
+#: that is used as asked for now; a size that is not used (by then neither);
+#: a size that is not used, and what an earlier ChromIQ printed instead
+_I1IO_SIZE_NOT_HELD = ("{name}: {now} mm (an earlier ChromIQ held it to "
+                       "{before} mm)")
+_I1IO_SIZE_NOT_USED = ("{name}: {now} mm, the i1iO's own, not the {asked} mm "
+                       "of the layout")
+_I1IO_SIZE_NOT_USED_EITHER = (
+    "{name}: {now} mm, the i1iO's own, not the {asked} mm of the layout (an "
+    "earlier ChromIQ printed {before} mm)")
+_I1IO_SIZE_LABELS = "Size of the letters and numbers"
+_I1IO_SIZE_COUNTS = ("patches on a full sheet: {now} (an earlier ChromIQ: "
+                     "{before})")
 _I1IO_PATCH_IN_CLIP = ("A patch would lie in the clip border. Make the clip border "
                        "narrower, or the left margin larger.")
-_I1IO_RUN_NEAR_EDGE = ("A strip has no room before its first or after its last patch"
-                       " for the arm to reach its speed and to stop.")
+_I1IO_RUN_NEAR_EDGE = ("A strip has too little blank paper before its first or after its "
+                       "last patch. They may not be read whole when the sheet lies a "
+                       "little off. Make the top or bottom margin larger.")
 _I1IO_RUN_ON_CROSS = ("The blank paper at the end of a strip would touch an aiming "
                       "cross. Make the top or bottom margin larger.")
 _I1IO_RUN_INTO_CLIP = ("The blank paper at the end of a strip would run into the "
@@ -9614,12 +9802,12 @@ _I1IO_CLIP_ON_CROSS = ("The clip border would touch an aiming cross. Make the cl
                        "border narrower, or switch it off.")
 _I1IO_CLIP_CONTENT_NEAR = ("The clip border's content would come too close to the "
                            "patches. Make the clip border wider, or its text smaller.")
-_I1IO_EDGE_SPACERS = ("Edge spacers print a spacer on the blank paper where the arm"
-                      " starts and stops every strip. The table may take it for a "
-                      "patch; switch “Edge spacers (bracket each strip)” off if a "
-                      "strip is read wrongly.")
+_I1IO_EDGE_SPACERS = ("Edge spacers print a spacer on the blank paper at both ends "
+                      "of every strip. Charts with edge spacers have not been tried on a table, and a "
+                      "spacer may be taken for a patch there. Switch “Edge spacers (bracket "
+                      "each strip)” off if a strip is read wrongly.")
 _I1IO_TOP_MARKERS = ("The ruler helper markers along the top and bottom edges "
-                     "print where the arm starts and stops every strip. The table "
+                     "print on the blank paper at the ends of every strip. The table "
                      "may take them for a patch; switch off “Top/bottom "
                      "(horizontal)” for the markers if a strip is read wrongly.")
 #: The Beta "Custom page size in inches or pixels, and high resolution"
@@ -9718,10 +9906,19 @@ M_I1IO_SHEET_CHECK_PARTS = _m(
     "M-I1IO-SHEET-CHECK-PARTS",
     "The i1iO sheet's own check: the parts of the note",
     "\n".join((_I1IO_CROSS_OFF_SHEET, _I1IO_SHEET_NOT_PORTRAIT,
-               _I1IO_SHEET_OVER_REACH, _I1IO_SHEET_TOO_SMALL,
+               _I1IO_SHEET_OVER_REACH, _I1IO_PIECES_RECORD_BAD,
+               _I1IO_PIECES_PIXELS, _I1IO_SHEET_OVER_BUDGET,
+               _I1IO_PIECES_OVER_BUDGET,
+               _I1IO_PIECE_NUMBER_LOST,
+               _I1IO_SHEET_TOO_SMALL,
                _I1IO_SIZE_UNTESTED, _I1IO_MANY_PAGES, _I1IO_CUSTOM_TURNED,
+               _I1IO_OVER_PER_STRIP, _I1IO_OVER_STRIPS,
+               _I1IO_OVER_PER_SHEET, _I1IO_OVER_SHEETS,
                _I1IO_PATCH_OFF_SHEET,
                _I1IO_PATCH_ON_CROSS,
+               _I1IO_NARROW_KEEPS_CROSSES, _I1IO_NARROW_NO_ROOM,
+               _I1IO_LONG_KEEPS_CROSSES, _I1IO_LONG_NO_ROOM,
+               _I1IO_THIN_SPACER,
                _I1IO_PATCH_IN_CLIP,
                _I1IO_RUN_NEAR_EDGE,
                _I1IO_RUN_ON_CROSS,
@@ -9731,6 +9928,40 @@ M_I1IO_SHEET_CHECK_PARTS = _m(
                _I1IO_EDGE_SPACERS,
                _I1IO_TOP_MARKERS)),
     approved=False)
+M_I1IO_SMALL_PATCH = _m(
+    "M-I1IO-SMALL-PATCH",
+    "Patches so small that the instrument also sees the one beside",
+    _I1IO_SMALL_PATCH, approved=False)
+M_I1IO_SHORT_PATCH = _m(
+    "M-I1IO-SHORT-PATCH", "Short patches read as strips",
+    _I1IO_SHORT_PATCH, approved=False)
+M_I1IO_PIECES_INFO = _m(
+    "M-I1IO-PIECES-INFO", "A sheet that is cut into pieces", _I1IO_PIECES_INFO,
+    approved=False)
+M_I1IO_NOTE_CUT = _m(
+    "M-I1IO-NOTE-CUT", "Chart notes that do not print whole",
+    "\n".join((_I1IO_NOTE_SHORTENED, _I1IO_NOTE_LEFT_OFF)), approved=False)
+M_I1IO_PRINT_PIECES = _m(
+    "M-I1IO-PRINT-PIECES", "Printing and cutting a sheet of pieces",
+    "\n".join((_I1IO_PRINT_PIECES, _I1IO_PRINT_PIECES_ONE,
+               _I1IO_PRINT_LAY_CROSSES, _I1IO_PRINT_LAY_PATCHES,
+               _I1IO_PRINT_LAY_EITHER)), approved=False)
+M_I1IO_PIECES_REBUILD = _m(
+    "M-I1IO-PIECES-REBUILD", "The sheets to print",
+    "\n".join((_I1IO_PIECES_REBUILD, _I1IO_PIECES_BUILDING,
+               _I1IO_PIECES_NO_SHEETS, _I1IO_PIECES_NO_ROOM)),
+    approved=False)
+M_I1IO_COMPACT_INFO = _m(
+    "M-I1IO-COMPACT-INFO", "The compact chart layout", _I1IO_COMPACT_INFO,
+    approved=False)
+M_I1IO_SPOT_PATCH = _m(
+    "M-I1IO-SPOT-PATCH", "Patches too short for a strip", _I1IO_SPOT_PATCH,
+    approved=False)
+M_I1IO_OLD_SIZE_REPLACED = _m(
+    "M-I1IO-OLD-SIZE-REPLACED", "Sizes of an earlier layout",
+    "\n".join((_I1IO_OLD_SIZE_REPLACED, _I1IO_SIZE_NOT_HELD,
+               _I1IO_SIZE_NOT_USED, _I1IO_SIZE_NOT_USED_EITHER,
+               _I1IO_SIZE_LABELS, _I1IO_SIZE_COUNTS)), approved=False)
 #: An i1iO chart's strip letters (and their underline) and patch numbers where
 #: a person's options put them (review 3 of the i1iO Beta, items 2 and 5):
 #: one line each, said in the build's log and under "Measured from Preview";
@@ -13208,6 +13439,35 @@ M_DUAL_LAST_CANNOT = _m(
 
 #: 4.3.54 (review M2, "Row speed"): at the end of a table measurement read at a factor other
 #: than 1.00 ({mark}: the file's own CHROMIQ_ROW_SPEED value)
+#: "Row speed" above 1.00 and a chart whose patches are under 9.5 mm long: decided before the
+#: table is opened (first on the first page, guided; the Measure tab's log and the notice area,
+#: guidance off). {factor} the setting, {mm} the patch length, {from_mm} 9.5
+#: {sent} `_I1IO_NOTHING_SENT` at START, "" in Create Chart.
+_I1IO_NOTHING_SENT = " Nothing was sent to the table."
+M_I1IO_CHART_NEWER = _m(
+    "M-I1IO-CHART-NEWER",
+    "This chart was made by a newer version of ChromIQ",
+    "This i1iO chart was made by a newer version of ChromIQ, and this version cannot know where its "
+    "patches lie. Please update ChromIQ, or make the chart again with this version, print it and "
+    "then measure it.{sent}",
+    approved=False)
+M_I1IO_PIECES_RECORD = _m(
+    "M-I1IO-PIECES-RECORD",
+    "The record of this chart cannot be trusted",
+    "The record of where this chart's patches lie is damaged, does not fit the chart's other files, "
+    "or was written by a newer ChromIQ, so ChromIQ cannot know where the patches are. The "
+    "measurement was not started, and the arm of the table did not move.\n\nOpen the chart in the ChromIQ it was made with, bring the chart's "
+    "files back from a backup, or generate and print a new chart.",
+    approved=False)
+M_I1IO_ROW_SPEED_NOT_USED = _m(
+    "M-I1IO-ROW-SPEED-NOT-USED",
+    "Row speed is not used for this chart",
+    "“Row speed” is set to {factor} in Preferences > Beta, but it is not used for this chart: its "
+    "patches are {mm} mm long, and under {from_mm} mm a row read faster than ChromIQ's own speed "
+    "would leave too few clean readings of every patch. The rows are read at ChromIQ's own speed "
+    "(1.00). Your setting stays as it is. This also holds for an older chart with patches that "
+    "short.",
+    approved=False)
 M_I1IO_ROW_SPEED_END = _m(
     'M-I1IO-ROW-SPEED-END',
     'Read at a row speed other than 1.00',
@@ -13652,6 +13912,42 @@ M_I1IO_DRIVE_PREPARE = _m(
         "That is always allowed."),
     count_key="pages", approved=False)
 
+#: What lies where on a piece, for {corner}: by its crosses, or by its patches on a piece without
+#: them (the print note's words)
+_I1IO_CORNER_MARK = "mark 1 at the top left"
+_I1IO_CORNER_PATCH = "its first strip at the top and patch 1 of it at the top left"
+#: the same for a chart whose pages are pieces of a larger sheet (the new chart layout)
+M_I1IO_DRIVE_PREPARE_PIECES = _m(
+    "M-I1IO-DRIVE-PREPARE-PIECES",
+    "Before ChromIQ starts the table",
+    "Please get these things ready before you press Start:\n\n"
+    "•  Cut the sheet first. Lay only piece {page} on the bed, as it was printed for the table, with "
+    "{corner}, with no other paper on the bed, and nothing over the white tile.\n"
+    "•  Quit i1Profiler, if it is open.\n"
+    "•  Switch the table on, with the arm at its resting place over the small white tile.\n"
+    "•  Set the arm's height for this paper, as X-Rite's guide for the table describes.\n"
+    "•  Keep your hands away from the table and the arm whenever it moves. Before the arm moves "
+    "after any question, ChromIQ asks you to take your hands away and waits until you confirm it, "
+    "on a page of its own or with your answer to that question.\n\n"
+    "This chart has {pages} pieces; ChromIQ reads them one after the other and asks you to lay the "
+    "next one when a piece is done. The number printed on each piece, for example {page}/{pages}, "
+    "says which one it is.\n\n"
+    "To stop the arm at once, switch the table off at its power switch. That is always allowed.",
+    body_one=(
+        "Please get these things ready before you press Start:\n\n"
+        "•  Cut the sheet first. Lay only the piece with the chart on the bed, as it was "
+        "printed for the table, with {corner}, with no other paper on the bed, and nothing over the white "
+        "tile.\n"
+        "•  Quit i1Profiler, if it is open.\n"
+        "•  Switch the table on, with the arm at its resting place over the small white tile.\n"
+        "•  Set the arm's height for this paper, as X-Rite's guide for the table describes.\n"
+        "•  Keep your hands away from the table and the arm whenever it moves. Before the arm moves "
+        "after any question, ChromIQ asks you to take your hands away and waits until you confirm "
+        "it, on a page of its own or with your answer to that question.\n\n"
+        "To stop the arm at once, switch the table off at its power switch. That is always "
+        "allowed."),
+    count_key="pages", approved=False)
+
 M_I1IO_DRIVE_READY = _m(
     "M-I1IO-DRIVE-READY",
     "Two things to check before ChromIQ talks to the table",
@@ -13765,6 +14061,18 @@ M_I1IO_DRIVE_SHEET_LAID = _m(
     "at once: it makes its homing at the resting place, then drives out over "
     "the bed to the place where you aim it, and the table lets go of it there, "
     "so that you can push it gently by hand.",
+    approved=False)
+
+#: the same for a piece of a larger sheet
+M_I1IO_DRIVE_SHEET_LAID_PIECE = _m(
+    "M-I1IO-DRIVE-SHEET-LAID-PIECE",
+    "Is piece {page} on the table?",
+    "Cut the sheet first. Lay only piece {page} on the bed, as it was printed for the table, with "
+    "{corner}, with no other paper on the bed, and nothing over the white tile.\n\n"
+    "Then take your hands away from the table and the arm. When you press “The piece is laid, and "
+    "my hands are away from the table”, the arm moves at once: it makes its homing at the resting "
+    "place, then drives out over the bed to the place where you aim it, and the table lets go of it "
+    "there, so that you can push it gently by hand.",
     approved=False)
 
 M_I1IO_DRIVE_ARM_FELT = _m(
@@ -13929,6 +14237,15 @@ M_I1IO_DRIVE_STRIP_TOO_LONG = _m(
     "patch by patch instead. Nothing else changes.",
     approved=False)
 
+#: until 4.3.65 such a row was said to be too long
+M_I1IO_DRIVE_STRIP_PATCHES_SHORT = _m(
+    "M-I1IO-DRIVE-STRIP-PATCHES-SHORT",
+    "This row is read patch by patch",
+    "The patches of row {row} are too short for the instrument to take enough readings of each "
+    "while the arm moves, so ChromIQ reads this row patch by patch instead. Nothing else "
+    "changes.",
+    approved=False)
+
 M_I1IO_DRIVE_STRIP_OUTSIDE_AREA = _m(
     "M-I1IO-DRIVE-STRIP-OUTSIDE-AREA",
     "This row is read patch by patch",
@@ -13944,25 +14261,138 @@ M_I1IO_DRIVE_STRIP_NOT_POSSIBLE = _m(
     "ChromIQ reads this row patch by patch instead. Nothing else changes.",
     approved=False)
 
+#: THE ROW IDENTITY CHECK (workflow/i1io/table/identity.py): the colours of a row are not this
+#: row's. {piece} the page of a chart of several pages, {other} "; they look like row 4" or
+#: "; they look like page 2", or nothing
+M_I1IO_DRIVE_OTHER_PIECE = _m(
+    "M-I1IO-DRIVE-OTHER-PIECE",
+    "Is the right sheet on the table?",
+    "The arm is held where the row ended and does not move. The colours ChromIQ just read do not "
+    "look like page {page} of this chart{other}. ChromIQ has not kept this row yet. Please look "
+    "at the sheet on the table, without moving it.\n\nIf it is the right sheet and it was not "
+    "moved or swapped, press “It is the right sheet, and it was not moved”: the row is kept and "
+    "ChromIQ reads on. Otherwise press “End measurement” below: the row is not kept. Before anything else is read "
+    "the arm goes to its resting place, you lay the right sheet, and ChromIQ asks you to aim at its marks again.",
+    approved=False)
+#: the same on a chart whose pages are pieces of a larger sheet
+M_I1IO_DRIVE_OTHER_OF_PIECES = _m(
+    "M-I1IO-DRIVE-OTHER-OF-PIECES",
+    "Is the right piece on the table?",
+    "The arm is held where the row ended and does not move. The colours ChromIQ just read do not "
+    "look like piece {page} of this chart{other}. ChromIQ has not kept this row yet. Please look "
+    "at the piece on the table, without moving it: the number printed on it says which one it is, "
+    "and no other paper may lie on the bed.\n\nIf it is the right piece and it was not moved or "
+    "swapped, press “It is the right piece, and it was not moved”: the row is kept and ChromIQ "
+    "reads on. Otherwise press "
+    "“End measurement” below: the row is not kept. Before anything else is read the arm goes to its resting place, "
+    "you lay the right piece, and ChromIQ asks you to aim at its marks again.",
+    approved=False)
+#: the same on a chart of one page
+M_I1IO_DRIVE_OTHER_SHEET = _m(
+    "M-I1IO-DRIVE-OTHER-SHEET",
+    "Is the right sheet on the table?",
+    "The arm is held where the row ended and does not move. The colours ChromIQ just read do not "
+    "look like this chart{other}. ChromIQ has not kept this row yet. Please look at the sheet on "
+    "the table, without moving it.\n\nIf it is the right sheet and it was not moved or swapped, "
+    "press “It is the right sheet, and it was not moved”: the row is kept and ChromIQ reads on. "
+    "Otherwise press “End "
+    "measurement” below: the row is not kept. Before anything else is read the arm goes to its resting place, you "
+    "lay the right sheet, and ChromIQ asks you to aim at its marks again.",
+    approved=False)
+#: a row the check found one or two patches off: the Measure tab's log (the failed-row page's
+#: {why} says the same as a clause)
+M_I1IO_DRIVE_ROW_NOT_IN_PLACE = _m(
+    "M-I1IO-DRIVE-ROW-NOT-IN-PLACE",
+    "A row read beside its place",
+    "Row {row} was read one or two patches beside its place, so none of it was kept. Please look "
+    "how the sheet lies, without moving it. If it lies off its place, end the step and aim at its "
+    "marks again.",
+    approved=False)
+
+#: the failed-row page's last paragraph for such a row: ending the step gives the aims up
+M_I1IO_DRIVE_ROW_AIM_AGAIN = _m(
+    "M-I1IO-DRIVE-ROW-AIM-AGAIN",
+    "A row read beside its place: aim again",
+    "If the sheet lies off its place, if it was moved, or if it is not the right one, choose “End "
+    "this step” and then “Carry on”: the arm goes to its resting place, you lay the right sheet, "
+    "ChromIQ asks you to aim at its marks again, and then this row is read. Please do not move the "
+    "sheet just to read the row again: without aiming again, every row after it would be read beside "
+    "its place.",
+    approved=False)
+M_I1IO_DRIVE_ROW_AIM_AGAIN_PIECE = _m(
+    "M-I1IO-DRIVE-ROW-AIM-AGAIN-PIECE",
+    "A row read beside its place: aim again",
+    "If the piece lies off its place, if it was moved, or if it is not the right one, choose “End "
+    "this step” and then “Carry on”: the arm goes to its resting place, you lay the right piece, "
+    "ChromIQ asks you to aim at its marks again, and then this row is read. Please do not move the "
+    "piece just to read the row again: without aiming again, every row after it would be read beside "
+    "its place.",
+    approved=False)
+
+#: the same for a row read patch by patch
+M_I1IO_DRIVE_ROW_NOT_IN_PLACE_SPOT = _m(
+    "M-I1IO-DRIVE-ROW-NOT-IN-PLACE-SPOT",
+    "A row read beside its place",
+    "Row {row} was read one or two patches beside its place, so none of it was kept. Please look "
+    "how the sheet lies, without moving it. If it lies off its place, end the step and aim at its "
+    "marks again.",
+    approved=False)
+
+#: the ending after "End measurement" at the question whether the right sheet lies there: the
+#: rows read before it that the check could not judge stay, and are named ({strips} their letters)
+M_I1IO_DRIVE_ROWS_NOT_JUDGED = _m(
+    "M-I1IO-DRIVE-ROWS-NOT-JUDGED",
+    "Rows ChromIQ could not judge",
+    "You ended the measurement because the wrong sheet may have been on the table. ChromIQ did "
+    "not keep the row it asked you about. It could not judge the colours of these strips, so "
+    "they are kept: {strips}. They were read before ChromIQ asked you, and they could be from "
+    "the wrong sheet. Nothing is deleted without you. If you are not sure, choose “Discard and "
+    "stop” and measure the chart again.",
+    approved=False)
+
 #: 4.3.53: the message of each reason a row is read patch by patch in a strip session (the
 #: job's strip_fallback event; the panel's state line and the Measure tab's log), None for a
 #: reason that has its own words (only some patches wanted)
 STRIP_FALLBACK_MESSAGE = {
     "strip_row_too_long": "M_I1IO_DRIVE_STRIP_TOO_LONG",
+    "strip_row_patches_too_short": "M_I1IO_DRIVE_STRIP_PATCHES_SHORT",
     "strip_row_outside_area": "M_I1IO_DRIVE_STRIP_OUTSIDE_AREA",
     "strip_row_too_short": "M_I1IO_DRIVE_STRIP_NOT_POSSIBLE",
     "strip_row_not_on_a_line": "M_I1IO_DRIVE_STRIP_NOT_POSSIBLE",
     "dual_row_patches_too_short": "M_I1IO_DRIVE_DUAL_PATCHES_TOO_SHORT",
+    "strip_row_not_in_its_place": "M_I1IO_DRIVE_ROW_NOT_IN_PLACE",
+    "row_not_in_its_place": "M_I1IO_DRIVE_ROW_NOT_IN_PLACE_SPOT",
 }
 
 
-def strip_fallback_text(why: str, row) -> "str | None":
+def strip_fallback_text(why: str, row, pieces: bool = False) -> "str | None":
     """The body of the message for a row read patch by patch for the reason *why* (4.3.53),
-    or None when *why* has no message of its own."""
+    or None when *why* has no message of its own. *pieces*: on a chart in pieces."""
     name = STRIP_FALLBACK_MESSAGE.get(str(why or ""))
     if name is None:
         return None
-    return globals()[name].render(row=row)[1]
+    return of_pieces(globals()[name], pieces).render(row=row)[1]
+
+
+#: The words of a message about a row of a page, and of one of a piece.
+_PIECE_WORDS = (("of page {page}", "of piece {page}"), ("on page {page}", "on piece {page}"),
+                ("of this page", "of this piece"), ("on this page", "on this piece"),
+                ("of the page", "of the piece"), ("how the sheet lies", "how the piece lies"),
+                ("the sheet may lie", "the piece may lie"),
+                ("If the sheet may have moved", "If the piece may have moved"))
+
+
+def of_pieces(msg, pieces: bool = True):
+    """*msg*, or on a chart in pieces (*pieces*) its twin that speaks of the piece
+    (`PIECE_MESSAGES`)."""
+    return PIECE_MESSAGES.get(msg.id, msg) if pieces else msg
+
+
+def _piece_twin(msg):
+    body = msg.body
+    for a, b in _PIECE_WORDS:
+        body = body.replace(a, b)
+    return _m(msg.id + "-PIECE", msg.title, body, approved=False)
 
 
 M_I1IO_DRIVE_ROW_FAILED_STRIP = _m(
@@ -14321,6 +14751,15 @@ M_I1IO_DRIVE_NEXT_PAGE = _m(
     "The arm is back at its resting place. Please take page {page} off the "
     "table and lay page {next} on it, the same way, with nothing else on the "
     "bed. Then press Go on: you will aim at its three marks again.",
+    approved=False)
+
+#: the same for a chart whose pages are pieces of a larger sheet
+M_I1IO_DRIVE_NEXT_PIECE = _m(
+    "M-I1IO-DRIVE-NEXT-PIECE",
+    "Piece {page} is read",
+    "The arm is back at its resting place. Please take piece {page} off the table and lay piece "
+    "{next} on it, the same way, with no other paper on the bed. Then press Go on: you will aim at "
+    "its three marks again.",
     approved=False)
 
 M_I1IO_DRIVE_STOPPED_BY_YOU = _m(
@@ -15093,6 +15532,20 @@ M_I1IO_DRIVE_END_CHOICES = _m(
     "They are not in your measurement file yet. ChromIQ can write them now, or end the measurement without them.\n\nWhat each button does:\n\n•  Save and stop: writes what you have read so far into this run's measurement file and ends the measurement. If patches are still missing, you can read them later: tick “Refine / resume existing measurement (-r)” and press START MEASUREMENT, and the table reads only the patches that are still missing.\n\n•  Discard and stop: ends the measurement and writes nothing of it into the run. Your readings stay in this measurement's own folder, for the diagnostics only.\n\n•  Keep measuring: the measurement goes on here, where it stopped. Before the arm moves again, ChromIQ asks you to take your hands away from the table.",
     approved=False)
 
+#: the same when the page's aims were given up (the row identity check): the last button does
+#: something else then
+I1IO_END_GOES_ON = ("the measurement goes on here, where it stopped. Before the arm moves again, ChromIQ "
+                "asks you to take your hands away from the table.")
+I1IO_END_AIMS_AGAIN = ("the paper on the table may be another one or may have been moved, so the arm "
+                   "first goes back to its resting place. Then ChromIQ asks you to lay the paper and "
+                   "to aim at its marks again, and reads on. Before the arm moves, ChromIQ asks you "
+                   "to take your hands away from the table.")
+M_I1IO_DRIVE_END_CHOICES_AIM_AGAIN = _m(
+    "M-I1IO-DRIVE-END-CHOICES-AIM-AGAIN",
+    "What each button does",
+    M_I1IO_DRIVE_END_CHOICES.body.replace(I1IO_END_GOES_ON, I1IO_END_AIMS_AGAIN),
+    approved=False)
+
 M_I1IO_DRIVE_MARKER_APP_ENDED = _m(
     "M-I1IO-DRIVE-MARKER-APP-ENDED",
     "Please switch the table off first",
@@ -15202,7 +15655,29 @@ I1IO_DRIVE_USB_MESSAGE = {m.id: m for m in (
 #: session_table's own id for a Windows table without the libusb-win32 driver
 I1IO_DRIVE_USB_MESSAGE["M-I1IO-DRIVE-TABLE-DRIVER-NOT-INSTALLED"] = M_I1IO_DRIVE_TABLE_DRIVER
 
+#: The messages that speak of a page, as they are on a chart in pieces: the same words, but for
+#: the piece (`of_pieces`).
+PIECE_MESSAGES = {m.id: _piece_twin(m) for m in (
+    M_I1IO_DRIVE_ROW_FAILED, M_I1IO_DRIVE_ROW_FAILED_STRIP, M_I1IO_DRIVE_ROW_M0_ONLY,
+    M_I1IO_DRIVE_ROW_M0_ONLY_STRIP, M_I1IO_DRIVE_ROW_PLACEMENT_REST,
+    M_I1IO_DRIVE_ROW_NOT_IN_PLACE, M_I1IO_DRIVE_ROW_NOT_IN_PLACE_SPOT)}
+
 CATALOGUE = {m.id: m for m in (
+    *PIECE_MESSAGES.values(),
+    M_I1IO_SMALL_PATCH, M_I1IO_PIECES_INFO, M_I1IO_NOTE_CUT, M_I1IO_PRINT_PIECES,
+    M_I1IO_EDGE_MARKS_OF_PIECES,
+    M_I1IO_PIECES_REBUILD, M_I1IO_COMPACT_INFO, M_I1IO_ROW_SPEED_NOT_USED,
+    M_I1IO_PIECES_RECORD, M_I1IO_CHART_NEWER, M_I1IO_DRIVE_PREPARE_PIECES, M_I1IO_DRIVE_SHEET_LAID_PIECE,
+    M_I1IO_DRIVE_NEXT_PIECE, M_I1IO_DRIVE_OTHER_OF_PIECES,
+    M_I1IO_DRIVE_OTHER_PIECE, M_I1IO_DRIVE_OTHER_SHEET,
+    M_I1IO_DRIVE_ROWS_NOT_JUDGED,
+    M_I1IO_DRIVE_ROW_NOT_IN_PLACE, M_I1IO_DRIVE_ROW_NOT_IN_PLACE_SPOT,
+    M_I1IO_DRIVE_ROW_AIM_AGAIN, M_I1IO_DRIVE_ROW_AIM_AGAIN_PIECE,
+    M_I1IO_DRIVE_END_CHOICES_AIM_AGAIN,
+    M_I1IO_DRIVE_STRIP_PATCHES_SHORT,
+    M_I1IO_SHORT_PATCH,
+    M_I1IO_SPOT_PATCH,
+    M_I1IO_OLD_SIZE_REPLACED,
     M_CHART_ALIKE_NO_SPACER,
     M_CHART_ALIKE_NO_SPACER_PANEL,
     M_CHART_PATCHES_SHORT_EXTRA,
@@ -15494,7 +15969,9 @@ def edge_note(printer: str, edges, loss) -> "str | None":
     # words, never advice that names a control an i1iO chart greys.
     io_marks = list(getattr(loss, "i1io_marks", []) or [])
     if io_marks:
-        _t, body = M_I1IO_EDGE_MARKS_NOT_PRINTED.render(
+        _t, body = (M_I1IO_EDGE_MARKS_OF_PIECES if getattr(
+            loss, "i1io_pieces", False)
+            else M_I1IO_EDGE_MARKS_NOT_PRINTED).render(
             printer=printer, edges=edge_txt, source=source,
             where=", ".join(where[s] for s in order if s in io_marks))
         return body

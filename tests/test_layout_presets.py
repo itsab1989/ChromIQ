@@ -145,7 +145,8 @@ def test_the_full_recipe_really_is_full():
         # .py and tests/test_i1io_layout_options.py; the clip border's in
         # tests/test_i1io_clip_border.py.
         "i1io_crosses", "i1io_align", "i1io_clip_border", "i1io_text_bold",
-        "i1io_numbers_edge_mm", "i1io_text_align",
+        "i1io_numbers_edge_mm", "i1io_text_align", "i1io_limits",
+        "i1io_pieces",
         # i1iSis recipes only (written only for an "XRISIS" recipe, and the
         # sample is an i1Pro's); their round trip through all four places:
         # tests/test_isis_every_option_persists.py.

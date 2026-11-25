@@ -1322,6 +1322,13 @@ excludes `targen -f` from cross-target verdicts for that reason.
   verification target starts on defaults (§4 S5) and records its own from
   first use. No files are moved by migration.
 
+#### ⏳ Awaiting confirmation: an i1iO sheet in pieces is kept as a paper (2026-11-25)
+
+**Confirmed by:** *nobody yet.* A sheet larger than the i1iO table is stored with a target like any
+paper (Guided's paper and number of sheets, Manual's recipe). How it is cut is not a setting of the
+target: it is worked out at Generate and stored with the chart. Tests:
+`tests/test_i1io_pieces_persist.py`.
+
 ## 10a. Related documents
 
 - [`per_run_description.md`](per_run_description.md) — the description field; §5 T5.1 of it is reversed by §4 here

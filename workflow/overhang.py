@@ -390,7 +390,29 @@ def _read_ink_mm(tiff_path: "str | Path", frame: int = 0):
         from workflow.page_geometry import read_tiff_dimensions_points
         w_pt, _h = read_tiff_dimensions_points(Path(tiff_path))
         dpi = arr.shape[1] / (w_pt / 72.0)
-    return arr.min(axis=2) < INK_BELOW, 25.4 / float(dpi)
+    ink, mm = arr.min(axis=2) < INK_BELOW, 25.4 / float(dpi)
+    _without_cut_lines(ink, mm, tiff_path)
+    return ink, mm
+
+
+def _without_cut_lines(ink, mm: float, tiff_path) -> None:
+    """Take the cut lines of a printed sheet of i1iO pieces out of its ink
+    mask: they run over the whole paper on purpose, are nobody's text, and a
+    printer that leaves them off at the paper's edge takes nothing away."""
+    from core.file_manager import sheet_of_chart
+    on = sheet_of_chart(tiff_path)
+    if on is None:
+        return
+    try:
+        from workflow.i1io.pieces import record_of
+        plan = record_of(on[0])
+    except Exception:      # noqa: BLE001 - then they stay ink
+        return
+    for at, axis in ((plan.cut_x, 1), (plan.cut_y, 0)) if plan else ():
+        for v in at:
+            a, b = int((v - 0.4) / mm), int((v + 0.4) / mm) + 1
+            ink[(slice(None), slice(max(0, a), b)) if axis
+                else slice(max(0, a), b)] = False
 
 
 def content_box(tiff_path: "str | Path", frame: int = 0) -> "Box | None":
@@ -505,7 +527,8 @@ def made_by_printtarg(tiff_path: "str | Path") -> bool:
     sidecar does not carry ChromIQ's layout engine. Only such a chart has
     printtarg's caption line."""
     import json
-    p = Path(tiff_path)
+    from core.file_manager import beside_the_chart
+    p = beside_the_chart(tiff_path)
     for st in _stems(p):
         side = p.parent / f"{st}.channels.json"
         if side.is_file():
@@ -603,7 +626,8 @@ MARKER_TOL_MM = 0.6
 
 def _recipe_of(tiff_path: "str | Path") -> "dict | None":
     import json
-    p = Path(tiff_path)
+    from core.file_manager import beside_the_chart
+    p = beside_the_chart(tiff_path)
     for st in _stems(p):
         side = p.parent / f"{st}.channels.json"
         if side.is_file():
@@ -651,8 +675,12 @@ def _dashes_in_band(band, mm: float, edge_mm: float, len_mm: float):
 def helper_markers(tiff_path: "str | Path", frame: int = 0):
     """The ruler helper markers on one page: ``{side: [Box, ...]}`` in mm,
     for the sides they are on; ``{}`` when the chart has none, is not a
-    layout-engine chart, or none can be recognised."""
+    layout-engine chart, or none can be recognised. Never on a printed sheet
+    of i1iO pieces: the dashes are on the pieces' edges, inside the sheet."""
     try:
+        from core.file_manager import sheet_of_chart
+        if sheet_of_chart(tiff_path) is not None:
+            return {}
         rec = _recipe_of(tiff_path)
         if not rec or not rec.get("helper_markers"):
             return {}
@@ -732,7 +760,8 @@ def instrument_of(tiff_path: "str | Path") -> "str | None":
     """The chart's instrument code from its sidecar (``<stem>.channels.json``
     layout recipe), else from the .ti2 beside it; None when unknown."""
     import json
-    p = Path(tiff_path)
+    from core.file_manager import beside_the_chart
+    p = beside_the_chart(tiff_path)
     stems = _stems(p)
     for st in stems:
         side = p.parent / f"{st}.channels.json"

@@ -78,7 +78,8 @@ def _chart_stem(path: Path) -> str:
 
 def sidecar_ink_codes(tiff_path: Path) -> list[str] | None:
     """The chart's ink list: ``<stem>.channels.json``, else its ``.ti2``."""
-    tiff_path = Path(tiff_path)
+    from core.file_manager import beside_the_chart
+    tiff_path = beside_the_chart(tiff_path)     # a printed sheet: its chart
     stem = _chart_stem(tiff_path)
     names = [tiff_path.stem] + ([stem] if stem and stem != tiff_path.stem else [])
     for name in names:

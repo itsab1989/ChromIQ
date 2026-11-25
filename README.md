@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-4.3.65-7c5cff">
+  <img alt="Version" src="https://img.shields.io/badge/version-4.3.66-7c5cff">
   <img alt="Downloads" src="https://img.shields.io/endpoint?url=https://itsab1989.github.io/github-traffic-downloads-dashboard/assets/badges/itsab1989_ChromIQ-downloads.json">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2a9d8f">
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-blue">
@@ -635,8 +635,22 @@ ways:
   problem** are on screen the whole time. To stop the arm at once, switch the
   table off at its power switch.
 
+**Charts for the table.** Guided offers the standard layout (528 patches of
+10 × 8 mm on A4) and **Compact** (638 patches of 8 × 8 mm); Manual takes any
+patch from 5.5 mm. A sheet larger than the table, for example A3, A2, Tabloid or
+13 × 19 inches, is printed whole and cut into pieces: Print Chart shows the whole
+sheet with its grey cut lines, every piece carries its own number (2/4), and the
+table measures one piece after the other. Please cut the sheet before you press
+START, not more than 1 mm off the lines, and lay only one piece on the bed.
+Rows with enough different colours are checked against the chart: a row read
+beside its place is refused, and ChromIQ asks when the colours look like another
+sheet or another piece. Short rows, calibration charts and rows of few colours
+are not judged.
+
 > [!WARNING]
 > **Honest limits.** This is a first beta.
+> - Sheets in pieces, the Compact layout and patches under 10 mm have run only
+>   against a simulated table.
 > - On one real i1iO 2 with an i1Pro 2, on a Mac, ChromIQ's separate tester
 >   program has run the movements, the start-up of a table that had just been
 >   switched on, the white calibration and one reading of the table's white
@@ -726,6 +740,13 @@ ways:
 >   no longer refused for a small move, a large move is asked about again, a
 >   START no longer changes the Measure settings, and the button of the
 >   instrument is offered only once ChromIQ is listening for it.
+> - New in 4.3.66: a new chart layout (Beta, simulated table only). A3, A2,
+>   Tabloid and 13 x 19 inches, and in Manual other large sizes, are printed
+>   whole and cut into pieces that the table measures one after the other.
+>   "Compact" holds 638 patches on A4, and Manual takes patches from 5.5 mm.
+>   Rows with enough different colours are checked against the chart, so a
+>   wrong sheet or a row read beside its place is noticed. Chart notes and
+>   {logo} are printed on i1iO charts.
 > - New in 4.3.65: in Tools > Read single patches every reading can keep M0,
 >   M1 and M2, and "Show the readings in" switches the list between them
 >   without measuring again (Beta options, off by default: the i1Pro 3 with

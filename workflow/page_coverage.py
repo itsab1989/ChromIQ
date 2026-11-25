@@ -278,7 +278,7 @@ def predicted_page_coverage(recipe, n_patches: int) -> dict:
     kw.setdefault("side_stamp", True)
     kw["area_target_count"] = int(n_patches)
     geom = instruments.geom_from_build_kwargs(kw)
-    w_mm, h_mm = papers.dimensions_mm(kw["paper"])
+    w_mm, h_mm = papers.piece_mm_of(kw)
     dpi = float(getattr(recipe, "dpi", 300) or 300)
     lay = geometry.compute(geom, w_mm, h_mm, int(n_patches))
     rects = geometry.patch_rects_px(geom, w_mm, h_mm, lay, int(dpi))

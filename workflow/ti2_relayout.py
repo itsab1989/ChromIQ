@@ -269,6 +269,15 @@ class ChartSpec:
         paper = _kw("PAPER_SIZE") or "210.0x297.0"
         mp = re.match(r"\s*([\d.]+)\s*x\s*([\d.]+)", paper)
         paper_mm = (float(mp.group(1)), float(mp.group(2))) if mp else (210.0, 297.0)
+        # an i1iO chart whose pages are pieces of larger sheets: PAPER_SIZE is
+        # the piece, the chart's paper is the sheet (`workflow.i1io.pieces`)
+        paper_flag = paper_to_flag(*paper_mm)
+        if (token := _kw("CHROMIQ_I1IO_PIECES")):
+            from workflow.i1io.pieces import from_token
+            from workflow.layout_engine.papers import code_of
+            if (plan := from_token(token)) is not None:
+                paper_mm = plan.sheet_mm
+                paper_flag = code_of(paper_mm)
 
         # DATA_FORMAT: field names between BEGIN/END (may span lines).
         fm = re.search(r"BEGIN_DATA_FORMAT(.*?)END_DATA_FORMAT", text, re.DOTALL)
@@ -333,7 +342,7 @@ class ChartSpec:
             patches=patches, dev_fields=dev_fields, has_xyz=has_xyz,
             color_rep=color_rep, white_point=white_point,
             instrument_flag=instrument_to_flag(instrument),
-            paper_flag=paper_to_flag(*paper_mm), paper_mm=paper_mm,
+            paper_flag=paper_flag, paper_mm=paper_mm,
             density_extremes=_read_sibling_density_extremes(Path(path)),
             ink_limit=ink_limit,
         )

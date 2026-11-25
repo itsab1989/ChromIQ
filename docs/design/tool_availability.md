@@ -530,3 +530,13 @@ beneficial"*. `ui/file_drop.py`, `tests/test_4333_drop_files_everywhere.py`
   files into `exports/` as any RGB or CMYK chart; Convert i1Profiler → TI3
   brings a measurement made in i1Profiler (on i1Profiler's own chart) into the
   run, as for any chart.
+
+### ⏳ Awaiting confirmation — an i1iO chart in pieces (Beta, 2026-11-25)
+
+**Confirmed by:** *nobody yet.*
+
+* **Edit / create chart patch set** opens such a chart on its sheet (A3, not the piece), counts
+  sheets in "Pages" like the New chart window, previews the pieces and stores the division with what
+  it saves.
+* Every other tool works on the pieces as on the pages of any chart; the printed sheets are for
+  printing only.

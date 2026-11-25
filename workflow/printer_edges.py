@@ -272,16 +272,24 @@ def forget_system_default_printer() -> None:
     _last_recheck = None
 
 
-def edges_for(printer: str, chart_mm: "tuple[float, float]", settings=None
+def edges_for(printer: str, chart_mm: "tuple[float, float]", settings=None,
+              own_size: bool = False
               ) -> "tuple[Edges, tuple[float, float]]":
     """(edges, paper mm) for *printer* and a chart of *chart_mm*. The paper
     is the driver's page that matches the chart, else the chart's own size.
-    No printer, or nothing known: no edge."""
+    No printer, or nothing known: no edge. *own_size* (an i1iO chart): only
+    a driver's page that IS the chart's size says anything; a paper the
+    printer does not know has no known edge (its default paper's, measured
+    against this chart, named crosses that lie well inside the sheet)."""
     paper = (float(chart_mm[0]), float(chart_mm[1]))
     found = None
     try:
         found = _query_driver(printer, chart_mm)
     except Exception:      # noqa: BLE001
+        found = None
+    if own_size and found is not None and not any(
+            abs(a - chart_mm[0]) <= MATCH_MM and abs(b - chart_mm[1]) <= MATCH_MM
+            for a, b in (found[1], found[1][::-1])):
         found = None
     if found is not None:
         paper = found[1]
@@ -333,6 +341,8 @@ class Loss:
     #: into the edge: fixed places, not read by the table, never "printed
     #: text" with the text advice (which names controls an i1iO chart greys).
     i1io_text: "list[str]" = field(default_factory=list)
+    #: …and whether the page is a printed sheet that is cut into pieces.
+    i1io_pieces: bool = False
 
     def any(self) -> bool:
         return bool(self.markers or self.caption or self.text or self.patches
@@ -394,7 +404,9 @@ def _i1io_mark_boxes(tiff_path) -> "list[tuple[float, float, float, float]] | No
         return None
     import json
     import re
-    path = Path(tiff_path)
+    from core.file_manager import beside_the_chart, sheet_of_chart
+    sheet = sheet_of_chart(tiff_path)
+    path = beside_the_chart(tiff_path)
     side = path.with_name(path.stem + ".i1io.json")
     if not side.is_file():
         m = re.fullmatch(r"(.+?)_(\d{2,})", path.stem)
@@ -406,9 +418,24 @@ def _i1io_mark_boxes(tiff_path) -> "list[tuple[float, float, float, float]] | No
     try:
         from workflow.i1io.chart import Mark, mark_zone
         doc = json.loads(side.read_text(encoding="utf-8"))
-        return [mark_zone(Mark(int(m["number"]), str(m["corner_on_table"]),
-                               tuple(float(v) for v in m["centre_mm"])))
-                for m in doc["marks_mm"]]
+        boxes = [mark_zone(Mark(int(m["number"]), str(m["corner_on_table"]),
+                                tuple(float(v) for v in m["centre_mm"])))
+                 for m in doc["marks_mm"]]
+        if sheet is None:
+            return boxes
+        # a printed sheet: the crosses of every piece on it, where they are
+        from workflow.i1io import sheets as S
+        si = S.info(sheet[0])
+        if si is None:
+            return None
+        out = []
+        for _page, place in si.pages_of(sheet[1] - 1):
+            for x0, y0, x1, y1 in boxes:
+                a = si.plan.to_sheet(place, x0, y0)
+                b = si.plan.to_sheet(place, x1, y1)
+                out.append((min(a[0], b[0]), min(a[1], b[1]),
+                            max(a[0], b[0]), max(a[1], b[1])))
+        return out
     except Exception:      # noqa: BLE001 — not a readable i1iO side file
         return None
 
@@ -531,6 +558,9 @@ def losses(tiff_path, frame: int, edges: Edges, paper_mm,
                 sides.append(side)
     # AN i1iO CHART'S CROSSES ARE NOT TEXT EITHER (review r3 m3).
     io_boxes = _i1io_mark_boxes(tiff_path)
+    if io_boxes is not None:
+        from core.file_manager import sheet_of_chart
+        out.i1io_pieces = sheet_of_chart(tiff_path) is not None
     for x0m, y0m, x1m, y1m in io_boxes or []:
         x0, y0 = max(0, int((x0m - 0.5) / mm)), max(0, int((y0m - 0.5) / mm))
         x1 = int(np.ceil((x1m + 0.5) / mm))
@@ -657,7 +687,8 @@ def _page_key(path, frame) -> tuple:
     instrument), its ``.ti2`` (printtarg's caption, the instrument) and its
     ``.fd9.json`` (FD-9 marks and furniture), each as it is on disk now."""
     from workflow import overhang as O
-    p = Path(path)
+    from core.file_manager import beside_the_chart
+    p = beside_the_chart(path)      # a printed sheet: its chart's files
     stems = list(O._stems(p))
     m = re.fullmatch(r"(.+?)_(\d{2,})", p.stem)
     if m is not None and m.group(1) not in stems:
@@ -665,8 +696,8 @@ def _page_key(path, frame) -> tuple:
     side = tuple((name, O.file_stamp(p.with_name(name)))
                  for st in stems
                  for name in (f"{st}.channels.json", f"{st}.ti2",
-                              f"{st}.fd9.json"))
-    return (str(p), int(frame), O.file_stamp(p), side)
+                              f"{st}.fd9.json", f"{st}.i1io.json"))
+    return (str(path), int(frame), O.file_stamp(path), side)
 
 
 def _chart_key(pages, edges: Edges, paper_mm, shift_mm) -> "tuple | None":
@@ -737,6 +768,7 @@ def _losses_for_chart(pages, edges: Edges, paper_mm, shift_mm=(0.0, 0.0)
         for s in one.fd9_clip:
             if s not in out.fd9_clip:
                 out.fd9_clip.append(s)
+        out.i1io_pieces = out.i1io_pieces or one.i1io_pieces
         for s in one.i1io_marks:
             if s not in out.i1io_marks:
                 out.i1io_marks.append(s)

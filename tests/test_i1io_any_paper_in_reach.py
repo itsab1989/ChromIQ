@@ -53,7 +53,10 @@ def test_the_lists_offer_every_sheet_in_reach():
     for code in ("148x210", "130x180", "4x6", "10x15cm", "127x178"):
         assert code in codes
     for code in codes:
-        C.sheet_size(code)                       # none refused
+        # none refused: one piece, or divided into pieces that are in reach
+        C.check_sheet_size({"paper": code, "i1io_limits": 2})
+    for code in C.ONE_PIECE_PAPERS:
+        C.sheet_size(code)
 
 
 SIZES = ["148x210", "130x180", "127x178", "4x6", "10x15cm", "postcard",

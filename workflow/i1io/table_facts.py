@@ -1,20 +1,29 @@
 """EVERY NUMBER ABOUT THE i1iO TABLE, IN ONE PLACE, WITH WHERE IT COMES FROM.
 
 The chart layout (`workflow.i1io.chart`) reads its numbers from here and from
-nowhere else, so the tester's next recording can correct a number without
+nowhere else, so a table owner's next result can correct a number without
 anybody touching layout logic. Each entry says how sure we are:
 
-* ``VERIFIED``: read from a source we can show (X-Rite's own page or files,
-  or arithmetic that holds on every case in the recordings).
+* ``VERIFIED``: it holds on every case of the recordings, or a maker's or a
+  program's published figure that was checked in use (the instrument's
+  opening, ArgyllCMS's spacer), or a number of ChromIQ's own code that a test
+  pins to its place.
 * ``PUBLISHED``: a published figure that nobody on the project has checked on
   a real table yet.
 * ``LIKELY``: one reading fits all the evidence of the recordings, not proved.
 * ``OURS``: a design choice of ours, with the reason.
 
-"PROTOCOL" is the decode of the tester's two i1Profiler recordings (GitHub
-issue #129, i1Profiler 3.8.6, an i1iO 2 with an i1Pro 2), kept privately;
-"STUDY" is the integration study of 2026-11-13. Neither recording is in the
-repository and no number here was copied from a vendor file.
+WHERE THE NUMBERS COME FROM. X-Rite's public product and specification pages;
+a published review of the table (Northlight Images); ArgyllCMS's printtarg;
+the defaults of ChromIQ's own layout engine; recordings that table owners made
+of their own table; the output and the shipped user help of the maker's
+program, used as a user; and our own choices. An older limit on the space
+between two patches (20 percent of the patch) did not come from our
+recordings; it is replaced by what our own measurements and charts show.
+
+"RECORDINGS" is the decode of the table owner's two recordings of 2026
+(GitHub issue #129, an i1iO 2 with an i1Pro 2), kept privately. No recording
+is in the repository.
 
 All lengths are millimetres on the sheet. X runs along the sheet's long side
 (the direction the arm scans a row), Y down the sheet.
@@ -37,14 +46,13 @@ class Fact:
 
 
 #: The area the arm can reach, X by Y. X-Rite publishes 32 x 23 cm for the
-#: i1iO 3; Northlight's review gives the same for the first i1iO. The tester's
+#: i1iO 3; Northlight's review gives the same for the first i1iO. The owner's
 #: recordings drove the arm over 427 mm in X, but that includes parking
-#: positions off the chart (PROTOCOL 3.1), so it does not widen this.
+#: positions off the chart, so it does not widen this. Everything the arm does
+#: on a chart (the aims, every patch, both ends of every run) stays inside it.
 REACH_MM = Fact((320.0, 230.0),
                 "X-Rite i1iO 3 product page; Northlight Images review of the "
-                "first i1iO. Not published for the i1iO 2, and the recordings "
-                "only spanned 263 x 154 mm between aimed corners: the tester "
-                "must confirm the arm reaches all three marks",
+                "first i1iO. Not published for the i1iO 2",
                 PUBLISHED)
 
 #: The i1Pro 2's measuring opening.
@@ -52,95 +60,124 @@ APERTURE_MM = Fact(4.5, "X-Rite i1Pro 2 specification "
                    "(workflow.layout_engine.instruments.STRIP_READ_APERTURE_MM)",
                    VERIFIED)
 
-#: i1Profiler's own patch-size range for the i1iO 2: width (along the row) and
-#: height (across it).
-PATCH_RANGE_ALONG_MM = Fact((6.0, 20.0),
-                            "i1Profiler workflow files (docs/dev_pxwf_format.md)",
-                            VERIFIED)
-PATCH_RANGE_ACROSS_MM = Fact((7.0, 20.0),
-                             "i1Profiler workflow files (docs/dev_pxwf_format.md)",
+# ---- what a patch must be to be read -------------------------------------
+
+#: How often the i1Pro 2 reads while it is drawn along a row: a fixed burst of
+#: readings of 5.004 ms each, lamp on, no gap between them (every trigger of
+#: both recordings; the table's own memory stores 0.005004). The table
+#: package's own copy is `table.scan.READING_S` (a test holds them together).
+SCAN_READING_INTERVAL_S = Fact(0.005004, "RECORDINGS: every trigger", VERIFIED)
+
+#: The row speeds the recordings show, mm/s; `table.geometry.RECORDED_M2_SPEEDS`
+#: is the list the job may send (a test holds the chart's speeds inside it).
+SCAN_SPEEDS_MM_S = Fact((138.0, 88.0, 54.0), "RECORDINGS", LIKELY)
+
+#: The clean border at each edge of a patch that no reading is used from: at
+#: least this much, or what the arm travels in the spread of its start
+#: (`table.scan.strip_edge_mm`; a test holds the copies equal).
+READER_EDGE_MM = Fact(0.5, "table.scan.STRIP_EDGE_MIN_MM", VERIFIED)
+READER_START_SPREAD_S = Fact(0.018, "table.scan.MOTION_START_SPREAD_S",
                              VERIFIED)
+#: A patch read in a row needs this many clean readings
+#: (`table.spot.STRIP_MIN_READINGS`; a test holds the copies equal).
+READER_MIN_READINGS = Fact(3, "table.spot.STRIP_MIN_READINGS", VERIFIED)
 
-# ---- scanning a row (ALL FROM ONE RECORDING: issue #129, R1 and R2, an
-#      i1iO 2 with an i1Pro 2 Rev E; to be confirmed by the tester) ---------
+#: How far from a patch's centre the arm may have landed and still count as
+#: arrived (`table` refuses more than 5 units of 0.1 mm), and how far off an
+#: ordinary aim at a cross may be.
+LANDING_MM = Fact(0.5, "the job's arrival tolerance, 5 units", VERIFIED)
+AIM_ERROR_MM = Fact(0.7, "an ordinary aim at a cross", LIKELY)
 
-#: How often the i1Pro 2 reads while i1Profiler drags it along a row: a fixed
-#: burst of N readings of 5.004 ms each, lamp on, no gap between them
-#: (i1pro2_side RESULTS 6.1: 139 integration clocks of 36 us, all 494
-#: triggers; the table's own memory stores 0.005004).
-SCAN_READING_INTERVAL_S = Fact(0.005004, "i1pro2_side RESULTS 6.1 (every "
-                               "trigger of both recordings)", VERIFIED)
+#: The smallest patch, both ways: the opening plus the landing error on each
+#: side. Below it no reading lies inside one patch.
+PATCH_MIN_MM = Fact(5.5, "ours: opening 4.5 plus 0.5 landing each side", OURS)
+#: The largest: only the page and the arm's reach; nothing else limits it.
+PATCH_MAX_ALONG_MM = Fact(REACH_MM.value[0], "ours: the reach", OURS)
+PATCH_MAX_ACROSS_MM = Fact(REACH_MM.value[1], "ours: the reach", OURS)
 
-#: The three arm speeds i1Profiler used on every row, mm/s (the m2 speeds
-#: 137-138, 87-88, 53-54 in table units per 0.1 s; the unit 0.1 mm is LIKELY).
-#: The fastest pass alone already held every patch with about 14 readings
-#: each (RESULTS 6.2, a fit to the spot readings, LIKELY strong).
-SCAN_SPEEDS_MM_S = Fact((138.0, 88.0, 54.0), "PROTOCOL 4.4; i1pro2_side "
-                        "RESULTS 6.1-6.2", LIKELY)
+#: How far a run may end beyond the corner patches a person aims at (safety
+#: review of the new layout, B2): what 4.3.65's longest patch (20 mm) had, half
+#: the patch and the 10 mm run. Further, and the arm would be sent past ground
+#: nobody's aim has shown to exist; such a page keeps its crosses.
+PAST_THE_AIMS_MM = Fact(20.0, "ours: 4.3.65's longest patch", OURS)
+#: Under this size the instrument can see the patch beside it when an ordinary
+#: aim and the arm's landing error come together (`neighbour_share`): said.
+SMALL_PATCH_NOTE_MM = Fact(7.0, "ours: 4.5 + 2 x (0.7 + 0.5) = 6.9", OURS)
+#: Under this length a row read in one movement is untried on a table: said.
+SHORT_PATCH_NOTE_MM = Fact(10.0, "ours: the proven patch length", OURS)
+#: From this length the table can read a row in one movement (some recorded
+#: speed leaves every patch READER_MIN_READINGS clean readings; below, patch
+#: by patch): a copy for the chart side, held to the reader's own planning by
+#: a test.
+STRIP_FROM_MM = Fact(7.6, "table.spot.plan_strip_row", VERIFIED)
+#: From this length the dual scan reads a row in one movement (below, patch by
+#: patch with both conditions), and the Row speed factor may speed a row up.
+DUAL_ROW_FROM_MM = Fact(9.5, "ours: three clean readings in both passes", OURS)
+ROW_SPEED_FROM_MM = Fact(9.5, "ours: as the dual row", OURS)
 
-#: Delay between the move command and the instrument's first reading:
-#: 0.10 s at the fastest speed, up to 0.8 s at the slower ones (RESULTS 6.1).
-#: The recordings show the table finishing later by exactly as much as the
-#: trigger came later, so it seems to start moving in step with the
-#: instrument (observation CERTAIN, mechanism a GUESS).
-SCAN_TRIGGER_DELAY_S = Fact((0.10, 0.80), "i1pro2_side RESULTS 6.1", LIKELY)
-
-#: ArgyllCMS's patch finder in the i1Pro driver keeps the middle two thirds
-#: of every patch it finds in a stream and drops a patch with 3 readings or
-#: fewer after that (native/instlib/i1pro_imp.c: MIN_SAMPLES 3, the 66 % trim
-#: in i1pro_extract_patches_multimeas).
-ARGYLL_MIN_SAMPLES = Fact(3, "native/instlib/i1pro_imp.c MIN_SAMPLES",
-                          VERIFIED)
-
-#: THE TESTER'S SCANS WERE i1Profiler'S FALLBACK, NOT ITS SUCCESS
-#: (2026-11-13_i1profiler_io_facts RESULTS 2.1 and the summary): i1Profiler's
-#: help says a row that fails is read again more slowly and then patch by
-#: patch, which is exactly what every row of his chart (9.54 x 8.2 mm, no
-#: gaps) did. The data held every patch (14 to 36 readings each, RESULTS 6.2
-#: of the i1Pro 2 side), but i1Profiler's own recognition gave up. So
-#: nothing here is taken as proof that a scan of that layout works, and the
-#: design leaves more room than it had:
-#:
-#: * OURS: the speed we design for is i1Profiler's middle one, not its
-#:   fastest; the measuring step chooses the speed, and a slower scan is
-#:   still far quicker than patch by patch;
-SCAN_DESIGN_SPEED_MM_S = Fact(88.0, "ours: i1Profiler's middle speed", OURS)
-#: * OURS: at least this many readings on every patch at that speed, half
-#:   again what the fastest recorded pass gave (about 14);
-SCAN_SAFE_READINGS = Fact(20, "ours: about 1.5 x the fastest recorded pass",
-                          OURS)
-#: * OURS: a thin white gap between neighbouring patches of a row, so every
-#:   patch boundary is an edge a stream patch finder can see, also between
-#:   two similar colours (X-Rite asks scanning charts for "gaps or a minimum
-#:   deltaE between the patches"; i1Profiler's driver refuses a gap of more
-#:   than 20 % of the patch length; 1 mm is 10 % of a 10 mm patch). On top,
-#:   the patches are scrambled as on every ChromIQ chart, which X-Rite's help
-#:   recommends for the i1iO too. UNPROVEN until a tester has scanned it.
-SCAN_GAP_MM = Fact(1.0, "ours: X-Rite's supported-targets note; i1Profiler's "
-                   "20 % gap limit", OURS)
 #: THE STRIPS RUN ALONG THE ARM (the coordinator and Basti, 2026-11-13): the
 #: engine's strips are the lines the arm scans in one move, so ChromIQ's own
-#: CONTRAST SPACERS lie between the patches of a scan line, exactly where a
-#: stream patch finder needs an edge. ArgyllCMS lays every i1Pro strip out
-#: with 1 mm spacers (printtarg; `instruments._build_base`, the i1 branch),
-#: and the table's scan will go through the same i1Pro driver's patch finder
-#: (`i1pro_extract_patches_multimeas`), so the default is what that finder
-#: was designed for: coloured contrast spacers, 1 mm. UNPROVEN on a table.
+#: CONTRAST SPACERS lie between the patches of a scan line, exactly where the
+#: row placement check looks for an edge. ArgyllCMS lays every i1Pro strip out
+#: with 1 mm spacers (printtarg; `instruments._build_base`, the i1 branch), so
+#: the default is what ChromIQ prints for handheld strips. Read on a real table.
 SPACER_MM = Fact(1.0, "printtarg's i1Pro spacer (instruments.py, i1 branch)",
                  VERIFIED)
 SPACER_MODE = Fact("colored", "ours: the contrast-maximising spacers ChromIQ "
                    "prints for handheld strips", OURS)
+#: The narrowest spacer a person may set (0 = none): half a millimetre still
+#: covers 14 % of what the opening sees. Under SPACER_MM nobody has read one.
+SPACER_MIN_MM = Fact(0.5, "ours: still 14 % of the opening's view", OURS)
 
 #: Between ROWS (across the scan) there is no gap by default: the 4.5 mm
-#: aperture keeps 1.75 mm inside an 8 mm row on each side, and the arm's
-#: positioning error is not published (the recordings show the encoder
-#: drifting a few tenths of a millimetre at rest, PROTOCOL 3.1), so a row gap
-#: buys nothing measured and costs whole rows. Manual may add one, up to this.
-ROW_GAP_MM = Fact(0.0, "ours: aperture 4.5 mm in an 8 mm row; arm accuracy "
-                  "unpublished", OURS)
-ROW_GAP_MAX_MM = Fact(3.0, "ours", OURS)
-GAP_MAX_FRACTION = Fact(0.2, "i1Profiler driver: 'gaps size too large (more "
-                        "than 20% of the patch length)'", VERIFIED)
+#: aperture keeps 1.75 mm inside an 8 mm row on each side, and a row gap buys
+#: nothing measured and costs whole rows. Manual may set any gap the page
+#: holds: a wider gap only costs patches.
+ROW_GAP_MM = Fact(0.0, "ours: aperture 4.5 mm in an 8 mm row", OURS)
+
+# ---- one sheet on the table ------------------------------------------------
+
+#: LARGER PIECES THAN ANY EVER TRIED (up to half an A3+ sheet) wait for their
+#: own safety sign-off. False: a piece of a larger sheet is at most A4 or
+#: Letter (`PIECE_MAX_MM`), and the maxima below are theirs.
+#: `table.caps.LARGE_PIECES` is the table package's own copy (a test holds the
+#: two equal: they change together or not at all).
+LARGE_PIECES = False
+#: The largest piece of a divided sheet, across and along the strips.
+PIECE_MAX_MM = Fact((215.9, 297.0), "ours: the sizes tried on a table", OURS)
+PIECE_MAX_LARGE_MM = Fact((242.0, 331.0), "ours: half of A3+ / 13 x 19 in, "
+                          "untried on a table", OURS)
+#: The most a page may hold: patches in a strip, strips, patches. Generate
+#: refuses more (`chart.check_sheet`), START refuses the same numbers
+#: (`table.caps.LAYOUT_MAXIMA`, its own copy: chart code never imports the
+#: table package; a test holds them equal and works them out again from the
+#: layout engine: 5.5 mm patches, no spacers, no crosses, no labels, on the
+#: largest piece, the run held inside the reach).
+LAYOUT_MAXIMA_SMALL = {"per_row": 49, "rows": 37, "per_page": 1813}
+LAYOUT_MAXIMA_LARGE = {"per_row": 54, "rows": 42, "per_page": 2268}
+MAX_PAGES = 667
+
+
+def layout_maxima() -> dict:
+    """The most one page of an i1iO chart may hold (and the most pages)."""
+    m = LAYOUT_MAXIMA_LARGE if LARGE_PIECES else LAYOUT_MAXIMA_SMALL
+    return {**m, "pages": MAX_PAGES}
+
+
+def neighbour_share(size_mm: float, off_mm: "float | None" = None) -> float:
+    """The part (0..1) of what the instrument sees that belongs to the patch
+    beside, for a patch *size_mm* wide read *off_mm* from its middle (default:
+    an ordinary aim and the arm's landing error together, 1.2 mm): the segment
+    of the round opening beyond the patch's edge."""
+    import math
+    if off_mm is None:
+        off_mm = AIM_ERROR_MM.value + LANDING_MM.value
+    r = APERTURE_MM.value / 2.0
+    d = float(size_mm) / 2.0 - float(off_mm)
+    if d >= r:
+        return 0.0
+    a = math.acos(max(-r, d) / r)
+    return (a - math.sin(a) * math.cos(a)) / math.pi
 
 
 def readings_per_patch(length_mm: float, speed_mm_s: float) -> float:
@@ -148,67 +185,62 @@ def readings_per_patch(length_mm: float, speed_mm_s: float) -> float:
     return length_mm / (speed_mm_s * SCAN_READING_INTERVAL_S.value)
 
 
-def min_patch_length_mm(speed_mm_s: "float | None" = None,
-                        readings: "float | None" = None) -> float:
-    """The shortest patch along the row that still gets *readings* readings
-    (default :data:`SCAN_SAFE_READINGS`) at *speed*."""
-    n = SCAN_SAFE_READINGS.value if readings is None else readings
-    v = SCAN_DESIGN_SPEED_MM_S.value if speed_mm_s is None else speed_mm_s
-    return n * v * SCAN_READING_INTERVAL_S.value
+def row_edge_mm(speed_mm_s: float) -> float:
+    """The clean border the reader leaves at each patch edge at *speed*."""
+    return max(READER_EDGE_MM.value, speed_mm_s * READER_START_SPREAD_S.value)
 
 
-def run_in_mm(speed_mm_s: "float | None" = None) -> float:
-    """Blank paper needed before the first patch of a row at *speed* (the
-    design speed by default): the arm may travel for the shortest trigger
-    delay seen before the first reading arrives."""
-    v = SCAN_DESIGN_SPEED_MM_S.value if speed_mm_s is None else speed_mm_s
-    return v * SCAN_TRIGGER_DELAY_S.value[0]
+def clean_length_mm(length_mm: float, speed_mm_s: float) -> float:
+    """The part of a patch *length_mm* long that a row read at *speed* uses:
+    the patch less half the opening and the border at each end (may be
+    negative)."""
+    return length_mm - APERTURE_MM.value - 2.0 * row_edge_mm(speed_mm_s)
 
-
-#: The tester's own i1Profiler chart: 28 patches 9.54 mm apart along each row,
-#: 18 rows 8.2 mm apart (PROTOCOL 3.1, the unit LIKELY 0.1 mm).
-TESTER_CHART_PITCH_MM = Fact((9.54, 8.2), "PROTOCOL 3.1", LIKELY)
 
 #: The table's position unit (for the measuring step; the chart does not use it).
-TABLE_UNIT_MM = Fact(0.1, "PROTOCOL 3.1", LIKELY)
+TABLE_UNIT_MM = Fact(0.1, "RECORDINGS", LIKELY)
 
 #: Which way the sheet lies: the arm parks at Y 0 and Y grows from the chart's
-#: top edge to its bottom edge (PROTOCOL 3.1), so the chart's top edge faces
+#: top edge to its bottom edge (RECORDINGS), so the chart's top edge faces
 #: the back of the table, where the arm parks. Rows lie along X.
-TOP_EDGE_TOWARDS_PARKING = Fact(True, "PROTOCOL 3.1 (axes of the aligned "
+TOP_EDGE_TOWARDS_PARKING = Fact(True, "RECORDINGS (axes of the aligned "
                                 "corners)", VERIFIED)
 
-#: The order i1Profiler asks for the three corners (PROTOCOL 4.3).
+#: The order the maker's program asks its user for the three corners.
 AIMING_ORDER = Fact(("top-left", "bottom-left", "bottom-right"),
-                    "PROTOCOL 4.3", VERIFIED)
+                    "RECORDINGS", VERIFIED)
 
 # ---- our design choices -------------------------------------------------
 
-#: Patch length along the row (the scan direction). The shortest that gets
-#: SCAN_SAFE_READINGS at the design speed is `min_patch_length_mm()` =
-#: 20 x 88 x 0.005004 = 8.81 mm; 10 mm gives 22.7 readings at 88 mm/s and
-#: still 14.5 at the fastest recorded 138 mm/s. Patch by patch it leaves
-#: 2.75 mm on each side of the aperture.
-PATCH_ALONG_MM = Fact(10.0, "ours: above min_patch_length_mm() = 8.81",
-                      OURS)
+#: Patch length along the row (the scan direction): at 88 mm/s, the speed the
+#: job chooses for it, four clean readings on every patch, and a row that lies
+#: up to 1.8 mm off is still read (at 2.2 mm it is refused). Read on a
+#: real table. Patch by patch it leaves 2.75 mm on each side of the opening.
+PATCH_ALONG_MM = Fact(10.0, "ours: four clean readings at 88 mm/s; read on a "
+                      "table", OURS)
 
 #: Patch height across the row: 1.75 mm each side of the 4.5 mm aperture for
 #: alignment and arm error, which also suits a spot reading.
 PATCH_ACROSS_MM = Fact(8.0, "ours: aperture plus 1.75 mm each side", OURS)
 
-#: Blank paper before the first and after the last patch of every row:
-#: `run_in_mm()` at the design speed (88 x 0.10 = 8.8 mm), rounded up, so a
-#: reading that starts late still finds paper before the first patch, as
-#: little as possible of the sheet going to it (Basti, 2026-11-13: "use as
-#: much space on the paper as possible for patches"). The fastest recorded
-#: speed would need 13.8 mm; the recordings suggest the table waits for the
-#: instrument anyway, which the tester must confirm.
-RUN_MM = Fact(10.0, "ours: run_in_mm(88) = 8.8, rounded up", OURS)
+#: "Compact", the second chart layout offered (25 November 2026): patches as
+#: long as they are wide, read in one movement at 61 mm/s with three clean
+#: readings each, the proven 1 mm spacer kept (one thing changed at a time).
+#: Not tried on a table. Patch by patch it leaves 1.75 mm each side.
+COMPACT_ALONG_MM = Fact(8.0, "ours: three clean readings at 61 mm/s", OURS)
+COMPACT_ACROSS_MM = Fact(8.0, "ours: as the standard layout", OURS)
+
+#: Blank paper before the first and after the last patch of every row, so the
+#: first and the last patch are read whole, even when the sheet lies a little
+#: off: half the opening (2.25 mm), the row lying off (2.8 mm, recorded rows
+#: of a real table, kept privately) and the arm's creep at its ends (1.3 mm) are
+#: 6.4 mm. 7 mm would gain a patch only on Letter and 4 x 6 in, so the proven
+#: 10 mm stay. The dual scan needs no more.
+RUN_MM = Fact(10.0, "ours: 6.4 mm needed, 10 mm proven", OURS)
 
 #: NOTHING IS PRINTED ON A SCAN LINE OUTSIDE THE PATCHES (Basti, 2026-11-13):
-#: the instrument reads all through the run-in and the run-out, and a patch
-#: finder working on the stream of readings would take any ink there for a
-#: patch. So the runs are blank paper, and a label sits only where the
+#: the instrument reads all through the run-in and the run-out, and ink there
+#: would move the edges the row placement check looks for. So the runs are blank paper, and a label sits only where the
 #: aperture never passes during a scan: a row label beyond the end of its
 #: run, a column label above the first row, at least LABEL_CLEAR_MM from the
 #: patch edge across the scan. (An earlier draft put a black timing bar in
@@ -222,12 +254,11 @@ LABEL_SIZE_MM = Fact(2.5, "ours: the smallest size that still reads well "
                      "in print", OURS)
 LABEL_SIZE_RANGE_MM = Fact((2.0, 4.0), "ours", OURS)
 #: The largest label size an i1iO chart prints (review r3 M1): the letters
-#: stand side by side at the strip pitch (7 mm at the narrowest patch and no
-#: strip gap) and the numbers at the patch pitch (8.9 mm at the shortest), so
-#: a label above 6 mm ran into its neighbours and, two characters long, into
-#: the run-in. A larger size asked for is printed at this one.
-LABEL_MAX_MM = Fact(6.0, "ours: the narrowest strip pitch (7 mm) less 1 mm",
-                    OURS)
+#: stand side by side at the strip pitch, so a label keeps this much less than
+#: it (`label_max_mm`); the numbers stand at the patch pitch, two characters
+#: side by side along the strip. A larger size asked for is printed at the
+#: largest.
+LABEL_AIR_MM = Fact(1.0, "ours: 1 mm of paper between two letters", OURS)
 #: Clear paper between a label and the nearest patch edge across the scan.
 #: The aperture is 4.5 mm on an 8 mm row, so it keeps 1.75 mm inside the
 #: row's edges; with an alignment or arm error of that size it reaches the
@@ -288,12 +319,10 @@ BAND_MM = Fact(15.0, "ours: mark inset 11 + half the cross 3 + 1 mm clear",
 TEXT_LINE_MM = Fact(8.5, "ours", OURS)
 
 #: Paper ChromIQ's other charts leave at an edge by default, for the printer's
-#: unprintable edge (the engine's default margin), and what the table needs
-#: beyond that at the sheet's edges: the electrostatic hold and the arm's
-#: glider ring are not documented with a number (i1Profiler facts RESULTS,
-#: [TESTER]), so nothing is added for them yet.
+#: unprintable edge (the engine's default margin). What the table's hold and
+#: the arm's glider ring need beyond that is not published, so nothing is added.
 PRINTER_EDGE_MM = Fact(5.0, "the engine's default page margin for text "
-                       "(text_edge); the hold and the ring: unknown", OURS)
+                       "(text_edge)", OURS)
 
 #: The ChromIQ wordmark's height in the top band (beside mark 1), and the
 #: smallest it is shrunk to before it is left off: 2 mm, the same as the
@@ -327,16 +356,23 @@ CORNER_MIN_C = Fact(25.0, "ours", OURS)
 CORNER_DARK_L = Fact(45.0, "ours", OURS)
 #: Never near white, whatever is left in a small set.
 CORNER_NEVER_L = Fact(85.0, "ours: near white is not aimed at", OURS)
-#: 4.3.57 (item 30): how far off the centre of a corner PATCH an ordinary aim
-#: by eye lands, sideways. The owner's aims at CROSSES on 22 Nov 2026 were
-#: 0.25 to 0.7 mm off; the row placement study measured aim plus print
-#: errors of 1 to 2.5 mm on patches. A patch has no cross hair to meet, so
-#: 1.5 mm.
+#: THE ANGLE THAT TELLS ONE STRIP FROM THE NEXT. Mark 3 aimed one strip too
+#: far in turns the corner at mark 2 by atan(strip pitch / row length); the
+#: alignment refuses more than ALIGN_ANGLE_TOL_DEG, and honest alignments were
+#: recorded up to half a degree off, which can hide as much of it. So corner
+#: patches are aimed at only where one strip turns the corner by at least the
+#: two together (`chart.corners_tell_a_strip`).
+ALIGN_HONEST_DEG = Fact(0.5, "RECORDINGS: alignments of 89.9 to 90.5 degrees",
+                        LIKELY)
 #: ...and the alignment's angle limit at mark 2, a copy for the chart side
 #: (the chart code never imports the table package): equal to
 #: `table.geometry.ANGLE_TOL_DEG` (a test holds the two together).
 ALIGN_ANGLE_TOL_DEG = Fact(1.0, "table.geometry.ANGLE_TOL_DEG", OURS)
-CORNER_AIM_ERROR_MM = Fact(1.5, "ours: the owner's crosses 0.25-0.7 mm, the "
+#: 4.3.57 (item 30): how far off the centre of a corner PATCH an ordinary aim
+#: by eye lands, sideways. An ordinary aim at a CROSS is up to
+#: `AIM_ERROR_MM` off; the row placement study measured aim plus print errors
+#: of 1 to 2.5 mm on patches. A patch has no cross hair to meet, so 1.5 mm.
+CORNER_AIM_ERROR_MM = Fact(1.5, "ours: ordinary aims at crosses, the "
                            "row placement study's patches 1-2.5 mm", OURS)
 
 #: Without the crosses the text line (chart name, page N/M, sheet text, logo)
@@ -352,15 +388,36 @@ TEXT_EDGE_MM = Fact(NUMBERS_EDGE_MM.value, "ours: = NUMBERS_EDGE_MM, past "
                     "every printer edge ChromIQ knows", OURS)
 
 
+def label_max_mm(strip_pitch_mm: float, patch_pitch_mm: float) -> float:
+    """The largest label size on a chart of that strip pitch (letters side by
+    side, LABEL_AIR_MM apart) and patch pitch (two-digit numbers, half as far
+    apart), never below the smallest size that reads well."""
+    numbers = (float(patch_pitch_mm) - LABEL_AIR_MM.value / 2.0) / (
+        2.0 * LETTER_ADVANCE)
+    return max(LABEL_SIZE_RANGE_MM.value[0],
+               min(float(strip_pitch_mm) - LABEL_AIR_MM.value, numbers))
+
+
+def run_ends_mm(page_h: float, top: float, bottom: float
+                ) -> "tuple[float, float]":
+    """*top* and *bottom* (the patch block's margins along the strips) raised,
+    both alike, until a strip's run spans at most the arm's reach: the block
+    and its two runs. Only a piece over 324 mm with its letters off notices."""
+    over = (float(page_h) - top - bottom + 2 * RUN_MM.value
+            - REACH_MM.value[0])
+    if over <= 1e-9:
+        return top, bottom
+    return top + over / 2.0, bottom + over / 2.0
+
+
 def as_record() -> dict:
-    """Every fact as ``{name: {value, source, confidence}}``, for the side
-    file, so a later version knows which numbers made a sheet."""
+    """Every fact as ``{name: value}``, for the side file, so a later version
+    knows which numbers made a sheet."""
     out = {}
     for name, fact in globals().items():
         if isinstance(fact, Fact):
             value = fact.value
-            out[name] = {"value": list(value) if isinstance(value, tuple) else value,
-                         "source": fact.source, "confidence": fact.confidence}
+            out[name] = list(value) if isinstance(value, tuple) else value
     return out
 
 
@@ -484,43 +541,28 @@ def margins_mm(strip_letters: bool = True,
 
 def patch_limits_mm() -> "tuple[tuple[float, float], tuple[float, float]]":
     """``((along_min, along_max), (across_min, across_max))``: what Manual
-    may set. Along the row, no shorter than a patch that still gets
-    SCAN_SAFE_READINGS at the design speed (rounded UP to 0.1 mm, so 8.9 mm)
-    and no longer than i1Profiler's own maximum; across it, i1Profiler's own
-    range for the i1iO 2 (its minimum, 7 mm, is X-Rite's)."""
-    import math
-    lo = math.ceil(min_patch_length_mm() * 10) / 10
-    along = (max(lo, PATCH_RANGE_ALONG_MM.value[0]), PATCH_RANGE_ALONG_MM.value[1])
-    return along, tuple(PATCH_RANGE_ACROSS_MM.value)
+    may set. No smaller than a patch the opening fits into with the arm's
+    landing error (PATCH_MIN_MM); upwards only the arm's reach, and the page
+    itself says what it holds."""
+    lo = PATCH_MIN_MM.value
+    return ((lo, PATCH_MAX_ALONG_MM.value), (lo, PATCH_MAX_ACROSS_MM.value))
 
 
 def gaps_mm(strip_gap: "float | None" = None,
-            inter_patch: "float | None" = None,
-            patch_along: "float | None" = None) -> "tuple[float, float]":
+            inter_patch: "float | None" = None) -> "tuple[float, float]":
     """``(gap between strips, extra white gap between the patches of a
-    strip)`` an i1iO chart is laid out with: Manual's "Strip gap" (default
-    none, at most ROW_GAP_MAX_MM: the aperture does not see the next strip)
-    and "Inter-patch gap" (default none: the spacers make the edge; at most
-    20 % of the patch length, i1Profiler's own rule); None takes the
-    defaults."""
-    length = patch_along or PATCH_ALONG_MM.value
+    strip)`` an i1iO chart is laid out with: Manual's "Strip gap" and
+    "Inter-patch gap" (default none, upwards only what the page holds)."""
     g = ROW_GAP_MM.value if strip_gap is None else float(strip_gap)
     i = 0.0 if inter_patch is None else float(inter_patch)
-    return (min(max(g, 0.0), ROW_GAP_MAX_MM.value),
-            min(max(i, 0.0), GAP_MAX_FRACTION.value * length))
+    return max(g, 0.0), max(i, 0.0)
 
 
-def spacer_width_mm(asked: "float | None" = None,
-                    patch_along: "float | None" = None) -> float:
+def spacer_width_mm(asked: "float | None" = None) -> float:
     """The width of the spacer between two patches of a strip on an i1iO
     chart: Manual's "Spacer width" (0 or None = SPACER_MM), never narrower
-    than SPACER_MM (the i1Pro's own spacer, which the scan's patch edges are
-    found by) and never wider than GAP_MAX_FRACTION of the patch length
-    (i1Profiler's rule for what lies between two patches)."""
-    length = patch_along or PATCH_ALONG_MM.value
-    w = float(asked) if asked else SPACER_MM.value
-    return min(max(w, SPACER_MM.value),
-               max(SPACER_MM.value, GAP_MAX_FRACTION.value * length))
+    than SPACER_MIN_MM; upwards only what the page holds."""
+    return max(float(asked), SPACER_MIN_MM.value) if asked else SPACER_MM.value
 
 
 #: Where the patch block sits in the space the margins leave, when nobody

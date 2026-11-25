@@ -53,6 +53,7 @@ from typing import TYPE_CHECKING, NamedTuple
 
 from core.logger import get_logger
 from core.platform_paths import default_output_root
+from core.stem_paths import without_ext
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -273,6 +274,59 @@ class I1ProfilerTurnedFiles:
         writes its sidecars there)."""
         p = Path(chart_ti2)
         return [cls(exports_subdir(p.parent), p.stem), cls(p.parent, p.stem)]
+
+
+#: `exports/<stem>-sheet_01.tif`: a printed sheet of an i1iO chart whose pages
+#: are pieces of larger sheets (`workflow.i1io.sheets`).
+_SHEET_FILE = re.compile(r"(.+)-sheet_(\d{2,})(?:-\d+)?$")
+
+
+@dataclass(frozen=True)
+class I1ioSheetFiles:
+    """Where the printed sheets of one i1iO chart live, when its pages are
+    pieces of larger sheets: in ``exports/`` beside the chart, built from the
+    chart's own page images and rebuilt whenever they do not fit those."""
+    folder: Path
+    stem: str
+
+    @property
+    def record(self) -> Path:
+        """Which pieces each sheet holds and the checksums of their pages."""
+        return self.folder / f"{self.stem}-sheets.json"
+
+    def sheet(self, number: int, other: int = 0) -> Path:
+        """The printed sheet *number* (from 1); with *other* under another
+        name, when a file that is not ChromIQ's has the first one."""
+        tail = f"-{int(other)}" if other else ""
+        return self.folder / f"{self.stem}-sheet_{int(number):02d}{tail}.tif"
+
+    @classmethod
+    def for_chart(cls, chart_ti2: "Path | str") -> "I1ioSheetFiles":
+        p = Path(chart_ti2)
+        return cls(exports_subdir(p.parent), without_ext(p, ".ti2").name)
+
+
+def sheet_of_chart(path: "Path | str") -> "tuple[Path, int] | None":
+    """``(the chart's .ti2, sheet number)`` of a printed sheet image
+    (`I1ioSheetFiles`), None for every other file: a page image is told by its
+    name alone, and nothing on disk is asked about it."""
+    p = Path(path)
+    if p.parent.name not in (EXPORTS_DIRNAME, CACHE_DIRNAME):
+        return None                 # (cache/: the copy a print converted)
+    m = _SHEET_FILE.fullmatch(p.stem)
+    if m is None:
+        return None
+    ti2 = p.parent.parent / f"{m.group(1)}.ti2"
+    return (ti2, int(m.group(2))) if ti2.is_file() else None
+
+
+def beside_the_chart(path: "Path | str") -> Path:
+    """The path whose folder and stem the chart's other files are found by
+    (``<stem>.channels.json``, ``.ti2``, ``.i1io.json``): a printed sheet's
+    chart, any other image itself."""
+    got = sheet_of_chart(path)
+    return Path(path) if got is None else got[0].with_name(
+        without_ext(got[0], ".ti2").name + ".tif")
 
 
 # Declutter-on-load (#36, Knut): the exact families ChromIQ itself writes, keyed
@@ -4267,8 +4321,9 @@ class Project:
         # (`I1ProfilerTurnedFiles`), so it is renamed with the rest.
         tail_re = re.compile(
             r"(-cal|-verify)?(-i1profiler(-turned(-i1Pro[23]|-how-to)?)?"
-            r"|-colours)?(_\d+)?"
-            r"(\.control-strip)?\.[\w.]+$")
+            r"|-colours|-sheets)?(_\d+)?(\.control-strip)?\.[\w.]+$"
+            # an i1iO chart's printed sheets, the one name that has a second number
+            r"|(-cal|-verify)?-sheet_\d+(-\d+)?\.[\w.]+$")
 
         # NFC ON BOTH SIDES. `old_stem` comes from a name ChromIQ composed;
         # the names on disk may be decomposed, because a project restored from

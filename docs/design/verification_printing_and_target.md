@@ -1783,3 +1783,11 @@ Knut, #182 6108217111 / 6113365581: a chart from his CLJ5550 run 2 profile shows
   the same two reasons: the proofing→printer inference is mine, no ICC or ISO
   source was consulted, and **nothing about colour-managed printing has been
   tested on hardware**. One real print done both ways would close it.
+
+## ⏳ Awaiting confirmation: a verification chart in pieces (i1iO, 2026-11-25)
+
+**Confirmed by:** *nobody yet.* Its printed sheets are what is converted through the profile and
+printed: the sheet image goes through `cctiff` as a page does, at its own size, into `cache/` under
+the sheet's name. The copy is known as that sheet (inks, crosses, cut lines), so the overhang and
+edge notes say the same of it as of the sheet. "In another application" opens the folder the sheets
+are in (`exports/`).

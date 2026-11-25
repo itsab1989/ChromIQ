@@ -177,7 +177,7 @@ _usb_licences = [(os.path.join('vendor', 'usb', _n), 'licenses/usb')
                             'importlib_resources-LICENSE')]
 # The i1iO table drive (build step 9): imported lazily by START on an i1iO 2 chart, so
 # PyInstaller cannot see it (tests/i1io_table/test_window_packaging.py).
-_I1IO_TABLE_HIDDENIMPORTS = ['ui.i1io_table_window', 'workflow.i1io.table_settle', 'workflow.i1io.table', 'workflow.i1io.table.caps', 'workflow.i1io.table.diagnostics', 'workflow.i1io.table.dual_rows', 'workflow.i1io.table.geometry', 'workflow.i1io.table.job', 'workflow.i1io.table.lines', 'workflow.i1io.table.measurement', 'workflow.i1io.table.placement', 'workflow.i1io.table.reach', 'workflow.i1io.table.reader', 'workflow.i1io.table.scan', 'workflow.i1io.table.session_end', 'workflow.i1io.table.session_table', 'workflow.i1io.table.spot', 'workflow.i1io.table.strip', 'workflow.i1io.table.usb_system']
+_I1IO_TABLE_HIDDENIMPORTS = ['ui.i1io_table_window', 'workflow.i1io.table_settle', 'workflow.i1io.table', 'workflow.i1io.table.caps', 'workflow.i1io.table.diagnostics', 'workflow.i1io.table.dual_rows', 'workflow.i1io.table.geometry', 'workflow.i1io.table.identity', 'workflow.i1io.table.job', 'workflow.i1io.table.lines', 'workflow.i1io.table.measurement', 'workflow.i1io.table.placement', 'workflow.i1io.table.reach', 'workflow.i1io.table.reader', 'workflow.i1io.table.scan', 'workflow.i1io.table.session_end', 'workflow.i1io.table.session_table', 'workflow.i1io.table.spot', 'workflow.i1io.table.strip', 'workflow.i1io.table.usb_system']
 _USB_HIDDENIMPORTS = ['core.usb_library', 'usb', 'usb.core', 'usb.util',
                       'usb.backend', 'usb.backend.libusb1', 'libusb_package',
                       'importlib_resources']

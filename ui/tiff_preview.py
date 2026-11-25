@@ -764,6 +764,8 @@ class _OneLineFirstLabel(QLabel):
 
 def _find_sidecar_channels(path: Path) -> list[str] | None:
     """Return ink channels from a ChromIQ sidecar file next to path, or None."""
+    from core.file_manager import beside_the_chart
+    path = beside_the_chart(path)               # a printed sheet: its chart
     stem = path.stem
     while stem and (stem[-1].isdigit() or stem[-1] in "_- "):
         stem = stem[:-1]
@@ -2332,6 +2334,10 @@ class TiffPreview(QWidget):
         # rule's (every other chart) are always shown unturned.
         self._rotation_paths = list(paths)
         self._view_rotation = self._rule_rotation(paths)
+        # a divided i1iO chart's pages have names ("Piece 3 of 4: ..."); every
+        # other chart's none, and with i1iO support off nothing is read
+        from workflow.i1io.support import page_names_for
+        self._page_names = page_names_for(paths)
         self._current = 0
         self._active_stripe = -1
         self._stripe_rects = []
@@ -3214,7 +3220,9 @@ class TiffPreview(QWidget):
                 w.unsetCursor()
             return
         first = paths[0]
-        stem = re.sub(r"_(\d{1,3})$", "", first.stem)
+        from core.file_manager import beside_the_chart
+        # (a printed sheet of pieces is named as its chart)
+        stem = re.sub(r"_(\d{1,3})$", "", beside_the_chart(first).stem)
         self._filename_lbl.setText(self._elide_middle(stem, 60))
         try:
             folder = first.resolve().parent
@@ -4590,13 +4598,18 @@ class TiffPreview(QWidget):
         self._next_btn.setVisible(visible)
         self._page_label.setVisible(n > 0)
         if n > 0:
+            names = getattr(self, "_page_names", None) or []
+            if len(names) != n:
+                names = []
             self._page_label.setText(
+                names[self._current] if names else
                 tr("Page {page} / {total}").format(page=self._current + 1, total=n))
             # The widest this chart's page text can be, so the buttons
             # beside it never move as the page number changes.
             fm = self._page_label.fontMetrics()
             digits = len(str(n))
-            widest = max(
+            widest = max(fm.horizontalAdvance(v) for v in names) if names \
+                else max(
                 fm.horizontalAdvance(tr("Page {page} / {total}").format(
                     page=d * digits, total=n))
                 for d in "0123456789")

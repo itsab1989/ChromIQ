@@ -1,0 +1,478 @@
+{
+ "calls": {
+  "core/curated_presets.py": {
+   "named_paper_of_size: parse_custom": {
+    "calls": 1,
+    "is": "sheet"
+   },
+   "_is_size_of: parse_custom": {
+    "calls": 1,
+    "is": "sheet"
+   },
+   "_is_size_of: dimensions_mm": {
+    "calls": 1,
+    "is": "sheet"
+   },
+   "named_paper_of_size: dimensions_mm": {
+    "calls": 1,
+    "is": "sheet"
+   }
+  },
+  "ui/dialogs/barbieri_panel.py": {
+   "_sync_barbieri_widgets: dimensions_mm": {
+    "calls": 1,
+    "is": "never divided"
+   }
+  },
+  "ui/dialogs/layout_options_panel.py": {
+   "_clip_geom_and_height: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   },
+   "_i1io_plan: dimensions_mm": {
+    "calls": 1,
+    "is": "sheet"
+   },
+   "_show_i1io_pieces: patches_on_a_sheet": {
+    "calls": 1,
+    "is": "count"
+   },
+   "_set_recipe_impl: parse_custom": {
+    "calls": 1,
+    "is": "sheet"
+   },
+   "_instrument_margins_now: dimensions_mm": {
+    "calls": 1,
+    "is": "never divided"
+   }
+  },
+  "ui/dialogs/page_output_panel.py": {
+   "describe_page: dimensions_mm": {
+    "calls": 1,
+    "is": "sheet"
+   },
+   "describe_paper_for_readout: parse_custom": {
+    "calls": 2,
+    "is": "sheet"
+   },
+   "_other_units_text: dimensions_mm": {
+    "calls": 1,
+    "is": "sheet"
+   },
+   "page_pixels: dimensions_mm": {
+    "calls": 1,
+    "is": "sheet"
+   },
+   "load_recipe: parse_custom": {
+    "calls": 1,
+    "is": "sheet"
+   }
+  },
+  "ui/dialogs/settings_dialog.py": {
+   "_update_layout_calc: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   },
+   "_update_layout_calc: patches_on_a_sheet": {
+    "calls": 1,
+    "is": "count"
+   }
+  },
+  "ui/dialogs/ti2_relayout_dialog.py": {
+   "_engine_geom_from_recipe: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   },
+   "_engine_cap_per_page: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   },
+   "_engine_cap_per_page: patches_on_a_sheet": {
+    "calls": 2,
+    "is": "count"
+   },
+   "_do_engine_preview: sheets_of": {
+    "calls": 1,
+    "is": "count"
+   },
+   "_on_pt_paper_changed: _NAMED_PAPERS": {
+    "calls": 1,
+    "is": "sheet"
+   }
+  },
+  "ui/tabs/tab_chart.py": {
+   "_fraction_of_the_same_custom_paper: parse_custom": {
+    "calls": 2,
+    "is": "sheet"
+   },
+   "_carry_exact_guided_paper: parse_custom": {
+    "calls": 1,
+    "is": "sheet"
+   },
+   "_rebuild_paper_combo: PAPER_SIZES": {
+    "calls": 1,
+    "is": "sheet"
+   },
+   "_helper_marker_lines_frac: piece_mm_of": {
+    "calls": 2,
+    "is": "piece"
+   },
+   "_paper_area_mm2: _PAPER_MM": {
+    "calls": 1,
+    "is": "sheet"
+   },
+   "_combo_thresholds: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   },
+   "_engine_capacity: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   },
+   "_engine_capacity: patches_on_a_sheet": {
+    "calls": 1,
+    "is": "count"
+   },
+   "_recipe_capacity: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   },
+   "_calibration_ramp_total: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   },
+   "_predict_layout_info: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   },
+   "_last_page_capacity: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   },
+   "_partial_last_page_blank: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   },
+   "_manual_i1io_context: pieces_on": {
+    "calls": 1,
+    "is": "count"
+   },
+   "_suggest_target_name: sheets_of": {
+    "calls": 1,
+    "is": "count"
+   },
+   "_recipe_capacity: patches_on_a_sheet": {
+    "calls": 1,
+    "is": "count"
+   },
+   "current_margin_combo: _PAPER_MM": {
+    "calls": 1,
+    "is": "sheet"
+   },
+   "_guided_i1io_crosses_source: pieces_on": {
+    "calls": 1,
+    "is": "count"
+   },
+   "_update_patch_count: sheets_of": {
+    "calls": 1,
+    "is": "count"
+   },
+   "_predict_layout_info: patches_on_a_sheet": {
+    "calls": 1,
+    "is": "count"
+   },
+   "_engine_text_notes: piece_mm_of": {
+    "calls": 4,
+    "is": "piece"
+   },
+   "_restore_defaults_impl: _PAPER_MM": {
+    "calls": 2,
+    "is": "sheet"
+   },
+   "_shared_set: _PAPER_MM": {
+    "calls": 2,
+    "is": "sheet"
+   }
+  },
+  "workflow/chart_creator.py": {
+   "_engine_total_patches: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   },
+   "_engine_total_patches: patches_on_a_sheet": {
+    "calls": 1,
+    "is": "count"
+   }
+  },
+  "workflow/i1io/chart.py": {
+   "capacity: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   },
+   "sheet_size: dimensions_mm": {
+    "calls": 1,
+    "is": "sheet"
+   },
+   "crosses_off_effects: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   },
+   "_sheet_counts: dimensions_mm": {
+    "calls": 1,
+    "is": "never divided"
+   },
+   "i1io_paper_label: dimensions_mm": {
+    "calls": 1,
+    "is": "sheet"
+   },
+   "page_height_of: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   },
+   "preview_checks: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   }
+  },
+  "workflow/i1io/pieces.py": {
+   "piece_mm_of: dimensions_mm": {
+    "calls": 1,
+    "is": "the rule itself"
+   },
+   "sheets_of: pieces_on": {
+    "calls": 1,
+    "is": "count"
+   },
+   "plan_of: dimensions_mm": {
+    "calls": 1,
+    "is": "the rule itself"
+   },
+   "patches_on_a_sheet: pieces_on": {
+    "calls": 1,
+    "is": "count"
+   },
+   "refuse_bad_record: dimensions_mm": {
+    "calls": 1,
+    "is": "the rule itself"
+   }
+  },
+  "workflow/layout_engine/area_fit.py": {
+   "_derive_area_patch_size: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   },
+   "pinned_grid_shortfall: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   }
+  },
+  "workflow/layout_engine/chart.py": {
+   "build_ti2_from_ti1: dimensions_mm": {
+    "calls": 1,
+    "is": "never divided"
+   },
+   "build_chart: dimensions_mm": {
+    "calls": 1,
+    "is": "sheet"
+   },
+   "_i1io_paper_name: dimensions_mm": {
+    "calls": 1,
+    "is": "sheet"
+   }
+  },
+  "workflow/layout_engine/geometry.py": {
+   "recipe_no_room_kind: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   }
+  },
+  "workflow/layout_engine/instruments.py": {
+   "_per_page: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   }
+  },
+  "workflow/layout_engine/papers.py": {
+   "dimensions_mm: parse_custom": {
+    "calls": 1,
+    "is": "the rule itself"
+   },
+   "code_of: PAPER_SIZES": {
+    "calls": 1,
+    "is": "the rule itself"
+   },
+   "piece_mm_of: dimensions_mm": {
+    "calls": 1,
+    "is": "the rule itself"
+   },
+   "pieces_on: patches_on_a_sheet": {
+    "calls": 1,
+    "is": "count"
+   },
+   "list_papers: PAPER_SIZES": {
+    "calls": 1,
+    "is": "the rule itself"
+   },
+   "dimensions_mm: _NAMED_MM": {
+    "calls": 2,
+    "is": "the rule itself"
+   },
+   "code_of: dimensions_mm": {
+    "calls": 1,
+    "is": "the rule itself"
+   },
+   "piece_mm_of: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   },
+   "patches_on_a_sheet: patches_on_a_sheet": {
+    "calls": 1,
+    "is": "count"
+   },
+   "sheets_of: sheets_of": {
+    "calls": 1,
+    "is": "count"
+   },
+   "list_papers: dimensions_mm": {
+    "calls": 3,
+    "is": "the rule itself"
+   }
+  },
+  "workflow/layout_engine/presets.py": {
+   "default_recipe: dimensions_mm": {
+    "calls": 1,
+    "is": "never divided"
+   }
+  },
+  "workflow/layout_engine/raster.py": {
+   "strip_label_x_shift: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   },
+   "strip_letters_against_markers: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   },
+   "clip_lines_cut_across: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   },
+   "_provisional_strip_count: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   },
+   "clip_content_reach_mm: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   },
+   "_clear_the_side_stamp: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   },
+   "_rows_that_fit: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   },
+   "_furniture_reserves_mm: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   }
+  },
+  "workflow/margin_inspector.py": {
+   "engine_patch_bottom_mm: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   }
+  },
+  "workflow/page_coverage.py": {
+   "predicted_page_coverage: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   }
+  },
+  "workflow/page_output/support.py": {
+   "is_whole_mm_code: parse_custom": {
+    "calls": 1,
+    "is": "sheet"
+   }
+  },
+  "workflow/preset_eligibility.py": {
+   "predicted_strips: piece_mm_of": {
+    "calls": 1,
+    "is": "piece"
+   }
+  },
+  "workflow/ti2_relayout.py": {
+   "paper_to_flag: _NAMED_PAPERS": {
+    "calls": 1,
+    "is": "sheet"
+   },
+   "new: _NAMED_PAPERS": {
+    "calls": 1,
+    "is": "sheet"
+   }
+  }
+ },
+ "counts": [
+  {
+   "file": "ui/tabs/tab_chart.py",
+   "function": "_update_patch_count",
+   "means": "sheets",
+   "what": "shown pages, the bound set's pages"
+  },
+  {
+   "file": "ui/tabs/tab_chart.py",
+   "function": "_guided_bound_set_pages_answer",
+   "means": "sheets",
+   "what": "compared with the Pages box"
+  },
+  {
+   "file": "ui/tabs/tab_chart.py",
+   "function": "_predict_layout_info",
+   "means": "pieces",
+   "what": "the panel's Pages, estimate"
+  },
+  {
+   "file": "ui/tabs/tab_chart.py",
+   "function": "_update_layout_info",
+   "means": "pieces",
+   "what": "the panel's Pages, on screen"
+  },
+  {
+   "file": "ui/tabs/tab_chart.py",
+   "function": "_gamut_effective_count",
+   "means": "patches of a sheet",
+   "what": "per sheet times sheets"
+  },
+  {
+   "file": "ui/tabs/tab_chart.py",
+   "function": "_engine_capacity",
+   "means": "patches of a sheet",
+   "what": "Guided's capacity"
+  },
+  {
+   "file": "ui/tabs/tab_chart.py",
+   "function": "_recipe_capacity",
+   "means": "patches of a sheet",
+   "what": "Manual's capacity"
+  },
+  {
+   "file": "ui/tabs/tab_chart.py",
+   "function": "_manual_i1io_context",
+   "means": "pieces",
+   "what": "the crosses help"
+  },
+  {
+   "file": "ui/tabs/tab_chart.py",
+   "function": "_guided_i1io_crosses_source",
+   "means": "pieces",
+   "what": "the crosses help"
+  },
+  {
+   "file": "workflow/chart_creator.py",
+   "function": "_engine_total_patches",
+   "means": "patches of a sheet",
+   "what": "targen's count"
+  }
+ ]
+}

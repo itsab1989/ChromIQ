@@ -105,11 +105,11 @@ def test_whatever_a_recipe_asks_for_the_i1io_keeps_its_own_layout():
          "layout_mode": "area_first", "clip_content_mode": "notes",
          "clip_band": 26.0}), w, h)
     assert noisy == plain
-    for asked, got in (((6.0, 6.0), (7.0, 8.9)), ((30.0, 30.0), (20.0, 20.0)),
-                       ((9.0, 12.0), (9.0, 12.0))):
+    for asked, got in (((4.0, 5.0), (5.5, 5.5)), ((30.0, 30.0), (30.0, 30.0)),
+                       ((6.0, 6.0), (6.0, 6.0)), ((9.0, 12.0), (9.0, 12.0))):
         g = instruments.geom_from_build_kwargs(
             {"instrument": "IO2", "paper": "A4", "patch_w": asked[0],
-             "patch_h": asked[1]})
+             "patch_h": asked[1], "i1io_limits": 2})
         assert (g.pwid, g.plen) == got
 
 
@@ -330,19 +330,25 @@ def test_the_strip_letters_end_before_every_run_in(tmp_path, n, kw):
 
 def test_the_label_size_is_never_above_the_i1ios_largest():
     """Review r3 M1: what Manual's size box may ask for (up to 72 pt) is
-    printed at no more than LABEL_MAX_MM, so letters never run into each
-    other at the narrowest strip pitch."""
-    from workflow.i1io import chart, table_facts as F
-    assert chart.label_size_mm(20.0) == F.LABEL_MAX_MM.value
-    assert chart.label_size_mm(3.0) == 3.0
-    assert chart.label_size_mm(None) == 0.0          # the engine's auto size
-    assert chart.fixed_build_kwargs(
-        {"indicator_size_mm": 40.0})["indicator_size_mm"] == F.LABEL_MAX_MM.value
+    printed at no more than the strip pitch less 1 mm (the numbers: two
+    digits along the patch pitch), so labels never run into each other."""
+    from workflow.i1io import chart
+    assert chart.label_size_mm(20.0, 7.0) == 7.0
+    assert chart.label_size_mm(3.0, 7.0) == 3.0
+    assert chart.label_size_mm(None, 7.0) == 0.0     # the engine's auto size
+    for kw, most in (({}, 7.0), ({"patch_w": 7.0, "patch_h": 8.9}, 6.0),
+                     ({"strip_gap": 1.0}, 8.0),
+                     ({"patch_w": 20.0, "patch_h": 10.0}, 10.5 / 1.2),
+                     ({"patch_w": 5.5, "patch_h": 5.5, "i1io_limits": 2,
+                       "spacer_mode": "none"}, 5.0 / 1.2)):
+        got = chart.fixed_build_kwargs({"indicator_size_mm": 40.0, **kw})
+        assert got["indicator_size_mm"] == pytest.approx(most), kw
 
 
 def test_manuals_boxes_offer_only_what_the_i1io_prints(qapp, qtbot):
     """Review r3 m1 and M1: with the i1iO chosen, a margin box offers nothing
-    below the safe minimum and the label size nothing above LABEL_MAX_MM;
+    below the safe minimum and the label size nothing above the largest
+    label the layout prints (it follows the patch size and the gaps);
     leaving the i1iO gives the other instrument its own ranges back."""
     from ui.dialogs.layout_options_panel import LayoutOptionsPanel, mm_to_pt
     from workflow.i1io import table_facts as F
@@ -357,7 +363,12 @@ def test_manuals_boxes_offer_only_what_the_i1io_prints(qapp, qtbot):
         box.setValue(1.0)
         assert box.value() >= least[k] - 1e-6, k
     panel.indicator_size.setValue(72.0)
-    assert panel.indicator_size.value() <= round(mm_to_pt(F.LABEL_MAX_MM.value), 1)
+    assert panel.indicator_size.value() == pytest.approx(
+        round(mm_to_pt(7.0), 1))
+    panel.patch_x.setValue(7.0)
+    assert panel.indicator_size.maximum() == pytest.approx(
+        round(mm_to_pt(6.0), 1))
+    panel.patch_x.setValue(8.0)
     panel.instr.setCurrentIndex(panel.instr.findData("i1"))
     assert {k: b.minimum() for k, b in panel.margins.items()} == before
     assert panel.indicator_size.maximum() == size_max
@@ -407,19 +418,20 @@ def test_the_pdf_carries_the_marks_too(tmp_path):
         assert img[round(cy * s), round(cx * s)] < 120
 
 
-def test_the_scan_numbers_follow_from_the_recorded_timing():
+def test_the_scan_numbers_follow_from_the_reader():
+    """The default patch at the job's own speed for it (88 mm/s): four clean
+    readings, inside the reader's border; the limits are the opening's and the
+    reach's, and the runs are what the first and last patch need."""
     from workflow.i1io import table_facts as F
-    design = F.SCAN_DESIGN_SPEED_MM_S.value
-    fastest = max(F.SCAN_SPEEDS_MM_S.value)
-    assert F.readings_per_patch(F.PATCH_ALONG_MM.value, design) >= \
-        F.SCAN_SAFE_READINGS.value
+    clean = F.clean_length_mm(F.PATCH_ALONG_MM.value, 88.0)
+    assert F.readings_per_patch(clean, 88.0) >= F.READER_MIN_READINGS.value + 1
+    assert F.clean_length_mm(F.PATCH_ACROSS_MM.value, 61.0) >= \
+        F.READER_MIN_READINGS.value * 61.0 * F.SCAN_READING_INTERVAL_S.value
     (alo, ahi), (clo, chi) = F.patch_limits_mm()
-    assert alo >= F.min_patch_length_mm() and alo <= F.PATCH_ALONG_MM.value
-    assert F.RUN_MM.value >= F.run_in_mm()
-    clean = ((F.PATCH_ALONG_MM.value - F.APERTURE_MM.value)
-             / (fastest * F.SCAN_READING_INTERVAL_S.value)) * 2 / 3
-    assert clean > F.ARGYLL_MIN_SAMPLES.value
-    assert clo == 7.0 and F.PATCH_ACROSS_MM.value >= clo
+    assert alo == clo == F.PATCH_MIN_MM.value == pytest.approx(
+        F.APERTURE_MM.value + 2 * F.LANDING_MM.value)
+    assert (ahi, chi) == F.REACH_MM.value
+    assert F.RUN_MM.value >= F.APERTURE_MM.value / 2 + 2.8 + 1.3
 
 
 def test_the_logo_never_costs_a_patch(tmp_path):
@@ -456,12 +468,18 @@ def test_margins_are_the_persons_but_never_below_the_safe_minimum():
 
 
 def test_every_number_has_a_source_and_a_confidence():
+    """In the code; the side file records the numbers alone, no sentence."""
     from workflow.i1io import table_facts as F
+    facts = {n: f for n, f in vars(F).items() if isinstance(f, F.Fact)}
+    for name, fact in facts.items():
+        assert fact.source, name
+        assert fact.confidence in (F.VERIFIED, F.PUBLISHED, F.LIKELY,
+                                   F.OURS), name
     record = F.as_record()
-    for name, fact in record.items():
-        assert fact["source"], name
-        assert fact["confidence"] in (F.VERIFIED, F.PUBLISHED, F.LIKELY,
-                                      F.OURS), name
+    assert set(record) == set(facts)
+    assert all(isinstance(v, (int, float, bool, str, list))
+               for v in record.values())
+    assert not any(isinstance(v, str) and len(v) > 12 for v in record.values())
 
 
 def test_a_patch_set_fills_the_pages_in_order(tmp_path):

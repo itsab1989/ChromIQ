@@ -532,3 +532,25 @@ while the option is on and hands it back to Create Chart; off, it opens as in
   has fractions of a millimetre is generated at its own size, as the engine
   always could. Once the person changes one of the four, Generate uses what
   they chose.
+
+### ⏳ Awaiting confirmation: i1iO charts in pieces (the new i1iO chart layout, 2026-11-25)
+
+**Confirmed by:** *nobody yet.*
+
+* **Generate** works the division out once and stores it: in the side file (`<stem>.i1io.json`,
+  schema 2), in the `.ti2` (`CHROMIQ_I1IO_PIECES`) and in the recipe in `channels.json`
+  (`i1io_pieces`). One function writes it there for Guided, Manual and the patch set editor
+  (`layout_engine.presets.stored_recipe`). Then the printed sheets are put together in `exports/`;
+  a live preview builds none.
+* **Every path that shows or redraws a stored chart** takes the division from the side file and the
+  `.ti2`, which must agree (`i1io.pieces.record_of`, `LayoutRecipe.from_stored`). A recipe that says
+  nothing takes theirs; one that says something else, or a damaged record, is refused in words and
+  nothing is drawn. Restore Used Chart of an A3 chart gives the same pages, pixel for pixel, also
+  under a later rule.
+* **Laid out again** (the panel, a preset, defaults, the target's own state) a chart is divided by the
+  rule of the version in use: none of these carries a division.
+* **A chart of a newer ChromIQ** (side file schema above 2) shows its window in Create Chart
+  (M-I1IO-CHART-NEWER) and is refused at START.
+* **An import without the sheets** gets them in Print Chart, built from its pieces.
+* **Create Chart shows the pieces**, by name ("Piece 2 of 4: strips W to AR"); Print Chart shows the
+  whole sheets.

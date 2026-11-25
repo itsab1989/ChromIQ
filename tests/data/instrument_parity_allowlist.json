@@ -89,11 +89,48 @@
    "instrument": "IO2",
    "item": [
     "_i1io_aim_check",
-    "_i1io_clip_check"
+    "_i1io_clip_check",
+    "_i1io_layout_combo"
    ],
    "aspect": "present",
    "expected": true,
-   "reason": "Aiming crosses and the clip border of the i1iO table are its own options (Beta); the i1Pro's clip band is a different control."
+   "reason": "Aiming crosses, the clip border and the chart layout (Standard / Compact) of the i1iO table are its own options (Beta); the i1Pro's clip band is a different control."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": "panel.i1io_layout",
+   "aspect": "present",
+   "expected": true,
+   "reason": "The i1iO table's chart layout (Standard / Compact) is its own choice (Beta); no other instrument has it."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "FD9",
+   "item": "panel.i1io_layout",
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "Hidden for every instrument but the i1iO; the FD-9 greys every box of the group it does not read."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "IO2",
+   "item": "panel.i1io_layout",
+   "aspect": "present",
+   "expected": true,
+   "reason": "The i1iO table's chart layout (Standard / Compact) is its own choice (Beta); no other instrument has it."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "FD9",
+   "item": "panel.i1io_layout",
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "Hidden for every instrument but the i1iO; the FD-9 greys every box of the group it does not read."
   },
   {
    "check": "control",
@@ -3370,7 +3407,6 @@
     "patch_pattern",
     "show_row_indicators",
     "show_strip_indicators",
-    "spacer_width_mm",
     "strip_pattern"
    ],
    "reason": "Label patterns, label visibility and the sheet text follow a person between the i1Pro and the i1iO (its risky values do not); seen 2026-11-13, not judged yet."

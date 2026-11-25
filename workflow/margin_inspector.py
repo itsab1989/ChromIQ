@@ -364,7 +364,7 @@ def engine_patch_bottom_mm(recipe, patches: int = 0) -> "Optional[float]":
         from workflow.layout_engine import geometry, instruments, papers
         kw = recipe.build_kwargs()
         geom = instruments.geom_from_build_kwargs(kw)
-        paper_w_mm, paper_h_mm = papers.dimensions_mm(recipe.paper)
+        paper_w_mm, paper_h_mm = papers.piece_mm_of(recipe)
         dpi = float(getattr(recipe, "dpi", 300) or 300)
         # THE PATCH COUNT THIS RECIPE IS FOR. `area_target_count` is what the
         # chart builder puts in, and it is what decides how many rows the last

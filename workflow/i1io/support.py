@@ -138,13 +138,14 @@ def chart_names_i1io(path: Any) -> "bool | None":
 
 CHART_PARAM_KEYS = ("printtarg-i", "printtarg-p")
 CHART_GUIDED_KEYS = ("instrument", "paper", "pages", "i1io_crosses",
-                     "i1io_clip_border")
+                     "i1io_clip_border", "i1io_layout")
 CHART_RECIPE_KEYS = ("instrument", "paper", "border", "margin_top",
                      "margin_right", "margin_bottom", "margin_left",
                      "use_instrument_margins", "patch_w_mm", "patch_h_mm",
                      "layout_mode", "i1io_crosses", "i1io_clip_border",
                      "i1io_text_bold",
-                     "i1io_numbers_edge_mm", "i1io_text_align")
+                     "i1io_numbers_edge_mm", "i1io_text_align",
+                     "i1io_limits")
 
 
 def target_names_i1io(stored_params: "dict | None",
@@ -210,7 +211,9 @@ def pages_are_i1io_chart(paths: Any) -> bool:
         return False
     if not pages:
         return False
+    from core.file_manager import beside_the_chart
     for page in pages:
+        page = beside_the_chart(page)       # a printed sheet: its chart
         stems = [page.stem]
         m = re.fullmatch(r"(.+)_\d+", page.stem)
         if m:
@@ -229,7 +232,8 @@ def aim_for_pages(paths: Any) -> str:
     import re
     from pathlib import Path
     try:
-        page = Path(list(paths)[0])
+        from core.file_manager import beside_the_chart
+        page = beside_the_chart(list(paths)[0])
         stem = page.stem
         m = re.fullmatch(r"(.+)_\d+", stem)
         for s in ([m.group(1)] if m else []) + [stem]:
@@ -242,11 +246,99 @@ def aim_for_pages(paths: Any) -> str:
     return "unknown"
 
 
+def _strip_name(strip: dict) -> str:
+    """The letters (or numbers) of a strip of the side file, as its patches'
+    locations carry them."""
+    import os
+    locs = [str(q.get("loc") or "") for q in strip.get("patches") or []]
+    two = locs[:2]
+    if len(two) < 2:
+        return (two[0].rstrip("0123456789") or two[0]) if two else ""
+    head = os.path.commonprefix(two)
+    if two[0][len(head):len(head) + 1].isdigit():
+        head = head.rstrip("0123456789")       # (a number filled with zeros)
+    return head or os.path.commonprefix([v[::-1] for v in two])[::-1]
+
+
+def page_names_for(paths: Any) -> "list[str]":
+    """What the preview calls each of *paths* instead of "Page 1 / 4": the
+    pieces of a divided i1iO chart ("Piece 3 of 4: strips AS to BN", with the
+    sheet when there are several), its printed sheets ("Sheet 1 of 2"), and []
+    for everything else. With i1iO support off nothing is read. Never
+    raises."""
+    if not i1io_enabled():
+        return []
+    try:
+        import json
+        from pathlib import Path
+
+        from core.file_manager import sheet_of_chart
+        from core.i18n import tr
+        from core.stem_paths import without_ext
+
+        from . import pieces, sheets
+        pages = [Path(p) for p in paths]
+        if not pages or not pages_are_i1io_chart(pages):
+            return []
+        on = [sheet_of_chart(p) for p in pages]
+        if all(on):
+            si = sheets.info(on[0][0])
+            total = si.sheets if si is not None else len(pages)
+            return [tr("Sheet {n} of {total}").format(n=n, total=total)
+                    for _ti2, n in on] if all(
+                        n <= total for _ti2, n in on) else []
+        ti2 = sheets.chart_of_pages(pages)
+        plan = pieces.record_of(ti2) if ti2 is not None else None
+        if plan is None:
+            return []
+        stem = without_ext(ti2, ".ti2")
+        doc = json.loads(stem.with_name(stem.name + ".i1io.json").read_text(
+            encoding="utf-8"))
+        total = len(doc["pages"])
+        own = {stem.with_name(f"{stem.name}_{k:02d}.tif" if total > 1
+                              else f"{stem.name}.tif"): k
+               for k in range(1, total + 1)}
+        out = []
+        for path in pages:
+            n = own.get(path)
+            if n is None:
+                return []           # (not one of its pages)
+            strips = doc["pages"][n - 1]["strips"]
+            first, last = _strip_name(strips[0]), _strip_name(strips[-1])
+            what = (tr("strip {a}").format(a=first) if len(strips) == 1 else
+                    tr("strips {a} to {b}").format(a=first, b=last))
+            if total > plan.count:
+                out.append(tr("Piece {n} of {total}: {strips}, sheet {sheet}")
+                           .format(n=n, total=total, strips=what,
+                                   sheet=plan.sheet_of(n - 1)[0] + 1))
+            else:
+                out.append(tr("Piece {n} of {total}: {strips}").format(
+                    n=n, total=total, strips=what))
+        return out
+    except Exception:      # noqa: BLE001 - a name, never a blocker
+        return []
+
+
 def display_rotation_for(paths: Any) -> int:
     """The angle to turn *paths* by on screen: DISPLAY_ROTATION for an i1iO
     chart's pages while i1iO support is on, 0 for every other chart. With
     the support off nothing is read at all, not even whether a file
-    exists."""
+    exists.
+
+    The printed sheets of a divided chart are shown so that their pieces are
+    landscape too: a sheet whose pieces are already turned on it stands as it
+    is, any other is turned like a page."""
     if not i1io_enabled():
         return 0
-    return DISPLAY_ROTATION if pages_are_i1io_chart(paths) else 0
+    if not pages_are_i1io_chart(paths):
+        return 0
+    try:
+        from core.file_manager import sheet_of_chart
+        from workflow.i1io.pieces import record_of
+        sheet = sheet_of_chart(list(paths)[0])
+        plan = record_of(sheet[0]) if sheet else None
+        if plan is not None and plan.turn == 1:
+            return 0
+    except Exception:      # noqa: BLE001
+        pass
+    return DISPLAY_ROTATION

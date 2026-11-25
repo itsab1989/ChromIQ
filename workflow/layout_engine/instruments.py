@@ -812,7 +812,7 @@ def _per_page(kw: dict) -> int:
     from . import geometry, papers
     try:
         g = geom_from_build_kwargs({**kw, _NO_LOOKUP: True})
-        w, h = papers.dimensions_mm(kw.get("paper") or "A4")
+        w, h = papers.piece_mm_of(kw)
         return int(geometry.compute(g, w, h, 100_000).patches_per_page)
     except Exception:      # noqa: BLE001 - unknown: never prefer it
         return -1

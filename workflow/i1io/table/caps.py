@@ -34,9 +34,17 @@ from dataclasses import dataclass
 from . import geometry as geo
 from . import session_table as tbl
 
-#: The true maxima of ChromIQ's i1iO layout for an i1iO 2 (computed from the layout engine,
-#: ``maxima.json`` of 2026-11-17): patches per row, rows per page, patches per page, pages.
-LAYOUT_MAXIMA = {"per_row": 33, "rows": 30, "per_page": 990, "pages": 667}
+#: The true maxima of ChromIQ's i1iO layout for an i1iO 2: patches per row, rows per page, patches
+#: per page, pages. RUNAWAY PROTECTION, not a chart limit: 5.5 mm patches, no spacers, no crosses,
+#: no labels, on the largest piece, the run held inside the reach (worked out again by a test from
+#: the layout engine). This package's OWN COPY of ``workflow.i1io.table_facts.layout_maxima()``
+#: (the chart code never imports the table package): a test holds the two equal. LARGE_PIECES is
+#: the copy of ``table_facts.LARGE_PIECES``: False until the larger pieces have their own safety
+#: sign-off; the two constants change together.
+LARGE_PIECES = False
+_MAXIMA_SMALL = {"per_row": 49, "rows": 37, "per_page": 1813, "pages": 667}
+_MAXIMA_LARGE = {"per_row": 54, "rows": 42, "per_page": 2268, "pages": 667}
+LAYOUT_MAXIMA = dict(_MAXIMA_LARGE if LARGE_PIECES else _MAXIMA_SMALL)
 
 #: How often a creep (the feel-forward step) may run per page, and its own lines / movements
 #: (part C's stage DZ: 2 x CREEP_STEPS_MAX + 8 lines, CREEP_STEPS_MAX + 1 movements).

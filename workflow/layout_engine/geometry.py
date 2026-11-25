@@ -173,8 +173,8 @@ def recipe_no_room_kind(recipe) -> "str | None":
             kw.pop("patch_h", None)
         kw["area_target_count"] = 1
         geom = instruments.geom_from_build_kwargs(kw)
-        w_mm, h_mm = papers.dimensions_mm(kw.get("paper")
-                                          or getattr(recipe, "paper", "A4"))
+        w_mm, h_mm = papers.piece_mm_of(
+            {**kw, "paper": kw.get("paper") or getattr(recipe, "paper", "A4")})
         return no_room_kind(geom, float(w_mm), float(h_mm), 1)
     except Exception:      # noqa: BLE001 - a notice, never a blocker
         return None
