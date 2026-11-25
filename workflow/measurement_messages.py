@@ -9689,7 +9689,8 @@ _I1IO_SMALL_PATCH = (
     "neighbour, and the values can be wrong by several dE without a warning. "
     "Choose {size} mm or more for values you can trust.")
 _I1IO_SHORT_PATCH = (
-    "Patches under {size} mm have not been read as strips on a table yet. A "
+    "Patches under {size} mm have hardly been read as strips on a real table "
+    "yet: so far patches of 8 mm, on one table. A "
     "row that cannot be placed safely is refused and read again.")
 _I1IO_SPOT_PATCH = (
     "Patches under {size} mm along the strip are too short to be read in one "
@@ -9764,11 +9765,12 @@ _I1IO_PIECES_NO_SHEETS = (
 #: "Chart layout: Compact" (Guided and Manual): what it is and what is not
 #: known about it, under the choice while it is chosen
 _I1IO_COMPACT_INFO = (
-    "Compact: patches of 8 × 8 mm, about a fifth more on a sheet. So far tried "
-    "on a simulated table only, not on a real one. The patches are read in one movement of the arm at a "
+    "Compact: patches of 8 × 8 mm, about a fifth more on a sheet. Its rows "
+    "have been read on one real table so far, without the dual scan. The patches "
+    "are read in one movement of the arm at a "
     "slower speed. A row that lies too far from its place, about 1 to 2 mm, "
     "is refused and read again, or patch by patch. With the dual scan every "
-    "patch is read by itself.")
+    "patch is read by itself, which takes much longer.")
 #: A layout of an earlier ChromIQ, or carried over from another instrument
 #: (`chart.asked_sizes`), said once when it is taken over or built.
 _I1IO_OLD_SIZE_REPLACED = (
@@ -14221,6 +14223,19 @@ M_I1IO_DRIVE_DUAL_SPOT = _m(
     "UV light does not succeed is read again, both readings together.",
     approved=False)
 
+#: START of a chart whose patches are too short for a dual row (the chart layout "Compact"), rows
+#: as strips chosen: the question before anything is opened or moves. {n} patches, {low} and {high}
+#: minutes from the recorded pace (spot.DUAL_SPOT_PATCH_S). Read patch by patch / Not now
+M_I1IO_DRIVE_DUAL_SPOT_WHOLE = _m(
+    "M-I1IO-DRIVE-DUAL-SPOT-WHOLE",
+    "With the dual scan, this chart is read patch by patch",
+    "The patches of this chart are too short to be read twice in one movement of the arm, as the "
+    "dual scan does. So the table reads every patch by itself, once with the lamp and once with "
+    "the UV light. For {n} patches that takes about {low} to {high} minutes.\n\n"
+    "To read the rows as strips instead, much faster and with M0 only, press “Not now”, switch "
+    "the dual scan off in Preferences > Beta and start again.",
+    approved=False)
+
 #: a row whose patches are too short for a dual row: read patch by patch with the dual scan
 M_I1IO_DRIVE_DUAL_PATCHES_TOO_SHORT = _m(
     "M-I1IO-DRIVE-DUAL-PATCHES-TOO-SHORT",
@@ -14493,6 +14508,18 @@ M_I1IO_DRIVE_ROW_M1_M2_NOT_WRITTEN = _m(
     "still switched on, reads this row again later.\n"
     "\u2022  End this step: nothing more is read now, and nothing moves until you choose what "
     "happens next.",
+    approved=False)
+
+#: item 71 c: the refused aims' reason when both sides of the aimed triangle are off by about the
+#: same 1.5 to 8 %, the same way, and the corner is right. Words only: the aims stay refused
+M_I1IO_DRIVE_AIMS_SCALED = _m(
+    "M-I1IO-DRIVE-AIMS-SCALED",
+    "The sheet may have been printed smaller or larger",
+    "The three marks lie about {percent} % as far apart on the table as they should on this "
+    "sheet, in both directions, and the corner is right. So the sheet was probably printed at about "
+    "{percent} %, not at 100 %. ChromIQ does not accept it, and nothing has moved over your sheet. "
+    "Please print the sheet again at 100 %, without “Fit to page” and without scaling. If the sheet "
+    "was printed at 100 %, at least one aim was on another point.",
     approved=False)
 
 M_I1IO_DRIVE_FRONT = _m(
@@ -15002,6 +15029,16 @@ M_I1IO_DRIVE_REPAIR_AT_START = _m(
     "\n"
     "If you press Not now, nothing moves. ChromIQ offers the same again here, and at your next "
     "START MEASUREMENT.",
+    approved=False)
+
+#: item 71 d: the first paragraph of the countdown page that stands in for that question with the
+#: guidance off and the arm at its resting place (elsewhere it is asked, item 74)
+M_I1IO_DRIVE_REPAIR_COUNTDOWN = _m(
+    "M-I1IO-DRIVE-REPAIR-COUNTDOWN",
+    "The table is still in its aiming mode",
+    "ChromIQ found the table in its aiming mode, the mode in which you aim at the marks by hand. "
+    "The arm is at its resting place. To end that mode, ChromIQ moves the arm a little and back "
+    "to its resting place. Then this measurement goes on as usual.",
     approved=False)
 
 #: 2026-11-21 (the owner: "driving the table should work without involving i1profiler"):
@@ -15626,6 +15663,8 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_STRIP_FIRST_TRY, M_I1IO_DRIVE_STRIP_TOO_LONG, M_I1IO_DRIVE_STRIP_DEFAULT_OFFER,
     M_I1IO_DRIVE_STRIP_OUTSIDE_AREA, M_I1IO_DRIVE_STRIP_NOT_POSSIBLE,
     M_I1IO_DRIVE_DUAL_ROWS, M_I1IO_DRIVE_DUAL_SPOT, M_I1IO_DRIVE_DUAL_PATCHES_TOO_SHORT,
+    M_I1IO_DRIVE_DUAL_SPOT_WHOLE, M_I1IO_DRIVE_AIMS_SCALED,
+    M_I1IO_DRIVE_REPAIR_COUNTDOWN,
     M_I1IO_DRIVE_ROW_FAILED_STRIP, M_I1IO_DRIVE_ROW_FAILED_STRIP_NOT_MOVED, M_I1IO_DRIVE_FRONT,
     M_I1IO_DRIVE_FIRST_VISIT, M_I1IO_DRIVE_READER_CONSENT,
     M_I1IO_DRIVE_READER_CONSENT_MAC, M_I1IO_DRIVE_COUNTDOWN, M_I1IO_DRIVE_START_UP_ARM,

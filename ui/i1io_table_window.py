@@ -308,6 +308,20 @@ def table_place(chart_ti2):
     return None
 
 
+def dual_patch_by_patch_minutes(sheet, only_locs=None) -> "tuple[int, int, int] | None":
+    """Item 71 b: (patches, from, to minutes) when the rows of *sheet* are too short for the dual
+    scan's strips, so that the table reads them patch by patch, and that takes some time; None
+    otherwise. Never raises."""
+    try:
+        from workflow.i1io.table import spot as sp
+        n = sp.dual_rows_too_short(sheet, only_locs)
+        low, high = (int(round(n * s / 60.0)) for s in sp.DUAL_SPOT_PATCH_S)
+        return (n, low, high) if high >= 5 else None
+    except Exception:      # noqa: BLE001 - never in the way of a START
+        log.debug("i1iO table: the dual rows were not looked at", exc_info=True)
+        return None
+
+
 def drivable_sheet(chart_ti2) -> "dict | None":
     """The side file of a chart this window drives, or None (then START keeps today's window).
 
@@ -966,6 +980,10 @@ def aims_text(rid: str, d: dict) -> str:
                                         allowed=f"{float(ln['allowed_mm']):.1f}")
         except (KeyError, TypeError, ValueError):
             return ""
+        if d.get("scaled_percent") and d.get("aimed_at") != "corner_patches":
+            # item 71 c: words only, the aims stay refused
+            from workflow import measurement_messages as M
+            return M.M_I1IO_DRIVE_AIMS_SCALED.render(percent=d["scaled_percent"])[1] + " " + again
         if d.get("aimed_at") == "corner_patches":
             return first + " " + tr(
                 "Your three aims fit the coloured corner patches beside the crosses exactly. "
@@ -5659,9 +5677,9 @@ class TableMeasureWindow(QFrame):
                 title, body = M.M_I1IO_DRIVE_COUNTDOWN.render(n=n)
                 if ev.get("for_step") == "repair_at_start":
                     # 2026-11-21: the table found in its aiming mode, with the guidance off
-                    title = M.M_I1IO_DRIVE_REPAIR_AT_START.render()[0]
-                    body = M.M_I1IO_DRIVE_REPAIR_AT_START.render()[1].split("\n\n")[0] + \
-                        "\n\n" + body
+                    # item 71 d: what was found and what moves
+                    title, found = M.M_I1IO_DRIVE_REPAIR_COUNTDOWN.render()
+                    body = found + "\n\n" + body
                 elif ev.get("for_step") == "home_at_start":
                     # 4.3.52: the START rule's homing with the guidance off: what moves, first
                     title = M.M_I1IO_DRIVE_HOME_AT_START.render()[0]

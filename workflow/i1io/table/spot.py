@@ -553,6 +553,38 @@ def plan_dual_row(sheet: dict, page: int, index: int, alignment, front_y=None,
     return RowPlan(page, index, "strip", pts, scan=lamp)
 
 
+#: one patch of a dual scan patch by patch, as measured on a real table (2026-11-25, rounded out):
+#: 2.12 to 2.19 s standing on the patch (lamp and UV light), 0.50 s for the move, 0.08 s for the
+#: arrival: 2.7 to 2.8 s, and up to 0.3 s a patch more for the way back and the new reader of each
+#: row. (Rows whose M1 / M2 could not be written took 1.65 s a patch: the lamp alone.) For words only
+DUAL_SPOT_PATCH_S = (2.6, 3.1)
+
+
+def dual_rows_too_short(sheet: dict, only_locs=None) -> int:
+    """How many wanted patches of *sheet* lie in rows whose patches get fewer than
+    ``scan.DUAL_MIN_READINGS`` readings in a pass of a dual row (:func:`plan_dual_row`'s
+    ``dual_row_patches_too_short``), so are read patch by patch with the dual scan. Counted on
+    the row as it is drawn, without the table (the area, the aims): for the question at START."""
+    keep = None if only_locs is None else set(only_locs)
+    along = float(sheet["patch_mm"][1])
+    n = 0
+    for page in sheet["pages"]:
+        for st in page["strips"]:
+            locs = [q["loc"] for q in st["patches"]]
+            if keep is not None and not set(locs) & keep:
+                continue
+            r0, r1 = (float(v) for v in st["run_mm"])
+            pts = [sc.Patch(str(q["sample_id"]), q["loc"],
+                            (abs(float(q["centre_mm"][1]) - r0) * 10.0, 0.0), half_mm=along / 2)
+                   for q in st["patches"]]
+            lamp = sc.plan_row("at START", (0, 0), (abs(r1 - r0) * 10.0, 0), sc.DUAL_SPEED, pts,
+                               dual=True)
+            few = dual_windows_ok(lamp, uv_pass_of(lamp))
+            if few is None or few < sc.DUAL_MIN_READINGS:
+                n += len(locs) if keep is None else len(set(locs) & keep)
+    return n
+
+
 def _one_strip(sheet, page, index, alignment, speed, front_y, dual: bool = False, cap_y=None):
     """scan.sheet_rows for one row (the same targets, ends and serpentine order). *dual*: every
     row from its -X end (a dual row's UV pass brings the arm back there), at the dual speed."""

@@ -7722,6 +7722,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                    and not self._read_builds_on_existing())
         if not self._confirm_replacing_measurement():
             return True
+        if table_dual is not None and not self._confirm_dual_patch_by_patch(
+                sheet, only_locs, self._manager._build_args(params)):
+            return True
         # A VERIFICATION THAT RESUMES continues its dated readings, which the
         # hand path stages beside the chart first (Knut, #182 5951427228);
         # the table resumes from the same file. After every question that can
@@ -24659,6 +24662,35 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return M.M_REPLACE_UNCOUNTABLE.render(path=path)
 
         return M.M_REPLACE_PARTIAL.render(c=read, a=a, path=path)
+
+    def _confirm_dual_patch_by_patch(self, sheet: dict, only_locs, args) -> bool:
+        """Item 71 b: START of a table chart with the dual scan on and rows as strips chosen,
+        whose patches are too short for a dual row (the chart layout "Compact"): what that
+        means and how long it takes, asked before anything is opened, written or moved. Not
+        asked with "Patch-by-patch mode (-p)" ticked (chosen already) nor for a few patches."""
+        if "-p" in args:
+            return True
+        from ui.i1io_table_window import dual_patch_by_patch_minutes
+        found = dual_patch_by_patch_minutes(sheet, only_locs)
+        if found is None:
+            return True
+        n, low, high = found
+        from PyQt6.QtWidgets import QMessageBox
+        from workflow import measurement_messages as M
+        title, body = M.M_I1IO_DRIVE_DUAL_SPOT_WHOLE.render(n=n, low=low, high=high)
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        go = box.addButton(tr("Read it patch by patch"), QMessageBox.ButtonRole.AcceptRole)
+        cancel = box.addButton(tr("Not now"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(cancel)
+        from ui.widgets import fit_message_box_buttons, keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        fit_message_box_buttons(box)
+        box.exec()
+        return box.clickedButton() is go
 
     def _confirm_replacing_measurement(self) -> bool:
         """Ask before a fresh read writes over a measurement that is already there.

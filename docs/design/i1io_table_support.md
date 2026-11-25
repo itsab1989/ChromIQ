@@ -2063,8 +2063,8 @@ second challenge included); this section grows with the steps that follow.
   piece too): the page no larger than the table, every aim, patch and run end on the page (0.5 mm for
   rounding), the 20 mm above. Otherwise M-I1IO-PIECES-RECORD, and the table is not opened.
 * A piece without crosses is laid "with its first strip at the top and patch 1 of it at the top left"
-  (S5). The notes of Compact and of a sheet in pieces say that they have run on a simulated table
-  only (S6).
+  (S5). The note of a sheet in pieces says that it has run on a simulated table only (S6); so did
+  Compact's until 4.3.66 (its rows have been read on one real table since, without the dual scan).
 * **A SHEET LARGER THAN THE TABLE IS CUT INTO PIECES** (`workflow/i1io/pieces.py`). The pieces are the
   chart's pages; the printed sheet is put together from them (`workflow/i1io/sheets.py`, in
   `exports/`). Which pieces is decided once, at Generate, and recorded in the side file (schema 2),
@@ -2172,3 +2172,16 @@ the calibration rules are untouched.
   stream and a lamp that fails are found by the identity check and the helper's pairing check, not
   by this verdict, before and after. No row is read as a dual row that was not before (planned at
   both starts).
+* **START of a chart whose rows are too short for the dual scan** (the chart layout "Compact", rows
+  as strips chosen): a question before anything is opened, written or moved
+  (M-I1IO-DRIVE-DUAL-SPOT-WHOLE): the table reads every patch by itself, and about how long that
+  takes. The pace is measured on a real table: 2.12 to 2.19 s on the patch with both lights, 0.5 s
+  for the move, 0.08 s for the arrival; `spot.DUAL_SPOT_PATCH_S` 2.6 to 3.1 s with the ways between the
+  rows, so about 28 to 33 minutes for a full Compact page. (1.65 s a patch, about 18 minutes, was
+  the pace of rows that had lost their M1 / M2: the lamp alone.) Judged from the side file
+  (`spot.dual_rows_too_short`), the same rule as the row planner's.
+* **Aims that look like a scaled print** (M-I1IO-DRIVE-AIMS-SCALED): both sides of the aimed triangle
+  off the same way by 1.5 to 8 %, by shares that agree within 1 %, and the corner right within 1
+  degree (`geometry.print_scale_hint`). The page then says at about which percent the sheet seems to be
+  printed, and how to print it again. Words only: the aims are refused as before, and so is every
+  move.

@@ -7430,6 +7430,12 @@ def _aims_detail(sheet: dict, page: int, aims, aims_mm, readings, reason: str) -
         out["lengths"] = {"marks": [int(m.group(1)), int(m.group(2))],
                           "table_mm": float(m.group(3)), "sheet_mm": float(m.group(4)),
                           "allowed_mm": float(m.group(5))}
+        try:
+            scaled = geo.print_scale_hint(aims_mm, readings)
+            if scaled is not None:
+                out["scaled_percent"] = scaled          # words only (item 71 c)
+        except (TypeError, ValueError, IndexError):
+            pass
     m = re.match(r"the corner at mark 2 measures ([0-9.]+) degrees", reason)
     if m:
         out["corner_deg"] = float(m.group(1))

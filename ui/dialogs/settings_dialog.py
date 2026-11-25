@@ -11289,12 +11289,12 @@ def i1io_support_help() -> str:
         tr("With this beta, ChromIQ can also drive an i1iO 2 table with an "
            "i1Pro 2 when you press START MEASUREMENT: it asks you once before "
            "the first time, and explains what it does."),
-        tr("What has been tried so far: on one real i1iO 2 with an i1Pro 2, on "
-           "a Mac, ChromIQ's separate tester program moved the arm, started a "
-           "table that had just been switched on, calibrated the instrument and "
-           "read the table's white tile. Reading the patches of a sheet has not "
-           "yet run on a real table: inside the app, the drive has so far run "
-           "only against a simulated table."),
+        tr("What has been tried so far: on a real i1iO 2 with an i1Pro 2, on "
+           "a Mac, ChromIQ has read whole sheets patch by patch and as strips, "
+           "also with the chart layout “Compact”. The dual scan has read strips "
+           "there too, but some rows had to be read again. Not yet tried to the "
+           "end on a real table: sheets cut into pieces, and the dual scan with "
+           "the chart layout “Compact”. Other tables have not been tried yet."),
         tr("What turning this on adds, after a restart of ChromIQ:\n"
            "  •  Create Chart: “i1iO 2 + i1Pro 2” in the Instrument list of "
            "Guided and of Manual. The chart is laid out for reading strip by "
@@ -11394,8 +11394,8 @@ def i1io_table_pbp_help() -> str:
         "Ticked (the default): a chart made for the i1iO table starts with “Patch-by-patch "
         "mode (-p)” ticked on the Measure tab, and the table reads it patch by patch, the "
         "careful way. Not ticked: table charts start with it not ticked, and the table reads "
-        "each row as a strip, which is much faster. Reading by strips is a first try and has "
-        "not been tried on a real table yet. This is the table's own choice: Save as Defaults "
+        "each row as a strip, which is much faster. Reading by strips is still being tested: "
+        "so far it has been tried on one real table. This is the table's own choice: Save as Defaults "
         "on the Measure tab with a table chart loaded changes it too, and charts for other "
         "instruments keep their own patch-by-patch setting. A project that keeps its own "
         "setting opens with its own.")
