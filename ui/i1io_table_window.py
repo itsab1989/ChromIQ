@@ -3831,8 +3831,11 @@ class TableMeasureWindow(QFrame):
             if self.job.ended is not None or self.job.phase != "open":
                 # review 11, M-1 / M-2: the ending has run already (a quit while the arm
                 # was brought home after Save), or the table was never opened: nothing
-                # is asked again; the table is let go of and a quit goes on
-                if self.job.phase == "open":
+                # is asked again; the table is let go of and a quit goes on. Item 74, P1: not
+                # before the homing was offered (a quit asked while the Save itself ran)
+                if set((res.detail or {}).get("next") or ()) & {"home", "home_after_stop"}:
+                    self._dispatch(res)
+                elif self.job.phase == "open":
                     self._close_job()
                 else:
                     self._finish_not_started()
@@ -5159,6 +5162,11 @@ class TableMeasureWindow(QFrame):
     def _on_home(self) -> None:
         self._call(self.job.home, status=tr("Bringing the arm home..."))
 
+    def _on_the_homing_page(self) -> bool:
+        """The page that asks the homing of the ending is on screen and waits for its answer."""
+        return (getattr(self, "_page_id", "") == "home_at_end" and not self._busy
+                and self.job is not None and self.job.phase == "open" and not self._closed_job)
+
     def _home_not_now(self) -> None:
         """4.3.50 fix round (MUST-1): "Not now" on the homing of the ending. Nothing is sent and
         the job's hands-off question stays open: this page says what that means and keeps
@@ -5248,6 +5256,11 @@ class TableMeasureWindow(QFrame):
             # 4.3.51: the START case's answer, for the logs (nothing is sent for it)
             self.job._start_case_answer("end measurement")
             _applog_table_start_case(self)
+        if self._on_the_homing_page():
+            # item 74, P2: the homing of the ending is asked: End measurement (and the X, Esc) is
+            # its "Not now", whose page says what that means; only its Close lets go of the table
+            self._home_not_now()
+            return
         if self.job.ended is not None:
             self._close_job()
             return
@@ -5259,6 +5272,10 @@ class TableMeasureWindow(QFrame):
             self._end_after = True
             self.answer(WITHDRAW.get(self._pending_kind, "stop"))
             return
+        # item 74, P1: the ending is asked NOW; a wish for it kept from an earlier press (the report
+        # about the last step came in between) is fulfilled by it. Left standing, it was taken up
+        # only after the ending, which then let go of the table without offering the homing
+        self._end_after = False
         self._call(self.job.end)
 
     def _ask_end(self, res) -> None:
@@ -5535,6 +5552,9 @@ class TableMeasureWindow(QFrame):
     def _on_close_pressed(self) -> None:
         self._alarm_stop("button")
         if self._busy:
+            return
+        if self._on_the_homing_page():
+            self._home_not_now()            # item 74, P2
             return
         self._closed_by_window = True
         if self._closed_job:
