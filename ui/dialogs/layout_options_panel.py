@@ -1197,12 +1197,13 @@ class LayoutOptionsPanel(QWidget):
             if self._units_choice:
                 from ui.dialogs import page_output_panel as _pop
                 _pop.build_units_row(self, sel, 2)
-            sel.addWidget(TooltipButton(
+            self._paper_tip = TooltipButton(
                 tr("Paper and pages"),
                 tr("Paper is the sheet size you'll print on — the profile is only "
                    "valid for the paper you actually use. Pages is how many sheets "
                    "to spread the patches across: more pages = more patches total "
-                   "(and more ink and paper)."), self), 1, 4)
+                   "(and more ink and paper)."), self)
+            sel.addWidget(self._paper_tip, 1, 4)
             # Custom paper W×H (shown only when Paper = "Custom…").
             self._custom_paper_w = QWidget(self)
             if self._page_beta:
@@ -1253,7 +1254,8 @@ class LayoutOptionsPanel(QWidget):
             self._custom_turned_lbl.setWordWrap(True)
             self._custom_turned_lbl.setVisible(False)
             sel.addWidget(self._custom_turned_lbl, 3 + _ur, 0, 1, 4)
-            # an i1iO sheet larger than its table: what is printed and cut
+            # an i1iO sheet larger than its table: what is printed and cut,
+            # behind the paper's (i) (item 65: no explanation in the section)
             self._i1io_pieces_note = QLabel("", self)
             self._i1io_pieces_note.setWordWrap(True)
             self._i1io_pieces_note.setVisible(False)
@@ -1974,11 +1976,13 @@ class LayoutOptionsPanel(QWidget):
             from workflow import measurement_messages as _mm
             self._i1io_layout_note = QLabel(tr(_mm._I1IO_COMPACT_INFO), self)
             self._i1io_layout_note.setWordWrap(True)
+            # (item 65: shown behind the (i) of "Chart layout", never in the
+            # section)
+            self._i1io_layout_tip = TooltipButton(tr("Chart layout (i1iO)"),
+                                                  i1io_layout_help(), self)
             self._i1io_layout_row = add_row(
                 self._patch_fields_grid, 2, tr("Chart layout:"),
-                self.i1io_layout,
-                tip=TooltipButton(tr("Chart layout (i1iO)"),
-                                  i1io_layout_help(), self))
+                self.i1io_layout, tip=self._i1io_layout_tip)
             self._patch_fields_grid.addWidget(self._i1io_layout_note, 3, 0, 1, 3)
             for w in (*self._i1io_layout_row, self._i1io_layout_note):
                 if w is not None:
@@ -4636,7 +4640,9 @@ class LayoutOptionsPanel(QWidget):
         i = box.findData(name)
         if i >= 0 and box.currentIndex() != i:
             box.setCurrentIndex(i)
-        self._i1io_layout_note.setVisible(name == "compact")
+        self._i1io_layout_note.setVisible(False)
+        self._i1io_layout_tip.set_live_note(
+            self._i1io_layout_note.text() if name == "compact" else "")
 
     def _i1io_show_layout(self, on: bool) -> None:
         box = getattr(self, "i1io_layout", None)
@@ -4646,6 +4652,7 @@ class LayoutOptionsPanel(QWidget):
             if w is not None:
                 w.setVisible(on)
         self._i1io_layout_note.setVisible(False)
+        self._i1io_layout_tip.set_live_note("")
         if on:
             self._i1io_sync_layout()
 
@@ -8100,15 +8107,18 @@ class LayoutOptionsPanel(QWidget):
             return None
 
     def _show_i1io_pieces(self) -> None:
-        """The line under the paper, and what Pages counts, while the sheet is
-        cut into pieces."""
+        """What Pages counts, and the paper's (i), while the sheet is cut into
+        pieces (item 65: the explanation is behind the (i), not in the
+        section)."""
         note = getattr(self, "_i1io_pieces_note", None)
         if note is None:
             return
         plan = self._i1io_plan()
         self._pages_lbl.setText(tr("Sheets:") if plan is not None
                                 else tr("Pages:"))
-        note.setVisible(plan is not None)
+        note.setVisible(False)
+        if plan is None:
+            self._paper_tip.set_live_note("")
         self._custom_size_words(plan is not None)
         if plan is None:
             return
@@ -8119,8 +8129,9 @@ class LayoutOptionsPanel(QWidget):
             n = pieces.patches_on_a_sheet(
                 _c.capacity(kw, _c.crosses_of(kw)), kw) * self.get_pages()
             note.setText(pieces.info_text(plan, self.get_pages(), n))
+            self._paper_tip.set_live_note(note.text())
         except Exception:      # noqa: BLE001 - a line of help, never a blocker
-            note.setVisible(False)
+            self._paper_tip.set_live_note("")
 
     def _custom_size_edited(self, *_a) -> None:
         # a size typed again: the last "turned" line no longer applies

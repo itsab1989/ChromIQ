@@ -478,7 +478,8 @@ def test_the_counts_of_a_divided_sheet(qtbot, monkeypatch, tmp_path):
     assert tab._predicted_patch_count == 1056
     assert "1 SHEET · 2 PIECES" in tab._patch_detail_lbl.text()
     assert tab._pages_row_lbl.text() == "Number of sheets:"
-    assert tab._i1io_pieces_note.isVisibleTo(tab)
+    assert not tab._i1io_pieces_note.isVisibleTo(tab)   # (item 65)
+    assert tab._paper_tip.live_note() == tab._i1io_pieces_note.text()
     assert tab._i1io_pieces_note.text().startswith(
         "1 sheet, 2 pieces, 1056 patches.")
     tab._pages_spin.setValue(2)
@@ -492,6 +493,7 @@ def test_the_counts_of_a_divided_sheet(qtbot, monkeypatch, tmp_path):
     assert "2 PAGES" in tab._patch_detail_lbl.text()
     assert tab._pages_row_lbl.text() == "Number of pages:"
     assert not tab._i1io_pieces_note.isVisibleTo(tab)
+    assert not tab._paper_tip.live_note()
     tab._paper_combo.setCurrentIndex(k)
     tab._pages_spin.setValue(1)
     # a bound set of 1000 patches takes two pieces, one sheet
@@ -615,21 +617,22 @@ def test_manual_says_what_is_printed_and_cut(qtbot):
                          ("A2", "1 sheet, 4 pieces, 2112 patches."),
                          ("A4", "")):
         p.paper.setCurrentIndex(p.paper.findData(paper))
-        assert p._i1io_pieces_note.isVisibleTo(p) == bool(words)
+        assert not p._i1io_pieces_note.isVisibleTo(p)   # (item 65)
+        assert bool(p._paper_tip.live_note()) == bool(words)
         assert p._pages_lbl.text() == ("Sheets:" if words else "Pages:")
         if words:
             assert p._i1io_pieces_note.text().startswith(words)
     p.paper.setCurrentIndex(p.paper.findData("__custom__"))
     p.custom_w.setValue(420)
     p.custom_h.setValue(297)
-    assert p._i1io_pieces_note.isVisibleTo(p)
+    assert p._paper_tip.live_note() == p._i1io_pieces_note.text()
     assert "upright" not in p._custom_size_lbl.text()
     p.custom_w.setValue(148)
     p.custom_h.setValue(210)
-    assert not p._i1io_pieces_note.isVisibleTo(p)
+    assert not p._paper_tip.live_note()
     assert "upright" in p._custom_size_lbl.text()
     p.instr.setCurrentIndex(p.instr.findData("i1"))
-    assert not p._i1io_pieces_note.isVisibleTo(p)
+    assert not p._paper_tip.live_note()
     assert p._pages_lbl.text() == "Pages:"
 
 

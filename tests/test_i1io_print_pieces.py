@@ -48,7 +48,7 @@ def tab(qtbot, tmp_path, monkeypatch):
 
 
 def _note(tab):
-    return tab._i1io_load_lbl.text()
+    return tab._i1io_load_text()
 
 
 def _shown(tab):

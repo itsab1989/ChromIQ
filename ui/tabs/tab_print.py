@@ -1063,10 +1063,20 @@ class TabPrint(QWidget):
         # AN i1iO CHART IS SHOWN AS IT LIES ON THE TABLE (Beta; the owner,
         # 2026-11-13), so the preview is landscape while the page prints
         # upright: one plain line says so (`_update_i1io_load_note`).
+        # ONE LINE, AND THE REST BEHIND ITS (i) (item 65, Basti 2026-11-25:
+        # "the info text belongs behind the tooltip icons"): what is to be
+        # done now stays in the line, the explanation is the (i)'s.
         self._i1io_load_lbl = QLabel("", left)
         self._i1io_load_lbl.setWordWrap(True)
         self._i1io_load_lbl.setVisible(False)
-        ll.addWidget(self._i1io_load_lbl)
+        self._i1io_load_tip = TooltipButton(
+            tr("How this chart is printed"), "", left)
+        self._i1io_load_tip.setVisible(False)
+        _load_row = QHBoxLayout()
+        _load_row.setContentsMargins(0, 0, 0, 0)
+        _load_row.addWidget(self._i1io_load_lbl, 1)
+        _load_row.addWidget(self._i1io_load_tip, 0, Qt.AlignmentFlag.AlignTop)
+        ll.addLayout(_load_row)
 
         # Status bar (replaces main-window status bar)
         self._status_bar_lbl = QLabel("", left)
@@ -1175,6 +1185,8 @@ class TabPrint(QWidget):
     _i1io_no_sheets = False
     #: The chart whose sheets are shown (None: no sheets of a chart).
     _i1io_ti2: "Path | None" = None
+    #: Whether the i1iSis chart on screen is fed as printed (no cutting).
+    _isis_fed_as_printed = True
 
     def _i1io_sheets_for(self, paths: "list[Path]") -> "list[Path]":
         """The printed sheets in place of *paths* when one of those is a page
@@ -2669,12 +2681,16 @@ class TabPrint(QWidget):
         lbl = getattr(self, "_i1io_load_lbl", None)
         if lbl is None:
             return
-        text = ""
+        text = short = ""
         try:
             from workflow.i1io.support import i1io_enabled
             if i1io_enabled():
                 from workflow.i1io.support import pages_are_i1io_chart
                 text = self._i1io_pieces_note()
+                short = text if (self._i1io_no_sheets
+                                 or self._i1io_ti2 is None) else tr(
+                    "Print this sheet at 100 %, without scaling, and cut it "
+                    "along the grey lines into its pieces.")
                 pages = [p for p, _f in (getattr(self._preview, "_pages", None)
                                          or [])]
                 from workflow.i1io.support import aim_for_pages
@@ -2712,15 +2728,35 @@ class TabPrint(QWidget):
                         "a quarter turn clockwise, so that cross 1 is at the "
                         "top left and the chart\u2019s name reads the right "
                         "way up.")
+                if aim is not None:
+                    short = tr("Print this page as it is, then lay it on the "
+                               "table a quarter turn clockwise.")
         except Exception:      # noqa: BLE001 - a note, never a blocker
             log.debug("i1iO load note not worked out", exc_info=True)
-            text = ""
+            text = short = ""
         if not text:
             text = self._isis_feed_note()
+            short = text
+            if text and self._isis_fed_as_printed:
+                short = tr("Feed this sheet into the i1iSis with the black "
+                           "bar first, against the left guide.")
         if not text:
             text = self._barbieri_print_note()
-        lbl.setText(text)
-        lbl.setVisible(bool(text))
+            short = tr("Print this chart at 100 % without scaling.") \
+                if text else ""
+        short = short or text
+        lbl.setText(short)
+        lbl.setVisible(bool(short))
+        self._i1io_load_tip.set_content(tr("How this chart is printed"), text)
+        self._i1io_load_tip.setVisible(bool(text) and text != short)
+
+    def _i1io_load_text(self) -> str:
+        """The whole of what the line and its (i) say about printing this
+        chart."""
+        tip = getattr(self, "_i1io_load_tip", None)
+        if tip is not None and tip.isVisibleTo(self):
+            return tip.dialog_body()
+        return self._i1io_load_lbl.text()
 
     def _on_i1io_sheet_shown(self, _page: int) -> None:
         if self._i1io_ti2 is not None:
@@ -2773,9 +2809,11 @@ class TabPrint(QWidget):
                     side = read_side_file(ti2) or {}
                     from workflow import measurement_messages as M
                     from workflow.isis.chart import cut_instruction
+                    self._isis_fed_as_printed = bool(
+                        side.get("fed_as_printed", True))
                     return tr(M.M_ISIS_PRINT_NOTE).format(
                         cut_or_not=cut_instruction(
-                            bool(side.get("fed_as_printed", True))))
+                            self._isis_fed_as_printed))
         except Exception:      # noqa: BLE001 - a note, never a blocker
             log.debug("i1iSis feed note not worked out", exc_info=True)
         return ""

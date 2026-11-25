@@ -7850,7 +7850,7 @@ class TabChart(QWidget):
         # the guided -L checkbox is visible.
         self._paper_combo.currentIndexChanged.connect(self._update_dd_visibility)
         paper_row.addWidget(self._paper_combo, stretch=1)
-        paper_row.addWidget(TooltipButton(
+        self._paper_tip = TooltipButton(
             tr("Paper Size"),
             tr("Sets the dimensions of each sheet in the printed chart. The chart "
             "always fills the page edge to edge — bigger paper fits more "
@@ -7870,9 +7870,11 @@ class TabChart(QWidget):
             "and page count update automatically.") + "\n\n" + tr(_PHOTO_PAPER_TIP),
             inner,
             min_width=600,
-        ))
+        )
+        paper_row.addWidget(self._paper_tip)
         paper_layout.addLayout(paper_row)
-        # an i1iO sheet larger than its table: what is printed and cut
+        # an i1iO sheet larger than its table: what is printed and cut, behind
+        # the paper's (i) (item 65: no explanation in the section)
         self._i1io_pieces_note = QLabel("", inner)
         self._i1io_pieces_note.setWordWrap(True)
         self._i1io_pieces_note.setVisible(False)
@@ -20672,6 +20674,7 @@ class TabChart(QWidget):
             if divided is not None:
                 self._i1io_pieces_note.setText(_pieces.info_text(
                     divided, shown_pages, total))
+                self._paper_tip.set_live_note(self._i1io_pieces_note.text())
             self._patch_count_lbl.setText(self._count_with_accent(str(total)))
             # "1 PAGES" sat on the first screen of the app, in the largest
             # type on the panel, with "Number of pages: 1" two inches above it.
@@ -33547,8 +33550,11 @@ class TabChart(QWidget):
         for w in (self._i1io_layout_label, self._i1io_layout_combo,
                   self._i1io_layout_tooltip):
             w.setVisible(on)
-        self._i1io_layout_note.setVisible(
-            on and self._guided_i1io_layout() == "compact")
+        # (item 65: behind the (i) of "Chart layout", never in the section)
+        self._i1io_layout_note.setVisible(False)
+        self._i1io_layout_tooltip.set_live_note(
+            self._i1io_layout_note.text()
+            if on and self._guided_i1io_layout() == "compact" else "")
 
     def _show_guided_pieces(self, plan) -> None:
         """Guided's "Number of pages" counts sheets while the sheet is cut into
@@ -33559,7 +33565,9 @@ class TabChart(QWidget):
                         else tr("Number of pages:"))
         note = getattr(self, "_i1io_pieces_note", None)
         if note is not None:
-            note.setVisible(plan is not None)
+            note.setVisible(False)
+            if plan is None:
+                self._paper_tip.set_live_note("")
 
     def _guided_i1io_layout_changed(self, *_a) -> None:
         self._show_guided_i1io_layout(

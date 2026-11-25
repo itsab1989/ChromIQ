@@ -104,17 +104,18 @@ def _pick(panel, name):
 def test_manuals_choice_fills_the_boxes_and_shows_custom_when_they_are_edited(panel):
     assert panel.i1io_layout.isEnabled()
     assert panel.i1io_layout.currentData() == "standard"
-    assert not panel._i1io_layout_note.isVisibleTo(panel)
+    assert not panel._i1io_layout_tip.live_note()  # (item 65: behind the (i))
     _pick(panel, "compact")
     assert (panel.patch_x.value(), panel.patch_y.value(),
             panel.spacer_width.value()) == (8.0, 8.0, 1.0)
-    assert panel._i1io_layout_note.isVisibleTo(panel)
+    assert panel._i1io_layout_tip.live_note() == panel._i1io_layout_note.text()
+    assert not panel._i1io_layout_note.isVisibleTo(panel)
     kw = panel.get_recipe().build_kwargs()
     assert (kw["patch_h"], kw["patch_w"]) == (8.0, 8.0)
     panel.patch_y.setValue(9.0)
     assert panel.i1io_layout.currentData() == ""
     assert panel.i1io_layout.currentText() == "Custom"
-    assert not panel._i1io_layout_note.isVisibleTo(panel)
+    assert not panel._i1io_layout_tip.live_note()  # (item 65: behind the (i))
     assert not panel.i1io_layout.model().item(2).isEnabled()
     _pick(panel, "standard")
     assert (panel.patch_y.value(), panel.patch_x.value()) == (10.0, 8.0)
@@ -137,7 +138,7 @@ def test_a_layout_is_shown_only_with_its_spacers(panel):
         assert panel.i1io_layout.currentData() == "compact"
         spoil()
         assert panel.i1io_layout.currentData() == ""
-        assert not panel._i1io_layout_note.isVisibleTo(panel)
+        assert not panel._i1io_layout_tip.live_note()  # (item 65: behind the (i))
         _pick(panel, "compact")
         assert panel.spacer_mode.currentData() == "colored"
         assert panel.strip_gap.value() == panel.inter_patch.value() == 0.0
@@ -147,7 +148,7 @@ def test_manuals_choice_is_there_for_the_i1io_only(panel):
     assert panel.i1io_layout.isVisibleTo(panel)
     panel.instr.setCurrentIndex(panel.instr.findData("i1"))
     assert not panel.i1io_layout.isVisibleTo(panel)
-    assert not panel._i1io_layout_note.isVisibleTo(panel)
+    assert not panel._i1io_layout_tip.live_note()  # (item 65: behind the (i))
 
 
 def test_with_the_beta_off_the_choice_is_not_built(qtbot):
@@ -200,7 +201,7 @@ def test_guideds_choice_counts_builds_and_is_kept(chart_tab):
     assert params.i1io_layout == "compact"
     kw = tab._creator._engine_build_kwargs(params)
     assert (kw["patch_h"], kw["patch_w"], kw["spacer_width"]) == (8.0, 8.0, 1.0)
-    assert not tab._i1io_layout_note.isHidden()
+    assert tab._i1io_layout_tooltip.live_note() and tab._i1io_layout_note.isHidden()
     assert "8" in tab._engine_info_line("IO2", "A4", 300, dd=False, td=False, eff_lb=True,
                                         nsl=False, pscale=1.0, margin=6)
     # the target's own row
@@ -211,7 +212,7 @@ def test_guideds_choice_counts_builds_and_is_kept(chart_tab):
     assert box.currentData() == "compact"
     # another instrument: hidden, and no row of its carries the key
     tab._instr_combo.setCurrentIndex(tab._instr_combo.findData("i1"))
-    assert box.isHidden() and tab._i1io_layout_note.isHidden()
+    assert box.isHidden() and not tab._i1io_layout_tooltip.live_note()
     assert "i1io_layout" not in tab._shared_get("guided")
     assert tab._collect_guided().i1io_layout == ""
 
