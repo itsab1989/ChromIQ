@@ -132,9 +132,11 @@ class _StubRunner:
     def forget_run_callbacks(self):
         pass
 
+    running = False
+
     @property
     def is_running(self):
-        return False
+        return self.running
 
 
 def _mgr(monkeypatch, **params):
@@ -836,3 +838,224 @@ def test_a_stock_start_never_sends_f_to_an_i1pro2(qapp, monkeypatch):
     assert not d._cond_row.isHidden() and d._condition.currentData() == "M1"
     assert d._condition_for_start() is None
     d.deleteLater()
+
+
+# ========================== the merged safety check's round (2026-11-25)
+
+def _live(qapp, monkeypatch, tmp_path, calmode):
+    """The REAL helper (replay instrument) under the REAL manager and the
+    app's own process runner. Returns (manager, runner, events, until);
+    until() pumps Qt for a bounded time and never hangs."""
+    from core.argyll_runner import ArgyllRunner
+    monkeypatch.setattr("core.instrument_port.refused_port", lambda *a: None)
+    monkeypatch.setenv("CHROMIQ_REPLAY_INSTRUMENT", "i1pro3")
+    monkeypatch.setenv("CHROMIQ_REPLAY_CAL", calmode)
+    rp = tmp_path / "replay.txt"
+    rp.write_text(I1PRO3_SCRIPT, encoding="utf-8")
+    from core.settings import AppSettings
+    runner = ArgyllRunner(AppSettings())
+    m = HelperSpotManager(runner)
+    events: list = []
+
+    def until(cond, seconds=15.0):
+        end = time.monotonic() + seconds
+        while not cond() and time.monotonic() < end:
+            qapp.processEvents()
+            time.sleep(0.01)
+        return bool(cond())
+
+    def on_line(line):
+        if line.strip().startswith("{"):
+            events.append(json.loads(line))
+
+    m.start(HelperSpotParams(helper=HELPER, replay=rp), on_line)
+    return m, runner, events, until
+
+
+def _n(events, name):
+    return sum(1 for e in events if e.get("event") == name)
+
+
+@needs_helper
+def test_d3_cancel_session_after_a_failed_calibrate_ends_the_session(
+        qapp, monkeypatch, tmp_path):
+    """Calibrate fails, Calibrate again, "Cancel session": the helper is
+    locked and asks strip_interrupted for a second key. It was never
+    answered, and the helper waited for ever."""
+    m, runner, ev, until = _live(qapp, monkeypatch, tmp_path, "fail")
+    prompts, ended, fails = [], [], []
+    m.calibration_prompt.connect(lambda: prompts.append(1))
+    m.session_ended.connect(ended.append)
+    m.calibration_failed.connect(fails.append)
+    try:
+        assert until(lambda: _n(ev, "spot_ready") == 1), ev
+        m.request_calibration()
+        assert until(lambda: len(prompts) == 1), ev
+        m.send_key("\r")
+        assert until(lambda: len(fails) == 1), ev
+        m.request_calibration()
+        assert until(lambda: len(prompts) == 2), ev
+        m.send_key("\x1b")                            # "Cancel session"
+        assert until(lambda: bool(ended)), f"the helper still waits: {ev[-3:]}"
+        assert until(lambda: not runner.is_running)
+    finally:
+        runner.abort()
+        until(lambda: not runner.is_running, 5)
+    assert ended == [0]
+    assert _n(ev, "strip_interrupted") == 1
+    assert ev[-1] == {"event": "spot_session_end", "why": "stopped"}
+    assert len(prompts) == 2 and len(fails) == 1       # no window on the way out
+
+
+@needs_helper
+def test_d3_the_second_calibrate_may_also_just_work(qapp, monkeypatch, tmp_path):
+    """The lock still reads Calibrate, and a session goes on after it."""
+    m, runner, ev, until = _live(qapp, monkeypatch, tmp_path, "fail_once")
+    prompts, done, fails, ended = [], [], [], []
+    m.calibration_prompt.connect(lambda: prompts.append(1))
+    m.calibration_finished.connect(lambda: done.append(1))
+    m.calibration_failed.connect(fails.append)
+    m.session_ended.connect(ended.append)
+    try:
+        assert until(lambda: _n(ev, "spot_ready") == 1), ev
+        for n, seen in ((1, fails), (2, done)):
+            m.request_calibration()
+            assert until(lambda: len(prompts) == n), ev
+            m.send_key("\r")
+            assert until(lambda: len(seen) == 1), ev
+        assert until(lambda: _n(ev, "spot_ready") == 2), ev
+        assert _n(ev, "strip_interrupted") == 0 and ended == []
+        m.quit()
+        assert until(lambda: bool(ended)), ev
+    finally:
+        runner.abort()
+        until(lambda: not runner.is_running, 5)
+
+
+@needs_helper
+def test_d3_cancel_session_at_a_first_calibrate_ends_the_session(
+        qapp, monkeypatch, tmp_path):
+    m, runner, ev, until = _live(qapp, monkeypatch, tmp_path, "setup_ok")
+    prompts, ready, ended = [], [], []
+    m.calibration_prompt.connect(lambda: prompts.append(1))
+    m.ready_to_read.connect(lambda: ready.append(1))
+    m.session_ended.connect(ended.append)
+    try:
+        assert until(lambda: _n(ev, "spot_ready") == 1), ev
+        m.request_calibration()
+        assert until(lambda: len(prompts) == 1), ev
+        m.send_key("\x1b")
+        assert until(lambda: bool(ended)), ev
+    finally:
+        runner.abort()
+        until(lambda: not runner.is_running, 5)
+    assert ended == [0] and ready == [1]               # no "Ready" on the way out
+
+
+@needs_helper
+def test_d3_a_quit_spent_at_the_placement_prompt_is_sent_again(
+        qapp, monkeypatch, tmp_path):
+    """A quit alone at the placement prompt of a calibration asked for only
+    cancels it (chromiq_cal.c): the session went on, and nothing more was
+    ever sent. The next spot_ready gets quit again."""
+    m, runner, ev, until = _live(qapp, monkeypatch, tmp_path, "setup_ok")
+    prompts, ended = [], []
+    m.calibration_prompt.connect(lambda: prompts.append(1))
+    m.session_ended.connect(ended.append)
+    try:
+        assert until(lambda: _n(ev, "spot_ready") == 1), ev
+        m.request_calibration()
+        assert until(lambda: len(prompts) == 1), ev
+        m.quit()
+        assert until(lambda: bool(ended)), f"the helper still waits: {ev[-3:]}"
+    finally:
+        runner.abort()
+        until(lambda: not runner.is_running, 5)
+    assert ended == [0] and _n(ev, "spot_ready") == 2
+
+
+@pytest.mark.parametrize("ev,answers", [
+    ({"event": "strip_interrupted"}, ["quit"]),
+    ({"event": "cal_required", "cond": "man_ref_white"}, ["quit"]),
+    ({"event": "cal_required", "cond": "man_ref_white", "requested": True},
+     ["cal_cancel", "quit"]),
+    ({"event": "spot_ready", "n": 1}, ["quit"]),
+    ({"event": "cal_result", "result": "failed", "damaged": True}, ["quit"]),
+    ({"event": "error", "kind": "cal_failed", "detail": "x"}, ["quit"]),
+    ({"event": "error", "kind": "spot_misread", "detail": "x"}, []),
+    ({"event": "cal_result", "result": "done"}, []),
+    ({"event": "cal_done"}, []),
+])
+def test_d3_every_wait_of_the_helper_is_answered_after_quit(qapp, monkeypatch,
+                                                            ev, answers):
+    m, r = _mgr(monkeypatch)
+    r.running = True
+    windows = []
+    for sig in (m.calibration_prompt, m.calibration_position_wrong,
+                m.calibration_finished, m.ready_to_read):
+        sig.connect(lambda *_a: windows.append(1))
+    m.quit()
+    r.writes.clear()
+    m.handle_event(ev)
+    assert [w["cmd"] for w in r.writes] == answers and windows == []
+    # stopped (the process is ended), ended, or gone: nothing is sent
+    r.writes.clear()
+    r.running = False
+    m.handle_event(ev)
+    r.running = True
+    m._on_finish(0)
+    m.handle_event(ev)
+    assert r.writes == []
+    m2, r2 = _mgr(monkeypatch)
+    r2.running = True
+    m2.quit()
+    m2.abort()
+    r2.writes.clear()
+    m2.handle_event(ev)
+    assert r2.writes == []
+
+
+def test_a_calibration_that_fails_later_does_not_say_it_could_not_start(
+        qapp, monkeypatch):
+    from workflow import measurement_messages as M
+    from workflow.dual_scan import instrument_model as IM
+    from workflow.measure_manager import CAL_AUTO_RETRIES
+    d = _dialog(monkeypatch, IM.FAMILY_I1PRO3, conditions_beta=True)
+    d._on_start_stop()
+    h = d._helper_mgr
+    h.handle_event({"event": "spot_ready", "n": 1})
+    for _ in range(CAL_AUTO_RETRIES + 1):
+        h.handle_event({"event": "error", "kind": "cal_failed", "detail": "lamp fault"})
+    h._on_finish(1)
+    text = d._status.text()
+    assert "lamp fault" in text and M.M_SPOT_CAL_FAILED.render(reason="x")[0] in text
+    assert "Could not start" not in text
+    d.deleteLater()
+
+
+def test_a_calibration_after_a_misread_ends_as_any_calibration(qapp, monkeypatch):
+    """A misread, the instrument's button, and ArgyllCMS asks for a
+    calibration: the ready after it reaches the window (the misread kept it
+    back, and Read and Calibrate stayed off), also after a retry that asked
+    nothing; and the next calibration starts with a prompt, its second
+    placement is the complaint."""
+    m, _r = _mgr(monkeypatch)
+    prompt, wrong, done, ready = [], [], [], []
+    m.calibration_prompt.connect(lambda: prompt.append(1))
+    m.calibration_position_wrong.connect(lambda: wrong.append(1))
+    m.calibration_finished.connect(lambda: done.append(1))
+    m.ready_to_read.connect(lambda: ready.append(1))
+    ask = {"event": "cal_required", "cond": "man_ref_white", "id": ""}
+    m.handle_event({"event": "error", "kind": "spot_misread", "detail": "x"})
+    m.handle_event({"event": "spot_ready", "n": 1})
+    assert ready == []                                  # the misread stays
+    m.handle_event(ask)
+    m.send_key("\r")
+    m.handle_event({"event": "error", "kind": "cal_failed", "detail": "lamp"})
+    m.handle_event({"event": "cal_done"})
+    m.handle_event({"event": "spot_ready", "n": 1})
+    assert done == [1] and ready == [1] and m._cal_retried is False
+    m.handle_event(dict(ask, requested=True))
+    assert len(prompt) == 2 and wrong == []
+    m.handle_event(dict(ask, requested=True))
+    assert wrong == [1]

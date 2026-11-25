@@ -393,3 +393,76 @@ def test_h_without_the_dual_scan_a_session_is_a_plain_spot_reader(exe, chart, tm
     assert s.wire == p.wire
     assert _uv_free(s.wire)
     assert s.kinds("conditions")[0]["active"] is False
+
+
+def test_k_cancel_session_after_a_failed_calibrate_closes_the_instrument(
+        exe, tmp_path, monkeypatch):
+    """The window's own manager (HelperSpotManager) and the app's runner with
+    the REAL i1Pro 2 driver on the fake USB layer: a Calibrate fails (the
+    trigger dies as an unplugged instrument's), Calibrate again, "Cancel
+    session". The helper's lock asks strip_interrupted for a second key; it
+    is answered, the session ends by itself, the UV switch is off and the
+    instrument closed, and nothing at all is sent after the failure."""
+    from PyQt6.QtWidgets import QApplication
+    from core.argyll_runner import ArgyllRunner
+    from workflow.helper_spot_manager import HelperSpotManager, HelperSpotParams
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setattr("core.instrument_port.refused_port", lambda *a: None)
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    wire = tmp_path / "wire.txt"
+    helper = tmp_path / "helper"
+    helper.write_text("#!/bin/sh\n"
+                      f'exec "{exe}" "{cache}" -- "$@" 2>"{wire}"\n', encoding="utf-8")
+    helper.chmod(0o755)
+    # how many triggers the start takes, so that the failing one is the
+    # first of the calibration asked for
+    seed = run(exe, tmp_path / "seed", "session", presses=0)
+    first = len(_triggers(seed.wire)) + 1
+    monkeypatch.setenv("CQ_WIRE_FAIL_AT", str(first))
+
+    from core.settings import AppSettings
+    runner = ArgyllRunner(AppSettings())
+    m = HelperSpotManager(runner)
+    events, prompts, fails, ended, steps = [], [], [], [], []
+    m.calibration_prompt.connect(lambda: prompts.append(1))
+    m.calibration_failed.connect(fails.append)
+    m.session_ended.connect(ended.append)
+
+    def until(cond, seconds=30.0):
+        end = time.monotonic() + seconds
+        while not cond() and time.monotonic() < end:
+            app.processEvents()
+            time.sleep(0.01)
+        steps.append(bool(cond()))
+        return steps[-1]
+
+    def on_line(line):
+        if line.strip().startswith("{"):
+            events.append(json.loads(line))
+
+    def ready():
+        return sum(1 for e in events if e.get("event") == "spot_ready")
+
+    m.start(HelperSpotParams(helper=helper, dual_args=list(DUAL), chosen="M1"), on_line)
+    try:
+        assert until(lambda: len(prompts) == 1), events[-4:]
+        m.send_key("\r")
+        assert until(lambda: ready() == 1), events[-4:]
+        m.request_calibration()
+        assert until(lambda: len(prompts) == 2), events[-4:]
+        m.send_key("\r")
+        assert until(lambda: len(fails) == 1), events[-4:]
+        m.request_calibration()
+        assert until(lambda: len(prompts) == 3), events[-4:]
+        m.send_key("\x1b")                            # "Cancel session"
+        assert until(lambda: bool(ended)), f"the helper still waits: {events[-4:]}"
+    finally:
+        runner.abort()
+        until(lambda: not runner.is_running, 5)
+    names = [e["event"] for e in events]
+    assert names.count("strip_interrupted") == 1 and names[-1] == "spot_session_end"
+    assert events[-1]["why"] == "stopped"
+    w = [ln[5:] for ln in wire.read_text(encoding="utf-8").splitlines()
+         if ln.startswith("WIRE ")]
+    assert w[-3:] == ["D4-FAILED", "STATE uv_en 0 lit 0", "CLOSE"], w[-6:]

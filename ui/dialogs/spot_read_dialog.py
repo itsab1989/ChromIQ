@@ -847,6 +847,8 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         h.conditions_ended.connect(self._on_conditions_ended)
         h.dual_spot_refused.connect(self._on_dual_spot_refused)
         h.calibration_failed.connect(self._on_helper_calibration_failed)
+        h.calibration_ended_session.connect(
+            self._on_helper_calibration_ended_session)
         h.fallback_requested.connect(self._on_helper_fallback)
 
         # Name the settled reader before the window is ever shown, so it is
@@ -1233,6 +1235,15 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         if cal is not None:
             cal.setEnabled(True)
         self._set_status(body)
+
+    def _on_helper_calibration_ended_session(self, detail: str) -> None:
+        """A calibration ArgyllCMS asked for later in the session failed after
+        every attempt: the session ends and its reason stays on screen. The
+        instrument had started, so not "Could not start the instrument"."""
+        from workflow import measurement_messages as M
+        title, _body = M.M_SPOT_CAL_FAILED.render(reason=detail or tr("unknown"))
+        self._helper_start_failed = title + "\n" + (detail or tr("unknown"))
+        self._set_status(self._helper_start_failed)
 
     def _show_view(self, key: str) -> None:
         """Put *key* in the view switch without re-showing the list."""

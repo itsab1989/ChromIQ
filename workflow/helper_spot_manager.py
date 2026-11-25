@@ -121,6 +121,9 @@ class HelperSpotManager(QObject):
     #: a calibration asked for in the session failed (the helper's detail);
     #: nothing is read until a calibration succeeds
     calibration_failed      = pyqtSignal(str)
+    #: a calibration ArgyllCMS asked for LATER in the session failed after
+    #: every attempt (the helper's detail); the session ends
+    calibration_ended_session = pyqtSignal(str)
     #: before anything was read, the instrument gave no other condition:
     #: the window starts stock spotread instead (after session_ended is NOT
     #: emitted for this session)
@@ -143,6 +146,9 @@ class HelperSpotManager(QObject):
         self._conditions_live = False
         self._fallback = False
         self._detached = False
+        self._quit_sent = False
+        self._over = False                 # ended or stopped: nothing is answered
+        self._was_ready = False            # the first spot_ready of this session
         self._buf = ""
 
     # ------------------------------------------------------------------
@@ -184,6 +190,8 @@ class HelperSpotManager(QObject):
         self._conditions_live = False
         self._fallback = False
         self._quit_sent = False
+        self._over = False
+        self._was_ready = False
         self._cal_retried = False
         from workflow.measure_manager import CAL_AUTO_RETRIES
         self._cal_retries_left = CAL_AUTO_RETRIES
@@ -206,6 +214,7 @@ class HelperSpotManager(QObject):
         self.session_ended.emit(1)
 
     def _on_finish(self, code: int) -> None:
+        self._over = True
         if self._detached:
             return
         if self._fallback:
@@ -226,6 +235,48 @@ class HelperSpotManager(QObject):
         if cmd.get("cmd") == "quit":
             self._quit_sent = True
         self._runner.write_stdin(json.dumps(cmd) + "\n")
+
+    def _answer_while_ending(self, k: str, ev: dict) -> bool:
+        """After quit, a question of the helper gets quit again (review D3).
+
+        ONE QUIT IS NOT ALWAYS ENOUGH, and the helper then waits for ever:
+
+        * after a FAILED calibration it is locked (cq_requested_calibration)
+          and answers the first quit with ``strip_interrupted``, "Esc again to
+          give up, any other key to stay". Only a quit brings that question,
+          and the answer is quit, as the chart reader's save chain answers it;
+        * at a placement prompt of a calibration asked for, a quit only
+          cancels that calibration; read there together with the
+          ``cal_cancel`` before it, it is spent, and the session goes on;
+        * an instrument's own wait in its start calibration may take the key
+          of a session that is being handed to spotread.
+
+        So every event at which the helper waits gets the answer that ends a
+        session there, and no window is opened for it. A quit too many is
+        harmless: each is the same Esc, nothing is sent to the instrument for
+        it, and the one key the helper holds stays a quit. True when *ev* was
+        such a question. Nothing is answered once the session is over, or
+        stopped (``abort`` ends the process itself)."""
+        if k == "strip_interrupted":
+            cmds = ("quit",)
+        elif not self._quit_sent:
+            return False
+        elif k == "cal_required":
+            cmds = ("cal_cancel", "quit") if ev.get("requested") else ("quit",)
+        elif (k == "spot_ready"
+              or (k == "cal_result" and ev.get("damaged"))
+              or (k == "error" and ev.get("kind") == "cal_failed")):
+            cmds = ("quit",)
+        else:
+            return False
+        if self._over or not self._runner.is_running:
+            return True
+        log.info("spot read (helper): %s while the session is ending; "
+                 "answered with %s", k, " + ".join(cmds))
+        self._quit_sent = True
+        for c in cmds:
+            self._runner.write_stdin(json.dumps({"cmd": c}) + "\n")
+        return True
 
     def take_reading(self) -> None:
         self._after_misread = False
@@ -259,6 +310,7 @@ class HelperSpotManager(QObject):
         self._send(cmd="quit")
 
     def abort(self) -> None:
+        self._over = True
         self._runner.abort()
 
     def restart_pending(self) -> bool:
@@ -269,6 +321,7 @@ class HelperSpotManager(QObject):
 
     def detach(self) -> None:
         self._detached = True
+        self._over = True
         try:
             self._runner.forget_run_callbacks()
         except Exception:      # noqa: BLE001 - closing must never raise
@@ -292,7 +345,9 @@ class HelperSpotManager(QObject):
             self.handle_event(ev)
 
     def handle_event(self, ev: dict) -> None:
-        k = ev.get("event")
+        k = str(ev.get("event") or "")
+        if self._answer_while_ending(k, ev):
+            return
         if self._fallback:
             # this session is ending for spotread: nothing it still says is
             # for the window (a calibration window opened now would send its
@@ -306,6 +361,9 @@ class HelperSpotManager(QObject):
         elif k == "filter":
             self._filter = str(ev.get("filter") or "")
         elif k == "cal_required":
+            # a calibration puts a misread behind it: its spot_ready must reach
+            # the window (Read and Calibrate stayed off after it otherwise)
+            self._after_misread = False
             self._prompt_open = True
             self._prompt_requested = bool(ev.get("requested"))
             if self._calib_announced and not self.__dict__.get("_cal_retried"):
@@ -328,6 +386,10 @@ class HelperSpotManager(QObject):
         elif k == "cal_done":
             self._cal_check.reset()
         elif k == "spot_ready":
+            self._was_ready = True
+            # a retry that worked without asking again is over: a placement
+            # asked for later is judged on its own
+            self._cal_retried = False
             if self._after_misread:
                 return                    # the misread stays on screen
             if self._calib_announced:
@@ -439,7 +501,10 @@ class HelperSpotManager(QObject):
                 log.warning("spot read (helper): calibration failed after "
                             "every attempt (%s); ending the session",
                             detail or "unknown")
-                self.inst_init_failed.emit(detail)
+                if self._was_ready:
+                    self.calibration_ended_session.emit(detail)
+                else:
+                    self.inst_init_failed.emit(detail)
                 self._send(cmd="quit")
         elif kind == "spot_cal_failed":
             # the session's start calibration ended without a retry: the
