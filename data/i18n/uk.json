@@ -11143,5 +11143,7 @@
  "the readings follow the colours this chart should have only loosely": "відліки лише приблизно відповідають кольорам, які повинна мати ця діаграма",
  "An i1iSis measurement of a chart whose own files are missing": "Вимірювання i1iSis діаграми, у якої немає її власних файлів",
  "ChromIQ cannot check this sheet from its colours: the reasons (i1iSis)": "ChromIQ не може перевірити цей аркуш за кольорами: причини (i1iSis)",
- "its patches repeat or change so regularly that the readings could also belong to neighbouring patches\nthe readings follow the colours this chart should have only loosely": "її патчі повторюються або змінюються так рівномірно, що відліки можуть належати й сусіднім патчам\nвідліки лише приблизно відповідають кольорам, які повинна мати ця діаграма"
+ "its patches repeat or change so regularly that the readings could also belong to neighbouring patches\nthe readings follow the colours this chart should have only loosely": "її патчі повторюються або змінюються так рівномірно, що відліки можуть належати й сусіднім патчам\nвідліки лише приблизно відповідають кольорам, які повинна мати ця діаграма",
+ "this file holds {got} of the {total} patches of this i1iSis chart, and ChromIQ can only bring an i1iSis measurement back when every patch has been measured. Measure the chart again in i1Profiler, save the whole measurement and import that file": "у цьому файлі {got} із {total} патчів цієї діаграми i1iSis, а ChromIQ може прийняти вимірювання i1iSis, лише якщо виміряно всі патчі. Виміряйте діаграму в i1Profiler ще раз, збережіть вимірювання повністю та імпортуйте цей файл",
+ "An i1iSis measurement that does not hold every patch": "Вимірювання i1iSis, у якому є не всі патчі"
 }

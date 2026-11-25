@@ -10079,5 +10079,7 @@
  "the readings follow the colours this chart should have only loosely": "測定値が、このチャートの本来の色におおまかにしか従っていない",
  "An i1iSis measurement of a chart whose own files are missing": "チャート自身のファイルがない i1iSis の測定",
  "ChromIQ cannot check this sheet from its colours: the reasons (i1iSis)": "ChromIQ はこの用紙を色から確認できません: 理由 (i1iSis)",
- "its patches repeat or change so regularly that the readings could also belong to neighbouring patches\nthe readings follow the colours this chart should have only loosely": "パッチがとても規則的に繰り返されたり変化したりしていて、測定値が隣のパッチのものである可能性もある\n測定値が、このチャートの本来の色におおまかにしか従っていない"
+ "its patches repeat or change so regularly that the readings could also belong to neighbouring patches\nthe readings follow the colours this chart should have only loosely": "パッチがとても規則的に繰り返されたり変化したりしていて、測定値が隣のパッチのものである可能性もある\n測定値が、このチャートの本来の色におおまかにしか従っていない",
+ "this file holds {got} of the {total} patches of this i1iSis chart, and ChromIQ can only bring an i1iSis measurement back when every patch has been measured. Measure the chart again in i1Profiler, save the whole measurement and import that file": "このファイルには、この i1iSis チャートの {total} パッチのうち {got} パッチしか含まれていません。ChromIQ が i1iSis の測定を取り込めるのは、すべてのパッチが測定されている場合だけです。i1Profiler でチャートをもう一度測定し、測定全体を保存して、そのファイルをインポートしてください",
+ "An i1iSis measurement that does not hold every patch": "すべてのパッチを含んでいない i1iSis の測定"
 }

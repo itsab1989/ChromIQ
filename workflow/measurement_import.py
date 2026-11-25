@@ -360,7 +360,11 @@ def assess(ti3: Path, chart_ti2: "Path | None",
             # and only the rest of the rows is missing. §I.14 pairs a COMPLETE
             # turned measurement only; that rule is unchanged here, the
             # refusal just gives its true reason now.
-            return ImportVerdict(False, _turned_partial_reason(
+            partial_reason = (
+                _isis_partial_reason
+                if getattr(turned.order, "kind", "") == "isis"
+                else _turned_partial_reason)
+            return ImportVerdict(False, partial_reason(
                 n_got, len(turned.order.sample_ids)),
                 n_chart=n_chart or 0, n_measured=n_got)
         if turned.applies and turned.ambiguous:
@@ -626,6 +630,11 @@ def _turned_partial_reason(got: int, total: int) -> str:
         "file and import that file").format(got=got, total=total)
 
 
+def _isis_partial_reason(got: int, total: int) -> str:
+    from workflow.measurement_messages import isis_partial_reason
+    return isis_partial_reason(got, total)
+
+
 def _isis_pages_reason(order) -> str:
     return tr(
         "this file is a measurement of an i1iSis chart with {pages} "
@@ -703,7 +712,7 @@ def _isis_same_order(ti3: Path, measured, chart_ti2: Path,
     at = [numbers[s] for s in ids if s in numbers]
     by_number = sorted(at) == list(range(n)) and len(ids) == n
     if not by_number and (at or n_got != n):
-        return refuse(_turned_partial_reason(len(set(at)), n))
+        return refuse(_isis_partial_reason(len(set(at)), n))
     if not by_number:
         at = list(range(n))
     from workflow.i1profiler_turned import grid_mismatch

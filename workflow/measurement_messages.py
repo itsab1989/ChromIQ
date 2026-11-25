@@ -1746,6 +1746,24 @@ def isis_files_missing_reason(side: str) -> str:
     return tr(_ISIS_IMPORT_FILES).format(side=side)
 
 
+#: An i1iSis file that does not hold every patch of the chart (review 63, S3):
+#: the turned chart's sentence said before it was never true of an i1iSis.
+_ISIS_IMPORT_PARTIAL = (
+    "this file holds {got} of the {total} patches of this i1iSis chart, and "
+    "ChromIQ can only bring an i1iSis measurement back when every patch has "
+    "been measured. Measure the chart again in i1Profiler, save the whole "
+    "measurement and import that file")
+M_IMPORT_ISIS_PARTIAL = _m(
+    "M-IMPORT-ISIS-PARTIAL",
+    "An i1iSis measurement that does not hold every patch",
+    _ISIS_IMPORT_PARTIAL,
+    approved=False)
+
+
+def isis_partial_reason(got: int, total: int) -> str:
+    return tr(_ISIS_IMPORT_PARTIAL).format(got=got, total=total)
+
+
 #: The question when an i1iSis chart is not randomised and its colours cannot
 #: show how the sheet was fed (item 63, `workflow.isis.import_check`). Cancel
 #: is the default. {why}: one of the parts below.
@@ -15923,6 +15941,7 @@ CATALOGUE = {m.id: m for m in (
     M_IMPORT_I1IO_CANNOT_CHECK, M_IMPORT_I1IO_CANNOT_CHECK_PARTS,
     M_IMPORT_I1IO_AIM_UNCHECKED,
     M_IMPORT_I1IO_FILED, M_IMPORT_ISIS_COLOURS, M_IMPORT_ISIS_FILES,
+    M_IMPORT_ISIS_PARTIAL,
     M_IMPORT_ISIS_CANNOT_CHECK, M_IMPORT_ISIS_CANNOT_CHECK_PARTS,
     M_IMPORT_I1IO_REFUSED,
     M_I1IO_MEASURE_CHART_PAGES, M_I1IO_MEASURE_CHART_PAGES_PARTS,

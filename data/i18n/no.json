@@ -10079,5 +10079,7 @@
  "the readings follow the colours this chart should have only loosely": "avlesningene bare omtrentlig følger fargene dette kartet skal ha",
  "An i1iSis measurement of a chart whose own files are missing": "En i1iSis-måling av et kart som mangler sine egne filer",
  "ChromIQ cannot check this sheet from its colours: the reasons (i1iSis)": "ChromIQ kan ikke kontrollere dette arket ut fra fargene: årsakene (i1iSis)",
- "its patches repeat or change so regularly that the readings could also belong to neighbouring patches\nthe readings follow the colours this chart should have only loosely": "feltene gjentas eller endrer seg så regelmessig at avlesningene også kan høre til nabofelter\navlesningene bare omtrentlig følger fargene dette kartet skal ha"
+ "its patches repeat or change so regularly that the readings could also belong to neighbouring patches\nthe readings follow the colours this chart should have only loosely": "feltene gjentas eller endrer seg så regelmessig at avlesningene også kan høre til nabofelter\navlesningene bare omtrentlig følger fargene dette kartet skal ha",
+ "this file holds {got} of the {total} patches of this i1iSis chart, and ChromIQ can only bring an i1iSis measurement back when every patch has been measured. Measure the chart again in i1Profiler, save the whole measurement and import that file": "denne filen inneholder {got} av de {total} feltene i dette i1iSis-kartet, og ChromIQ kan bare ta inn en i1iSis-måling når alle feltene er målt. Mål kartet på nytt i i1Profiler, lagre hele målingen og importer den filen",
+ "An i1iSis measurement that does not hold every patch": "En i1iSis-måling som ikke inneholder alle feltene"
 }

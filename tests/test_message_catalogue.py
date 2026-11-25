@@ -941,6 +941,7 @@ AWAITING_APPROVAL: "set[str]" = {
                                  # 2026-11-25 (item 63): an i1iSis measurement
                                  # of a chart that is not randomised
                                  "M-IMPORT-ISIS-FILES",
+                                 "M-IMPORT-ISIS-PARTIAL",
                                  "M-IMPORT-ISIS-CANNOT-CHECK",
                                  "M-IMPORT-ISIS-CANNOT-CHECK-PARTS",
                                  "M-IMPORT-I1IO-REFUSED",

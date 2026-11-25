@@ -11107,5 +11107,7 @@
  "the readings follow the colours this chart should have only loosely": "отсчёты лишь приблизительно следуют цветам, которые должна иметь эта мишень",
  "An i1iSis measurement of a chart whose own files are missing": "Измерение i1iSis мишени, у которой нет её собственных файлов",
  "ChromIQ cannot check this sheet from its colours: the reasons (i1iSis)": "ChromIQ не может проверить этот лист по цветам: причины (i1iSis)",
- "its patches repeat or change so regularly that the readings could also belong to neighbouring patches\nthe readings follow the colours this chart should have only loosely": "её патчи повторяются или меняются так равномерно, что отсчёты могут относиться и к соседним патчам\nотсчёты лишь приблизительно следуют цветам, которые должна иметь эта мишень"
+ "its patches repeat or change so regularly that the readings could also belong to neighbouring patches\nthe readings follow the colours this chart should have only loosely": "её патчи повторяются или меняются так равномерно, что отсчёты могут относиться и к соседним патчам\nотсчёты лишь приблизительно следуют цветам, которые должна иметь эта мишень",
+ "this file holds {got} of the {total} patches of this i1iSis chart, and ChromIQ can only bring an i1iSis measurement back when every patch has been measured. Measure the chart again in i1Profiler, save the whole measurement and import that file": "в этом файле {got} из {total} патчей этой мишени i1iSis, а ChromIQ может принять измерение i1iSis, только если измерены все патчи. Измерьте мишень в i1Profiler ещё раз, сохраните измерение целиком и импортируйте этот файл",
+ "An i1iSis measurement that does not hold every patch": "Измерение i1iSis, в котором есть не все патчи"
 }

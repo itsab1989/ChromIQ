@@ -11113,5 +11113,7 @@
  "the readings follow the colours this chart should have only loosely": "odczyty tylko w przybliżeniu odpowiadają kolorom, które ten wzorzec powinien mieć",
  "An i1iSis measurement of a chart whose own files are missing": "Pomiar i1iSis wzorca, którego własnych plików brakuje",
  "ChromIQ cannot check this sheet from its colours: the reasons (i1iSis)": "ChromIQ nie może sprawdzić tego arkusza po kolorach: powody (i1iSis)",
- "its patches repeat or change so regularly that the readings could also belong to neighbouring patches\nthe readings follow the colours this chart should have only loosely": "jego pola powtarzają się lub zmieniają tak regularnie, że odczyty mogą należeć także do sąsiednich pól\nodczyty tylko w przybliżeniu odpowiadają kolorom, które ten wzorzec powinien mieć"
+ "its patches repeat or change so regularly that the readings could also belong to neighbouring patches\nthe readings follow the colours this chart should have only loosely": "jego pola powtarzają się lub zmieniają tak regularnie, że odczyty mogą należeć także do sąsiednich pól\nodczyty tylko w przybliżeniu odpowiadają kolorom, które ten wzorzec powinien mieć",
+ "this file holds {got} of the {total} patches of this i1iSis chart, and ChromIQ can only bring an i1iSis measurement back when every patch has been measured. Measure the chart again in i1Profiler, save the whole measurement and import that file": "ten plik zawiera {got} z {total} pól tego wzorca i1iSis, a ChromIQ może przyjąć pomiar i1iSis tylko wtedy, gdy zmierzono wszystkie pola. Zmierz wzorzec w i1Profiler jeszcze raz, zapisz cały pomiar i zaimportuj ten plik",
+ "An i1iSis measurement that does not hold every patch": "Pomiar i1iSis, który nie zawiera wszystkich pól"
 }

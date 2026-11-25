@@ -1282,7 +1282,40 @@ def turned_order_for(chart_ti2: "str | Path | None") -> "TurnedOrder | None":
     # an earlier one, each kept once.
     found = [o for o in (_order_in(p, chart_ti2, digest) for p in candidates)
              if o is not None]
+    found = [o for o in (_checked_isis_order(o, chart_ti2) if o.kind == "isis"
+                         else o for o in found) if o is not None]
     return _merged(found) if found else None
+
+
+def _checked_isis_order(order: "TurnedOrder", chart_ti2: Path
+                        ) -> "TurnedOrder | None":
+    """An i1iSis order file is believed only when it says what the chart and
+    its side file say: every patch, the grid and the pages (a file cut short
+    by a stopped write has the chart's checksum too, and made a complete
+    measurement look incomplete). Otherwise the order worked out from the
+    chart and its side file; without a side file, *order* when it lists every
+    patch of the chart, else None."""
+    from workflow.isis.export import order_of
+
+    def says(o):
+        return (list(o.sample_ids), list(o.locs), o.rows, o.columns, o.pages)
+    again = order_of(chart_ti2)
+    if again is not None:
+        if says(again) == says(order):
+            return order
+        log.warning("import: %s does not say what the chart and its side "
+                    "file say; the order is worked out from them",
+                    order.path.name)
+        return again
+    try:
+        ids = sorted(str(r[0]) for r in _read_ti2(chart_ti2).rows)
+    except Exception:  # noqa: BLE001 - no order, never a failure
+        return None
+    n = len(order.sample_ids)
+    whole = (order.rows > 0 and order.columns > 0
+             and order.rows * order.columns * (order.pages - 1) < n
+             <= order.rows * order.columns * order.pages)
+    return order if whole and sorted(order.sample_ids) == ids else None
 
 
 def _isis_order_paths(chart_ti2: Path) -> list:

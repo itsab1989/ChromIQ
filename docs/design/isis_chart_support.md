@@ -147,6 +147,9 @@ anything is filed (M-IMPORT-ISIS-CANNOT-CHECK), never refused for it and never
 filed in silence. Without the order file the order is worked out from the
 chart and its side file; without both the measurement is refused
 (M-IMPORT-ISIS-FILES). See §I.17 point 8 of the measurement specification.
+**Not protected:** a single row or a single column slipped by one patch, and
+half a sheet slipped by a column, can be filed, above all on a chart whose
+colours are regular.
 
 *(4.3.40)* ChromIQ never reads an i1iSis chart, so the Measure tab says
 nothing about reading strips for it: its log names the chart's instrument

@@ -293,7 +293,8 @@ def test_a_row_of_equal_patches_is_not_taken_for_a_slipped_row(
 def test_part_of_the_sheet_is_refused(charts, tmp_path):
     c = charts("random60")
     v = _assess(c.measure(tmp_path / "m.ti3", keep=lambda j: j < 30), c)
-    assert not v.ok and "30 of the chart's 60 readings" in v.reason
+    assert not v.ok and "30 of the 60 patches" in v.reason
+    assert "turned" not in v.reason
     # the same patch twice: the number of rows is right, the patches are not
     v = _assess(c.measure(tmp_path / "m.ti3",
                           ids=lambda j: "1" if j == 0 else "2" if j == 1
@@ -368,6 +369,111 @@ def test_without_the_order_file_the_side_file_is_enough(charts, tmp_path):
     (tmp_path / "c" / "c.isis.json").unlink()
     v = assess(c.measure(tmp_path / "m.ti3"), ti2)
     assert not v.ok and "c.isis.json" in v.reason, v.reason
+
+
+def _order_doc(chart, tmp_path, change):
+    """A copy of *chart* whose order file *change* has been at."""
+    import shutil
+    shutil.copytree(chart.folder, tmp_path / "copy")
+    p = tmp_path / "copy" / "exports" / chart.order_file.name
+    doc = json.loads(p.read_text(encoding="utf-8"))
+    change(doc)
+    p.write_text(json.dumps(doc), encoding="utf-8")
+    return tmp_path / "copy" / "c.ti2"
+
+
+@pytest.mark.parametrize("randomize", [False, True])
+def test_an_order_file_cut_short_is_not_believed(charts, tmp_path, randomize):
+    """Review 63, S1: 50 entries of 900, the chart's own checksum."""
+    from workflow import measurement_messages as MM
+    from workflow.i1profiler_turned import turned_order_for
+    from workflow.measurement_import import (assess,
+                                             complete_from_turned_order)
+    c = charts("random900", randomize)
+
+    def cut(doc):
+        doc["order"] = doc["order"][:50]
+    ti2 = _order_doc(c, tmp_path, cut)
+    ti3 = c.measure(tmp_path / "m.ti3")
+    v = assess(ti3, ti2)
+    assert v.ok and v.turned_order is randomize, v.reason
+    assert len(turned_order_for(ti2).sample_ids) == 900
+    if randomize:
+        assert complete_from_turned_order(ti3, ti2) == 900
+    v = assess(c.measure(tmp_path / "n.ti3", c.ways()["half turn"]), ti2)
+    assert not v.ok and v.reason == MM.isis_colours_reason()
+    (tmp_path / "copy" / "c.isis.json").unlink()      # nothing to go by now
+    assert turned_order_for(ti2) is None
+    v = assess(c.measure(tmp_path / "o.ti3"), ti2)
+    assert not v.ok
+    if not randomize:
+        assert "c.isis.json" in v.reason
+
+
+@pytest.mark.parametrize("randomize", [False, True])
+@pytest.mark.parametrize("side", [True, False])
+def test_an_order_file_with_the_wrong_page_count_is_not_believed(
+        charts, tmp_path, randomize, side):
+    from workflow.measurement_import import assess
+    c = charts("pages", randomize)
+
+    def one(doc):
+        doc["pages"] = 1
+    ti2 = _order_doc(c, tmp_path, one)
+    if not side:
+        (tmp_path / "copy" / "c.isis.json").unlink()
+    v = assess(c.measure(tmp_path / "m.ti3"), ti2)
+    assert not v.ok
+    if side:
+        assert "i1iSis chart with 2 pages" in v.reason, v.reason
+
+
+def test_an_order_file_that_says_another_grid_or_kind_is_not_believed(
+        charts, tmp_path):
+    from workflow.i1profiler_turned import turned_order_for
+    from workflow.measurement_import import _isis_order_for, assess
+    c = charts("random60")
+
+    def grid(doc):
+        doc["rows"], doc["columns"] = 1, 60
+    ti2 = _order_doc(c, tmp_path / "g", grid)
+    assert (_isis_order_for(ti2).rows, turned_order_for(ti2).rows) == (
+        c.R, c.R)
+
+    def kind(doc):
+        doc["kind"], doc["pages"] = "", 1
+    p = charts("pages")
+    ti2 = _order_doc(p, tmp_path / "k", kind)
+    v = assess(p.measure(tmp_path / "m.ti3"), ti2)
+    assert not v.ok and "i1iSis chart with 2 pages" in v.reason, v.reason
+
+
+def test_several_pages_are_refused_without_the_order_file(charts, tmp_path):
+    import shutil
+
+    from workflow.measurement_import import assess
+    c = charts("pages")
+    shutil.copytree(c.folder, tmp_path / "c")
+    shutil.rmtree(tmp_path / "c" / "exports")
+    v = assess(c.measure(tmp_path / "m.ti3"), tmp_path / "c" / "c.ti2")
+    assert not v.ok and "i1iSis chart with 2 pages" in v.reason, v.reason
+
+
+def test_part_of_a_randomised_chart_says_so_truly(charts, tmp_path):
+    c = charts("random60", True)
+    v = _assess(c.measure(tmp_path / "m.ti3", keep=lambda j: j < 30), c)
+    assert not v.ok and "30 of the 60 patches of this i1iSis" in v.reason
+    assert "turned" not in v.reason
+
+
+def test_readings_that_follow_the_chart_only_loosely_are_asked_about():
+    """Fits no wrong way better, but the whole is between the two limits."""
+    from workflow.isis import import_check as IC
+    from workflow.turned_colour_check import expected_lab_rgb
+    E = expected_lab_rgb(CHARTS["sorted"])
+    M = E + np.random.default_rng(2).normal(0, E.std(axis=0) * 1.1, E.shape)
+    v = IC.compare(E, M, 24, 22)
+    assert (v.verdict, v.why) == (IC.CANNOT, "whole"), v
 
 
 def test_a_filed_measurement_of_chartread_is_not_asked(charts, tmp_path):
@@ -458,6 +564,7 @@ def test_the_question_at_the_filing_doors(qapp, monkeypatch, go):
     v = ImportVerdict(True, isis_ask_why="whole")
     assert MF.only_you_can_confirm_the_chart(None, v, None) is go
     assert "only loosely" in said[0][1] and "{" not in said[0][1]
+    assert said[0][2].replace("&", "") == "Cancel"
     assert MF.only_you_can_confirm_the_chart(None, ImportVerdict(True), None)
     assert len(said) == 1
 

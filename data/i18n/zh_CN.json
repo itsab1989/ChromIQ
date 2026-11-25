@@ -10079,5 +10079,7 @@
  "the readings follow the colours this chart should have only loosely": "读数只是大致符合这张色卡应有的颜色",
  "An i1iSis measurement of a chart whose own files are missing": "缺少色卡自身文件的 i1iSis 测量",
  "ChromIQ cannot check this sheet from its colours: the reasons (i1iSis)": "ChromIQ 无法根据颜色检查这张纸：原因（i1iSis）",
- "its patches repeat or change so regularly that the readings could also belong to neighbouring patches\nthe readings follow the colours this chart should have only loosely": "它的色块重复或变化得非常有规律，读数也可能属于相邻的色块\n读数只是大致符合这张色卡应有的颜色"
+ "its patches repeat or change so regularly that the readings could also belong to neighbouring patches\nthe readings follow the colours this chart should have only loosely": "它的色块重复或变化得非常有规律，读数也可能属于相邻的色块\n读数只是大致符合这张色卡应有的颜色",
+ "this file holds {got} of the {total} patches of this i1iSis chart, and ChromIQ can only bring an i1iSis measurement back when every patch has been measured. Measure the chart again in i1Profiler, save the whole measurement and import that file": "这个文件只包含这张 i1iSis 色卡 {total} 个色块中的 {got} 个，而只有在所有色块都已测量时，ChromIQ 才能导入 i1iSis 测量。请在 i1Profiler 中重新测量这张色卡，保存完整的测量，然后导入该文件",
+ "An i1iSis measurement that does not hold every patch": "未包含全部色块的 i1iSis 测量"
 }
