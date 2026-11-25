@@ -49,6 +49,8 @@ CHARTS = {
     "grid9": _grid(9), "grid6": _grid(6), "cal": _ramps(32, "RGB"),
     "ramps": _ramps(24, "RGBK"), "grey": _ramps(100, "K"),
     "even": [(60.0, 60.0, 60.0)] * 400, "tiny": _random(10),
+    "few": _random(18),
+    "three": [(80, 80, 80), (40, 50, 60), (20, 20, 20)] * 40,
     "refine": _grid(3) + _random(150, 8),
 }
 
@@ -207,7 +209,17 @@ def test_the_two_one_page_cases_of_the_study(charts, tmp_path):
         assert not v.ok and v.reason == MM.isis_colours_reason(), way
 
 
-@pytest.mark.parametrize("name", ["cal", "ramps", "grey", "even", "tiny"])
+def test_one_row_read_one_column_off_is_refused(charts, tmp_path):
+    """What the judge of randomised charts finds row by row."""
+    from workflow import measurement_messages as MM
+    c = charts("random900")
+    p = c.cell(lambda r, k: (r, k + 1) if r == 5 else (r, k))
+    v = _assess(c.measure(tmp_path / "m.ti3", p), c)
+    assert not v.ok and v.reason == MM.isis_colours_reason()
+
+
+@pytest.mark.parametrize("name", ["cal", "ramps", "grey", "even", "tiny",
+                                  "few"])
 def test_what_cannot_be_told_apart_is_never_filed_in_silence(
         charts, tmp_path, name):
     """Ramps, one colour, ten patches: some wrong readings look right. Every
@@ -221,7 +233,7 @@ def test_what_cannot_be_told_apart_is_never_filed_in_silence(
         v = _assess(c.measure(tmp_path / "m.ti3", p), c)
         assert not v.ok or v.isis_ask_why, (way, "filed in silence")
         seen.add(v.ok)
-    if name in ("even", "tiny"):
+    if name in ("even", "tiny", "few"):
         assert seen == {True}            # asked, never refused
 
 
@@ -348,6 +360,11 @@ def test_a_randomised_chart_is_judged_as_before(charts, tmp_path):
     inv = {i: j for j, i in enumerate(c.ids)}
     p = c.measure(tmp_path / "m.ti3", ids=lambda j: str(c.ids[j]))
     assert inv and _assess(p, c).ok
+    b = charts("pages", True)
+    p = b.measure(tmp_path / "m.ti3", ids=lambda j: str(b.ids[j]))
+    v = _assess(p, b)
+    assert v.ok, v.reason                # as before: in the chart's own order
+    assert not _assess(b.measure(tmp_path / "n.ti3"), b).ok
 
 
 def test_beta_off_and_other_instruments_are_untouched(charts, tmp_path):
@@ -363,6 +380,50 @@ def test_beta_off_and_other_instruments_are_untouched(charts, tmp_path):
     other.write_text(c.ti2.read_text().replace("X-Rite i1iSis", "X-Rite i1Pro"))
     from workflow.measurement_import import assess
     assert assess(p, other).ok
+
+
+def test_why_it_cannot_tell(charts, tmp_path):
+    for name, why in (("few", "few"), ("even", "similar"),
+                      ("three", "similar"), ("grey", "way")):
+        c = charts(name)
+        v = _assess(c.measure(tmp_path / "m.ti3"), c)
+        assert v.ok and v.isis_ask_why == why, (name, v.isis_ask_why)
+
+
+def test_a_ramp_read_backwards_cannot_be_explained_away():
+    """L* may be any RISING function of the expected L*, never a falling
+    one; a* and b* may not turn right round."""
+    from workflow.isis.import_check import _misfit, _rising
+    x = np.linspace(0, 100, 40)
+    E = np.stack([x, 0 * x, 0 * x], 1)
+    M = np.stack([14 + .8 * x ** 1.5 / 10, 0 * x, 0 * x], 1)
+    assert _misfit(E, M) < 1e-6 < 10 < _misfit(E, M[::-1])
+    A = np.stack([0 * x, x - 50, 0 * x], 1)
+    assert _misfit(A, .7 * A) < 1e-6 < 10 < _misfit(A, -.7 * A)
+    assert np.allclose(_rising(np.array([1., 1., 2.]), np.array([0., 4., 3.])),
+                       [2, 2, 3])
+
+
+@pytest.mark.parametrize("go", [True, False])
+def test_the_question_at_the_filing_doors(qapp, monkeypatch, go):
+    from PyQt6.QtWidgets import QMessageBox
+
+    import ui.measurement_filing as MF
+    from workflow.measurement_import import ImportVerdict
+    said = []
+
+    def ex(box):
+        said.append((box.text(), box.informativeText(),
+                     box.defaultButton().text()))
+        monkeypatch.setattr(QMessageBox, "clickedButton", lambda b: next(
+            x for x in b.buttons()
+            if (b.buttonRole(x) == QMessageBox.ButtonRole.AcceptRole) is go))
+    monkeypatch.setattr(QMessageBox, "exec", ex)
+    v = ImportVerdict(True, isis_ask_why="whole")
+    assert MF.only_you_can_confirm_the_chart(None, v, None) is go
+    assert "only loosely" in said[0][1] and "{" not in said[0][1]
+    assert MF.only_you_can_confirm_the_chart(None, ImportVerdict(True), None)
+    assert len(said) == 1
 
 
 def test_every_door_asks():
