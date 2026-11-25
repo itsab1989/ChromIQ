@@ -30,6 +30,8 @@ from workflow.i1io.table.session_table import checksum, checksum_ok
 #: stage, so a wrong constant could never show in a test. Measured on the recordings (value
 #: replay, 20 passes; study/i1io-scan 9f01e8acd): lamp + 0.3718 s, sd 0.0027 s.
 TABLE_MOTION_START_AFTER_LAMP_S = 0.372
+#: a dual row's lamp pass (2026-11-25, item 70: 37 recorded dual lamp passes)
+TABLE_DUAL_LAMP_START_S = 0.365
 #: THE DUAL ROW (the volunteer's recordings of 18 Nov 2026, the simulator's own copies): the UV
 #: pass's move starts 0.233-0.240 s after its trigger, its first reading comes at +0.231 s; the
 #: done answers came at lamp trigger + T + A + 0.653 s and UV trigger + T + A + 0.345 s (B 48.097,
@@ -437,7 +439,9 @@ class CSimTable(SimTable):
             return 0, self._xy(self.pos[0] - self.sight_offset[0],
                                self.pos[1] - self.sight_offset[1]), 0.0
         if cid == "c4":
-            return 0, f"{int(self.c_faults.get('c4_byte', 0xBA)):02X}", 0.20
+            v = self.c_faults.get("c4_byte", 0xBA)       # or a callable: the next answer
+            v = v() if callable(v) else v
+            return 0, v if isinstance(v, str) else f"{int(v):02X}", 0.20
         if cid == "d1":
             if line == C_D1_UV:
                 return 0, self.c_faults.get("d1_uv_echo", "00D2"), 0.016
@@ -527,7 +531,7 @@ class CSimTable(SimTable):
             lo, hi = DUAL_DONE_EXTRA[dual_pass]
             extra = lo + (hi - lo) * self.lamp_rng.random()
             p["motion_start"] = t_lamp + (TABLE_MOTION_START_AFTER_UV_S if dual_pass == "uv"
-                                          else TABLE_MOTION_START_AFTER_LAMP_S)
+                                          else TABLE_DUAL_LAMP_START_S)
         done_at = t_lamp + (p["T"] + p["A"]) / 1000.0 + extra
         self._busy_until = done_at
         self.scan_moves.append((tuple(self.pos), p["to"], p["v"]))
@@ -898,7 +902,8 @@ class FakeScanReader:
             return L - 0.5 * acc * max(0.0, tt - t) ** 2
         rows = []
         first, start = ((UV_FIRST_READING_S, TABLE_MOTION_START_AFTER_UV_S) if which == "uv"
-                        else (0.370, TABLE_MOTION_START_AFTER_LAMP_S))
+                        else (0.370, TABLE_DUAL_LAMP_START_S if which == "lamp"
+                              else TABLE_MOTION_START_AFTER_LAMP_S))
         # 4.3.54 (the row placement check's tests): "sheet_offset_mm": the printed sheet lies that
         # far further along the row than the aims put it (the opening sees the sheet that much
         # behind where it stands)

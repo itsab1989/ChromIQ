@@ -6,6 +6,8 @@ test_ownerfix_m1_lands_where_the_real_table_put_it.py).
 """
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from tests.i1io_table import tester_d2 as D2
@@ -17,42 +19,108 @@ from workflow.i1io.table import scan as sc
 from workflow.i1io.table import session_table as tbl
 
 
-# ---- (2) c4 answered BC and BA; BC passes, BD stops --------------------------------------------
+# ---- (2) c4: every answer seen on real tables passes; nonsense still stops the row -------------
+# Until 4.3.66 the range was B7..BC and BD stopped the row. A real table then answered BD and BE
+# on every try, before anything moved, so no row could be read as a strip for a byte nothing
+# depends on (item 68). The range is now the seen B7..BE widened by about as much on each side.
 
-@pytest.mark.parametrize("line,byte", [(":$c40BC56", 0xBC), (":$c40BA58", 0xBA)])
+@pytest.mark.parametrize("line,byte", [(":$c40BC56", 0xBC), (":$c40BA58", 0xBA),
+                                       (":$c40BD55", 0xBD), (":$c40BE54", 0xBE)])
 def test_the_recorded_c4_answers_decode_and_are_inside_the_range(line, byte):
     rep = tbl.parse_done_c(line, "c4", cl.C_DATA_LEN["scan_c4"])
     assert int(rep.data, 16) == byte
     assert sc.C4_RANGE[0] <= byte <= sc.C4_RANGE[1]
 
 
-def test_the_c4_range_is_the_recorded_one():
-    assert sc.C4_RANGE == (0xB7, 0xBC)
+def test_the_c4_range_is_the_seen_one_with_room_on_each_side():
+    assert sc.C4_RANGE == (0xB0, 0xC6) and sc.C4_USUAL == (0xB7, 0xBC)
+    seen = range(0xB7, 0xBF)                       # B7..BE, 115 answers
+    assert all(sc.C4_RANGE[0] + 7 <= v <= sc.C4_RANGE[1] - 8 for v in seen)
     assert "BC" in cl.C_RECORDED_AT["scan_c4"] and "17 Nov 2026" in cl.C_RECORDED_AT["scan_c4"]
+    assert "BE" in cl.C_RECORDED_AT["scan_c4"]
 
 
-def test_a_strip_row_whose_c4_answers_bc_is_read(tmp_path):
-    """Failed before this round: BC was 'never seen' and every such row failed."""
+@pytest.mark.parametrize("byte", [0xB0, 0xB7, 0xBC, 0xBD, 0xBE, 0xC6])
+def test_a_strip_row_with_a_plausible_c4_is_read(tmp_path, byte):
     job, sim, helper, run, p = _job(tmp_path, sheet=small_sheet())
-    sim.c_faults["c4_byte"] = 0xBC
+    sim.c_faults["c4_byte"] = byte
     _ready(job, p)
     rows = read_page(job, p)
     assert rows and all(r.ok and r.detail["row_kind"] == "strip" for r in rows)
 
 
-def test_a_strip_row_whose_c4_answers_bd_stops_cleanly(tmp_path):
+@pytest.mark.parametrize("byte", [0x00, 0x7F, 0xAF, 0xC7, 0xFF])
+def test_a_strip_row_whose_c4_is_not_plausible_stops_cleanly(tmp_path, byte):
     job, sim, helper, run, p = _job(tmp_path, sheet=small_sheet(),
                                     script={J.Confirm.ROW_FAILED_STRIP: "stop"})
-    sim.c_faults["c4_byte"] = 0xBD
+    sim.c_faults["c4_byte"] = byte
     _ready(job, p)
-    n_m2 = sum(1 for ln in sim.received if ln.startswith(";m2"))
+    n = len(sim.received)
     r = p.drive(job.read_row())
     assert r.kind == J.Kind.REFUSED and r.reason == "stopped_after_a_failed_row"
     asked = [a for a in p.asked if a[1] == J.Confirm.ROW_FAILED_STRIP]
-    assert len(asked) == 1 and asked[0][2]["why"].startswith("strip_")
-    # no scan move after the unknown answer, nothing pending
-    assert sum(1 for ln in sim.received if ln.startswith(";m2")) == n_m2
+    assert len(asked) == 1 and asked[0][2]["why"] == "strip_c4_not_recorded"
+    # no movement at all after the implausible answer, nothing pending
+    assert not any(ln.startswith((";m", ";i")) for ln in sim.received[n:])
     assert not r.state.strip_move_may_be_pending
+
+
+@pytest.mark.parametrize("data", ["B", "BAB", "", "00BA"])
+def test_a_c4_answer_of_another_length_is_still_a_doubt(tmp_path, data):
+    """Unchanged: another length is no answer this table ever gave; nothing more is sent."""
+    job, sim, helper, run, p = _job(tmp_path, sheet=small_sheet())
+    sim.c_faults["c4_byte"] = data
+    _ready(job, p)
+    n = len(sim.received)
+    r = p.drive(job.read_row())
+    assert not r.ok and job._table.closed_reason is not None
+    assert not any(ln.startswith((";m", ";i")) for ln in sim.received[n:])
+
+
+def test_two_passes_of_one_row_may_answer_differently(tmp_path):
+    """Recorded: up to 3 apart within one dual row, so the passes are not compared. What was
+    refused on a real table: BC before the lamp pass, BD before the UV pass."""
+    from tests.i1io_table import test_dual_table as DT
+    job, sim, helper, run, p = DT._job(tmp_path)
+    answers = iter([0xBC, 0xBD] * 50)
+    sim.c_faults["c4_byte"] = lambda: next(answers)
+    DT._ready(job, p)
+    r = p.drive(job.read_row())
+    assert r.ok and r.detail["row_kind"] == "strip", (r.reason, r.detail)
+    rec = json.loads(next(job.diag.folder.glob("row-*/p1_row1.row.json")).read_text("utf-8"))
+    assert [rec["scan"][w]["c4"] for w in ("lamp", "uv")] == [0xBC, 0xBD]
+    assert rec["status"] == "read" and rec["conditions"]
+
+
+def test_an_answer_outside_the_old_range_is_logged_once_per_session_and_value(tmp_path):
+    job, sim, helper, run, p = _job(tmp_path, sheet=small_sheet())
+    told = []
+    job.on_progress = lambda ev: told.append(ev) if ev.get("event") == "c4_answer" else None
+    answers = iter([0xBE, 0xBC, 0xBE, 0xBD] + [0xBE] * 50)
+    sim.c_faults["c4_byte"] = lambda: next(answers)
+    _ready(job, p)
+    rows = read_page(job, p) + [p.drive(job.read_row(1)), p.drive(job.read_row(2))]
+    assert len(rows) == 4 and all(r.ok for r in rows)
+    lines = [ln for ln in job.diag.lines if "question before the strip (c4)" in ln]
+    assert len(lines) == 2 and "BE" in lines[0] and "BD" in lines[1]
+    assert [ev["value"] for ev in told] == ["BE", "BD"]
+    assert all("so the row goes on" in ev["note"] for ev in told)
+
+
+def test_no_usual_answer_is_logged_and_a_refused_one_says_so(tmp_path):
+    job, sim, helper, run, p = _job(tmp_path / "a", sheet=small_sheet())
+    answers = iter([0xB7, 0xBC] * 50)
+    sim.c_faults["c4_byte"] = lambda: next(answers)
+    _ready(job, p)
+    assert p.drive(job.read_row()).ok and p.drive(job.read_row()).ok
+    assert not [ln for ln in job.diag.lines if "question before the strip" in ln]
+    job, sim, helper, run, p = _job(tmp_path / "b", sheet=small_sheet(),
+                                    script={J.Confirm.ROW_FAILED_STRIP: "stop"})
+    sim.c_faults["c4_byte"] = 0xC7
+    _ready(job, p)
+    p.drive(job.read_row())
+    lines = [ln for ln in job.diag.lines if "question before the strip (c4)" in ln]
+    assert len(lines) == 1 and "the pass was not started" in lines[0]
 
 
 # ---- (6) the calibration: a long wait at a question, and S-1 ------------------------------------

@@ -9689,7 +9689,8 @@ _I1IO_SMALL_PATCH = (
     "neighbour, and the values can be wrong by several dE without a warning. "
     "Choose {size} mm or more for values you can trust.")
 _I1IO_SHORT_PATCH = (
-    "Patches under {size} mm have not been read as strips on a table yet. A "
+    "Patches under {size} mm have hardly been read as strips on a real table "
+    "yet: only patches of 8 mm, on one table. A "
     "row that cannot be placed safely is refused and read again.")
 _I1IO_SPOT_PATCH = (
     "Patches under {size} mm along the strip are too short to be read in one "
@@ -9764,11 +9765,12 @@ _I1IO_PIECES_NO_SHEETS = (
 #: "Chart layout: Compact" (Guided and Manual): what it is and what is not
 #: known about it, under the choice while it is chosen
 _I1IO_COMPACT_INFO = (
-    "Compact: patches of 8 × 8 mm, about a fifth more on a sheet. So far tried "
-    "on a simulated table only, not on a real one. The patches are read in one movement of the arm at a "
+    "Compact: patches of 8 × 8 mm, about a fifth more on a sheet. Its rows "
+    "have been read on one real table so far, without the dual scan. The patches "
+    "are read in one movement of the arm at a "
     "slower speed. A row that lies too far from its place, about 1 to 2 mm, "
     "is refused and read again, or patch by patch. With the dual scan every "
-    "patch is read by itself.")
+    "patch is read by itself, which takes much longer.")
 #: A layout of an earlier ChromIQ, or carried over from another instrument
 #: (`chart.asked_sizes`), said once when it is taken over or built.
 _I1IO_OLD_SIZE_REPLACED = (
@@ -13359,8 +13361,9 @@ M_DUAL_BEFORE_START_TABLE = _m(
     'In rows, each row is read twice: first with the lamp, then once more '
     'with the UV light. Patch by patch, each patch is read with the lamp '
     'and then with the UV light. From the two readings ChromIQ works out M1'
-    ' and M2 besides M0, and the profile is made from {chosen}. Not yet '
-    'tried on a real table; M1 and M2 are calculated.',
+    ' and M2 besides M0, and the profile is made from {chosen}. Rows '
+    'have been read this way on one real table so far; patch by patch is '
+    'not yet tried to the end. M1 and M2 are calculated.',
     approved=False)
 
 M_DUAL_M0_CHOSEN = _m(
@@ -13841,9 +13844,11 @@ M_I1IO_DRIVE_CONSENT = _m(
     "and one reading of the table's tile all worked. With ChromIQ itself, a "
     "whole page of 528 patches was then read patch by patch on a real i1iO 2, "
     "on a Mac: the aiming, the slow steps towards the front and every row "
-    "worked. Not tried "
-    "on a real table yet: reading in rows (strips), the dual scan, a second "
-    "page, bringing the arm home from the front of the table, and what happens at the end of the "
+    "worked. Since then ChromIQ has also read rows as strips, a second page and "
+    "rows with the dual scan on a real table, and has brought the arm home "
+    "from the front of the table. Not tried "
+    "on a real table yet: the dual scan patch by patch to the end, sheets cut "
+    "into pieces, and what happens at the end of the "
     "arm's range of movement."
     " On Windows and on Linux, nothing "
     "has been tried at all: it "
@@ -14114,7 +14119,7 @@ M_I1IO_DRIVE_AIM_BUTTON_PATCH = _m(
     "The button never starts a move. Before the arm moves again, ChromIQ tells you on screen "
     "to take your hands away from the table.\n\n"
     "i1Profiler uses the button the same way on the table. ChromIQ's own way of listening for "
-    "the press has not been tried on a real table yet. If nothing happens when you press it, "
+    "the press has been tried on one real table so far. If nothing happens when you press it, "
     "simply press Aimed here: nothing is lost.",
     approved=False)
 
@@ -14128,7 +14133,7 @@ M_I1IO_DRIVE_AIM_BUTTON = _m(
     "The button never starts a move. Before the arm moves again, ChromIQ "
     "tells you on screen to take your hands away from the table.\n\n"
     "i1Profiler uses the button the same way on the table. ChromIQ's own way "
-    "of listening for the press has not been tried on a real table yet. If "
+    "of listening for the press has been tried on one real table so far. If "
     "nothing happens when you press it, simply press Aimed here: nothing is "
     "lost.",
     approved=False)
@@ -14158,7 +14163,7 @@ M_I1IO_DRIVE_STRIP_OPTION = _m(
     "the way i1Profiler reads a row. Afterwards ChromIQ finds each patch in those readings "
     "by where the arm was at the time. This is much faster.\n\n"
     "Reading by strips is a first try. It is built from recordings of i1Profiler, and it "
-    "has not been tried on a real table yet. ChromIQ never guesses a value: a row that "
+    "has been tried on one real table so far. ChromIQ never guesses a value: a row that "
     "cannot be cut cleanly into its patches is not kept, and you can read it again, or read "
     "it patch by patch. A row that is too long for one strip move is read patch by patch "
     "by itself. If a strip move might still be waiting at the end, ChromIQ tells you to "
@@ -14184,7 +14189,7 @@ M_I1IO_DRIVE_STRIP_FIRST_TRY = _m(
     "Rows are read as strips",
     "“Patch-by-patch mode (-p)” is off, so the table reads each row as a strip: the arm "
     "drives along the row while the i1Pro 2 reads all the time, as i1Profiler does. This "
-    "is a first try and has not been tried on a real table yet. Every row that cannot be "
+    "is a first try and has been tried on one real table so far. Every row that cannot be "
     "cut cleanly into its patches is offered to you again, or patch by patch. To read "
     "patch by patch instead, press Not now, tick “Patch-by-patch mode (-p)” and press "
     "START MEASUREMENT again.",
@@ -14202,7 +14207,8 @@ M_I1IO_DRIVE_DUAL_ROWS = _m(
     "same row with the UV light. ChromIQ works out M1 and M2 from the two passes and "
     "keeps M0 as well. Build Profile starts at {chosen}, the condition chosen in the "
     "filter row. The calibration also reads the white tile with the UV light, so keep the"
-    " white tile clean and uncovered.\n\nThis has not been tried on a real table yet. Every"
+    " white tile clean and uncovered.\n\nThis has been tried on one real table so far, and "
+    "some rows had to be read again. Every"
     " command it sends to the table and to the i1Pro 2 was recorded from i1Profiler on a "
     "volunteer's table, and ChromIQ keeps every reading of both passes in this "
     "measurement's folder so that the first real runs can be checked. A row whose second "
@@ -14219,6 +14225,19 @@ M_I1IO_DRIVE_DUAL_SPOT = _m(
     "chosen in the filter row. The calibration also reads the white tile with the UV "
     "light.\n\nThis has not been tried on a real table yet. A patch whose reading with the "
     "UV light does not succeed is read again, both readings together.",
+    approved=False)
+
+#: START of a chart whose patches are too short for a dual row (the chart layout "Compact"), rows
+#: as strips chosen: the question before anything is opened or moves. {n} patches, {low} and {high}
+#: minutes from the recorded pace (spot.DUAL_SPOT_PATCH_S). Read patch by patch / Not now
+M_I1IO_DRIVE_DUAL_SPOT_WHOLE = _m(
+    "M-I1IO-DRIVE-DUAL-SPOT-WHOLE",
+    "With the dual scan, this chart is read patch by patch",
+    "The patches of this chart are too short to be read twice in one movement of the arm, as the "
+    "dual scan does. So the table reads every patch by itself, once with the lamp and once with "
+    "the UV light. For {n} patches that takes about {low} to {high} minutes.\n\n"
+    "To read the rows as strips instead, much faster and with M0 only, press “Not now”, switch "
+    "the dual scan off in Preferences > Beta and start again.",
     approved=False)
 
 #: a row whose patches are too short for a dual row: read patch by patch with the dual scan
@@ -14408,6 +14427,22 @@ M_I1IO_DRIVE_ROW_FAILED_STRIP = _m(
     "  •  End this step.",
     approved=False)
 
+#: shown IN PLACE of M-I1IO-DRIVE-ROW-FAILED-STRIP when that attempt sent no move (the job's
+#: "moved"): nothing is held "where the strip move ended", and the first answer is no loop
+M_I1IO_DRIVE_ROW_FAILED_STRIP_NOT_MOVED = _m(
+    "M-I1IO-DRIVE-ROW-FAILED-STRIP-NOT-MOVED",
+    "Row {row} could not be read as a strip",
+    "ChromIQ did not move the arm this time. Before it moves, ChromIQ asks you to take your "
+    "hands away from the table and the arm.\n\n"
+    "Row {row} of page {page} could not be read as a strip: {why}. Nothing was read this time. "
+    "What would you like to do?\n"
+    "  •  Read it again as a strip. If the reason above says what to do, please do that first. "
+    "If the same reason comes again, choose another answer.\n"
+    "  •  Read it patch by patch: slower, but without the strip move.\n"
+    "  •  Skip this row: the measurement is saved without it, and you can read it later.\n"
+    "  •  End this step.",
+    approved=False)
+
 #: 4.3.54 (the row placement check's fix round): shown IN PLACE of M-I1IO-DRIVE-ROW-FAILED-STRIP,
 #: once per page, when the row placement check has refused a SECOND row of that page; its four
 #: answers: again as a strip / "Rest patch by patch" (this row and every row after it on the
@@ -14456,11 +14491,39 @@ M_I1IO_DRIVE_ROW_M0_ONLY = _m(
     "not write its M1 and M2 values. So this row has no M1 and M2 yet; every other row keeps "
     "its own.\n\n"
     "\u2022  Read it again: ChromIQ first asks you to take your hands away, then reads the row "
-    "again with the UV light too. You can read it again as often as you like.\n"
+    "again with the UV light too.\n"
     "\u2022  Skip it: the row keeps M0 only. Continue Measurement, with the dual scan still "
     "switched on, reads it again later.\n"
     "\u2022  End this step: nothing more is read now, and nothing moves until you choose what "
     "happens next.",
+    approved=False)
+
+#: ...and when the reading program said that it could not write them (the row ended there): no
+#: "Read it again", which would end the same way. Answers: Skip it / End this step
+M_I1IO_DRIVE_ROW_M1_M2_NOT_WRITTEN = _m(
+    "M-I1IO-DRIVE-ROW-M1-M2-NOT-WRITTEN",
+    "The M1 and M2 values of row {row} could not be saved",
+    "ChromIQ stopped reading row {row} of page {page}, because the reading program could not "
+    "write its M1 and M2 values into this run's folder. The M0 values read so far are kept. "
+    "Reading the row again now would end the same way, so ChromIQ does not offer it.\n\n"
+    "Please check that the disk is not full and that ChromIQ may write into this run's "
+    "folder.\n\n"
+    "\u2022  Skip it: ChromIQ goes on with the next row. Continue Measurement, with the dual scan "
+    "still switched on, reads this row again later.\n"
+    "\u2022  End this step: nothing more is read now, and nothing moves until you choose what "
+    "happens next.",
+    approved=False)
+
+#: item 71 c: the refused aims' reason when both sides of the aimed triangle are off by about the
+#: same 1.5 to 8 %, the same way, and the corner is right. Words only: the aims stay refused
+M_I1IO_DRIVE_AIMS_SCALED = _m(
+    "M-I1IO-DRIVE-AIMS-SCALED",
+    "The sheet may have been printed smaller or larger",
+    "The three marks lie about {percent} % as far apart on the table as they should on this "
+    "sheet, in both directions, and the corner is right. So the sheet was probably printed at about "
+    "{percent} %, not at 100 %. ChromIQ does not accept it, and nothing has moved over your sheet. "
+    "Please print the sheet again at 100 %, without “Fit to page” and without scaling. If the sheet "
+    "was printed at 100 %, at least one aim was on another point.",
     approved=False)
 
 M_I1IO_DRIVE_FRONT = _m(
@@ -14959,17 +15022,26 @@ M_I1IO_DRIVE_HOME_AFTER_STOP_DONE = _m(
 M_I1IO_DRIVE_REPAIR_AT_START = _m(
     "M-I1IO-DRIVE-REPAIR-AT-START",
     "The table is still in its aiming mode",
-    "An earlier measurement ended before the arm went back to its resting place, so the table "
-    "is still in its aiming mode, the mode in which you aim at the marks by hand. That is "
-    "nothing to worry about. ChromIQ now brings the arm to its resting place and ends that "
-    "mode. Then this measurement goes on as usual.\n"
+    "ChromIQ found the table in its aiming mode, the mode in which you aim at the marks by hand. "
+    "To end it, ChromIQ brings the arm to its resting place. Then this measurement goes on as "
+    "usual.\n"
     "\n"
-    "Please take your hands away from the table and the arm. From some places the arm first "
-    "moves towards the middle of the table. To stop the arm at once, switch the table off at "
-    "its power switch.\n"
+    "The arm may be anywhere over the table, and from some places it first moves towards the "
+    "middle. Please take your hands away from the table and the arm. To stop the arm at once, "
+    "switch the table off at its power switch.\n"
     "\n"
     "If you press Not now, nothing moves. ChromIQ offers the same again here, and at your next "
     "START MEASUREMENT.",
+    approved=False)
+
+#: item 71 d: the first paragraph of the countdown page that stands in for that question with the
+#: guidance off and the arm at its resting place (elsewhere it is asked, item 74)
+M_I1IO_DRIVE_REPAIR_COUNTDOWN = _m(
+    "M-I1IO-DRIVE-REPAIR-COUNTDOWN",
+    "The table is still in its aiming mode",
+    "ChromIQ found the table in its aiming mode, the mode in which you aim at the marks by hand. "
+    "The arm is at its resting place. To end that mode, ChromIQ moves the arm a little and back "
+    "to its resting place. Then this measurement goes on as usual.",
     approved=False)
 
 #: 2026-11-21 (the owner: "driving the table should work without involving i1profiler"):
@@ -15180,9 +15252,9 @@ M_I1IO_DRIVE_LEFT_OUT = _m(
     "M-I1IO-DRIVE-LEFT-OUT",
     "The arm stayed extended over the table",
     "The arm stayed out over the table, and the table is still in its aiming mode. You do not "
-    "need to do anything now. The next time you press START MEASUREMENT, ChromIQ first asks "
-    "you to take your hands away from the table and the arm, then brings the arm home and ends "
-    "the aiming mode, and the measurement starts as usual.",
+    "need to do anything now. The next time you press START MEASUREMENT, ChromIQ first brings "
+    "the arm home and ends the aiming mode, and the measurement starts as usual. It asks you "
+    "before the arm moves, unless the arm is back at its resting place by then.",
     approved=False,
     needs_old_i1profiler=False)
 
@@ -15594,7 +15666,9 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_STRIP_FIRST_TRY, M_I1IO_DRIVE_STRIP_TOO_LONG, M_I1IO_DRIVE_STRIP_DEFAULT_OFFER,
     M_I1IO_DRIVE_STRIP_OUTSIDE_AREA, M_I1IO_DRIVE_STRIP_NOT_POSSIBLE,
     M_I1IO_DRIVE_DUAL_ROWS, M_I1IO_DRIVE_DUAL_SPOT, M_I1IO_DRIVE_DUAL_PATCHES_TOO_SHORT,
-    M_I1IO_DRIVE_ROW_FAILED_STRIP, M_I1IO_DRIVE_FRONT,
+    M_I1IO_DRIVE_DUAL_SPOT_WHOLE, M_I1IO_DRIVE_AIMS_SCALED,
+    M_I1IO_DRIVE_REPAIR_COUNTDOWN,
+    M_I1IO_DRIVE_ROW_FAILED_STRIP, M_I1IO_DRIVE_ROW_FAILED_STRIP_NOT_MOVED, M_I1IO_DRIVE_FRONT,
     M_I1IO_DRIVE_FIRST_VISIT, M_I1IO_DRIVE_READER_CONSENT,
     M_I1IO_DRIVE_READER_CONSENT_MAC, M_I1IO_DRIVE_COUNTDOWN, M_I1IO_DRIVE_START_UP_ARM,
     M_I1IO_DRIVE_CONSENT_GUIDANCE, M_I1IO_GUIDED_HELP, M_I1IO_LOG_HELP,
@@ -15605,6 +15679,7 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_NOTE, M_I1IO_DRIVE_NEXT_PAGE, M_I1IO_DRIVE_STOPPED_BY_YOU,
     M_I1IO_DRIVE_REFUSED, M_I1IO_DRIVE_FRONT_END, M_I1IO_DRIVE_FRONT_STOPPED,
     M_I1IO_DRIVE_ROW_M0_ONLY_STRIP, M_I1IO_DRIVE_ROW_M0_ONLY,
+    M_I1IO_DRIVE_ROW_M1_M2_NOT_WRITTEN,
     M_I1IO_DRIVE_ROW_PLACEMENT_REST,
     M_I1IO_DRIVE_HOME_OFFERED,
     M_I1IO_DRIVE_SWITCH_OFF,
@@ -15660,6 +15735,7 @@ I1IO_DRIVE_USB_MESSAGE["M-I1IO-DRIVE-TABLE-DRIVER-NOT-INSTALLED"] = M_I1IO_DRIVE
 PIECE_MESSAGES = {m.id: _piece_twin(m) for m in (
     M_I1IO_DRIVE_ROW_FAILED, M_I1IO_DRIVE_ROW_FAILED_STRIP, M_I1IO_DRIVE_ROW_M0_ONLY,
     M_I1IO_DRIVE_ROW_M0_ONLY_STRIP, M_I1IO_DRIVE_ROW_PLACEMENT_REST,
+    M_I1IO_DRIVE_ROW_FAILED_STRIP_NOT_MOVED, M_I1IO_DRIVE_ROW_M1_M2_NOT_WRITTEN,
     M_I1IO_DRIVE_ROW_NOT_IN_PLACE, M_I1IO_DRIVE_ROW_NOT_IN_PLACE_SPOT)}
 
 CATALOGUE = {m.id: m for m in (

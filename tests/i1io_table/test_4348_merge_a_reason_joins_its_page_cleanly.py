@@ -64,7 +64,8 @@ def test_a_row_page_never_doubles_the_stop_after_its_reason(code):
         bad = {}
         for rid in _reason_ids():
             why = W.as_clause(W.reason_text(rid))
-            for msg in (M.M_I1IO_DRIVE_ROW_FAILED_STRIP, M.M_I1IO_DRIVE_ROW_FAILED):
+            for msg in (M.M_I1IO_DRIVE_ROW_FAILED_STRIP, M.M_I1IO_DRIVE_ROW_FAILED,
+                        M.M_I1IO_DRIVE_ROW_FAILED_STRIP_NOT_MOVED):
                 body = msg.render(row=1, page=1, why=why)[1]
                 m = DOUBLE.search(body)
                 if m:

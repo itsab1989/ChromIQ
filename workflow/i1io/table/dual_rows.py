@@ -134,7 +134,7 @@ def _uv_patch_order(lamp, uv):
 
 
 def _dual_windows(lamp, uv, nl, nu, edge):
-    wl_ = sc.windows(lamp, sc.MOTION_START_AFTER_LAMP_S, nl, edge_mm=edge)
+    wl_ = sc.windows(lamp, sc.DUAL_LAMP_MOTION_START_S, nl, edge_mm=edge)
     wu_ = sc.windows(uv, sc.UV_MOTION_START_AFTER_TRIGGER_S, nu, edge_mm=edge,
                      first_reading_s=sc.UV_FIRST_READING_AFTER_TRIGGER_S)
     order = _uv_patch_order(lamp, uv)
@@ -160,7 +160,7 @@ def cut_dual(lamp, uv, lamp_rows, uv_rows, edges=None, wavelengths=None,
             break
     info = {"lamp_windows": wl_, "uv_windows": wu, "lamp_readings_per_patch": counts_l,
             "uv_readings_per_patch": counts_u, "edge_mm": edge,
-            "lamp_motion_start_s": sc.MOTION_START_AFTER_LAMP_S,
+            "lamp_motion_start_s": sc.DUAL_LAMP_MOTION_START_S,
             "uv_motion_start_s": sc.UV_MOTION_START_AFTER_TRIGGER_S,
             "uv_first_reading_s": sc.UV_FIRST_READING_AFTER_TRIGGER_S}
     if min(counts_l + counts_u, default=0) < sc.DUAL_MIN_READINGS:
@@ -196,12 +196,12 @@ def cut_lamp_only(lamp, lamp_rows, edges=None, wavelengths=None,
     wl_: list = []
     edge = None
     for edge in (edges or sc.DUAL_EDGES_MM):
-        wl_ = sc.windows(lamp, sc.MOTION_START_AFTER_LAMP_S, len(lamp_rows), edge_mm=edge)
+        wl_ = sc.windows(lamp, sc.DUAL_LAMP_MOTION_START_S, len(lamp_rows), edge_mm=edge)
         counts = [i1 - i0 for i0, i1 in wl_]
         if min(counts, default=0) >= sc.DUAL_MIN_READINGS:
             break
     info = {"lamp_windows": wl_, "lamp_readings_per_patch": counts, "edge_mm": edge,
-            "lamp_motion_start_s": sc.MOTION_START_AFTER_LAMP_S, "lamp_only": True}
+            "lamp_motion_start_s": sc.DUAL_LAMP_MOTION_START_S, "lamp_only": True}
     if min(counts, default=0) < sc.DUAL_MIN_READINGS:
         return DualCut(False, "strip_patch_too_few_readings", info=info)
     L = [_mean(lamp_rows[i0:i1]) for i0, i1 in wl_]
@@ -228,7 +228,9 @@ def _placement(lamp, lamp_rows, windows, wavelengths, info, uniform_row=False) -
     1.23 dE00). The UV pass is NOT checked by it: its readings are the LED light the patch
     reflects, for which the study measured no stable-run threshold; it keeps its own timing
     check against the chart (uv_timing_fit). Returns the reason, or "" when confirmed."""
-    check = pl.check_row(lamp, lamp_rows, windows, wavelengths, uniform_reference=uniform_row)
+    check = pl.check_row(lamp, lamp_rows, windows, wavelengths,
+                         motion_start_s=sc.DUAL_LAMP_MOTION_START_S,
+                         uniform_reference=uniform_row)
     info["placement"] = check
     if check.get("confirmed"):
         return ""
@@ -243,7 +245,7 @@ def lamp_timing(lamp, lamp_rows, wavelengths=None) -> dict:
         return {"lamp": None, "lamp_checked": False, "lamp_refuse": False,
                 "lamp_why": "no readings"}
     sl = _band_means(lamp_rows, wavelengths, (380.0, 730.0))
-    lf = _layout_fit(lamp, sl, sc.FIRST_READING_AFTER_LAMP_S, sc.MOTION_START_AFTER_LAMP_S)
+    lf = _layout_fit(lamp, sl, sc.FIRST_READING_AFTER_LAMP_S, sc.DUAL_LAMP_MOTION_START_S)
     return dict({"lamp": lf}, **_judge_lamp(lf))
 
 
@@ -306,6 +308,23 @@ UV_FIT_BANDS_NM = (380.0, 400.0)
 # truly 2 readings late at 1.75 or 2.0), or LAMP_FIT_REFUSE_EARLY or more early (the recorded
 # passes reach 2.25 early and read well), with the same gain gate as the UV pass. A
 # row whose patches hardly differ, or whose edges do not move R squared, is not judged.
+#
+# 2026-11-25 (item 70): THE ASSUMED START of the lamp pass is its own now (scan.
+# DUAL_LAMP_MOTION_START_S, 1.4 readings earlier); the two limits are unchanged, because what is
+# harmless around an assumed start is: from 2.5 readings early to 1.5 late no patch is off by more
+# than 0.5 dE00, beyond it the windows take in the neighbours (37 recorded passes, each moved by -4 to
+# +4 readings). Around 0.372 the real passes reached 3.25 early, and good rows were refused (0.03 to
+# 0.11 dE00 from the same rows read another way, the placement check had confirmed every patch). Around 0.365 they lie from 1.75 early to 1.25 late: 35 of the 37
+# recorded passes are accepted (28 before), none newly refused, the worst patch 0.40 dE00. A pass
+# moved 1 to 3 readings early is now often accepted (34, 17 and 4 of 37; every patch within 0.35
+# dE00 of its true value: it is not told from a row that lies there), one moved 2 to 4 late is
+# refused more often (7, 23 and 16 more). A pass that is not this row's, or whose lamp fails, is
+# not this verdict's to find (a chart's rows have their edges in the same places). Another row's
+# lamp pass and a reversed stream are found by the identity check alone, and only in a row it can
+# judge; the helper's pairing check finds another row's lamp pass with this row's own UV pass, not
+# both passes of one wrong row. The identity check does not see a fading lamp; the pairing check
+# sees one at half its light (30 of 30 from the row's middle), not one 10 % down. A pairing refusal
+# costs the row its M1 and M2 only: the lamp pass is kept as M0 (job._keep_lamp_pass).
 LAMP_FIT_REFUSE_LATE = 1.75        # readings late of the assumed start: refused ...
 LAMP_FIT_REFUSE_EARLY = 2.5        # ... or this many early ...
 LAMP_FIT_MIN_GAIN = UV_FIT_MIN_GAIN   # ... when R squared at the best start is this much better
@@ -412,7 +431,7 @@ def uv_timing_fit(lamp, uv, lamp_rows, uv_rows, wavelengths=None) -> dict:
     assumed start)."""
     out = {"checked": False, "refuse": False, "assumed_uv_motion_start_s":
            sc.UV_MOTION_START_AFTER_TRIGGER_S, "assumed_lamp_motion_start_s":
-           sc.MOTION_START_AFTER_LAMP_S, "refuse_at_readings": UV_FIT_REFUSE_READINGS,
+           sc.DUAL_LAMP_MOTION_START_S, "refuse_at_readings": UV_FIT_REFUSE_READINGS,
            "lamp_refuse_at_readings": {"late": LAMP_FIT_REFUSE_LATE,
                                        "early": LAMP_FIT_REFUSE_EARLY},
            "span_readings": UV_FIT_SPAN, "uv": None, "lamp": None,
@@ -426,7 +445,7 @@ def uv_timing_fit(lamp, uv, lamp_rows, uv_rows, wavelengths=None) -> dict:
     out["uv"] = _layout_fit(uv, su, sc.UV_FIRST_READING_AFTER_TRIGGER_S,
                             sc.UV_MOTION_START_AFTER_TRIGGER_S)
     out["lamp"] = _layout_fit(lamp, sl, sc.FIRST_READING_AFTER_LAMP_S,
-                              sc.MOTION_START_AFTER_LAMP_S)
+                              sc.DUAL_LAMP_MOTION_START_S)
     out.update(_judge_lamp(out["lamp"]))
     u = out["uv"]
     if u["best_readings"] is None:

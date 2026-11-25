@@ -403,7 +403,7 @@ def test_the_panel_says_both_ways_and_a_press_answers_like_aimed(qtbot, monkeypa
                                                          sim=sim, asking=False)
     person.drive_until("aimed")
     text = win._text.text()
-    assert "button on the i1Pro 2 itself" in text and "has not been tried on a real table" in text
+    assert "button on the i1Pro 2 itself" in text and "has been tried on one real table so far" in text
     qtbot.waitUntil(lambda: "is ready" in win._status.text(), timeout=5000)
     for mark in (1, 2, 3):
         assert person.page() == "aimed" and win._last.detail["mark"] == mark

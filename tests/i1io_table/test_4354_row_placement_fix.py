@@ -55,7 +55,9 @@ def test_the_dual_cut_refuses_a_lamp_pass_whose_window_takes_in_an_edge_reading(
     lamp = S.plan(10.0, 132)
     uv = sp.uv_pass_of(lamp)
     urows = [[0.01] * 36] * uv.N
-    row = S.Row(lamp, dx_mm=2.0, seed=0)
+    from workflow.i1io.table import scan as sc
+    dt = sc.DUAL_LAMP_MOTION_START_S - sc.MOTION_START_AFTER_LAMP_S    # where a dual lamp pass starts
+    row = S.Row(lamp, dx_mm=2.0, dt_s=dt, seed=0)
     rows = row.readings.tolist()
     monkeypatch.setattr(pl, "ROW_PLACEMENT_CHECK", False)
     off = dl.cut_dual(lamp, uv, rows, urows)
@@ -70,7 +72,7 @@ def test_the_dual_cut_refuses_a_lamp_pass_whose_window_takes_in_an_edge_reading(
     only = dl.cut_lamp_only(lamp, rows)
     assert (only.ok, only.reason) == (False, stp.PLACEMENT_REASON)
     # and a dual row lying where it should is cut as before
-    good = S.Row(lamp, seed=0).readings.tolist()
+    good = S.Row(lamp, dt_s=dt, seed=0).readings.tolist()
     a = dl.cut_dual(lamp, uv, good, urows)
     monkeypatch.setattr(pl, "ROW_PLACEMENT_CHECK", False)
     b = dl.cut_dual(lamp, uv, good, urows)
@@ -78,8 +80,8 @@ def test_the_dual_cut_refuses_a_lamp_pass_whose_window_takes_in_an_edge_reading(
 
 
 def test_a_dual_row_refused_for_placement_keeps_no_m0_only_lamp_pass(tmp_path, monkeypatch):
-    """The job (simulated table, dual scan on): row 1's sheet 2.5 mm off, read through the
-    4.5 mm opening. The row fails with the placement reason, and the job does NOT try to keep
+    """The job (simulated table, dual scan on): row 1's sheet 2.8 mm off (2.5 until
+    item 70), read through the 4.5 mm opening. The row fails with the placement reason, and the job does NOT try to keep
     its lamp pass as M0 only (job.py's exclusion beside lamp_pass_timing_off): the question
     says nothing of M0, and no M0-only row file exists."""
     from tests.i1io_table.test_4350_dual_m1_m2_per_row import _job, _ready
@@ -91,7 +93,7 @@ def test_a_dual_row_refused_for_placement_keeps_no_m0_only_lamp_pass(tmp_path, m
         return real(self, *a, **k)
     monkeypatch.setattr(J.TableJob, "_keep_lamp_pass", spy)
     job, sim, helper, run, p, _rep = _job(
-        tmp_path, faults={"scan": {"sheet_offset_mm": 2.5, "aperture_mm": 4.5}, "scan_at": 2},
+        tmp_path, faults={"scan": {"sheet_offset_mm": 2.8, "aperture_mm": 4.5}, "scan_at": 2},
         script={J.Confirm.ROW_FAILED_STRIP: "skip"})
     asked = []
     p.on_ask = lambda person, res: (asked.append(dict(res.detail))

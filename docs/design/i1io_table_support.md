@@ -770,7 +770,8 @@ which now behaves as the real one did; the in-app drive itself has still not run
   readings on the real table: scan 0.087 / spot 0.068 dE00 with the stored values against
   0.636 / 0.645 without (and 0.22 on a cross-paired comparison of the first analysis). Which is
   closer to the true colour is not known.
-* **Recorded values added:** c4 may answer BC (B7..BC; BA, BB, B8 seen too); scan speed 168
+* **Recorded values added:** c4 may answer BC (B7..BC; BA, BB, B8 seen too; since 4.3.67 B0..C6,
+  the last section of this document); scan speed 168
   (i1Profiler's; used only where no slower recorded speed keeps a row within the readings rule,
   in practice never); 45 button presses in all, each answered by p1 2-5 ms later.
 * **A position reading a hair outside the tolerance** after a move is read once more after 0.3 s
@@ -1807,7 +1808,7 @@ i1Profiler recordings of 19 and 21 Nov 2026 (R19, N1 to N4), the owner's start-u
   | 111800 | just switched on | S1, N4, many | i0, then s0 f4 x4 (00) s0 p0 i1 s0 | its start-up (M-I1IO-DRIVE-START-UP), unchanged |
   | 130000, f4 00 x4 | started, mode off | many | s0 p0 i1 s0 | the START rule (4.3.52), unchanged |
   | 511800 | just switched on, mode left on | recording A; owner 4.3.50 log | i0, s0 f4 x4 (01) s0 p0 i1 s0 | the same start-up (f4 01 expected), then f0 f4 f4 p0 (the mode ended at rest, R19's tail); the start-up page says so (M-I1IO-DRIVE-START-UP-AIMING) |
-  | 530000, f4 01 x4 | started, mode left on | N1; volunteer 19 Nov | s0 p0 i1 s0; f0 at its close | after the hands-off question (M-I1IO-DRIVE-REPAIR-AT-START; with the guidance off the countdown): s0 p0 [way home] i1 s0 f0 f4 f4 p0, the arm read at rest; the measurement goes on |
+  | 530000, f4 01 x4 | started, mode left on | N1; volunteer 19 Nov | s0 p0 i1 s0; f0 at its close | after the hands-off question (M-I1IO-DRIVE-REPAIR-AT-START; since 4.3.67 also with the guidance off, unless the arm was read at rest right before: then the countdown): s0 p0 [way home] i1 s0 f0 f4 f4 p0, the arm read at rest; the measurement goes on |
   | 540000, f4 01 x4 | as 530000 (its low digit 4 not understood) | owner 4.3.50 log, ChromIQ only | not recorded | as 530000, logged as itself |
   | a0 with bit 0x40 but f4 00 (530000 / 540000 / 511800 then 00) | the two answers disagree | never | not recorded; the vendor never branches on f4 (N1 mode on, N2 mode off: the same lines) | **fix round:** f4 decides; the same repair (warm) or the start-up with the end tail (cold); f0 with the mode off is recorded (N2 quit 25.676) |
   | 130000 with f4 01 (or 111800 then f4 01 after i0) | the two answers disagree | never | not recorded | **fix round:** f4 decides: the mode is on, the same repair / tail |
@@ -2062,8 +2063,8 @@ second challenge included); this section grows with the steps that follow.
   piece too): the page no larger than the table, every aim, patch and run end on the page (0.5 mm for
   rounding), the 20 mm above. Otherwise M-I1IO-PIECES-RECORD, and the table is not opened.
 * A piece without crosses is laid "with its first strip at the top and patch 1 of it at the top left"
-  (S5). The notes of Compact and of a sheet in pieces say that they have run on a simulated table
-  only (S6).
+  (S5). The note of a sheet in pieces says that it has run on a simulated table only (S6); so did
+  Compact's until 4.3.66 (its rows have been read on one real table since, without the dual scan).
 * **A SHEET LARGER THAN THE TABLE IS CUT INTO PIECES** (`workflow/i1io/pieces.py`). The pieces are the
   chart's pages; the printed sheet is put together from them (`workflow/i1io/sheets.py`, in
   `exports/`). Which pieces is decided once, at Generate, and recorded in the side file (schema 2),
@@ -2107,3 +2108,103 @@ second challenge included); this section grows with the steps that follow.
 Tests: `tests/i1io_table/bed_sim.py` (the simulated table reads what lies on it),
 `test_row_identity.py`, `test_row_identity_job.py`, `test_row_identity_window.py`,
 `test_i1io_layout_rows.py`, `tests/test_i1io_layout_limits.py`, `tests/test_i1io_layout_sizes.py`.
+
+### ⏳ Awaiting confirmation: 4.3.67, what a real table's dual scan sittings showed (2026-11-25)
+
+**Confirmed by:** *nobody yet.* Built from two real sittings with the dual scan (4.3.66); the
+changes are tested against the simulated table and helper only. Nothing new is sent to the table
+or the instrument: no line, form, speed or order; the homing, the aiming, the hands-off rules and
+the calibration rules are untouched.
+
+* **The table's answer to c4 (the line before every strip pass).** What it means is NOT known, and
+  nothing is worked out from it. All 115 answers recorded or logged so far on real tables lie in
+  B7..BE (B7 1, B8 16, B9 40, BA 20, BB 14, BC 19, BD 3, BE 2). It wanders by single counts: the
+  same place asked again within seconds gives the same value or one beside it; consecutive answers
+  differ by at most 3, the two passes of one dual row included; the first row of a sitting is
+  often the highest; no trend with time, row or place holds through all of them (a temperature or
+  a voltage would fit, neither is shown). The range until 4.3.66 (B7..BC) refused BD and BE before
+  anything moved, so no row could be read as a strip. Accepted now: **B0..C6** (`scan.C4_RANGE`),
+  the 8 values seen and about as much again on each side. Outside it the pass stops cleanly as
+  before (nothing moved in it); an answer of another form or length stays a doubt. The two passes of
+  a row are not compared, because recorded rows differ. Every value outside B7..BC is written to
+  the session log and the app log in plain words, once per session and value.
+* **Measured, for the kept dual tile (no rule drawn from it).** The instrument's wavelength offset
+  on a real table: it does not move between the row processes of a sitting (each takes the one its
+  calibration saved); every wavelength calibration moves it by +0.01 to +0.03 nm (1.152, 1.161,
+  1.187 and 1.187, 1.205, 1.234 nm in the two sittings), +0.08 nm over 8 minutes in all. The kept
+  strip tile was made at the offset the rows use, the kept patch-by-patch tile 0.02 to 0.03 nm
+  before it. A refusal of a kept tile whose offset differs would therefore have to allow at least
+  0.1 nm, or it would refuse the normal flow; none is added.
+* **Patch by patch with the dual scan writes M1 and M2.** The folder the reading program is told
+  to write them into (`<row folder>/conditions`) is now made by the job, as by hand; the helper
+  never makes it, so until 4.3.66 its first write failed and no row read patch by patch on a real
+  table could have M1 / M2 (the simulated helper made the folder itself and hid it; it no longer
+  does). When the reading program says that it could not write them (its event "conditions",
+  active false, why "write"), the row ends right after that reading, before the next move, instead
+  of being read on for M0 only. The readings made keep their M0, by the rule of every row that
+  ended early. When the folder cannot be made, nothing is read and nothing moves. The row is not
+  read again by itself. Only "write" does this; every other ending of the record is as before.
+* **The page of a strip row that moved nothing** (M-I1IO-DRIVE-ROW-FAILED-STRIP-NOT-MOVED,
+  proposed) takes the place of M-I1IO-DRIVE-ROW-FAILED-STRIP, which says the arm is held where the
+  strip move ended. Chosen by what happened: the attempt sent no move, or the arm is free (the job's
+  "moved"), never by the reason's name; a row refused after its lamp pass, or after the move to its
+  start, keeps the old page. Its first answer says to choose another one when the same reason comes
+  again.
+* **No "Read it again" where it cannot help.** A row ended because its M1 / M2 could not be written
+  has its own page (M-I1IO-DRIVE-ROW-M1-M2-NOT-WRITTEN, proposed): it says what to check and offers
+  "Skip it" and "End this step" only. M-I1IO-DRIVE-ROW-M0-ONLY (no reason known) keeps "Read it
+  again" and no longer says "as often as you like".
+* **The dual row's lamp pass has its own assumed start** (item 70). `scan.DUAL_LAMP_MOTION_START_S` =
+  0.365 s, 7 ms before the single strip's 0.372 s, used for the lamp pass's windows, its placement
+  check and its timing verdict; everything else of the table and the hand dual scan is untouched.
+  Measured on every dual lamp pass on disk (31 of ChromIQ's on a real table, 6 of i1Profiler's): the
+  best start lies 0 to 3.25 readings before 0.372, 1.9 on average, whatever the row. A cut is
+  harmless (no patch above 0.5 dE00) from 2.5 readings early to 1.5 late of the assumed start, so the
+  real passes lay at its early edge and good rows were refused; around 0.365 they lie from 1.75 early
+  to 1.25 late. The limits are unchanged, because what is harmless around an assumed start is.
+  Speed plays no part (single strips in both directions: 0.369 at 168 mm/s, 0.370 at 61). What
+  differs from row to row is where the patches lie along it: opposite in the two directions,
+  drifting along the page (aims, opening), and it cancels in the sum of a row's lamp and UV starts
+  (-2.0 readings, spread 0.35). 35 of the 37 recorded passes are accepted now (28 before), none
+  newly refused, the worst patch 0.40 dE00. Moved by whole readings: a pass 1 to 3 early is now
+  often accepted (every patch within 0.35 dE00 of its true value, it cannot be told from a row
+  that lies there), a pass 2 to 4 late is refused more often. This verdict never told one row from another,
+  before or after: that is the identity check's alone (in the rows it can judge), also when both
+  passes come from the same wrong row. A fading lamp is not seen by the identity check; the
+  helper's pairing check sees one at half its light, not one 10 % down, and a pairing refusal costs
+  the row its M1 and M2 only: the lamp pass is kept as M0 (released behaviour). No row is read as a dual row that was not before (planned at
+  both starts).
+* **START of a chart whose rows are too short for the dual scan** (the chart layout "Compact", rows
+  as strips chosen): a question before anything is opened, written or moved
+  (M-I1IO-DRIVE-DUAL-SPOT-WHOLE): the table reads every patch by itself, and about how long that
+  takes. The pace is measured on a real table: 2.12 to 2.19 s on the patch with both lights, 0.5 s
+  for the move, 0.08 s for the arrival; `spot.DUAL_SPOT_PATCH_S` 2.6 to 3.1 s with the ways between the
+  rows, so about 28 to 33 minutes for a full Compact page. (1.65 s a patch, about 18 minutes, was
+  the pace of rows that had lost their M1 / M2: the lamp alone.) Judged from the side file
+  (`spot.dual_rows_too_short`), the same rule as the row planner's.
+* **Aims that look like a scaled print** (M-I1IO-DRIVE-AIMS-SCALED): both sides of the aimed triangle
+  off the same way by 1.5 to 8 %, by shares that agree within 1 %, and the corner right within 1
+  degree (`geometry.print_scale_hint`). The page then says at about which percent the sheet seems to be
+  printed, and how to print it again. Words only: the aims are refused as before, and so is every
+  move.
+* **Every ending offers the homing** (item 74, P1). End measurement, the X, Esc or the quit pressed
+  on a question that was open withdraws it and keeps the wish to end. When the question about the
+  last step came in between and the ending was pressed again, that wish stayed standing and was
+  taken up only after the ending, which then let go of the table without the homing's question: the
+  arm stayed out, the aiming mode on. It is now fulfilled by the press that asks the ending; and a
+  quit asked while the Save itself runs no longer skips the homing either. Nothing is sent by it.
+* **On the page that asks the homing of the ending, End measurement, the X and Esc are its "Not now"**
+  (item 74, P2): nothing is sent, the page that says what that means follows, and only its Close (or
+  End measurement / the X there) lets go of the table. The app's quit stays on the page, as before.
+* **The repair of an aiming mode found at START asks before a move it cannot know to be small** (item
+  74, P3). With the guidance off one plain position query (p0) is sent before the question, nothing
+  moves: at the resting place (`start_place`, REST_GUARD) the countdown stands in for the question as
+  before; anywhere else, and when the start-up found the arm out, the person is asked. After a countdown
+  the position that is read right before the homing anyway decides once more: no longer at rest
+  (a free arm pushed out meanwhile), nothing moves, and the person is asked; the rest of the sitting is
+  guided. In the guided
+  mode nothing is added (the question is asked anyway). The rule of 4.3.56 stays: nothing is sent at
+  the app's close, and the next START ends the mode.
+* **The computer is kept awake while the table's USB is open** (item 74, P5; `core/keep_awake.py`, the
+  hand measurement's own): from the answer that opens it until the panel is finished, whatever
+  ended it. On macOS the assertion ends with ChromIQ's process in any case.

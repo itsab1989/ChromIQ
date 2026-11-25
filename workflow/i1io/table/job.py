@@ -608,6 +608,15 @@ class _MovedWhileAsked(Exception):
         self.found, self.now = found, now
 
 
+class _LeftTheRestPlace(Exception):
+    """A homing that a countdown allowed (an arm at its resting place) read it elsewhere right
+    before: only s0 and p0 were sent, nothing moved. The caller asks."""
+
+    def __init__(self, now):
+        super().__init__(f"the arm left its resting place during the countdown: it reads {now}")
+        self.now = now
+
+
 #: 4.3.57 (item 21): how often the hands-off question before a START homing is asked again
 #: after the held arm moved while it waited; an arm that keeps moving between questions is not
 #: at rest by itself (a STATE: something holds or pushes it), and the homing is not sent
@@ -1180,6 +1189,8 @@ class TableJob:
         #: how the check judged this sitting's rows, every judgement counted: "ok", "ask",
         #: "confirmed" (asked before on this page), "shifted", "not judged: <why>"
         self.identity_tally: "dict[str, int]" = {}
+        #: c4 answers outside scan.C4_USUAL already written to the logs in this session
+        self._c4_noted: "set[int]" = set()
         self.rest_by_patch: "set[int]" = set()
         self._press_factory = press_factory or None
         self._press = None
@@ -1380,10 +1391,14 @@ class TableJob:
             step = d.get("step")
             if step == "repair_at_start" and d.get("f4_mixed"):
                 return None               # last round: after answers that differ: always asked
-            if step in ("home_at_start", "repair_at_start"):
+            if step == "repair_at_start":
+                # item 74, P3: the arm may be anywhere (a real one travelled 24 cm after a
+                # countdown): the countdown only for an arm READ at its resting place right
+                # before; out, or not known, the person is asked as in the guided mode
+                return "countdown" if d.get("arm_at_rest") is True else None
+            if step == "home_at_start":
                 # 4.3.52: the START rule's homing inside the step that found the arm away from
-                # rest: the countdown, as before every first movement (not a fault); 2026-11-21:
-                # the same for the homing that ends an aiming mode found left on
+                # rest: the countdown, as before every first movement (not a fault)
                 return "countdown"
             if step == "home_after_stop" or d.get("at_start"):
                 return None               # the homing offered on a page after a stop stays
@@ -3851,7 +3866,7 @@ class TableJob:
         return {"read": self._table.position_now}
         yield  # pragma: no cover
 
-    def _end_of_job(self, stage: "str | None" = None) -> None:
+    def _end_of_job(self, stage: "str | None" = None, only_from_rest: bool = False) -> None:
         """i1Profiler's end of a job from where the arm stands: s0 p0 i1 s0 f0 f4 f4 p0 (f0 ends
         the aiming mode ChromIQ's alignment switched on), the last reading at rest. 4.3.52: a
         HELD arm from everywhere but the back strip, DIRECTLY, as i1Profiler homes (the move
@@ -3866,6 +3881,8 @@ class TableJob:
         got = d.position()
         #: 4.3.57 (item 20): where the arm stood right before this homing (the logs)
         self.homed_from = got
+        if only_from_rest and start_place(got) != "at_rest":
+            raise _LeftTheRestPlace(got)
         if last is not None and not _near(got, last) and d.arm_free is False:
             if got is None or not _near(got, last, tbl.HELD_ARM_MOVED_UNITS):
                 # 4.3.50 (table re-review, MUST-A): its own id, so the page says what is true
@@ -4043,10 +4060,25 @@ class TableJob:
         if mixed:
             d.log("DATA", f"the repair offered after mode answers that differ (a0 = "
                           f"{d.a0_answer}); the same lines as always, asked first")
-        ans = yield Ask(Confirm.GO, {"step": "repair_at_start", "page": self.page + 1,
-                                     "at_start": True, "aiming_left_on": True,
-                                     "f4_mixed": mixed,
-                                     "a0": d.a0_answer, "inline": stage != "repair_at_start"})
+        place = found
+        if place is None and not self.guided_now and not mixed and d.closed_reason is None:
+            # item 74, P3: where the arm stands decides whether the countdown may stand in for
+            # the question: one plain position query, nothing moves. In the guided mode the
+            # question is asked anyway, and nothing is added
+            self._grant("where the arm stands, before the aiming mode found at the start is "
+                        "ended", 1, 0)
+            self._step("repair_where", 1, 0)
+            try:
+                place = d.position()
+            finally:
+                d.current_step = None
+        detail = {"step": "repair_at_start", "page": self.page + 1,
+                  "at_start": True, "aiming_left_on": True, "f4_mixed": mixed,
+                  "arm_at_rest": place is not None and start_place(place) == "at_rest",
+                  "a0": d.a0_answer, "inline": stage != "repair_at_start"}
+        countdowns = len(self.countdowns)
+        ans = yield Ask(Confirm.GO, detail)
+        by_countdown = len(self.countdowns) > countdowns
         self._start_case_answer(ans)
         if ans != "yes":
             raise PersonStopped("person_chose_back")
@@ -4065,10 +4097,35 @@ class TableJob:
                       "and end the mode, as i1Profiler does with such a table")
         # fix round (review N1): this homing's own place, never an earlier homing's
         self.homed_from = None
+        declined = False
         try:
-            self._end_of_job(stage)
+            try:
+                self._end_of_job(stage, only_from_rest=by_countdown)
+            except _LeftTheRestPlace as left:
+                # safety review 2, S1: only s0 and p0 were sent; nothing moved. Nobody was asked
+                # (the countdown stood in for an arm at its resting place), and the arm is not
+                # there any more: now the person is, and the rest of the sitting with them
+                d.current_step = None
+                d.log("DATA", f"the arm was read at its resting place, and at {left.now} right "
+                              "before the homing: the question is asked, nothing moved")
+                self._turn_guided("the arm left its resting place during the countdown")
+                self._repair_tried = False          # "Not now": the same offer stays
+                ans = yield Ask(Confirm.GO, dict(detail, arm_at_rest=False))
+                self._start_case_answer(ans)
+                if ans != "yes":
+                    declined = True
+                    raise PersonStopped("person_chose_back") from None
+                why = self._repair_why()
+                if why:
+                    raise StageFailed(why) from None
+                self._check_other_program()
+                self._repair_tried = True
+                self._grant("the homing that ends the aiming mode, asked for after the arm left "
+                            "its resting place", *cp.HOME_DETOUR)
+                self._end_of_job(stage)
         except BaseException:
-            self.start_homing_failed = True
+            if not declined:
+                self.start_homing_failed = True
             if stopped_because is not None:
                 d.close_for_sending("the homing that ends the aiming mode did not end at the "
                                     "resting place; nothing more is sent in this measurement")
@@ -5161,6 +5218,7 @@ class TableJob:
         attempt = 1
         reread_by_itself = False
         while True:
+            moves_before = self._table.motions_sent
             if plan.kind == "strip" and self.dual is not None:
                 rec = yield from self._dual_strip_attempt(plan, attempt)
             elif plan.kind == "strip":
@@ -5234,7 +5292,11 @@ class TableJob:
                 and not self._calibration_due_for(len(plan.patches)),
                 "rows_read_again": self.rows_again.get(self.page, 0),
                 "calibration_due": self._calibration_due_for(len(plan.patches)),
-                "offer_rest": offer_rest, "aim_again": beside})
+                "offer_rest": offer_rest, "aim_again": beside,
+                # what really happened, not the reason's name: did this attempt send any move,
+                # and do the motors hold the arm (the page says so first)
+                "moved": self._table.motions_sent > moves_before
+                and self._table.arm_free is not True})
             if ans == "rest patch by patch":
                 self.rest_by_patch.add(self.page)
                 self.diag.log("DATA", f"page {self.page + 1}: the person chose to read the rest "
@@ -5355,10 +5417,13 @@ class TableJob:
                                                    what=f"row {plan.index + 1}")
             if not ok:
                 raise PersonStopped("first_visit_declined")
+            dual_args = self._dual_spot_args(folder, self.cal_place) if self.dual else ()
+            if self.dual is not None and not (folder / "conditions").is_dir():
+                # no M1 / M2 could be written: nothing is read and nothing moves
+                raise _RowFailed(NOT_WRITTEN, "")
             reader = yield from self._start_reader(
                 folder, name, [(p.sample_id, p.loc) for p in plan.patches], False,
-                moves_next=True,
-                dual_args=self._dual_spot_args(folder, self.cal_place) if self.dual else ())
+                moves_next=True, dual_args=dual_args)
             self._cal_refused = None
             self._open_reader(reader, self._cal_in_a_row)
             opened = True
@@ -5395,6 +5460,14 @@ class TableJob:
                     self._progress(event="patch_read", row=plan.index + 1, loc=p.loc,
                                    xyz=list(got.get("xyz") or []))
                 last_t = got["t"]
+                if self.dual is not None and self._dual_not_written(reader):
+                    # said right after the reading, before the next patch: the rest of the row
+                    # would be read for M0 only. The readings made keep their M0, as those of
+                    # any row that ended early
+                    self.diag.log("DATA", f"row {plan.index + 1}: the reading program could not "
+                                          "write its M1 and M2; the row ends at patch "
+                                          f"{p.loc}, {n - i - 1} patches are not read")
+                    raise _RowFailed(NOT_WRITTEN, "")
             # THE ROW IDENTITY CHECK, before anything of the row counts: the reader is ended
             # (its file is complete), the row judged on its own readings
             drop = idn.REASON_SPOT
@@ -5452,7 +5525,8 @@ class TableJob:
                     {k: ev.get(k) for k in ("ok", "why", "uv_triggers", "volts")}
                     for ev in self._events(reader) if ev.get("event") == "dual_pass_result"]
                 if rec["accepted"] and rec["conditions"] is None and rec["status"] == "read":
-                    rec.update(status="failed", why="dual_conditions_missing")
+                    rec.update(status="failed", why=NOT_WRITTEN if self._dual_not_written(
+                        reader) else "dual_conditions_missing")
                     self._progress(event="row_end", row=plan.index + 1, status="failed",
                                    loc=None)
             self.diag.write_json(f"{self._block['folder']}/{name}{ms.ROW_RECORD_SUFFIX}", rec)
@@ -5540,8 +5614,22 @@ class TableJob:
 
     def _dual_spot_args(self, folder: Path, place: "str | None") -> "list[str]":
         """A patch-by-patch reader's dual arguments: the hand dual scan's, the white of the
-        tile the calibration is made on, --dual-table, and the row folder's conditions."""
-        return self.dual.spot_args(Path(folder) / "conditions", dl.white_for_place(place))
+        tile the calibration is made on, --dual-table, and the row folder's conditions, which
+        is made here (as by hand, measure_manager): the helper never makes it, and without it
+        its first write of M1 / M2 fails and no patch of the row can have them."""
+        cdir = Path(folder) / "conditions"
+        try:
+            cdir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            self.diag.log("DATA", "dual scan: the folder for M1 and M2 could not be made "
+                                  f"({type(exc).__name__})")
+        return self.dual.spot_args(cdir, dl.white_for_place(place))
+
+    def _dual_not_written(self, reader) -> bool:
+        """The reading program said it could not write its record of M1 / M2 (its event
+        "conditions", active false, why "write"): it writes none for the rest of its run."""
+        return any(ev.get("event") == "conditions" and ev.get("active") is False
+                   and ev.get("why") == "write" for ev in self._events(reader))
 
     @staticmethod
     def _dual_event(reader, name: str) -> "dict | None":
@@ -5564,6 +5652,23 @@ class TableJob:
                 return None
             out[cond] = Path(f).relative_to(Path(folder)).as_posix()
         return out
+
+    def _note_c4(self, name: str, plan, value) -> None:
+        """A c4 answer outside the range ChromIQ knew until 4.3.66 (scan.C4_USUAL): said in plain
+        words in the session log and (through the progress signal) the app log, once per session
+        and value. Nothing depends on it; never raises."""
+        if not sc.c4_unusual(value) or value in self._c4_noted:
+            return
+        self._c4_noted.add(value)
+        lo, hi = sc.C4_RANGE
+        note = (f"the table answered its question before the strip (c4) with {value:02X}; "
+                f"ChromIQ knew {sc.C4_USUAL[0]:02X} to {sc.C4_USUAL[1]:02X} until 4.3.66. "
+                + (f"It is inside what ChromIQ accepts ({lo:02X} to {hi:02X}), so the row goes on."
+                   if lo <= value <= hi else
+                   f"It is outside what ChromIQ accepts ({lo:02X} to {hi:02X}), so the pass was "
+                   "not started."))
+        self.diag.log("DATA", f"{name}: {note} (Said once per session and value.)")
+        self._progress(event="c4_answer", row=plan.index + 1, value=f"{value:02X}", note=note)
 
     def _note_row_speed(self, plan) -> None:
         """4.3.54 (review M2): what this read row contributes to the measurement's mark."""
@@ -5785,6 +5890,7 @@ class TableJob:
                         guard.__exit__(None, None, None)
                     except Exception:      # noqa: BLE001 - never the job's concern
                         pass
+            self._note_c4(name, plan, res.c4)
             files = sc.save_row(str(folder), res)
             rec["scan"] = {"kind": res.kind, "why": res.why, "notes": res.notes,
                            "files": files, "c4": res.c4, "a3": res.a3}
@@ -5989,6 +6095,7 @@ class TableJob:
                             guard.__exit__(None, None, None)
                         except Exception:      # noqa: BLE001 - never the job's concern
                             pass
+                self._note_c4(pplan.name, plan, res.c4)
                 files = sc.save_row(str(folder), res) if which == "lamp" else \
                     _save_pass(str(folder), res)
                 results[which] = res
@@ -6040,7 +6147,7 @@ class TableJob:
                           f"{(timing.get('uv') or {}).get('best_motion_start_s')} s (assumed "
                           f"{sc.UV_MOTION_START_AFTER_TRIGGER_S} s), lamp "
                           f"{(timing.get('lamp') or {}).get('best_motion_start_s')} s (assumed "
-                          f"{sc.MOTION_START_AFTER_LAMP_S} s); judged {timing.get('checked')}, "
+                          f"{sc.DUAL_LAMP_MOTION_START_S} s); judged {timing.get('checked')}, "
                           f"refused {timing.get('refuse')}; lamp judged "
                           f"{timing.get('lamp_checked')}, refused {timing.get('lamp_refuse')}")
             if not cut.ok:
@@ -7378,6 +7485,12 @@ def _aims_detail(sheet: dict, page: int, aims, aims_mm, readings, reason: str) -
         out["lengths"] = {"marks": [int(m.group(1)), int(m.group(2))],
                           "table_mm": float(m.group(3)), "sheet_mm": float(m.group(4)),
                           "allowed_mm": float(m.group(5))}
+        try:
+            scaled = geo.print_scale_hint(aims_mm, readings)
+            if scaled is not None:
+                out["scaled_percent"] = scaled          # words only (item 71 c)
+        except (TypeError, ValueError, IndexError):
+            pass
     m = re.match(r"the corner at mark 2 measures ([0-9.]+) degrees", reason)
     if m:
         out["corner_deg"] = float(m.group(1))
@@ -7417,6 +7530,10 @@ class _RowFailed(Exception):
         super().__init__(reason)
         self.reason, self.loc = reason, loc
 
+
+#: a dual row read patch by patch whose reading program could not write its M1 / M2 (reading it
+#: again ends the same way: the window does not offer it)
+NOT_WRITTEN = "dual_conditions_not_written"
 
 #: the longest exception message the logs carry (the rest is cut, with "...")
 ERROR_MESSAGE_MAX = 300

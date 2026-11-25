@@ -29,7 +29,7 @@ def _passes(k_lamp_late=0.0, flat=False, seed=3):
     levels = [0.5] * 25 if flat else [0.08 + 0.8 * rng.random() for _ in range(25)]
     at = _sheet(lamp, levels)
     lr = _stream(lamp, sc.FIRST_READING_AFTER_LAMP_S,
-                 sc.MOTION_START_AFTER_LAMP_S + k_lamp_late * sc.READING_S, lamp.N, at, False,
+                 sc.DUAL_LAMP_MOTION_START_S + k_lamp_late * sc.READING_S, lamp.N, at, False,
                  rng)
     ur = _stream(uv, sc.UV_FIRST_READING_AFTER_TRIGGER_S, sc.UV_MOTION_START_AFTER_TRIGGER_S,
                  uv.N, at, True, rng)

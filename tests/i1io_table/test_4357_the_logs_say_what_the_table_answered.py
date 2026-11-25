@@ -102,9 +102,9 @@ def test_the_repair_line_never_names_an_earlier_homings_place():
     seen = []
     real = job2._end_of_job
 
-    def spy(stage=None):
+    def spy(stage=None, **kw):
         seen.append(job2.homed_from)
-        return real(stage)
+        return real(stage, **kw)
     job2._end_of_job = spy
     assert p2.drive(job2.repair_at_start()).ok
     assert seen == [None]

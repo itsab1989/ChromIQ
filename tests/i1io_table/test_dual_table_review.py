@@ -100,7 +100,7 @@ def test_the_uv_pass_is_cut_where_the_sensor_really_is_on_its_way_back():
             q = min(pts, key=lambda p: abs(p.xy[0] - x))
             rows.append([(0.05 + 0.04 * int(q.sample_id)) * k] * 36)
         return rows
-    L = stream(lamp, 0.370, sc.MOTION_START_AFTER_LAMP_S, 1.0)
+    L = stream(lamp, 0.370, sc.DUAL_LAMP_MOTION_START_S, 1.0)
     U = stream(uv, sc.UV_FIRST_READING_AFTER_TRIGGER_S, sc.UV_MOTION_START_AFTER_TRIGGER_S, 0.2)
     assert uv.start == lamp.end and uv.end == lamp.start
     cut = dl.cut_dual(lamp, uv, L, U)

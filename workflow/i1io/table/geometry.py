@@ -808,6 +808,36 @@ def reach_advice_mm(need_y, cap_y) -> int:
     return _mm_up(float(need_y) - float(cap_y))
 
 
+#: item 71 c: aims that look like a sheet printed smaller or larger: both sides of the aimed
+#: triangle off the same way by this much (beyond what a hand aim gives: length_tolerance), by
+#: shares of their length that agree within PRINT_SCALE_AGREE (2 mm of a hand aim on 188 mm), and
+#: the corner right. A print at 97 % gave 0.965/0.973, 0.967/0.970 and 0.972/0.968
+PRINT_SCALE_OFF = (0.015, 0.08)
+PRINT_SCALE_AGREE = 0.010
+
+
+def print_scale_hint(aims_mm, readings) -> "int | None":
+    """The scale (whole percent) a sheet whose aims :func:`fit_model` refused for a side's length
+    seems to be printed at, or None. WORDS FOR THE PERSON ONLY: nothing is accepted by it."""
+    (a1, a2, a3), (P1, P2, P3) = [tuple(map(float, a)) for a in aims_mm], \
+        [tuple(map(float, p)) for p in readings]
+    e1 = (P1[0] - P2[0], P1[1] - P2[1])
+    e2 = (P3[0] - P2[0], P3[1] - P2[1])
+    n1, n2 = math.hypot(*e1), math.hypot(*e2)
+    w1, w2 = 10 * math.dist(a1, a2), 10 * math.dist(a2, a3)
+    if min(n1, n2, w1, w2) <= 0 or not all(map(math.isfinite, (n1, n2, w1, w2))):
+        return None
+    ang = math.degrees(math.acos(max(-1.0, min(1.0, (e1[0] * e2[0] + e1[1] * e2[1])
+                                               / (n1 * n2)))))
+    r1, r2 = n1 / w1, n2 / w2
+    lo, hi = PRINT_SCALE_OFF
+    if abs(ang - 90) > ANGLE_TOL_DEG or (r1 - 1) * (r2 - 1) <= 0:
+        return None
+    if not all(lo <= abs(r - 1) <= hi for r in (r1, r2)) or abs(r1 - r2) > PRINT_SCALE_AGREE:
+        return None
+    return int(round(50 * (r1 + r2)))
+
+
 def lengths_fit(aims_mm, readings) -> bool:
     """Whether *readings* have the shape of *aims_mm* (the length, corner and turn checks of
     :func:`fit_model`). Used to tell the person which points they aimed at."""

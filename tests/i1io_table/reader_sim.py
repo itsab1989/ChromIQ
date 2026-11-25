@@ -26,6 +26,8 @@ Faults (``HelperSim(faults=...)``):
   read        a kind ending in "_twice" ({n: "dies_twice"}): the n-th reading fails with that
               kind AND the next reading of the same patch (the row's re-read by itself)
   read_s      seconds of the simulator's clock per reading (default 0.9)
+  no_write_at ({reader index, ...}): that reader cannot write its M1 / M2 from its
+              ``no_write_after``-th reading on (default 1): it says so once, as the real helper
 The tester's own simulator objects (part C 0.6.0's CSimTable) work here unchanged.
 """
 from __future__ import annotations
@@ -424,6 +426,7 @@ class FakeHelperProc:
         #: the dual scan patch by patch on the table (--dual-table with the hand dual
         #: scan's --dual-scale ... and --condition-dir)
         self.dual = "--dual-table" in argv and "--dual-scale" in argv
+        self.conditions_lost = False
         self.dual_args = {k: argv[argv.index(k) + 1] for k in
                           ("--dual-scale", "--dual-scale-source", "--dual-white",
                            "--dual-chosen", "--condition-dir") if k in argv}
@@ -736,8 +739,16 @@ class FakeHelperProc:
         the main file's readings, the same rows with the simulator's invented glow."""
         from workflow import i1pro3_conditions as ic
         key = ic.data_block_hash(main)
-        cdir = Path(self.dual_args.get("--condition-dir") or (self.cwd / "conditions"))
-        cdir.mkdir(parents=True, exist_ok=True)
+        cdir = Path(self.dual_args["--condition-dir"])
+        if self.conditions_lost:
+            return
+        if not cdir.is_dir() or self.index in self.helper.faults.get("no_write_at", ()) \
+                and len(self.read) >= self.helper.faults.get("no_write_after", 1):
+            # the real helper (chromiq_chartread.c, cq_cond_write -> cq_cond_lose("write")): it
+            # never makes the folder, says so once and writes nothing for the rest of its run
+            self.conditions_lost = True
+            self._emit({"event": "conditions", "active": False, "why": "write"})
+            return
         begin = lines.index("BEGIN_DATA")
         fields = lines[begin - 4].split()
         spec_i = [i for i, f in enumerate(fields) if f.startswith("SPEC_")]

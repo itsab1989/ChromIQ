@@ -497,7 +497,10 @@ def dual_windows_ok(lamp, uv, edge_mm: "float | None" = None) -> "int | None":
     (*edge_mm*, default the narrowest of ``scan.DUAL_EDGES_MM``; each pass's own motion start
     and first reading), or None when a window lies outside a pass's readings."""
     e = min(sc.DUAL_EDGES_MM) if edge_mm is None else edge_mm
-    w = sc.windows(lamp, sc.MOTION_START_AFTER_LAMP_S, lamp.N, edge_mm=e)
+    # 2026-11-25 (item 70): at the lamp pass's own start (what the cut uses) AND at the start used
+    # until 4.3.66, so that no row is read as a dual row that was not before
+    w = sc.windows(lamp, sc.DUAL_LAMP_MOTION_START_S, lamp.N, edge_mm=e)
+    w += sc.windows(lamp, sc.MOTION_START_AFTER_LAMP_S, lamp.N, edge_mm=e)
     w += sc.windows(uv, sc.UV_MOTION_START_AFTER_TRIGGER_S, uv.N, edge_mm=e,
                     first_reading_s=sc.UV_FIRST_READING_AFTER_TRIGGER_S)
     if any(i1 - i0 < 1 for i0, i1 in w):
@@ -548,6 +551,38 @@ def plan_dual_row(sheet: dict, page: int, index: int, alignment, front_y=None,
     pts = tuple(PatchTarget(q.sample_id, q.loc, (int(round(q.xy[0])), int(round(q.xy[1]))))
                 for q in lamp.patches)
     return RowPlan(page, index, "strip", pts, scan=lamp)
+
+
+#: one patch of a dual scan patch by patch, as measured on a real table (2026-11-25, rounded out):
+#: 2.12 to 2.19 s standing on the patch (lamp and UV light), 0.50 s for the move, 0.08 s for the
+#: arrival: 2.7 to 2.8 s, and up to 0.3 s a patch more for the way back and the new reader of each
+#: row. (Rows whose M1 / M2 could not be written took 1.65 s a patch: the lamp alone.) For words only
+DUAL_SPOT_PATCH_S = (2.6, 3.1)
+
+
+def dual_rows_too_short(sheet: dict, only_locs=None) -> int:
+    """How many wanted patches of *sheet* lie in rows whose patches get fewer than
+    ``scan.DUAL_MIN_READINGS`` readings in a pass of a dual row (:func:`plan_dual_row`'s
+    ``dual_row_patches_too_short``), so are read patch by patch with the dual scan. Counted on
+    the row as it is drawn, without the table (the area, the aims): for the question at START."""
+    keep = None if only_locs is None else set(only_locs)
+    along = float(sheet["patch_mm"][1])
+    n = 0
+    for page in sheet["pages"]:
+        for st in page["strips"]:
+            locs = [q["loc"] for q in st["patches"]]
+            if keep is not None and not set(locs) & keep:
+                continue
+            r0, r1 = (float(v) for v in st["run_mm"])
+            pts = [sc.Patch(str(q["sample_id"]), q["loc"],
+                            (abs(float(q["centre_mm"][1]) - r0) * 10.0, 0.0), half_mm=along / 2)
+                   for q in st["patches"]]
+            lamp = sc.plan_row("at START", (0, 0), (abs(r1 - r0) * 10.0, 0), sc.DUAL_SPEED, pts,
+                               dual=True)
+            few = dual_windows_ok(lamp, uv_pass_of(lamp))
+            if few is None or few < sc.DUAL_MIN_READINGS:
+                n += len(locs) if keep is None else len(set(locs) & keep)
+    return n
 
 
 def _one_strip(sheet, page, index, alignment, speed, front_y, dual: bool = False, cap_y=None):

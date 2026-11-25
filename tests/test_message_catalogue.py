@@ -308,6 +308,13 @@ AWAITING_APPROVAL: "set[str]" = {
     # 2026-11-18, final fix round: the offer to make strips the table's default (the owner)
     "M-I1IO-DRIVE-STRIP-DEFAULT-OFFER",
     "M-I1IO-DRIVE-ROW-FAILED-STRIP",
+    # 2026-11-25: the same when that attempt moved nothing (item 68)
+    # 2026-11-25: items 70 / 71
+    "M-I1IO-DRIVE-REPAIR-COUNTDOWN", "M-I1IO-DRIVE-AIMS-SCALED", "M-I1IO-DRIVE-DUAL-SPOT-WHOLE",
+    "M-I1IO-DRIVE-ROW-M1-M2-NOT-WRITTEN",
+    "M-I1IO-DRIVE-ROW-M1-M2-NOT-WRITTEN-PIECE",
+    "M-I1IO-DRIVE-ROW-FAILED-STRIP-NOT-MOVED",
+    "M-I1IO-DRIVE-ROW-FAILED-STRIP-NOT-MOVED-PIECE",
     # 4.3.50: a dual row on the table with M0 only (its second pass failed), as by hand
     "M-I1IO-DRIVE-ROW-M0-ONLY-STRIP",
     "M-I1IO-DRIVE-ROW-M0-ONLY",

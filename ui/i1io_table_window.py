@@ -308,6 +308,20 @@ def table_place(chart_ti2):
     return None
 
 
+def dual_patch_by_patch_minutes(sheet, only_locs=None) -> "tuple[int, int, int] | None":
+    """Item 71 b: (patches, from, to minutes) when the rows of *sheet* are too short for the dual
+    scan's strips, so that the table reads them patch by patch, and that takes some time; None
+    otherwise. Never raises."""
+    try:
+        from workflow.i1io.table import spot as sp
+        n = sp.dual_rows_too_short(sheet, only_locs)
+        low, high = (int(round(n * s / 60.0)) for s in sp.DUAL_SPOT_PATCH_S)
+        return (n, low, high) if high >= 5 else None
+    except Exception:      # noqa: BLE001 - never in the way of a START
+        log.debug("i1iO table: the dual rows were not looked at", exc_info=True)
+        return None
+
+
 def drivable_sheet(chart_ti2) -> "dict | None":
     """The side file of a chart this window drives, or None (then START keeps today's window).
 
@@ -851,7 +865,7 @@ def option_text(flag: str, why: str) -> str:
             "when the table reads rows as strips, the instrument reads in standard resolution, "
             "so this measurement is made without high resolution"),
         "strip_rows_a_first_try_not_confirmed_on_a_real_table": tr(
-            "reading rows as strips is a first try and has not been tried on a real table yet"),
+            "reading rows as strips is a first try and has been tried on one real table so far"),
     }
     name = names.get(flag)
     if name is None:
@@ -966,6 +980,10 @@ def aims_text(rid: str, d: dict) -> str:
                                         allowed=f"{float(ln['allowed_mm']):.1f}")
         except (KeyError, TypeError, ValueError):
             return ""
+        if d.get("scaled_percent") and d.get("aimed_at") != "corner_patches":
+            # item 71 c: words only, the aims stay refused
+            from workflow import measurement_messages as M
+            return M.M_I1IO_DRIVE_AIMS_SCALED.render(percent=d["scaled_percent"])[1] + " " + again
         if d.get("aimed_at") == "corner_patches":
             return first + " " + tr(
                 "Your three aims fit the coloured corner patches beside the crosses exactly. "
@@ -1416,6 +1434,8 @@ def reason_text(rid: str, detail: "dict | None" = None, pieces: bool = False) ->
         "dual_conditions_missing": tr(
             "the row was read, but the reading program did not write its M1 and M2 values, so "
             "the row is offered to you again"),
+        "dual_conditions_not_written": tr(
+            "the reading program could not write its M1 and M2 values into this run's folder"),
         "dual_row_patches_too_short": tr(
             "the patches are too short to be read twice as a strip"),
         "stopped_before_the_uv_pass": tr(
@@ -1720,6 +1740,7 @@ def retire_window(win) -> None:
         relay = getattr(win, "_relay", None)
         if relay is not None:
             relay.detach()
+        win._keep_awake(False)
     except Exception:      # noqa: BLE001 - the deletion below decides
         pass
     _Retire(win).step()
@@ -3782,6 +3803,22 @@ class TableMeasureWindow(QFrame):
         if self.job is not None and self.job.phase == "new":
             self.job.guided = bool(on)
 
+    def _keep_awake(self, on: bool) -> None:
+        """Item 74, P5: the computer does not go to sleep while the table's session is open (a
+        page read patch by patch takes half an hour without a key; the USB link would be lost
+        with the arm out). Held from the press that opens it, released when the job has let go
+        of the table and when the panel is finished, whatever ended it; on macOS the assertion
+        ends with ChromIQ's process in any case. Never in the way of a step."""
+        try:
+            from core.keep_awake import keep_awake
+            if on:
+                keep_awake.hold()
+            elif getattr(self, "_awake_held", False):
+                keep_awake.release()
+            self._awake_held = bool(on)
+        except Exception:      # noqa: BLE001
+            log.debug("i1iO table: keep awake", exc_info=True)
+
     def _on_start_pressed(self) -> None:
         # review 11, opinion (iii): Stop and Report a problem appear when the USB is opened
         # (the "Start" answer on the ready-to-open question), not before
@@ -3790,6 +3827,7 @@ class TableMeasureWindow(QFrame):
                 getattr(self, "_page_id", "") == "prepare":
             # 4.3.52: the first page's tick switched the guidance off for this START
             self._guidance_notice()
+        self._keep_awake(True)
         self._call(self.job.open, status=tr("Connecting to the table..."))
 
     # ---- one result --------------------------------------------------------------------------
@@ -3811,8 +3849,11 @@ class TableMeasureWindow(QFrame):
             if self.job.ended is not None or self.job.phase != "open":
                 # review 11, M-1 / M-2: the ending has run already (a quit while the arm
                 # was brought home after Save), or the table was never opened: nothing
-                # is asked again; the table is let go of and a quit goes on
-                if self.job.phase == "open":
+                # is asked again; the table is let go of and a quit goes on. Item 74, P1: not
+                # before the homing was offered (a quit asked while the Save itself ran)
+                if set((res.detail or {}).get("next") or ()) & {"home", "home_after_stop"}:
+                    self._dispatch(res)
+                elif self.job.phase == "open":
                     self._close_job()
                 else:
                     self._finish_not_started()
@@ -4238,7 +4279,9 @@ class TableMeasureWindow(QFrame):
             msg = (M.M_I1IO_DRIVE_ROW_M0_ONLY_STRIP if d.get("m0_kept")
                    # 4.3.54: the second row of this page the row placement check refused
                    else M.M_I1IO_DRIVE_ROW_PLACEMENT_REST if d.get("offer_rest")
-                   else M.M_I1IO_DRIVE_ROW_FAILED_STRIP)
+                   else M.M_I1IO_DRIVE_ROW_FAILED_STRIP if d.get("moved", True)
+                   # nothing moved: no "held where the strip move ended", and no loop
+                   else M.M_I1IO_DRIVE_ROW_FAILED_STRIP_NOT_MOVED)
             title, body = M.of_pieces(msg, in_pieces(self._sheet)).render(
                 row=d.get("row", "?"), page=d.get("page", page),
                 why=as_clause(self._reason(d.get("why", ""))))
@@ -4249,12 +4292,16 @@ class TableMeasureWindow(QFrame):
                        else self._reason("rows_read_again_limit"))
                 body += "\n\n" + M.M_I1IO_DRIVE_ROW_NOT_AGAIN.render(why=why)[1]
         elif kind == "row_failed":
-            msg = (M.M_I1IO_DRIVE_ROW_M0_ONLY if d.get("m0_kept")
+            # the reading program cannot write M1 / M2: reading the row again ends the same way,
+            # so this page does not offer it (below)
+            not_written = d.get("why") == "dual_conditions_not_written"
+            msg = (M.M_I1IO_DRIVE_ROW_M1_M2_NOT_WRITTEN if not_written
+                   else M.M_I1IO_DRIVE_ROW_M0_ONLY if d.get("m0_kept")
                    else M.M_I1IO_DRIVE_ROW_FAILED)
             title, body = M.of_pieces(msg, in_pieces(self._sheet)).render(
                 row=d.get("row", "?"), page=d.get("page", page),
                 why=as_clause(self._reason(d.get("why", ""))))
-            if not d.get("again_allowed", True):
+            if not d.get("again_allowed", True) and not not_written:
                 why = (self._reason("dual_calibration_not_found_again")
                        if d.get("why") == "dual_calibration_not_kept"
                        else self._reason("calibration_due") if d.get("calibration_due")
@@ -4281,10 +4328,14 @@ class TableMeasureWindow(QFrame):
             # one page that offers it (four answers fit in one row in every language)
             drop = "patch by patch" if d.get("offer_rest") else "rest patch by patch"
             values = tuple(v for v in values if v != drop)
+        no_again = kind == "row_failed" and d.get("why") == "dual_conditions_not_written"
+        if no_again:
+            values = tuple(v for v in values if v != "again")
         buttons = [((piece_choice_label(kind, v) if in_pieces(self._sheet) else None)
                     or choice_label(kind, v), self._answer_slot(v)) for v in values]
         made = self._show(kind, title, body, buttons)
-        if kind in ("row_failed", "row_failed_strip") and not d.get("again_allowed", True):
+        if (kind in ("row_failed", "row_failed_strip") and not d.get("again_allowed", True)
+                and not no_again):
             made[0].setEnabled(False)
             if kind == "row_failed_strip":
                 made[1].setEnabled(False)       # patch by patch (or the rest) is a row read again
@@ -4637,6 +4688,7 @@ class TableMeasureWindow(QFrame):
 
     def _after_close_for_driver(self, res) -> None:
         self._closed_job = True
+        self._keep_awake(False)
         if getattr(res, "way_back", "none") not in ("none", "home_offered"):
             # never expected before the table was opened; if it ever is, the usual ending
             # says what is true about the table first, and nothing else opens
@@ -5129,6 +5181,11 @@ class TableMeasureWindow(QFrame):
     def _on_home(self) -> None:
         self._call(self.job.home, status=tr("Bringing the arm home..."))
 
+    def _on_the_homing_page(self) -> bool:
+        """The page that asks the homing of the ending is on screen and waits for its answer."""
+        return (getattr(self, "_page_id", "") == "home_at_end" and not self._busy
+                and self.job is not None and self.job.phase == "open" and not self._closed_job)
+
     def _home_not_now(self) -> None:
         """4.3.50 fix round (MUST-1): "Not now" on the homing of the ending. Nothing is sent and
         the job's hands-off question stays open: this page says what that means and keeps
@@ -5218,6 +5275,11 @@ class TableMeasureWindow(QFrame):
             # 4.3.51: the START case's answer, for the logs (nothing is sent for it)
             self.job._start_case_answer("end measurement")
             _applog_table_start_case(self)
+        if self._on_the_homing_page():
+            # item 74, P2: the homing of the ending is asked: End measurement (and the X, Esc) is
+            # its "Not now", whose page says what that means; only its Close lets go of the table
+            self._home_not_now()
+            return
         if self.job.ended is not None:
             self._close_job()
             return
@@ -5229,6 +5291,10 @@ class TableMeasureWindow(QFrame):
             self._end_after = True
             self.answer(WITHDRAW.get(self._pending_kind, "stop"))
             return
+        # item 74, P1: the ending is asked NOW; a wish for it kept from an earlier press (the report
+        # about the last step came in between) is fulfilled by it. Left standing, it was taken up
+        # only after the ending, which then let go of the table without offering the homing
+        self._end_after = False
         self._call(self.job.end)
 
     def _ask_end(self, res) -> None:
@@ -5386,6 +5452,7 @@ class TableMeasureWindow(QFrame):
 
     def _after_close(self, res) -> None:
         self._closed_job = True
+        self._keep_awake(False)
         _applog_row_identity_total(self.job)
         _remember_table_after(self, self.job)
         self._moving_controls(False)
@@ -5506,6 +5573,9 @@ class TableMeasureWindow(QFrame):
         self._alarm_stop("button")
         if self._busy:
             return
+        if self._on_the_homing_page():
+            self._home_not_now()            # item 74, P2
+            return
         self._closed_by_window = True
         if self._closed_job:
             # review 12, M-1: the job has let go after its ending (the last page, which has
@@ -5538,6 +5608,7 @@ class TableMeasureWindow(QFrame):
         self._alarm_stop("finished")
         self.notice.emit("")
         self._finished = True
+        self._keep_awake(False)
         self._hide_popup()
         self.progress.emit({"event": "end"})
         # review 2, M-1: the panel is finished (and the tab deletes it): nothing on the job's
@@ -5647,9 +5718,9 @@ class TableMeasureWindow(QFrame):
                 title, body = M.M_I1IO_DRIVE_COUNTDOWN.render(n=n)
                 if ev.get("for_step") == "repair_at_start":
                     # 2026-11-21: the table found in its aiming mode, with the guidance off
-                    title = M.M_I1IO_DRIVE_REPAIR_AT_START.render()[0]
-                    body = M.M_I1IO_DRIVE_REPAIR_AT_START.render()[1].split("\n\n")[0] + \
-                        "\n\n" + body
+                    # item 71 d: what was found and what moves
+                    title, found = M.M_I1IO_DRIVE_REPAIR_COUNTDOWN.render()
+                    body = found + "\n\n" + body
                 elif ev.get("for_step") == "home_at_start":
                     # 4.3.52: the START rule's homing with the guidance off: what moves, first
                     title = M.M_I1IO_DRIVE_HOME_AT_START.render()[0]
@@ -6134,6 +6205,12 @@ def _applog_table_row(win, ev) -> None:
             line("table speed answer", page=(win.job.page + 1) if win.job is not None
                  else None, row=ev.get("row"), a3=ev.get("a3"), sent=ev.get("sent"),
                  verdict=str(ev.get("note") or "").split("): ", 1)[-1] or None)
+            return
+        if kind == "c4_answer":
+            # an answer outside the range ChromIQ knew until 4.3.66, once per session and value
+            from core.app_log import line
+            line("table c4 answer", page=(win.job.page + 1) if win.job is not None else None,
+                 row=ev.get("row"), value=ev.get("value"), what=ev.get("note"))
             return
         if kind not in ("row_start", "row_end", "strip_fallback"):
             return
