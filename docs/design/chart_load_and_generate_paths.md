@@ -613,6 +613,8 @@ instrument, Guided and Manual).
   A value that is missing where one is needed is of the wrong kind too. Manual's own rows are written
   only after its layout panel has taken the chart's recipe, and what the panel would not take is put back.
 * A paper (and number of pages) chosen in Guided after the chart stays in Guided.
+* Opening FROM PROFILE GAMUT between a Guided chart and Manual counts as opening Manual (its layout
+  half is Manual's): Manual then never takes that chart over (third review, note 4).
 * "Chart layout information" is right in every case.
 
 Tests: `tests/test_manual_shows_the_chart_guided_made.py`: 22 charts of nine instruments, at once and

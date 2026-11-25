@@ -2208,3 +2208,19 @@ the calibration rules are untouched.
 * **The computer is kept awake while the table's USB is open** (item 74, P5; `core/keep_awake.py`, the
   hand measurement's own): from the answer that opens it until the panel is finished, whatever
   ended it. On macOS the assertion ends with ChromIQ's process in any case.
+
+
+## ⏳ Awaiting confirmation: a short last strip in an imported measurement (item 66, 4.3.67)
+
+**Confirmed by:** *nobody yet.*
+
+A chart laid out with Randomise off ends with white patches that fill its last strip up. Where half or more
+of the neighbours along a strip are alike, only the others judge whether the strip was read in its place
+(`turned_colour_check.judge`, for the i1iO's import, the turned i1Profiler chart and the i1iSis alike); with
+0 to 2 patches of its own left, its equals must have been read alike and a patch of its own not as one of
+them. Right pages with 4 or 8 real patches in the last strip, refused 5 of 5 before, are filed.
+
+* With 0 to 2 real patches in the last strip, one white patch read 14 L* too dark refuses the page (0 to 2 of
+  40 filed); with 3 real patches it is filed. The error is on the safe side: the page is measured again
+  (third review, note 3).
+
