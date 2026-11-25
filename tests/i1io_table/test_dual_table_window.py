@@ -61,7 +61,8 @@ def test_every_dual_reason_has_a_sentence_of_its_own():
                 "uv_pass_timing_off", "arrived_beside_the_target",
                 "dual_calibration_not_kept", "dual_calibration_failed", "dual_not_available",
                 "dual_no_uv_tables", "dual_high_resolution", "dual_needs_a_calibration",
-                "dual_conditions_missing", "dual_row_patches_too_short",
+                "dual_conditions_missing", "dual_conditions_not_written",
+                "dual_row_patches_too_short",
                 "stopped_before_the_uv_pass", "mixed_scan_kind", "mixed_factor",
                 "uv_pass_no_uv_light", "no_dual_calibration", "record", "bad_scale"):
         t = W.reason_text(rid)

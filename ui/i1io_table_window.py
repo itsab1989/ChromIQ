@@ -1416,6 +1416,8 @@ def reason_text(rid: str, detail: "dict | None" = None, pieces: bool = False) ->
         "dual_conditions_missing": tr(
             "the row was read, but the reading program did not write its M1 and M2 values, so "
             "the row is offered to you again"),
+        "dual_conditions_not_written": tr(
+            "the reading program could not write its M1 and M2 values into this run's folder"),
         "dual_row_patches_too_short": tr(
             "the patches are too short to be read twice as a strip"),
         "stopped_before_the_uv_pass": tr(

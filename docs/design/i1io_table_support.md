@@ -2135,3 +2135,12 @@ the calibration rules are untouched.
   strip tile was made at the offset the rows use, the kept patch-by-patch tile 0.02 to 0.03 nm
   before it. A refusal of a kept tile whose offset differs would therefore have to allow at least
   0.1 nm, or it would refuse the normal flow; none is added.
+* **Patch by patch with the dual scan writes M1 and M2.** The folder the reading program is told
+  to write them into (`<row folder>/conditions`) is now made by the job, as by hand; the helper
+  never makes it, so until 4.3.66 its first write failed and no row read patch by patch on a real
+  table could have M1 / M2 (the simulated helper made the folder itself and hid it; it no longer
+  does). When the reading program says that it could not write them (its event "conditions",
+  active false, why "write"), the row ends right after that reading, before the next move, instead
+  of being read on for M0 only. The readings made keep their M0, by the rule of every row that
+  ended early. When the folder cannot be made, nothing is read and nothing moves. The row is not
+  read again by itself. Only "write" does this; every other ending of the record is as before.

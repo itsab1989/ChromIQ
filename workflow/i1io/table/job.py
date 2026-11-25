@@ -5357,10 +5357,13 @@ class TableJob:
                                                    what=f"row {plan.index + 1}")
             if not ok:
                 raise PersonStopped("first_visit_declined")
+            dual_args = self._dual_spot_args(folder, self.cal_place) if self.dual else ()
+            if self.dual is not None and not (folder / "conditions").is_dir():
+                # no M1 / M2 could be written: nothing is read and nothing moves
+                raise _RowFailed(NOT_WRITTEN, "")
             reader = yield from self._start_reader(
                 folder, name, [(p.sample_id, p.loc) for p in plan.patches], False,
-                moves_next=True,
-                dual_args=self._dual_spot_args(folder, self.cal_place) if self.dual else ())
+                moves_next=True, dual_args=dual_args)
             self._cal_refused = None
             self._open_reader(reader, self._cal_in_a_row)
             opened = True
@@ -5397,6 +5400,14 @@ class TableJob:
                     self._progress(event="patch_read", row=plan.index + 1, loc=p.loc,
                                    xyz=list(got.get("xyz") or []))
                 last_t = got["t"]
+                if self.dual is not None and self._dual_not_written(reader):
+                    # said right after the reading, before the next patch: the rest of the row
+                    # would be read for M0 only. The readings made keep their M0, as those of
+                    # any row that ended early
+                    self.diag.log("DATA", f"row {plan.index + 1}: the reading program could not "
+                                          "write its M1 and M2; the row ends at patch "
+                                          f"{p.loc}, {n - i - 1} patches are not read")
+                    raise _RowFailed(NOT_WRITTEN, "")
             # THE ROW IDENTITY CHECK, before anything of the row counts: the reader is ended
             # (its file is complete), the row judged on its own readings
             drop = idn.REASON_SPOT
@@ -5454,7 +5465,8 @@ class TableJob:
                     {k: ev.get(k) for k in ("ok", "why", "uv_triggers", "volts")}
                     for ev in self._events(reader) if ev.get("event") == "dual_pass_result"]
                 if rec["accepted"] and rec["conditions"] is None and rec["status"] == "read":
-                    rec.update(status="failed", why="dual_conditions_missing")
+                    rec.update(status="failed", why=NOT_WRITTEN if self._dual_not_written(
+                        reader) else "dual_conditions_missing")
                     self._progress(event="row_end", row=plan.index + 1, status="failed",
                                    loc=None)
             self.diag.write_json(f"{self._block['folder']}/{name}{ms.ROW_RECORD_SUFFIX}", rec)
@@ -5542,8 +5554,22 @@ class TableJob:
 
     def _dual_spot_args(self, folder: Path, place: "str | None") -> "list[str]":
         """A patch-by-patch reader's dual arguments: the hand dual scan's, the white of the
-        tile the calibration is made on, --dual-table, and the row folder's conditions."""
-        return self.dual.spot_args(Path(folder) / "conditions", dl.white_for_place(place))
+        tile the calibration is made on, --dual-table, and the row folder's conditions, which
+        is made here (as by hand, measure_manager): the helper never makes it, and without it
+        its first write of M1 / M2 fails and no patch of the row can have them."""
+        cdir = Path(folder) / "conditions"
+        try:
+            cdir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            self.diag.log("DATA", "dual scan: the folder for M1 and M2 could not be made "
+                                  f"({type(exc).__name__})")
+        return self.dual.spot_args(cdir, dl.white_for_place(place))
+
+    def _dual_not_written(self, reader) -> bool:
+        """The reading program said it could not write its record of M1 / M2 (its event
+        "conditions", active false, why "write"): it writes none for the rest of its run."""
+        return any(ev.get("event") == "conditions" and ev.get("active") is False
+                   and ev.get("why") == "write" for ev in self._events(reader))
 
     @staticmethod
     def _dual_event(reader, name: str) -> "dict | None":
@@ -7438,6 +7464,10 @@ class _RowFailed(Exception):
         super().__init__(reason)
         self.reason, self.loc = reason, loc
 
+
+#: a dual row read patch by patch whose reading program could not write its M1 / M2 (reading it
+#: again ends the same way: the window does not offer it)
+NOT_WRITTEN = "dual_conditions_not_written"
 
 #: the longest exception message the logs carry (the rest is cut, with "...")
 ERROR_MESSAGE_MAX = 300
