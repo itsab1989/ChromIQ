@@ -1,5 +1,35 @@
 # Changelog
 
+## v4.3.65
+
+**Tools > Read single patches: with the matching Beta on, every reading keeps M0, M1 and M2, for the X-Rite i1Pro 3 and for the i1Pro 2.**
+
+### New
+
+- **Every reading keeps M0, M1 and M2 (Beta, off by default).** With "X-Rite i1Pro 3 and i1Pro 2: keep M0, M1 and M2 from every scan" on, an i1Pro 3 in Tools > Read single patches gives all three from one press. ChromIQ's own reading program does this; nothing new is sent to the instrument.
+- **M1 and M2 single readings for the i1Pro 2 (Beta, off by default).** They need the i1Pro 2 dual scan Beta as well, and follow its setting "always" or "only for M1 or M2". One press reads the spot with the lamp and then with the UV light, so please hold the instrument still until it is done. This session always calibrates first, and the white tile is also read with the UV light.
+- **"Show the readings in" above the list** switches the whole list between M0, M1 and M2 at any time, without measuring again. A reading that has only one condition keeps showing that one.
+- **One line tells you where to look.** With an i1Pro or i1Pro 2 connected, the first Beta on and the dual scan off, the window says that M1 and M2 need the dual scan.
+
+### Changed
+
+- **Average and Save know all three conditions.** An average is made for each condition the selected readings share. Saving a list whose readings keep several conditions writes one .ti3 file per condition; the .csv file holds what the list shows.
+- **Russian and Ukrainian:** the "Build Profile" button now uses the same words as the tab.
+
+### Fixed
+
+- **Create Chart, Barbieri Spectro 100xy Beta:** the ready-made sizes box and its list no longer cut long names; the box spans the whole group and wraps the chosen name, and the list is as wide as its longest name.
+
+### Internal
+
+- With these Betas off, Tools > Read single patches uses ArgyllCMS spotread exactly as before, including the condition choice for the i1Pro 3.
+
+### Known issues
+
+- Tested with simulated instruments only. Keeping all three conditions has not yet been tried on a real i1Pro 3, and reading single patches in M1 and M2 has not yet been tried on a real i1Pro 2.
+- M1 and M2 of the i1Pro 2 are worked out by ChromIQ from the two readings. ArgyllCMS itself has no M1 or M2 for this instrument.
+- The new texts of this version are shown as proposed texts and may still be reworded.
+
 ## v4.3.64
 
 **i1iO table (Beta) with the i1Pro 2 dual scan (Beta): rows are no longer refused for a calibration that was not found again.**
