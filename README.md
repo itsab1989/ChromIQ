@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-4.3.64-7c5cff">
+  <img alt="Version" src="https://img.shields.io/badge/version-4.3.65-7c5cff">
   <img alt="Downloads" src="https://img.shields.io/endpoint?url=https://itsab1989.github.io/github-traffic-downloads-dashboard/assets/badges/itsab1989_ChromIQ-downloads.json">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2a9d8f">
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-blue">
@@ -726,6 +726,13 @@ ways:
 >   no longer refused for a small move, a large move is asked about again, a
 >   START no longer changes the Measure settings, and the button of the
 >   instrument is offered only once ChromIQ is listening for it.
+> - New in 4.3.65: in Tools > Read single patches every reading can keep M0,
+>   M1 and M2, and "Show the readings in" switches the list between them
+>   without measuring again (Beta options, off by default: the i1Pro 3 with
+>   "keep M0, M1 and M2 from every scan", the i1Pro 2 with the dual scan as
+>   well). Tested with simulated instruments only. Also: long names in the
+>   Barbieri Beta's ready-made sizes are fully readable, and the Russian and
+>   Ukrainian "Build Profile" button says what the tab says.
 > - New in 4.3.64: with the i1Pro 2 dual scan (Beta) on, every row was refused
 >   with "calibration not kept", because the reading program for a row could
 >   not find the UV calibration it had just made. ChromIQ now finds it, still
