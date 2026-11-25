@@ -372,14 +372,24 @@ def test_a_real_hfs_plus_round_trip_produces_the_decomposed_spelling(tmp_path):
     assert len(files_matching(back, f"{NAME}*.tif")) == 4
 
 
-def test_the_app_finds_the_chart_after_that_round_trip(tmp_path, monkeypatch):
+def _settings_of_this_test(tmp_path) -> AppSettings:
+    """`AppSettings` on an ini of the test's own. In this process
+    `CHROMIQ_SETTINGS_FILE` changes nothing (`tests/conftest.py` hands every
+    `AppSettings` the worker's one store), so setting it left the tests' output
+    folder in the store that every other test of the worker reads."""
+    from PyQt6.QtCore import QSettings
+    settings = AppSettings()
+    settings._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    return settings
+
+
+def test_the_app_finds_the_chart_after_that_round_trip(tmp_path):
     """End to end through `FileManager`, the way a launch reaches it.
 
     The folder is built decomposed directly (the HFS+ test above proves that
     is what a round trip leaves); what is exercised here is the app asking for
     it by the COMPOSED name it holds in its manifest and its name box.
     """
-    monkeypatch.setenv("CHROMIQ_SETTINGS_FILE", str(tmp_path / "s.ini"))
     work = tmp_path / "work"
     work.mkdir()
     proj = Project.create(work / NAME, NAME)
@@ -387,8 +397,9 @@ def test_the_app_finds_the_chart_after_that_round_trip(tmp_path, monkeypatch):
     _decomposed_run(run.dir)                 # decomposed files, composed folder
     proj.save_manifest()
 
-    settings = AppSettings()
+    settings = _settings_of_this_test(tmp_path)
     settings.set("custom_output_path", str(work))
+    assert AppSettings().get("custom_output_path") != str(work), "left behind"
     fm = FileManager(settings)
     fm.set_target_name(NAME)
     found = fm.project().current_run()
@@ -1025,7 +1036,7 @@ def test_a_name_that_really_has_another_spelling_is_still_looked_for(
 # ---- E-1: named, measured, and NOT fixed here ----------------------------
 
 def test_a_typed_composed_name_does_not_yet_find_a_decomposed_project_folder(
-        tmp_path, monkeypatch):
+        tmp_path):
     """A KNOWN GAP, PINNED SO IT IS A FACT RATHER THAN A SURPRISE.
 
     Every route that reaches a project through the FOLDER — the picker,
@@ -1044,15 +1055,14 @@ def test_a_typed_composed_name_does_not_yet_find_a_decomposed_project_folder(
     do** — when that decision is taken, this test is the one to change.
     """
     from core.file_manager import FileManager
-    from core.settings import AppSettings
 
-    monkeypatch.setenv("CHROMIQ_SETTINGS_FILE", str(tmp_path / "s.ini"))
     work = tmp_path / "work"
     work.mkdir()
     Project.create(work / NFD, NFD)
 
-    s = AppSettings()
+    s = _settings_of_this_test(tmp_path)
     s.set("custom_output_path", str(work))
+    assert AppSettings().get("custom_output_path") != str(work), "left behind"
     fm = FileManager(s)
     fm.set_target_name(NAME)                 # the user TYPES the composed name
     fm.project()
