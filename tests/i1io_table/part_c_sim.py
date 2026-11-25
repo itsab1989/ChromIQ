@@ -437,7 +437,9 @@ class CSimTable(SimTable):
             return 0, self._xy(self.pos[0] - self.sight_offset[0],
                                self.pos[1] - self.sight_offset[1]), 0.0
         if cid == "c4":
-            return 0, f"{int(self.c_faults.get('c4_byte', 0xBA)):02X}", 0.20
+            v = self.c_faults.get("c4_byte", 0xBA)       # or a callable: the next answer
+            v = v() if callable(v) else v
+            return 0, v if isinstance(v, str) else f"{int(v):02X}", 0.20
         if cid == "d1":
             if line == C_D1_UV:
                 return 0, self.c_faults.get("d1_uv_echo", "00D2"), 0.016

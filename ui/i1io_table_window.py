@@ -6135,6 +6135,12 @@ def _applog_table_row(win, ev) -> None:
                  else None, row=ev.get("row"), a3=ev.get("a3"), sent=ev.get("sent"),
                  verdict=str(ev.get("note") or "").split("): ", 1)[-1] or None)
             return
+        if kind == "c4_answer":
+            # an answer outside the range ChromIQ knew until 4.3.66, once per session and value
+            from core.app_log import line
+            line("table c4 answer", page=(win.job.page + 1) if win.job is not None else None,
+                 row=ev.get("row"), value=ev.get("value"), what=ev.get("note"))
+            return
         if kind not in ("row_start", "row_end", "strip_fallback"):
             return
         from workflow.measure_log import StripLog

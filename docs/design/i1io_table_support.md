@@ -770,7 +770,8 @@ which now behaves as the real one did; the in-app drive itself has still not run
   readings on the real table: scan 0.087 / spot 0.068 dE00 with the stored values against
   0.636 / 0.645 without (and 0.22 on a cross-paired comparison of the first analysis). Which is
   closer to the true colour is not known.
-* **Recorded values added:** c4 may answer BC (B7..BC; BA, BB, B8 seen too); scan speed 168
+* **Recorded values added:** c4 may answer BC (B7..BC; BA, BB, B8 seen too; since 4.3.67 B0..C6,
+  the last section of this document); scan speed 168
   (i1Profiler's; used only where no slower recorded speed keeps a row within the readings rule,
   in practice never); 45 button presses in all, each answered by p1 2-5 ms later.
 * **A position reading a hair outside the tolerance** after a move is read once more after 0.3 s
@@ -2107,3 +2108,30 @@ second challenge included); this section grows with the steps that follow.
 Tests: `tests/i1io_table/bed_sim.py` (the simulated table reads what lies on it),
 `test_row_identity.py`, `test_row_identity_job.py`, `test_row_identity_window.py`,
 `test_i1io_layout_rows.py`, `tests/test_i1io_layout_limits.py`, `tests/test_i1io_layout_sizes.py`.
+
+### ⏳ Awaiting confirmation: 4.3.67, what a real table's dual scan sittings showed (2026-11-25)
+
+**Confirmed by:** *nobody yet.* Built from two real sittings with the dual scan (4.3.66); the
+changes are tested against the simulated table and helper only. Nothing new is sent to the table
+or the instrument: no line, form, speed or order; the homing, the aiming, the hands-off rules and
+the calibration rules are untouched.
+
+* **The table's answer to c4 (the line before every strip pass).** What it means is NOT known, and
+  nothing is worked out from it. All 115 answers recorded or logged so far on real tables lie in
+  B7..BE (B7 1, B8 16, B9 40, BA 20, BB 14, BC 19, BD 3, BE 2). It wanders by single counts: the
+  same place asked again within seconds gives the same value or one beside it; consecutive answers
+  differ by at most 3, the two passes of one dual row included; the first row of a sitting is
+  often the highest; no trend with time, row or place holds through all of them (a temperature or
+  a voltage would fit, neither is shown). The range until 4.3.66 (B7..BC) refused BD and BE before
+  anything moved, so no row could be read as a strip. Accepted now: **B0..C6** (`scan.C4_RANGE`),
+  the 8 values seen and about as much again on each side. Outside it the pass stops cleanly as
+  before (nothing moved in it); an answer of another form or length stays a doubt. The two passes of
+  a row are not compared, because recorded rows differ. Every value outside B7..BC is written to
+  the session log and the app log in plain words, once per session and value.
+* **Measured, for the kept dual tile (no rule drawn from it).** The instrument's wavelength offset
+  on a real table: it does not move between the row processes of a sitting (each takes the one its
+  calibration saved); every wavelength calibration moves it by +0.01 to +0.03 nm (1.152, 1.161,
+  1.187 and 1.187, 1.205, 1.234 nm in the two sittings), +0.08 nm over 8 minutes in all. The kept
+  strip tile was made at the offset the rows use, the kept patch-by-patch tile 0.02 to 0.03 nm
+  before it. A refusal of a kept tile whose offset differs would therefore have to allow at least
+  0.1 nm, or it would refuse the normal flow; none is added.

@@ -1180,6 +1180,8 @@ class TableJob:
         #: how the check judged this sitting's rows, every judgement counted: "ok", "ask",
         #: "confirmed" (asked before on this page), "shifted", "not judged: <why>"
         self.identity_tally: "dict[str, int]" = {}
+        #: c4 answers outside scan.C4_USUAL already written to the logs in this session
+        self._c4_noted: "set[int]" = set()
         self.rest_by_patch: "set[int]" = set()
         self._press_factory = press_factory or None
         self._press = None
@@ -5565,6 +5567,23 @@ class TableJob:
             out[cond] = Path(f).relative_to(Path(folder)).as_posix()
         return out
 
+    def _note_c4(self, name: str, plan, value) -> None:
+        """A c4 answer outside the range ChromIQ knew until 4.3.66 (scan.C4_USUAL): said in plain
+        words in the session log and (through the progress signal) the app log, once per session
+        and value. Nothing depends on it; never raises."""
+        if not sc.c4_unusual(value) or value in self._c4_noted:
+            return
+        self._c4_noted.add(value)
+        lo, hi = sc.C4_RANGE
+        note = (f"the table answered its question before the strip (c4) with {value:02X}; "
+                f"ChromIQ knew {sc.C4_USUAL[0]:02X} to {sc.C4_USUAL[1]:02X} until 4.3.66. "
+                + (f"It is inside what ChromIQ accepts ({lo:02X} to {hi:02X}), so the row goes on."
+                   if lo <= value <= hi else
+                   f"It is outside what ChromIQ accepts ({lo:02X} to {hi:02X}), so the pass was "
+                   "not started."))
+        self.diag.log("DATA", f"{name}: {note} (Said once per session and value.)")
+        self._progress(event="c4_answer", row=plan.index + 1, value=f"{value:02X}", note=note)
+
     def _note_row_speed(self, plan) -> None:
         """4.3.54 (review M2): what this read row contributes to the measurement's mark."""
         if plan.kind != "strip" or self.dual is not None or getattr(plan, "scan", None) is None:
@@ -5785,6 +5804,7 @@ class TableJob:
                         guard.__exit__(None, None, None)
                     except Exception:      # noqa: BLE001 - never the job's concern
                         pass
+            self._note_c4(name, plan, res.c4)
             files = sc.save_row(str(folder), res)
             rec["scan"] = {"kind": res.kind, "why": res.why, "notes": res.notes,
                            "files": files, "c4": res.c4, "a3": res.a3}
@@ -5989,6 +6009,7 @@ class TableJob:
                             guard.__exit__(None, None, None)
                         except Exception:      # noqa: BLE001 - never the job's concern
                             pass
+                self._note_c4(pplan.name, plan, res.c4)
                 files = sc.save_row(str(folder), res) if which == "lamp" else \
                     _save_pass(str(folder), res)
                 results[which] = res

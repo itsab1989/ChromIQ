@@ -66,7 +66,8 @@ C_RECORDED_AT = {
                "(R1 9, R2 12, S2 23); answer one byte B7..BB, 0.171-0.218 s; and both passes of the "
                "volunteer's recording of 17 Nov 2026: BC (0.189 s, `:$c40BC56`) and BA (0.217 s, "
                "`:$c40BA58`), so B7..BC; the further recording of that night: BB (0.170 s) and B8 "
-               "(0.202 s), inside",
+               "(0.202 s), inside; later, on a real table, BD (`:$c40BD55`) and BE: B7..BE in "
+               "115 answers (scan.C4_RANGE)",
     "scan_d1": "before all 44 recorded row scans, always 016d (365); answer the echo 016D",
     "scan_a3": "0.016 s after all 44 recorded m2 lines, while the scan move waits; answer A, T, V",
     "scan_c3": "right after a3 in all 44 recorded row scans; answer no data",

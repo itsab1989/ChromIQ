@@ -10,7 +10,7 @@ One row, in the order i1Profiler 3.8.6 did it on every one of the 44 recorded pa
 
     table  p0                         where the arm is
     instr  lights off                 (the recorded 18 bytes)
-    table  c4                         answer one byte, recorded B7..BC
+    table  c4                         answer one byte (B7..BE so far; C4_RANGE)
     table  p0
     table  m0 row start @300          travel
     table  d1 365                     echo 016D
@@ -39,10 +39,34 @@ from . import session_table as tbl
 
 TRAVEL_SPEED = 300
 DEFAULT_SPEED = 54                      # recorded (R1, R2); 15-16 readings per 10 mm patch
-#: c4's one-byte answer: B7..BB in the 44 passes of R1, R2 and S2; BC and BA in the volunteer's
-#: recording of 17 Nov 2026 (REC 231.431 `:$c40BC56`, the row then scanned normally; 236.2
-#: `:$c40BA58`). What the byte means is not known; anything outside stops the row cleanly.
-C4_RANGE = (0xB7, 0xBC)
+#: c4's one-byte answer. What it means is NOT known; no move, speed or value is worked out from
+#: it, and nothing but the two checks below looks at it. Every answer recorded or logged so far on
+#: real tables (115, i1Profiler's rows and ChromIQ's): B7 1, B8 16, B9 40, BA 20, BB 14, BC 19,
+#: BD 3, BE 2. It wanders by single counts: the same place asked again within seconds gives the
+#: same value or one beside it, the two passes of one dual row differ by up to 3, the first row of
+#: a sitting is often the highest, and no trend with time, row or place holds through all of them.
+#: Rows whose c4 answered B7..BC were read normally; BD and BE were only ever refused, by the old
+#: range (B7..BC, 4.3.45 to 4.3.66), before that pass moved anything.
+#: The range now is the 8 values seen, widened by about as much again on each side (7 below, 8
+#: above). Outside it, or with any other form or length (session_table.parse_done_c), the row
+#: still stops cleanly. The two passes of a row are NOT compared: recorded rows differ.
+C4_RANGE = (0xB0, 0xC6)
+#: the old range: an answer outside it is written to the logs, once per session and value
+C4_USUAL = (0xB7, 0xBC)
+
+
+def _check_c4(value: int) -> None:
+    """A clean failure (nothing moved yet in this pass) when c4's answer is not a plausible one."""
+    if not C4_RANGE[0] <= value <= C4_RANGE[1]:
+        raise CleanFail(f"c4 answered {value:02X}, not plausible (accepted "
+                        f"{C4_RANGE[0]:02X}..{C4_RANGE[1]:02X})")
+
+
+def c4_unusual(value) -> bool:
+    """True for a c4 answer outside the range 4.3.66 knew (it belongs in the logs)."""
+    return value is not None and not C4_USUAL[0] <= value <= C4_USUAL[1]
+
+
 READING_S = 0.005004
 FIRST_READING_AFTER_LAMP_S = 0.370
 DONE_EXTRA_S = (0.42, 0.50)
@@ -402,8 +426,7 @@ def run_row(table: tbl.Table, inst, plan: RowPlan, log, outdir: str,
             raise CleanFail(f"the instrument's lights-off failed ({lo})")
         d = table.c_exchange(cl.C_FIXED["scan_c4"], cl.C_DATA_LEN["scan_c4"], timeout=1.0)
         res.c4 = int(d.data, 16)
-        if not C4_RANGE[0] <= res.c4 <= C4_RANGE[1]:
-            raise CleanFail(f"c4 answered {res.c4:02X}, never seen (recorded B7..BC)")
+        _check_c4(res.c4)
         at = table.position()
         try:
             table.c_exchange(plan.m0, 0, window=geo.move_window(at, plan.start),
@@ -478,8 +501,7 @@ def _run_uv_pass(table: tbl.Table, inst, plan: RowPlan, log, outdir: str) -> Row
                             f"{exc.lo:.2f}-{exc.hi:.2f} s") from None
         d = table.c_exchange(cl.C_FIXED["scan_c4"], cl.C_DATA_LEN["scan_c4"], timeout=1.0)
         res.c4 = int(d.data, 16)
-        if not C4_RANGE[0] <= res.c4 <= C4_RANGE[1]:
-            raise CleanFail(f"c4 answered {res.c4:02X}, never seen (recorded B7..BC)")
+        _check_c4(res.c4)
         d = table.c_exchange(cl.C_DUAL_FIXED["scan_d1_uv"], cl.C_DUAL_DATA_LEN["scan_d1_uv"],
                              timeout=1.0)
         if d.data.upper() != D1_UV_ECHO:
