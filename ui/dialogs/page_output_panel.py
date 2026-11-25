@@ -746,6 +746,19 @@ def refresh(panel: Any) -> None:
     refresh_readout(panel)
 
 
+def show_custom_mm(panel: Any, w: float, h: float) -> None:
+    """Put the panel on Custom at exactly *w* x *h* millimetres, as a size
+    typed in millimetres (a paper carried from Guided)."""
+    panel._page_truth = {"w": (float(w), po.UNIT_MM),
+                         "h": (float(h), po.UNIT_MM)}
+    _show_truth(panel)
+    i = panel.paper.findData("__custom__")
+    if i >= 0 and panel.paper.currentIndex() != i:
+        panel.paper.setCurrentIndex(i)        # emits through its own slot
+    else:
+        panel._emit()
+
+
 def custom_mm(panel: Any) -> "tuple[float, float]":
     """The custom page in millimetres, exact, from the typed sides."""
     _heal_truth(panel)

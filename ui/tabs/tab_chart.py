@@ -9086,6 +9086,15 @@ class TabChart(QWidget):
                 if _box is not None:
                     _box.valueChanged.connect(
                         self._sync_manual_selection_from_panel)
+        # SO IS A READY-MADE SIZE (the Barbieri Beta, the box exists only
+        # with it on). The pick loads a whole recipe, which holds the mirror
+        # off, so -p kept the paper before it: A4 landscape picked, Guided
+        # and back, and the panel was on A4 portrait; Save as Defaults stored
+        # the paper before for the film frames too. Connected after the
+        # panel's own handler, so the panel already shows the size here.
+        _ready = getattr(self._manual_layout_panel, "barbieri_size", None)
+        if _ready is not None:
+            _ready.activated.connect(self._sync_manual_selection_from_panel)
         self._manual_layout_panel.changed.connect(self._refresh_manual_command_preview)
         # the panel's own lines for the log (an i1iO custom size turned upright)
         self._manual_layout_panel.notice.connect(self._on_log_line)
@@ -13035,7 +13044,36 @@ class TabChart(QWidget):
             self._update_patch_count()
         else:
             self._sync_engine_panel_after_transfer()
+            if before is None or before.get("paper") != now.get("paper"):
+                self._carry_exact_guided_paper(now.get("paper"))
             self._refresh_manual_command_preview()
+
+    def _carry_exact_guided_paper(self, paper) -> None:
+        """A Guided paper with fractions of a millimetre (a film frame of the
+        Barbieri Beta, 234.95 x 196.85 mm; the page-output Beta is on then)
+        reaches the layout panel as it is.
+
+        -p holds whole millimetres (`ParameterWidget.set_value`), so the
+        carry above leaves it at 234x196, which no row of the panel's paper
+        list is: the panel kept the paper before (A4), and Save as Defaults
+        stored a 234 x 196 mm page for the next start. Only a code with a
+        fraction comes here; every other paper is a row of the list."""
+        panel = getattr(self, "_manual_layout_panel", None)
+        if (panel is None or getattr(panel, "paper", None) is None
+                or not getattr(panel, "_page_beta", False)
+                or not self._manual_panel_lays_out()):
+            return
+        from workflow.layout_engine.papers import parse_custom
+        dims = parse_custom(str(paper or ""))
+        if (dims is None or all(float(v) == int(v) for v in dims)
+                or panel.selection()[1] == str(paper)):
+            return
+        from ui.dialogs import page_output_panel
+        self._syncing_manual_sel = True      # -p holds its cut already
+        try:
+            page_output_panel.show_custom_mm(panel, *dims)
+        finally:
+            self._syncing_manual_sel = False
 
     def _sync_engine_panel_after_transfer(self) -> None:
         """When the ChromIQ engine is on, a Manual chart is built from the engine

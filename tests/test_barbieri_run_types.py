@@ -250,3 +250,105 @@ def test_guided_restores_a_saved_large_film_frame(win, qapp):
         assert tc._paper_combo.currentData() == code
     finally:
         po._latched = before
+
+
+@pytest.fixture
+def page_beta_on():
+    """The page-output Beta on before the window is built (the layout panel
+    reads it once)."""
+    from workflow.page_output import support as po
+    before = po._latched
+    po.set_enabled_for_this_process(True)
+    try:
+        yield
+    finally:
+        po._latched = before
+
+
+def _pick_ready_made(tc, qapp, key):
+    p = tc._manual_layout_panel
+    p.instr.setCurrentIndex(p.instr.findData("B100XY"))
+    qapp.processEvents()
+    box = p.barbieri_size
+    box.setCurrentIndex(box.findData(key))
+    box.activated.emit(box.currentIndex())
+    qapp.processEvents()
+    return p
+
+
+@pytest.mark.parametrize("key,paper", [("a4", "A4R"), ("letter", "LetterR")])
+def test_a_ready_made_size_keeps_its_paper(page_beta_on, win, qapp, key,
+                                           paper):
+    """A ready-made size is a paper change: printtarg's -p follows it, so
+    Guided and back leaves the panel on it and Save as Defaults stores it
+    (it went back to A4 portrait)."""
+    tc = win._tab_chart
+    tc._switch_mode("manual")
+    p = _pick_ready_made(tc, qapp, key)
+    assert p.selection()[1] == paper
+    assert tc._manual_get("printtarg", "-p", None) == paper
+    tc._switch_mode("guided")
+    tc._switch_mode("manual")
+    qapp.processEvents()
+    assert p.selection()[1] == paper
+    tc._on_save_defaults()
+    assert tc._settings.get("manual_engine_recipe")["paper"] == paper
+
+
+def test_a_ready_made_film_frame_is_saved_as_the_default(page_beta_on, win,
+                                                         qapp):
+    """Save as Defaults on Manual's large film frame stored the frame's page
+    beside the paper A4, so the next start drew an A4 page at 2032 ppi."""
+    tc = win._tab_chart
+    tc._switch_mode("manual")
+    p = _pick_ready_made(tc, qapp, "film_large")
+    tc._on_save_defaults()
+    rec = tc._settings.get("manual_engine_recipe")
+    assert rec["paper"] == "234.95x196.85"
+    assert rec["page_size"]["w"] == [9.25, "in"]
+    # the next start
+    p.paper.setCurrentIndex(p.paper.findData("A4"))
+    tc._restore_defaults_impl()
+    tc._init_manual_layout_panel()
+    tc._switch_mode("manual")
+    qapp.processEvents()
+    assert p.get_recipe().paper == "234.95x196.85"
+    assert p.get_recipe().page_size == rec["page_size"]
+
+
+@pytest.mark.parametrize("key", ["film_large", "film_35"])
+def test_a_guided_film_frame_is_saved_with_its_decimals(page_beta_on, win,
+                                                        qapp, key):
+    """Guided's film frame and Save as Defaults: the layout panel and the
+    stored recipe hold the frame's exact size. -p holds whole millimetres
+    and the recipe took that cut (234x196) from it."""
+    from workflow.barbieri.chart import film_paper_code
+    tc = win._tab_chart
+    tc._switch_mode("guided")
+    tc._instr_combo.setCurrentIndex(tc._instr_combo.findData("B100XY"))
+    box = tc._barbieri_head_combo
+    box.setCurrentIndex(box.findData("transmission-0.5"))
+    qapp.processEvents()
+    code = film_paper_code(key)
+    # a change the Manual side has not seen
+    tc._shared_snapshots["guided"]["paper"] = "A4R"
+    tc._paper_combo.setCurrentIndex(tc._paper_combo.findData(code))
+    qapp.processEvents()
+    tc._on_save_defaults()
+    assert tc._settings.get("chart_paper") == code
+    assert tc._settings.get("manual_engine_recipe")["paper"] == code
+    tc._switch_mode("manual")
+    qapp.processEvents()
+    assert tc._manual_layout_panel.selection()[1] == code
+    tc._switch_mode("guided")
+    tc._switch_mode("manual")
+    qapp.processEvents()
+    assert tc._manual_layout_panel.selection()[1] == code
+    # the next start: Guided and Manual both on the frame
+    tc._switch_mode("guided")
+    tc._restore_defaults_impl()
+    tc._init_manual_layout_panel()
+    tc._switch_mode("manual")
+    qapp.processEvents()
+    assert tc._paper_combo.currentData() == code
+    assert tc._manual_layout_panel.get_recipe().paper == code
