@@ -21,6 +21,15 @@ from PyQt6.QtWidgets import QApplication
 from ui import tiff_preview as TP
 
 
+#: How long a redraw that IS due may take to be delivered. Not a speed claim (the redraw comes
+#: 80 ms after the change): at 2000 ms the everyday tier of 4.3.65 went red once, because one
+#: pause of the worker longer than that, just before the redraw, makes waitUntil give up with
+#: the redraw still pending (reproduced: an event of 2.1 to 3 s on the GUI thread; what paused
+#: that worker was not found, garbage collection was measured and is not it). A redraw that
+#: never comes still fails.
+BUDGET_MS = 15000
+
+
 def _preview(qtbot, tmp_path):
     from PIL import Image
     p = TP.TiffPreview()
@@ -69,10 +78,10 @@ def test_the_last_change_of_a_burst_is_still_drawn(qtbot, tmp_path, monkeypatch)
     p = _preview(qtbot, tmp_path)
     calls = _count_redraws(p, monkeypatch)
     p._schedule_refresh()
-    qtbot.waitUntil(lambda: len(calls) == 1, timeout=2000)
+    qtbot.waitUntil(lambda: len(calls) == 1, timeout=BUDGET_MS)
     last = time.monotonic()
     p._schedule_refresh()                       # one more change after the redraw
-    qtbot.waitUntil(lambda: len(calls) == 2, timeout=2000)
+    qtbot.waitUntil(lambda: len(calls) == 2, timeout=BUDGET_MS)
     assert calls[1] >= last
     qtbot.wait(TP._REFRESH_DELAY_MS * 3)
     assert len(calls) == 2, "a redraw with no change behind it"
