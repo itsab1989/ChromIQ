@@ -434,7 +434,8 @@ def measure_from_engine(
     px2mm = _MM_PER_INCH / dpi
     paper_w_mm, paper_h_mm = float(pm[0]), float(pm[1])
 
-    rec = layout.get("recipe") or {}
+    from workflow.layout_engine.presets import recipe_as_printed
+    rec = recipe_as_printed(layout)
     x0, x1, y0, y1, patch_w_px = engine_ink_bounds_px(rects, rec, dpi)
 
     report = MarginReport(

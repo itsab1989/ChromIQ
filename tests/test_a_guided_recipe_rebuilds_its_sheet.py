@@ -18,6 +18,7 @@ import hashlib
 import importlib
 import json
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -195,3 +196,77 @@ def test_with_the_beta_off_its_charts_are_read_as_they_stand(
     assert recipe_as_printed(layout) != recipe
     monkeypatch.setattr(support, "_latched", False)
     assert recipe_as_printed(layout) == recipe
+
+
+# ---- every reader of a stored recipe (S1 of the review) ---------------------
+
+#: Raw readers of a chart's ``layout["recipe"]``: none lays anything out with
+#: its margins. Everything else asks `recipe_as_printed`.
+RAW_READERS = {
+    "ui/dialogs/scanin_dialog.py": (3, "hexagons and the ring's width"),
+    "ui/tabs/tab_measure.py": (1, "whether the strip letters are drawn"),
+    "ui/tabs/tab_chart.py": (4, "the render dpi; the instrument, twice; a "
+                                "person's own margins, never Guided's"),
+    "workflow/margin_inspector.py": (1, "the instrument"),
+    "workflow/patch_size_check.py": (2, "the instrument, the patch size"),
+    "workflow/overhang.py": (2, "the helper markers, the instrument"),
+    "workflow/hex_support.py": (2, "hexagons"),
+    "workflow/layout_engine/presets.py": (1, "recipe_as_printed itself"),
+}
+
+
+READ = re.compile(r"""(?:layout|lay|\{\})\)?(?:\.get\(["']recipe["']"""
+                  r"""|\["recipe"\](?! =))""")
+
+
+def test_every_other_reader_asks_for_the_recipe_as_printed():
+    root = Path(__file__).resolve().parent.parent
+    got = {}
+    for top in ("core", "ui", "workflow"):
+        for f in sorted((root / top).rglob("*.py")):
+            n = sum(len(READ.findall(line)) for line in
+                    f.read_text(encoding="utf-8").splitlines()
+                    if "isinstance(" not in line)
+            if n:
+                got[f.relative_to(root).as_posix()] = n
+    assert got == {k: n for k, (n, _why) in RAW_READERS.items()}
+
+
+def _stored_by_4366(tmp_path, instrument, paper, chosen):
+    _c, _p, kw, result, layout = _guided(tmp_path, instrument, paper, chosen)
+    side = tmp_path / "guided" / "c.channels.json"
+    doc = json.loads(side.read_text(encoding="utf-8"))
+    doc["layout"] = _as_4366(layout)
+    side.write_text(json.dumps(doc), encoding="utf-8")
+    return side, kw, result
+
+
+@pytest.mark.parametrize("instrument,paper,chosen,patches", [
+    ("CR30", "A4R", {}, (368, 345)),          # (the sheet, what 6 mm makes)
+    ("i1", "A4", dict(margin_mm=10, patch_scale=0.95), None),
+    ("i1", "Letter", dict(margin_mm=10, patch_scale=0.95), None)])
+def test_the_editor_lays_a_stored_guided_chart_out_as_it_is(
+        tmp_path, instrument, paper, chosen, patches):
+    from workflow.layout_engine import geometry, instruments, papers
+
+    def on_a_page(kw):
+        return geometry.patches_per_sheet(
+            instruments.geom_from_build_kwargs(kw), *papers.piece_mm_of(kw))
+    side, kw, result = _stored_by_4366(tmp_path, instrument, paper, chosen)
+    recipe = LayoutRecipe.from_channels_json(side)
+    raw = LayoutRecipe.from_stored(
+        json.loads(side.read_text(encoding="utf-8"))["layout"]["recipe"])
+    got = on_a_page(recipe.build_kwargs()), on_a_page(raw.build_kwargs())
+    assert got[0] == on_a_page(kw) != got[1]
+    assert patches is None or got == patches
+    # ...and the notices about the chart on screen
+    from types import SimpleNamespace
+    from ui.tabs.tab_chart import TabChart
+    me = SimpleNamespace(
+        _margin_ti2=result.ti2_path,
+        _settings=SimpleNamespace(apply_indicator_style=lambda r: r))
+    for attr in ("_manual_layout_panel", "_notice_recipe_cache"):
+        setattr(me, attr, None)
+    me._current_layout_recipe = lambda *a, **k: None
+    shown = TabChart._notice_layout_recipe(me)
+    assert shown is not None and shown.margin_top == recipe.margin_top

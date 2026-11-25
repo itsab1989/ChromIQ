@@ -572,11 +572,16 @@ while the option is on and hands it back to Create Chart; off, it opens as in
   from 4.1.3-beta.19 to 4.3.66, so the redraw of a Guided i1Pro chart (10 mm), CR30 chart (5 mm) or
   ColorMunki chart at triple density (5 mm), of an i1iO chart without aiming crosses and of an i1iSis
   chart on 127 x 178 mm was another sheet (the last one was refused). The recipe now says the margins
-  of the build; nothing else of the record and nothing of the print changes. A stored Guided chart
-  (it says so itself, `margins_chosen_by_user` false, and holds exactly the 6 mm, an i1iSis chart
-  5 mm, that were filled in) is restored and opened as it was printed (`presets.recipe_as_printed`). Not reached: a chart of 4.1.3-beta.19, which does not say it is
-  Guided, and an i1iO chart without crosses from before 4.3.66; the line above is still written there
-  when the sheet comes out different.
+  of the build (an i1iO chart with crosses keeps 6 mm, which its own layout raises); nothing else of
+  the record and nothing of the print changes. A stored Guided chart (it says so itself,
+  `margins_chosen_by_user` false, and holds exactly the 6 mm, an i1iSis chart 5 mm, that were filled
+  in) is restored, opened, taken into the patch set editor and described as it was printed: every
+  reader that lays anything out from the record asks `presets.recipe_as_printed`. Not reached: a chart
+  of 4.1.3-beta.19, which does not say it is Guided, and an i1iO chart without crosses from before
+  4.3.66; the line above is still written there when the sheet comes out different.
+* The redraw is judged by the record, not by its pixels: a file the sheet draws that was replaced since
+  (the clip border's picture) or another project name is not seen. The chart's files are put back in
+  every case.
 * **Create Chart's Manual shows the restored chart's settings.** The restore fills Manual and switches
   to it; on the way from Guided that switch wrote Guided's settings (the chart that was replaced) over
   them, the paper among them. It carries nothing over now.

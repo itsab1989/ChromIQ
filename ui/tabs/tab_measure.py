@@ -801,9 +801,10 @@ def edge_spacer_px_from_sidecar(ti2_path: "Path | None") -> int:
         return 0
     try:
         layout = json.loads(read_text(channels)).get("layout") or {}
-        recipe = layout.get("recipe") or {}
         from workflow.layout_engine import instruments
-        from workflow.layout_engine.presets import build_kwargs_as_built
+        from workflow.layout_engine.presets import (build_kwargs_as_built,
+                                                    recipe_as_printed)
+        recipe = recipe_as_printed(layout)
         kw = build_kwargs_as_built(recipe, ti2_path)  # B8-1570: as built
         if not kw.get("edge_spacers"):
             return 0
@@ -999,7 +1000,8 @@ def hex_ring_px_from_sidecar(ti2_path: "Path | None") -> float:
         return 0.0
     try:
         layout = json.loads(read_text(channels)).get("layout") or {}
-        recipe = layout.get("recipe") or {}
+        from workflow.layout_engine.presets import recipe_as_printed
+        recipe = recipe_as_printed(layout)
         if not recipe:
             return 0.0
         from workflow.hex_support import ring_mm_of

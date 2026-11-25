@@ -883,9 +883,9 @@ class LayoutRecipe:
         lay = data.get("layout") if isinstance(data, dict) else None
         if not isinstance(lay, dict) or lay.get("engine") != "chromiq":
             return None
-        rec = lay.get("recipe")
-        if not isinstance(rec, dict):
+        if not isinstance(lay.get("recipe"), dict):
             return None
+        rec = recipe_as_printed(lay)
         name = str(path)
         r = cls.from_stored(
             rec, name[:-len(".channels.json")] + ".ti2"

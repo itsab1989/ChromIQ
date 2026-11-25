@@ -28867,9 +28867,10 @@ class TabChart(QWidget):
                 if stamp[1] is not None:
                     import json as _json
                     doc = _json.loads(read_text(ch))
-                    rec = (doc.get("layout") or {}).get("recipe") or {}
+                    from workflow.layout_engine.presets import (
+                        LayoutRecipe, recipe_as_printed)
+                    rec = recipe_as_printed(doc.get("layout") or {})
                     if rec:
-                        from workflow.layout_engine.presets import LayoutRecipe
                         built = LayoutRecipe.from_stored(rec, ti2)
                 self._notice_recipe_cache = (stamp, built)
             if built is None:
