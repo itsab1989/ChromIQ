@@ -28856,12 +28856,11 @@ class TabChart(QWidget):
                 log.debug("printer edge note: no printer known")
                 return None
             from workflow.i1io.support import i1io_enabled
-            own_size = False
             if i1io_enabled():
                 from workflow.i1io import sheets as _sheets
                 from workflow.i1io.support import pages_are_i1io_chart
-                own_size = pages_are_i1io_chart(tiffs)
-                ti2 = _sheets.chart_of_pages(tiffs) if own_size else None
+                ti2 = (_sheets.chart_of_pages(tiffs)
+                       if pages_are_i1io_chart(tiffs) else None)
                 si = _sheets.info(ti2) if ti2 is not None else None
                 if si is not None:
                     # what is printed is the sheet, not the piece shown here
@@ -28874,9 +28873,7 @@ class TabChart(QWidget):
             from workflow.page_geometry import read_tiff_dimensions_points
             w_pt, h_pt = read_tiff_dimensions_points(Path(tiffs[0]))
             chart_mm = (w_pt * PE.MM_PER_PT, h_pt * PE.MM_PER_PT)
-            edges, paper = PE.edges_for(
-                printer, chart_mm, self._settings,
-                **({"own_size": True} if own_size else {}))
+            edges, paper = PE.edges_for(printer, chart_mm, self._settings)
             if not edges.any():
                 return None
             pages = [(Path(t), 0) for t in tiffs]
