@@ -219,6 +219,63 @@ def write_txf(ti2: Path, side: dict, out: Path, title: str,
     out.write_text(text, encoding="utf-8", newline="")
 
 
+def _entries(ti2: Path, side: dict, idx: dict, rows: list) -> list:
+    """Every printed cell in placement order: (sample id, location, device
+    values). Entry j of the ``.txf`` is the j-th of these."""
+    by_loc = {}
+    for r in rows:
+        try:
+            by_loc[r[idx["SAMPLE_LOC"]].strip('"')] = (
+                r[idx["SAMPLE_ID"]],
+                {c: float(r[idx[f"RGB_{c}"]]) for c in "RGB"})
+        except (KeyError, IndexError, ValueError):
+            continue
+    from workflow.layout_engine.ti2_writer import (  # noqa: F401
+        build_ti2_text)
+    from .chart import placement_order
+    from workflow.layout_engine import labels as _labels
+    cl = _labels.labels_for_chart(ti2)
+    patterns = (getattr(cl, "strip_pattern", None),
+                getattr(cl, "patch_pattern", None),
+                getattr(cl, "rule", None))
+    if not all(patterns):
+        patterns = None
+    locs = placement_order(ti2, side, patterns)
+    order = []
+    for loc in locs:
+        if loc not in by_loc:
+            raise ValueError(f"cell {loc} is not in the chart")
+        sid, vals = by_loc[loc]
+        order.append((sid, loc, vals))
+    return order
+
+
+def order_of(ti2: "str | Path"):
+    """The order `write_isis_export` writes for the i1iSis chart *ti2*, worked
+    out from the chart and its side file again, for a chart whose order file
+    is missing (exports/ is derived). None when that is not possible. Reads
+    only, never raises."""
+    try:
+        from .support import read_side_file, side_file_for
+        from workflow.i1profiler_turned import TurnedOrder
+        ti2 = Path(ti2)
+        side = read_side_file(ti2)
+        if not side:
+            return None
+        _fields, data = _read_ti2_rows(ti2)
+        idx, rows = data["idx"], data["rows"]
+        if not all(k in idx for k in ("RGB_R", "RGB_G", "RGB_B")):
+            return None
+        entries = _entries(ti2, side, idx, rows)
+        return TurnedOrder(side_file_for(ti2), [e[0] for e in entries],
+                           [e[1] for e in entries], rows=int(side["rows"]),
+                           columns=int(side["columns"]), kind=ORDER_KIND,
+                           pages=max(1, int(side["pages"])))
+    except Exception:  # noqa: BLE001 - no order, never a failure
+        log.debug("i1iSis order could not be worked out", exc_info=True)
+        return None
+
+
 def write_isis_export(ti2: "str | Path", out_dir: "str | Path",
                       stem: str) -> IsisExport:
     """Write ``<stem>-i1profiler-isis.txf`` and its order file into
@@ -242,31 +299,7 @@ def write_isis_export(ti2: "str | Path", out_dir: "str | Path",
                 "this version it is written for RGB charts only. The chart "
                 "itself is fine.")
             return res
-        by_loc = {}
-        for r in rows:
-            try:
-                by_loc[r[idx["SAMPLE_LOC"]].strip('"')] = (
-                    r[idx["SAMPLE_ID"]],
-                    {c: float(r[idx[f"RGB_{c}"]]) for c in "RGB"})
-            except (KeyError, IndexError, ValueError):
-                continue
-        from workflow.layout_engine.ti2_writer import (  # noqa: F401
-            build_ti2_text)
-        from .chart import placement_order
-        from workflow.layout_engine import labels as _labels
-        cl = _labels.labels_for_chart(ti2)
-        patterns = (getattr(cl, "strip_pattern", None),
-                    getattr(cl, "patch_pattern", None),
-                    getattr(cl, "rule", None))
-        if not all(patterns):
-            patterns = None
-        locs = placement_order(ti2, side, patterns)
-        order = []
-        for loc in locs:
-            if loc not in by_loc:
-                raise ValueError(f"cell {loc} is not in the chart")
-            sid, vals = by_loc[loc]
-            order.append((sid, loc, vals))
+        order = _entries(ti2, side, idx, rows)
         out_dir.mkdir(parents=True, exist_ok=True)
         txf = out_dir / txf_name(stem)
         write_txf(ti2, side, txf, stem, order)

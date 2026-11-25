@@ -100,6 +100,11 @@ class ImportVerdict:
     #: True when the Barbieri Beta's Spectro32 route refused the file: the
     #: doors show it under M-IMPORT-BARBIERI-REFUSED.
     barbieri_refusal: bool = False
+    #: Why the colours of an i1iSis measurement of a chart that is not
+    #: randomised cannot show how the sheet was fed (`isis.import_check`:
+    #: "few", "similar", "way", "whole"), or "". The file may be filed, but
+    #: every door asks the person first (M-IMPORT-ISIS-CANNOT-CHECK).
+    isis_ask_why: str = ""
 
     @property
     def patches_read(self) -> int:
@@ -355,14 +360,12 @@ def assess(ti3: Path, chart_ti2: "Path | None",
             # and only the rest of the rows is missing. §I.14 pairs a COMPLETE
             # turned measurement only; that rule is unchanged here, the
             # refusal just gives its true reason now.
-            return ImportVerdict(False, tr(
-                "this file is a measurement of the turned i1Profiler chart, "
-                "and ChromIQ can only bring such a measurement back when "
-                "every patch of the chart has been measured. This file holds "
-                "{got} of the chart's {total} readings. Measure the remaining "
-                "rows in i1Profiler, save the measurement again as an .mxf "
-                "file and import that file").format(
-                    got=n_got, total=len(turned.order.sample_ids)),
+            partial_reason = (
+                _isis_partial_reason
+                if getattr(turned.order, "kind", "") == "isis"
+                else _turned_partial_reason)
+            return ImportVerdict(False, partial_reason(
+                n_got, len(turned.order.sample_ids)),
                 n_chart=n_chart or 0, n_measured=n_got)
         if turned.applies and turned.ambiguous:
             # MORE THAN ONE ORDER FITS, AND THEY DISAGREE (review 4.3.18 r1,
@@ -377,13 +380,8 @@ def assess(ti3: Path, chart_ti2: "Path | None",
             # AN i1iSis CHART OF SEVERAL PAGES (a Beta, stage 1): measuring
             # it in i1Profiler works, bringing it back needs a later version
             # (the pages' places are not read yet). Said, never guessed.
-            return ImportVerdict(False, tr(
-                "this file is a measurement of an i1iSis chart with {pages} "
-                "pages. Bringing a measurement of several pages back into "
-                "ChromIQ needs a later version of ChromIQ; the measurement "
-                "itself is fine, so keep the file").format(
-                    pages=int(turned.order.pages)),
-                n_chart=n_chart or 0, n_measured=n_got)
+            return ImportVerdict(False, _isis_pages_reason(turned.order),
+                                 n_chart=n_chart or 0, n_measured=n_got)
         if turned.applies and turned.verified:
             # …AND ONLY WHEN i1PROFILER LAID IT OUT ON THE GRID THE .TXF ASKS
             # FOR (4.3.19). The device values repeat the patch list whatever
@@ -393,16 +391,7 @@ def assess(ti3: Path, chart_ti2: "Path | None",
             # that does not (a CGATS export) is judged as before.
             from workflow.i1profiler_turned import grid_mismatch
             isis = getattr(turned.order, "kind", "") == "isis"
-            grid = None
-            if isis and source is not None:
-                # G2 (the i1iSis Beta): a CxF whose NumberPatchPages is "0"
-                # carries no grid keyword in the converted copy, so the grid
-                # check was skipped; read from the picked file, "0" taken as
-                # one page. Only here: the converter is unchanged.
-                from workflow.i1profiler_turned import isis_grid_from_source
-                from workflow.reference_convert import i1p_grid_of
-                if i1p_grid_of(ti3) is None:
-                    grid = isis_grid_from_source(source)
+            grid = _isis_source_grid(ti3, source) if isis else None
             why = grid_mismatch(ti3, turned.order, chart_ti2, grid=grid)
             if why:
                 return ImportVerdict(False, why, n_chart=n_chart or 0,
@@ -449,6 +438,17 @@ def assess(ti3: Path, chart_ti2: "Path | None",
             if fits_straight_and_turned(measured, turned):
                 return ImportVerdict(False, straight_or_turned_reason(),
                                      n_chart=n_chart or 0, n_measured=n_got)
+        # AN i1iSis CHART THAT IS NOT RANDOMISED (a Beta, item 63). Its order
+        # is the chart's own numbering, so the check by SAMPLE_ID above passes
+        # and the i1iSis checks of the branch above were never reached: a
+        # measurement of several pages, of a sheet fed the wrong way round or
+        # read one column off was filed. i1Profiler copies the device values
+        # from its test chart, so here they prove nothing about the sheet.
+        if not read_from_the_sheet_as_printed(ti3):
+            isis = _isis_same_order(ti3, measured, chart_ti2, source,
+                                    n_chart or 0, n_got)
+            if isis is not None:
+                return isis
     if not identity.get("checked"):
         # An uncheckable identity is not a refusal — the report records the
         # same state — but it must not pass in silence.
@@ -618,6 +618,119 @@ def _one_device_value_for_all(ti3: Path, chart_ti2: Path) -> "bool | None":
     except (ValueError, IndexError):
         return True
     return chart_vals != {mine}
+
+
+def _turned_partial_reason(got: int, total: int) -> str:
+    return tr(
+        "this file is a measurement of the turned i1Profiler chart, "
+        "and ChromIQ can only bring such a measurement back when "
+        "every patch of the chart has been measured. This file holds "
+        "{got} of the chart's {total} readings. Measure the remaining "
+        "rows in i1Profiler, save the measurement again as an .mxf "
+        "file and import that file").format(got=got, total=total)
+
+
+def _isis_partial_reason(got: int, total: int) -> str:
+    from workflow.measurement_messages import isis_partial_reason
+    return isis_partial_reason(got, total)
+
+
+def _isis_pages_reason(order) -> str:
+    return tr(
+        "this file is a measurement of an i1iSis chart with {pages} "
+        "pages. Bringing a measurement of several pages back into "
+        "ChromIQ needs a later version of ChromIQ; the measurement "
+        "itself is fine, so keep the file").format(pages=int(order.pages))
+
+
+def _isis_source_grid(ti3: Path, source: "Path | None"):
+    """G2 (the i1iSis Beta): a CxF whose NumberPatchPages is "0" carries no
+    grid keyword in the converted copy, so the grid check was skipped; read
+    from the picked file, "0" taken as one page. None: the copy's own grid.
+    The converter is unchanged."""
+    if source is None:
+        return None
+    from workflow.i1profiler_turned import isis_grid_from_source
+    from workflow.reference_convert import i1p_grid_of
+    return isis_grid_from_source(source) if i1p_grid_of(ti3) is None else None
+
+
+def _isis_order_for(chart_ti2: Path):
+    """The order of the i1iSis chart *chart_ti2*: its order file, or, when
+    that is missing (exports/ is derived), worked out again from the chart
+    and its side file; None when neither can say."""
+    from workflow.i1profiler_turned import turned_order_for
+    order = turned_order_for(chart_ti2)
+    if getattr(order, "kind", "") != "isis":
+        from workflow.isis.export import order_of
+        order = order_of(chart_ti2)
+    return order
+
+
+def _made_by_the_isis_beta(chart_ti2: Path) -> bool:
+    """True for a chart the i1iSis Beta laid out, while the Beta is on. The
+    switch is read first: with it off nothing is opened."""
+    from workflow.isis.support import chart_names_isis, isis_enabled
+    if not isis_enabled() or chart_names_isis(chart_ti2) is not True:
+        return False
+    try:
+        with open(chart_ti2, "rb") as fh:
+            head = fh.read(65536).split(b"BEGIN_DATA_FORMAT", 1)[0]
+    except OSError:
+        return False
+    return b"CHROMIQ_ISIS_LAYOUT" in head
+
+
+def _isis_same_order(ti3: Path, measured, chart_ti2: Path,
+                     source: "Path | None", n_chart: int,
+                     n_got: int) -> "ImportVerdict | None":
+    """The i1iSis checks (pages, every patch, grid, colours) for a measurement
+    whose device values already agree with the chart by SAMPLE_ID, i.e. of a
+    chart that is not randomised. None: not such a chart."""
+    if not _made_by_the_isis_beta(chart_ti2):
+        return None
+
+    def refuse(reason: str) -> ImportVerdict:
+        return ImportVerdict(False, reason, n_chart=n_chart,
+                             n_measured=n_got)
+    order = _isis_order_for(chart_ti2)
+    if order is None:
+        from workflow.isis.support import side_file_for
+        from workflow.measurement_messages import isis_files_missing_reason
+        return refuse(isis_files_missing_reason(
+            side_file_for(chart_ti2).name))
+    n = len(order.sample_ids)
+    if list(order.sample_ids) != [str(i + 1) for i in range(n)]:
+        return None                  # randomised: the branches above judged it
+    if int(order.pages or 1) > 1:
+        return refuse(_isis_pages_reason(order))
+    # EVERY ENTRY ONCE (§I.14, as for a randomised chart). i1Profiler numbers
+    # its entries 1..N; a file whose ids are none of these was compared by
+    # position, and is judged by position here too.
+    numbers = {str(i + 1): i for i in range(n)}
+    ids = [str(s).strip('"') for s in (measured.sample_ids or [])]
+    at = [numbers[s] for s in ids if s in numbers]
+    by_number = sorted(at) == list(range(n)) and len(ids) == n
+    if not by_number and (at or n_got != n):
+        return refuse(_isis_partial_reason(len(set(at)), n))
+    if not by_number:
+        at = list(range(n))
+    from workflow.i1profiler_turned import grid_mismatch
+    why = grid_mismatch(ti3, order, chart_ti2,
+                        grid=_isis_source_grid(ti3, source))
+    if why:
+        return refuse(why)
+    from workflow.isis import import_check as IC
+    verdict = IC.judge_rows(measured, at, order, chart_ti2)
+    log.info("import: the colours of the measurement of an i1iSis chart that "
+             "is not randomised were compared with the chart: %s (%s) %s",
+             verdict.verdict, verdict.why or "agree", verdict.detail)
+    if verdict.verdict == IC.WRONG:
+        from workflow.measurement_messages import isis_colours_reason
+        return refuse(isis_colours_reason())
+    return ImportVerdict(
+        True, "", n_chart=n_chart, n_measured=n_got,
+        isis_ask_why=verdict.why if verdict.verdict == IC.CANNOT else "")
 
 
 def _isis_colours_refuse(ti3: Path, order, chart_ti2) -> str:

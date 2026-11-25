@@ -1727,6 +1727,81 @@ M_IMPORT_ISIS_COLOURS = _m(
 def isis_colours_reason() -> str:
     return tr(_ISIS_IMPORT_COLOURS)
 
+
+#: An i1iSis chart whose side file (and order file) is missing: nothing says
+#: how many pages it has and on which grid it lies (item 63).
+_ISIS_IMPORT_FILES = (
+    "the file {side} beside this chart is missing or does not belong to it. "
+    "ChromIQ needs it to check that an i1iSis measurement was read from the "
+    "right sheet, the right way round. Import the measurement into the run "
+    "the chart was made in, or make the chart again, print it and measure it")
+M_IMPORT_ISIS_FILES = _m(
+    "M-IMPORT-ISIS-FILES",
+    "An i1iSis measurement of a chart whose own files are missing",
+    _ISIS_IMPORT_FILES,
+    approved=False)
+
+
+def isis_files_missing_reason(side: str) -> str:
+    return tr(_ISIS_IMPORT_FILES).format(side=side)
+
+
+#: An i1iSis file that does not hold every patch of the chart (review 63, S3):
+#: the turned chart's sentence said before it was never true of an i1iSis.
+_ISIS_IMPORT_PARTIAL = (
+    "this file holds {got} of the {total} patches of this i1iSis chart, and "
+    "ChromIQ can only bring an i1iSis measurement back when every patch has "
+    "been measured. Measure the chart again in i1Profiler, save the whole "
+    "measurement and import that file")
+M_IMPORT_ISIS_PARTIAL = _m(
+    "M-IMPORT-ISIS-PARTIAL",
+    "An i1iSis measurement that does not hold every patch",
+    _ISIS_IMPORT_PARTIAL,
+    approved=False)
+
+
+def isis_partial_reason(got: int, total: int) -> str:
+    return tr(_ISIS_IMPORT_PARTIAL).format(got=got, total=total)
+
+
+#: The question when an i1iSis chart is not randomised and its colours cannot
+#: show how the sheet was fed (item 63, `workflow.isis.import_check`). Cancel
+#: is the default. {why}: one of the parts below.
+M_IMPORT_ISIS_CANNOT_CHECK = _m(
+    "M-IMPORT-ISIS-CANNOT-CHECK",
+    "ChromIQ cannot check this sheet from its colours",
+    "i1Profiler copies the device values of its test chart into the "
+    "measurement, so they do not show how the sheet went through the i1iSis. "
+    "ChromIQ normally sees that from the measured colours. This chart was "
+    "laid out without “Randomise patch order”, and here the colours cannot "
+    "show it, because {why}.\n\n"
+    "ChromIQ has checked what it can: the test chart, the number of "
+    "readings, i1Profiler's grid if the file records it, and that the "
+    "readings do not clearly fit better another way of feeding the sheet. "
+    "The import is right only if the sheet went in as the Start window of "
+    "this chart describes: bar end first, against the left guide.\n\n"
+    "Tip: if you lay out your next chart with “Randomise patch order” on, "
+    "ChromIQ can usually check this by itself.\n\n"
+    "Import the measurement?",
+    approved=False)
+_ISIS_WHY_WAY = ("its patches repeat or change so regularly that the "
+                 "readings could also belong to neighbouring patches")
+_ISIS_WHY_WHOLE = ("the readings follow the colours this chart should have "
+                   "only loosely")
+M_IMPORT_ISIS_CANNOT_CHECK_PARTS = _m(
+    "M-IMPORT-ISIS-CANNOT-CHECK-PARTS",
+    "ChromIQ cannot check this sheet from its colours: the reasons (i1iSis)",
+    "\n".join((_ISIS_WHY_WAY, _ISIS_WHY_WHOLE)),
+    approved=False)
+
+
+def isis_cannot_check_kw(why: str) -> dict:
+    """The placeholder of M-IMPORT-ISIS-CANNOT-CHECK; the other reasons are
+    the i1iO's own (M-IMPORT-I1IO-CANNOT-CHECK-PARTS)."""
+    return dict(why=tr({"few": _I1IO_WHY_FEW, "similar": _I1IO_WHY_SIMILAR,
+                        "way": _ISIS_WHY_WAY, "whole": _ISIS_WHY_WHOLE,
+                        }.get(why, _I1IO_WHY_NO_COLOURS)))
+
 #: Start pressed on an X-Rite i1iSis chart while the Beta "X-Rite i1iSis
 #: charts" is on: ChromIQ cannot talk to the instrument, the chart is
 #: measured in i1Profiler (PROPOSAL v2 §10). {cut_or_not} is
@@ -15941,7 +16016,10 @@ CATALOGUE = {m.id: m for m in (
     M_I1IO_MEASURE_CHART_OTHER_WAY, M_IMPORT_I1IO_REASONS,
     M_IMPORT_I1IO_CANNOT_CHECK, M_IMPORT_I1IO_CANNOT_CHECK_PARTS,
     M_IMPORT_I1IO_AIM_UNCHECKED,
-    M_IMPORT_I1IO_FILED, M_IMPORT_ISIS_COLOURS, M_IMPORT_I1IO_REFUSED,
+    M_IMPORT_I1IO_FILED, M_IMPORT_ISIS_COLOURS, M_IMPORT_ISIS_FILES,
+    M_IMPORT_ISIS_PARTIAL,
+    M_IMPORT_ISIS_CANNOT_CHECK, M_IMPORT_ISIS_CANNOT_CHECK_PARTS,
+    M_IMPORT_I1IO_REFUSED,
     M_I1IO_MEASURE_CHART_PAGES, M_I1IO_MEASURE_CHART_PAGES_PARTS,
     M_IMPORT_I1IO_PAGES_REASONS, M_IMPORT_I1IO_WHICH_PAGE,
     M_IMPORT_I1IO_PAGE_REPLACE, M_IMPORT_I1IO_PAGE_SAME,
