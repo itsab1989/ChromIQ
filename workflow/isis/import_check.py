@@ -173,14 +173,24 @@ def compare(E, M, rows: int, cols: int) -> Verdict:
     return Verdict(RIGHT, "", detail)
 
 
+def _row_of_equals(E: np.ndarray, rows: int, row: int) -> bool:
+    """True when a third or more of the neighbours along i1Profiler's *row*
+    are about the same colour: such a row (white patches filling it up, say)
+    fits its neighbours as well as itself, also when it was read rightly."""
+    e = E[np.arange(len(E)) % rows == row]
+    if len(e) < 2:
+        return True
+    d = np.linalg.norm(e[1:] - e[:-1], axis=1)
+    return float((d < DISTINCT_DE).mean()) >= 1 / 3
+
+
 def judge_rows(measured, at, order, chart_ti2) -> Verdict:
     """Judge the parsed measurement *measured*, whose row i is i1Profiler's
     entry ``at[i]`` of *order*: first by the judge of randomised charts, and
     where that one cannot tell by :func:`compare`."""
     from pathlib import Path
 
-    from workflow.turned_colour_check import (AGREE, DISAGREE, _expected_lab,
-                                              judge, measured_lab)
+    from workflow.turned_colour_check import _expected_lab, measured_lab
     n, pos = len(order.sample_ids), np.argsort(np.asarray(at))
     xyz = np.asarray(measured.xyz, float)
     rgb = np.asarray(measured.rgb, float)
@@ -191,10 +201,19 @@ def judge_rows(measured, at, order, chart_ti2) -> Verdict:
     if E is None or len(E) != n:
         return Verdict(CANNOT, "no-colours")
     M = measured_lab(xyz[pos])
-    first = judge(E, M, int(order.rows), int(order.columns))
+    return decide(E, M, int(order.rows), int(order.columns))
+
+
+def decide(E: np.ndarray, M: np.ndarray, rows: int, cols: int) -> Verdict:
+    """The judge of randomised charts first, then :func:`compare` where that
+    one cannot tell (or only tripped over a row of equal patches)."""
+    from workflow.turned_colour_check import AGREE, DISAGREE, judge
+    first = judge(E, M, rows, cols)
     if first.verdict == AGREE:
         return Verdict(RIGHT, "", first.log_text())
-    if first.verdict == DISAGREE:
+    if first.verdict == DISAGREE and not (
+            first.why == "strip-wrong"
+            and _row_of_equals(E, rows, first.strip)):
         return Verdict(WRONG, first.why, first.log_text())
-    v = compare(E, M, int(order.rows), int(order.columns))
+    v = compare(E, M, rows, cols)
     return Verdict(v.verdict, v.why, f"{first.log_text()}; {v.detail}")

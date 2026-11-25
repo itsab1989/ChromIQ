@@ -263,6 +263,31 @@ def test_a_right_measurement_that_can_be_checked_is_not_asked_about(
         assert v.ok and not v.isis_ask_why, (printer, v.isis_ask_why)
 
 
+@pytest.mark.parametrize("white", [None, 8, 5])
+def test_a_row_of_equal_patches_is_not_taken_for_a_slipped_row(
+        charts, tmp_path, white):
+    """A row that is white all along (or but for a few patches) fits its
+    neighbours as well as itself: that says nothing about the sheet."""
+    probe = charts("random60")
+    rgbs = list(CHARTS["random900"][:560])
+    from workflow.isis.chart import split
+    C, R, P = split(560, 28, 36)
+    assert (P, probe.P) == (1, 1)
+    c0 = Chart(tmp_path / "a", rgbs)
+    for j in range(560):
+        col, row = divmod(j, c0.R)
+        if row == 3 and (white is None or col >= white):
+            rgbs[j] = (100.0, 100.0, 100.0)
+    c = Chart(tmp_path / "b", rgbs)
+    for seed, printer in enumerate(PRINTERS):
+        v = _assess(c.measure(tmp_path / "m.ti3", None, printer, seed=seed),
+                    c)
+        assert v.ok, (printer, v.reason)
+    for way in ("half turn", "one column off", "one row off"):
+        assert not _assess(c.measure(tmp_path / "m.ti3", c.ways()[way]),
+                           c).ok, way
+
+
 # ---- the rest of the chain -------------------------------------------------------
 
 def test_part_of_the_sheet_is_refused(charts, tmp_path):
@@ -290,12 +315,21 @@ def test_ids_that_are_not_i1profilers_numbers_are_judged_by_position(
 def test_the_order_of_the_rows_in_the_file_does_not_matter(charts, tmp_path):
     c = charts("random60")
     p = c.measure(tmp_path / "m.ti3")
-    lines = p.read_text().splitlines()
+    lines = p.read_text(encoding="utf-8").splitlines()
     a, b = lines.index("BEGIN_DATA") + 1, lines.index("END_DATA")
     lines[a:b] = lines[a:b][::-1]
-    p.write_text("\n".join(lines) + "\n")
+    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
     v = _assess(p, c)
     assert v.ok and not v.isis_ask_why, v.reason
+    g = charts("grid6")
+    for way in ("one row off", "one column off"):
+        p = g.measure(tmp_path / "g.ti3", g.ways()[way])
+        lines = p.read_text(encoding="utf-8").splitlines()
+        a, b = lines.index("BEGIN_DATA") + 1, lines.index("END_DATA")
+        np.random.default_rng(6).shuffle(part := lines[a:b])
+        lines[a:b] = part
+        p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        assert not _assess(p, g).ok, way
 
 
 def test_the_grid_i1profiler_records_is_checked(charts, tmp_path):
@@ -339,8 +373,9 @@ def test_without_the_order_file_the_side_file_is_enough(charts, tmp_path):
 def test_a_filed_measurement_of_chartread_is_not_asked(charts, tmp_path):
     c = charts("even")
     p = c.measure(tmp_path / "m.ti3")
-    p.write_text(p.read_text().replace('ORIGINATOR "ChromIQ"',
-                                       'ORIGINATOR "Argyll chartread"'))
+    p.write_text(p.read_text(encoding="utf-8").replace(
+        'ORIGINATOR "ChromIQ"', 'ORIGINATOR "Argyll chartread"'),
+        encoding="utf-8")
     v = _assess(p, c)
     assert v.ok and not v.isis_ask_why
 
@@ -377,7 +412,8 @@ def test_beta_off_and_other_instruments_are_untouched(charts, tmp_path):
     finally:
         support.set_enabled_for_this_process(True)
     other = tmp_path / "o.ti2"
-    other.write_text(c.ti2.read_text().replace("X-Rite i1iSis", "X-Rite i1Pro"))
+    other.write_text(c.ti2.read_text(encoding="utf-8").replace(
+        "X-Rite i1iSis", "X-Rite i1Pro"), encoding="utf-8")
     from workflow.measurement_import import assess
     assert assess(p, other).ok
 
