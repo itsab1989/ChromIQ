@@ -118,12 +118,24 @@ def test_the_hand_dual_scan_knows_nothing_of_it():
         assert "i1io.table" not in text and "MOTION_START" not in text, f.name
 
 
-@pytest.mark.parametrize("tenths", range(75, 131, 5))
-def test_no_row_is_read_as_a_dual_row_that_was_not_before(tenths, monkeypatch):
-    lamp = S.plan(tenths / 10.0, 132)
-    uv = sp.uv_pass_of(lamp)
-    now = sp.dual_windows_ok(lamp, uv)
-    monkeypatch.setattr(sc, "DUAL_LAMP_MOTION_START_S", sc.MOTION_START_AFTER_LAMP_S)
-    before = sp.dual_windows_ok(lamp, uv)
-    if now is not None and now >= sc.DUAL_MIN_READINGS:
-        assert before is not None and before >= sc.DUAL_MIN_READINGS
+def test_no_row_is_read_as_a_dual_row_that_was_not_before(monkeypatch):
+    """Every patch length from 7.5 to 13 mm, and rows that start anywhere within a reading."""
+    n_new = 0
+    for tenths in range(75, 131):
+        for run_in in (9.0, 9.2, 9.4):
+            lamp = S.plan(tenths / 10.0, 132, run_in=run_in)
+            uv = sp.uv_pass_of(lamp)
+
+            def ok():
+                few = sp.dual_windows_ok(lamp, uv)
+                return few is not None and few >= sc.DUAL_MIN_READINGS
+            now = ok()
+            with monkeypatch.context() as m:
+                m.setattr(sc, "DUAL_LAMP_MOTION_START_S", sc.MOTION_START_AFTER_LAMP_S)
+                before = ok()
+            with monkeypatch.context() as m:
+                # what planning on the new start alone would allow
+                m.setattr(sc, "MOTION_START_AFTER_LAMP_S", sc.DUAL_LAMP_MOTION_START_S)
+                n_new += ok() and not before
+            assert before or not now, (tenths, run_in)
+    assert n_new > 0                  # the second start is not there for nothing
