@@ -2686,88 +2686,116 @@ class FullTextComboBox(ElidingComboBox):
     """A combo whose chosen text is ALWAYS fully readable, closed and open.
 
     For a combo that offers whole sentences (the Barbieri ready-made sizes,
-    up to ~430 px in English, more in some languages) where trimming a name
-    with an ellipsis hides exactly the part that tells two entries apart.
+    ~430 px in English, more in some languages) where an ellipsis hides
+    exactly the part that tells two entries apart.
 
-    * Closed: the text is word-wrapped inside the box, and the box grows in
-      height to the lines it needs. It keeps :class:`ElidingComboBox`'s small
-      minimum WIDTH, so it can never widen the locked pane.
-    * Open: the drop-down list is at least as wide as its widest entry (it
-      only ever grew to the box before), and never elides an entry.
+    * Closed: the text runs from the left edge of the edit field to the
+      drop-down button (:meth:`_text_rect`, the ONE rectangle that both the
+      height and the painting use) and is word-wrapped inside it. The box is
+      as tall as the LONGEST entry needs, fixed for the language, so choosing
+      another entry never moves the controls below. It keeps
+      :class:`ElidingComboBox`'s small minimum WIDTH, so it can never widen
+      a locked pane.
+    * Open: the drop-down list is at least as wide as its widest entry and
+      never elides one.
     """
 
     #: Room the drop-down view needs beside the text: item padding + frame.
     POPUP_SLACK = 28
+    #: Gap kept between the text and the drop-down button.
+    TEXT_GAP = 4
+    _FLAGS = int(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft
+                 | Qt.TextFlag.TextWordWrap)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.currentIndexChanged.connect(self._text_changed)
+        self.model().rowsInserted.connect(self._text_changed)
+        self.model().modelReset.connect(self._text_changed)
 
-    def _text_changed(self, _index: int = 0) -> None:
-        self._sync_height()
-        self.update()
-
-    def _lines_height(self, avail: int) -> int:
-        fm = self.fontMetrics()
-        rect = fm.boundingRect(QRect(0, 0, max(avail, 20), 10000),
-                               int(Qt.TextFlag.TextWordWrap),
-                               self.currentText())
-        return max(fm.lineSpacing(), rect.height())
-
-    def _wrap_width(self) -> int:
+    # -- the one rectangle and the one measure --------------------------
+    def _text_rect(self) -> QRect:
+        """Where the text is painted AND measured: from the edit field's
+        left edge to the drop-down button (the style's edit field keeps
+        padding beside the button that a wrapped text can use)."""
         from PyQt6.QtWidgets import QStyleOptionComboBox
         opt = QStyleOptionComboBox()
         self.initStyleOption(opt)
-        return self._edit_rect(opt).width() - 4
+        edit = self._edit_rect(opt)
+        arrow = self.style().subControlRect(
+            QStyle.ComplexControl.CC_ComboBox, opt,
+            QStyle.SubControl.SC_ComboBoxArrow, self)
+        right = edit.right()
+        if arrow.isValid() and arrow.left() - self.TEXT_GAP > right:
+            right = arrow.left() - self.TEXT_GAP
+        return QRect(edit.left() + 2, edit.top(),
+                     max(0, right - edit.left() - 2), edit.height())
 
-    def _wanted_height(self, base_h: int) -> int:
-        avail = self._wrap_width() if self.width() > 0 else 0
-        if avail <= 0:
-            return base_h
-        one = self.fontMetrics().lineSpacing()
-        return base_h + max(0, self._lines_height(avail) - one)
+    def _text_height(self, text: str, width: int) -> int:
+        """Height the text needs when painted wrapped into *width*."""
+        rect = self.fontMetrics().boundingRect(
+            QRect(0, 0, max(width, 20), 100000), self._FLAGS, text)
+        return rect.height()
+
+    def _wanted_height(self) -> int:
+        """Box height for the longest entry (fixed for the language)."""
+        one = ElidingComboBox.sizeHint(self).height()
+        width = self._text_rect().width() if self.width() > 0 else 0
+        if width <= 0:
+            return one
+        fm = self.fontMetrics()
+        need = max((self._text_height(self.itemText(i), width)
+                    for i in range(self.count())), default=fm.lineSpacing())
+        return one + max(0, need - fm.lineSpacing())
+
+    def _sync_height(self) -> None:
+        want = self._wanted_height()
+        changed = False
+        if want != self.minimumHeight():
+            self.setMinimumHeight(want)
+            changed = True
+        # The app gives its combos a 26 px maximum height; a minimum above
+        # a maximum is resolved to the maximum by the layout, which then
+        # reserves 26 px for a 38 px box and lets it overlap the next row.
+        if self.maximumHeight() < want:
+            self.setMaximumHeight(want)
+            changed = True
+        if changed:
+            self.updateGeometry()
+
+    def _text_changed(self, *_args) -> None:
+        self._sync_height()
+        self.update()
 
     def sizeHint(self) -> QSize:  # noqa: N802 (Qt override)
         base = super().sizeHint()
-        return QSize(base.width(), self._wanted_height(base.height()))
+        return QSize(base.width(), max(base.height(), self._wanted_height()))
 
     def minimumSizeHint(self) -> QSize:  # noqa: N802 (Qt override)
         base = super().minimumSizeHint()
-        return QSize(base.width(), self._wanted_height(base.height()))
+        return QSize(base.width(), max(base.height(), self._wanted_height()))
 
-    def hasHeightForWidth(self) -> bool:  # noqa: N802 (Qt override)
-        return False
-
-    def _sync_height(self) -> None:
-        """Make the box as tall as the lines its text needs (an explicit
-        minimum: a layout does not always re-ask sizeHint in time)."""
-        h = ElidingComboBox.sizeHint(self).height()
-        want = self._wanted_height(h)
-        if want != self.minimumHeight():
-            self.setMinimumHeight(want)
-            self.updateGeometry()
-
-    def resizeEvent(self, event) -> None:  # noqa: N802 (Qt override)
-        super().resizeEvent(event)
-        self._sync_height()
-
-    def showEvent(self, event) -> None:  # noqa: N802 (Qt override)
-        super().showEvent(event)
-        self._sync_height()
+    def event(self, e) -> bool:  # noqa: N802 (Qt override)
+        ok = super().event(e)
+        if e.type() in (QEvent.Type.FontChange, QEvent.Type.StyleChange,
+                        QEvent.Type.Polish, QEvent.Type.PolishRequest,
+                        QEvent.Type.Show, QEvent.Type.Resize):
+            self._sync_height()
+        return ok
 
     def paintEvent(self, event) -> None:  # noqa: N802 (Qt override)
         from PyQt6.QtWidgets import QStyleOptionComboBox, QStylePainter
         painter = QStylePainter(self)
-        painter.setPen(self.palette().color(QPalette.ColorRole.Text))
         opt = QStyleOptionComboBox()
         self.initStyleOption(opt)
         text = opt.currentText
         opt.currentText = ""
         painter.drawComplexControl(QStyle.ComplexControl.CC_ComboBox, opt)
-        edit = self._edit_rect(opt).adjusted(2, 0, -2, 0)
-        painter.drawText(edit, int(Qt.AlignmentFlag.AlignVCenter
-                                   | Qt.AlignmentFlag.AlignLeft
-                                   | Qt.TextFlag.TextWordWrap), text)
+        group = (QPalette.ColorGroup.Disabled if not self.isEnabled()
+                 else QPalette.ColorGroup.Active)
+        painter.setPen(opt.palette.color(group, QPalette.ColorRole.Text))
+        painter.setFont(self.font())
+        painter.drawText(self._text_rect(), self._FLAGS, text)
 
     def showPopup(self) -> None:  # noqa: N802 (Qt override)
         view = self.view()
