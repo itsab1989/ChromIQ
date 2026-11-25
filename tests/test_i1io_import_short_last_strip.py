@@ -76,10 +76,54 @@ def test_a_short_strip_read_one_patch_out_of_place_is_seen(real, step):
     assert j.verdict != C.AGREE and j.strip == ROWS - 1, j
 
 
-def test_a_strip_of_nothing_but_equals_is_judged_by_the_whole():
-    for real in (0, 1):
-        E, M, _last = _colours(real)
-        assert C.judge(E, M, ROWS, COLS).verdict == C.AGREE
+#: Other readings in the place of the last strip's (M, its entries).
+READ = {
+    "right": lambda M, last: M[last],
+    "one patch late": lambda M, last: M[np.roll(last, 1)],
+    "one patch early": lambda M, last: M[np.roll(last, -1)],
+    "one early, past the end": lambda M, last: M[last[1:] + last[-1:]],
+    "mirrored": lambda M, last: M[last[::-1]],
+    "the strip beside it": lambda M, last: M[[j - 1 for j in last]],
+}
+
+
+@pytest.mark.parametrize("real", [0, 1, 2, 3, 4, 6, 8, 11, 12])
+def test_a_last_strip_of_any_length_is_judged_by_something(real):
+    """S1 of the review: with 1 or 2 real patches no neighbour can tell, and
+    the strip beside it was filed in its place, 16 of 20. Its equals must have
+    been read alike, and a patch of its own not as one of them. 20 charts."""
+    for way, read in READ.items():
+        filed = 0
+        for seed in range(20):
+            E, M, last = _colours(real, seed)
+            got = M.copy()
+            got[last] = read(M, last)
+            filed += C.judge(E, got, ROWS, COLS).verdict == C.AGREE
+        # (nothing but fill-up: its order is nobody's, only another strip is)
+        right = way == "right" or (real == 0 and way != "the strip beside it")
+        assert filed == (20 if right else 0), (real, way, filed)
+
+
+@pytest.mark.parametrize("real", [1, 2, 4, 8, 10])
+def test_a_paper_far_from_the_foretold_white_refuses_no_right_page(real):
+    """The fit of a strip of equals is taken over the patches it compares: the
+    fill-up patches' own distance (a paper 40 L* off here) is not theirs."""
+    for seed in range(20):
+        E, M, last = _colours(real, seed)
+        M[last[real:], 0] += 40.0
+        assert C.judge(E, M, ROWS, COLS).verdict == C.AGREE, seed
+
+
+@pytest.mark.parametrize("n", [697, 698, 721, 722])
+def test_the_whole_route_with_one_or_two_real_patches(tmp_path, n):
+    ti2 = _chart(tmp_path, n)
+    from workflow.i1io import pages
+    last = pages.page_count(ti2)
+    m = _match(tmp_path, ti2, last, "right")
+    assert (m.kind, m.page) == ("one", last), m.reason
+    for way in ("half-turn", "mirror-along", "one-patch-along",
+                "one-strip-down"):
+        assert _match(tmp_path, ti2, last, way).kind == "refuse", way
 
 
 def test_only_a_strip_of_equals_is_judged_by_part_of_it(monkeypatch):
