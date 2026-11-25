@@ -2150,3 +2150,7 @@ the calibration rules are untouched.
   "moved"), never by the reason's name; a row refused after its lamp pass, or after the move to its
   start, keeps the old page. Its first answer says to choose another one when the same reason comes
   again.
+* **No "Read it again" where it cannot help.** A row ended because its M1 / M2 could not be written
+  has its own page (M-I1IO-DRIVE-ROW-M1-M2-NOT-WRITTEN, proposed): it says what to check and offers
+  "Skip it" and "End this step" only. M-I1IO-DRIVE-ROW-M0-ONLY (no reason known) keeps "Read it
+  again" and no longer says "as often as you like".

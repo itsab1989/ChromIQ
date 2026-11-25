@@ -14472,9 +14472,25 @@ M_I1IO_DRIVE_ROW_M0_ONLY = _m(
     "not write its M1 and M2 values. So this row has no M1 and M2 yet; every other row keeps "
     "its own.\n\n"
     "\u2022  Read it again: ChromIQ first asks you to take your hands away, then reads the row "
-    "again with the UV light too. You can read it again as often as you like.\n"
+    "again with the UV light too.\n"
     "\u2022  Skip it: the row keeps M0 only. Continue Measurement, with the dual scan still "
     "switched on, reads it again later.\n"
+    "\u2022  End this step: nothing more is read now, and nothing moves until you choose what "
+    "happens next.",
+    approved=False)
+
+#: ...and when the reading program said that it could not write them (the row ended there): no
+#: "Read it again", which would end the same way. Answers: Skip it / End this step
+M_I1IO_DRIVE_ROW_M1_M2_NOT_WRITTEN = _m(
+    "M-I1IO-DRIVE-ROW-M1-M2-NOT-WRITTEN",
+    "The M1 and M2 values of row {row} could not be saved",
+    "ChromIQ stopped reading row {row} of page {page}, because the reading program could not "
+    "write its M1 and M2 values into this run's folder. The M0 values read so far are kept. "
+    "Reading the row again now would end the same way, so ChromIQ does not offer it.\n\n"
+    "Please check that the disk is not full and that ChromIQ may write into this run's "
+    "folder.\n\n"
+    "\u2022  Skip it: ChromIQ goes on with the next row. Continue Measurement, with the dual scan "
+    "still switched on, reads this row again later.\n"
     "\u2022  End this step: nothing more is read now, and nothing moves until you choose what "
     "happens next.",
     approved=False)
@@ -15621,6 +15637,7 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_NOTE, M_I1IO_DRIVE_NEXT_PAGE, M_I1IO_DRIVE_STOPPED_BY_YOU,
     M_I1IO_DRIVE_REFUSED, M_I1IO_DRIVE_FRONT_END, M_I1IO_DRIVE_FRONT_STOPPED,
     M_I1IO_DRIVE_ROW_M0_ONLY_STRIP, M_I1IO_DRIVE_ROW_M0_ONLY,
+    M_I1IO_DRIVE_ROW_M1_M2_NOT_WRITTEN,
     M_I1IO_DRIVE_ROW_PLACEMENT_REST,
     M_I1IO_DRIVE_HOME_OFFERED,
     M_I1IO_DRIVE_SWITCH_OFF,
@@ -15676,7 +15693,7 @@ I1IO_DRIVE_USB_MESSAGE["M-I1IO-DRIVE-TABLE-DRIVER-NOT-INSTALLED"] = M_I1IO_DRIVE
 PIECE_MESSAGES = {m.id: _piece_twin(m) for m in (
     M_I1IO_DRIVE_ROW_FAILED, M_I1IO_DRIVE_ROW_FAILED_STRIP, M_I1IO_DRIVE_ROW_M0_ONLY,
     M_I1IO_DRIVE_ROW_M0_ONLY_STRIP, M_I1IO_DRIVE_ROW_PLACEMENT_REST,
-    M_I1IO_DRIVE_ROW_FAILED_STRIP_NOT_MOVED,
+    M_I1IO_DRIVE_ROW_FAILED_STRIP_NOT_MOVED, M_I1IO_DRIVE_ROW_M1_M2_NOT_WRITTEN,
     M_I1IO_DRIVE_ROW_NOT_IN_PLACE, M_I1IO_DRIVE_ROW_NOT_IN_PLACE_SPOT)}
 
 CATALOGUE = {m.id: m for m in (

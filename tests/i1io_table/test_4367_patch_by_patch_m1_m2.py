@@ -18,6 +18,7 @@ from tests import test_i1pro2_dual_scan_engine as DE
 from tests.i1io_table.test_4350_dual_m1_m2_per_row import (
     SPOT, _job, _read_all, _ready, _row_locs)
 from tests.i1io_table.test_job_reading import read_page
+from tests.i1io_table.test_window import settings  # noqa: F401 (fixture)
 from workflow import i1pro3_conditions as ic
 from workflow.dual_scan.scale import ScaleChoice
 from workflow.i1io.table import dual_rows as dl
@@ -176,3 +177,72 @@ def test_other_endings_of_the_record_change_nothing(tmp_path):
     assert J.TableJob._dual_not_written(ns_job(), r) is False
     ev.append({"event": "conditions", "active": False, "why": "write"})
     assert J.TableJob._dual_not_written(ns_job(), r) is True
+
+
+# ---- the window: no "Read it again" where it cannot help --------------------------------------
+
+def _window(qtbot, monkeypatch, tmp_path, settings, faults, args):  # noqa: F811
+    from tests.i1io_table.test_dual_table import dual_setup, long_sheet
+    from tests.i1io_table.test_window import open_window
+    from tests.i1io_table.window_sim import WindowSim
+    from ui import i1io_table_window as W
+    orig = W.TableMeasureWindow.__init__
+
+    def init(self, *a, **k):
+        k.setdefault("dual", dual_setup("M1"))
+        orig(self, *a, **k)
+    monkeypatch.setattr(W.TableMeasureWindow, "__init__", init)
+    win, sim, run, p, saved, finished = open_window(
+        qtbot, monkeypatch, tmp_path, settings, asking=False, sheet=long_sheet(), args=args,
+        sim=WindowSim(faults=faults))
+    return W, win, sim, run, p, saved
+
+
+def _labels(win):
+    return [b.text().replace("&", "") for b in win._buttons]
+
+
+def test_the_page_of_a_row_that_cannot_be_written_offers_skip_and_end(
+        qtbot, monkeypatch, tmp_path, settings):  # noqa: F811
+    from workflow import measurement_messages as M
+    W, win, sim, run, p, saved = _window(
+        qtbot, monkeypatch, tmp_path, settings, {"no_write_at": (3,)},
+        ["-v", "-c", "1", "-p", "chart"])
+    assert p.drive_until("row_failed") == "row_failed"
+    title, body = M.M_I1IO_DRIVE_ROW_M1_M2_NOT_WRITTEN.render(row=1, page=1, why="x")
+    assert win._title.text() == title
+    assert _labels(win) == ["Skip it", "End this step"]
+    assert all(b.isEnabled() for b in win._buttons)
+    assert "Read it again" not in body and "as often as" not in body
+    p.press("Skip it")
+    assert p.drive_until("end_of_session") == "end_of_session"
+    p.press("Save and stop")
+    main = Path(run.measurement_ti3)
+    assert saved and ic.sibling_in_step(main, ic.partial_sibling_path(main, "M1"))
+
+
+def test_a_row_without_a_known_reason_still_offers_reading_it_again(
+        qtbot, monkeypatch, tmp_path, settings):  # noqa: F811
+    from workflow import measurement_messages as M
+    W, win, sim, run, p, saved = _window(
+        qtbot, monkeypatch, tmp_path, settings, {"no_conditions_at": (3,)},
+        ["-v", "-c", "1", "-p", "chart"])
+    assert p.drive_until("row_failed") == "row_failed"
+    assert win._title.text() == M.M_I1IO_DRIVE_ROW_M0_ONLY.render(row=1, page=1, why="x")[0]
+    assert _labels(win) == ["Read it again", "Skip it", "End this step"]
+    assert "as often as" not in M.M_I1IO_DRIVE_ROW_M0_ONLY.body
+
+
+def test_the_window_shows_the_not_moved_page_for_a_refusal_before_any_move(
+        qtbot, monkeypatch, tmp_path, settings):  # noqa: F811
+    from tests.i1io_table.test_window import open_window
+    from tests.i1io_table.window_sim import WindowSim
+    from workflow import measurement_messages as M
+    win, sim, run, p, saved, finished = open_window(
+        qtbot, monkeypatch, tmp_path, settings, asking=False,
+        args=["-v", "-c", "1", "chart"], sim=WindowSim())
+    sim.sim.c_faults["c4_byte"] = 0xFF
+    assert p.drive_until("row_failed_strip") == "row_failed_strip"
+    first = M.M_I1IO_DRIVE_ROW_FAILED_STRIP_NOT_MOVED.body.split(".")[0]
+    assert first in win._text.text()
+    assert "where the strip move ended" not in win._text.text()

@@ -4253,12 +4253,16 @@ class TableMeasureWindow(QFrame):
                        else self._reason("rows_read_again_limit"))
                 body += "\n\n" + M.M_I1IO_DRIVE_ROW_NOT_AGAIN.render(why=why)[1]
         elif kind == "row_failed":
-            msg = (M.M_I1IO_DRIVE_ROW_M0_ONLY if d.get("m0_kept")
+            # the reading program cannot write M1 / M2: reading the row again ends the same way,
+            # so this page does not offer it (below)
+            not_written = d.get("why") == "dual_conditions_not_written"
+            msg = (M.M_I1IO_DRIVE_ROW_M1_M2_NOT_WRITTEN if not_written
+                   else M.M_I1IO_DRIVE_ROW_M0_ONLY if d.get("m0_kept")
                    else M.M_I1IO_DRIVE_ROW_FAILED)
             title, body = M.of_pieces(msg, in_pieces(self._sheet)).render(
                 row=d.get("row", "?"), page=d.get("page", page),
                 why=as_clause(self._reason(d.get("why", ""))))
-            if not d.get("again_allowed", True):
+            if not d.get("again_allowed", True) and not not_written:
                 why = (self._reason("dual_calibration_not_found_again")
                        if d.get("why") == "dual_calibration_not_kept"
                        else self._reason("calibration_due") if d.get("calibration_due")
@@ -4285,10 +4289,14 @@ class TableMeasureWindow(QFrame):
             # one page that offers it (four answers fit in one row in every language)
             drop = "patch by patch" if d.get("offer_rest") else "rest patch by patch"
             values = tuple(v for v in values if v != drop)
+        no_again = kind == "row_failed" and d.get("why") == "dual_conditions_not_written"
+        if no_again:
+            values = tuple(v for v in values if v != "again")
         buttons = [((piece_choice_label(kind, v) if in_pieces(self._sheet) else None)
                     or choice_label(kind, v), self._answer_slot(v)) for v in values]
         made = self._show(kind, title, body, buttons)
-        if kind in ("row_failed", "row_failed_strip") and not d.get("again_allowed", True):
+        if (kind in ("row_failed", "row_failed_strip") and not d.get("again_allowed", True)
+                and not no_again):
             made[0].setEnabled(False)
             if kind == "row_failed_strip":
                 made[1].setEnabled(False)       # patch by patch (or the rest) is a row read again

@@ -135,7 +135,7 @@ def test_every_text_that_speaks_of_a_page_has_a_twin_for_a_piece():
     missing = [t for t in pages if not _twin(t, texts)]
     assert missing == []
     for m in (M.M_I1IO_DRIVE_ROW_FAILED, M.M_I1IO_DRIVE_ROW_FAILED_STRIP,
-              M.M_I1IO_DRIVE_ROW_FAILED_STRIP_NOT_MOVED,
+              M.M_I1IO_DRIVE_ROW_FAILED_STRIP_NOT_MOVED, M.M_I1IO_DRIVE_ROW_M1_M2_NOT_WRITTEN,
               M.M_I1IO_DRIVE_ROW_M0_ONLY, M.M_I1IO_DRIVE_ROW_M0_ONLY_STRIP,
               M.M_I1IO_DRIVE_ROW_PLACEMENT_REST, M.M_I1IO_DRIVE_ROW_NOT_IN_PLACE,
               M.M_I1IO_DRIVE_ROW_NOT_IN_PLACE_SPOT):

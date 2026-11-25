@@ -309,6 +309,8 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-I1IO-DRIVE-STRIP-DEFAULT-OFFER",
     "M-I1IO-DRIVE-ROW-FAILED-STRIP",
     # 2026-11-25: the same when that attempt moved nothing (item 68)
+    "M-I1IO-DRIVE-ROW-M1-M2-NOT-WRITTEN",
+    "M-I1IO-DRIVE-ROW-M1-M2-NOT-WRITTEN-PIECE",
     "M-I1IO-DRIVE-ROW-FAILED-STRIP-NOT-MOVED",
     "M-I1IO-DRIVE-ROW-FAILED-STRIP-NOT-MOVED-PIECE",
     # 4.3.50: a dual row on the table with M0 only (its second pass failed), as by hand
