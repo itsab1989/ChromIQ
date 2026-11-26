@@ -33550,11 +33550,9 @@ class TabChart(QWidget):
         for w in (self._i1io_layout_label, self._i1io_layout_combo,
                   self._i1io_layout_tooltip):
             w.setVisible(on)
-        # (item 65: behind the (i) of "Chart layout", never in the section)
+        # (item 65: the (i) of "Chart layout" describes Compact in its list;
+        # the note is shown neither in the section nor a second time there)
         self._i1io_layout_note.setVisible(False)
-        self._i1io_layout_tooltip.set_live_note(
-            self._i1io_layout_note.text()
-            if on and self._guided_i1io_layout() == "compact" else "")
 
     def _show_guided_pieces(self, plan) -> None:
         """Guided's "Number of pages" counts sheets while the sheet is cut into

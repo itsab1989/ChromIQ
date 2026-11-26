@@ -55,7 +55,10 @@ def test_guided_says_compact_and_pieces_only_behind_their_i(chart_tab):
         assert not label.isVisibleTo(t)
     assert "simulated table only" in t._paper_tip.dialog_body()
     assert t._paper_tip.dialog_body().startswith("1 sheet, 2 pieces")
-    assert t._i1io_layout_tooltip.dialog_body().startswith("Compact:")
+    # Compact is said once in that (i), in its list, never a second time above it
+    body = t._i1io_layout_tooltip.dialog_body()
+    assert not t._i1io_layout_tooltip.live_note()
+    assert body.count("Compact") == 1 and "Compact (8 × 8 mm)" in body
     _guided(t, "IO2", "A4")
     t._set_guided_i1io_layout("standard")
     t._guided_i1io_layout_changed()
@@ -76,6 +79,11 @@ def test_manual_says_them_behind_its_i_too(chart_tab):
     p._show_i1io_pieces()
     assert not p._i1io_pieces_note.isVisibleTo(p)
     assert "simulated table only" in p._paper_tip.dialog_body()
+    k = p.i1io_layout.findData("compact")
+    p.i1io_layout.setCurrentIndex(k)
+    p.i1io_layout.activated.emit(k)
+    assert not p._i1io_layout_tip.live_note()
+    assert p._i1io_layout_tip.dialog_body().count("Compact") == 1
 
 
 @pytest.mark.parametrize("paper,n,line", [

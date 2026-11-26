@@ -4266,7 +4266,7 @@ jobs, which is allowed and should be.*
 
 *For a chart of one page the third step reads "...{rows} rows and 1 page." (house rule: no "page(s)").*
 
-*M-ISIS-CUT, the two sentences of `{cut_or_not}` (also the Print tab's note "Feed this sheet into the i1iSis with the black bar first, against the left guide. {cut_or_not}" and the Create Chart log line): "Feed the sheet as printed (cutting it along the dashed outline also works)." / "Cut the sheet along the dashed outline before feeding it: printed on this sheet, the chart would not sit where the i1iSis looks for it." M-ISIS-KEEP-OUT, a Create Chart log line: "{what} would print where the i1iSis looks for its markers, so they were left off. Room for text: the first 12 mm of the chart, the notes band, or a longer trailer." With it, for a chart too narrow for its name line (the same keep-out log line): "This chart is too narrow for its whole name line between the corner labels, even with the name shortened and the text set small, so {what} was left off the top of the sheet. The chart's files keep its full name." ({what}: "the ChromIQ logo" / "the page number" / "the chart's name"). M-ISIS-SHEET-CHECK's reasons when the page margins, not the paper, refuse the sheet: "the page margins leave {room} mm along the feed and an i1iSis chart needs {need} mm. It fits with top and bottom margins of {m} mm or less" / "the page margins leave {room} mm across and this chart is {need} mm wide. It fits with left and right margins of {m} mm or less" / "… It fits only with no left and right margins".*
+*M-ISIS-CUT, the two sentences of `{cut_or_not}` (also the Print tab's note "Feed this sheet into the i1iSis bar end first, against the left guide. {cut_or_not}" and the Create Chart log line): "Feed the sheet as printed (cutting it along the dashed outline also works)." / "Cut the sheet along the dashed outline before feeding it: printed on this sheet, the chart would not sit where the i1iSis looks for it." M-ISIS-KEEP-OUT, a Create Chart log line: "{what} would print where the i1iSis looks for its markers, so they were left off. Room for text: the first 12 mm of the chart, the notes band, or a longer trailer." With it, for a chart too narrow for its name line (the same keep-out log line): "This chart is too narrow for its whole name line between the corner labels, even with the name shortened and the text set small, so {what} was left off the top of the sheet. The chart's files keep its full name." ({what}: "the ChromIQ logo" / "the page number" / "the chart's name"). M-ISIS-SHEET-CHECK's reasons when the page margins, not the paper, refuse the sheet: "the page margins leave {room} mm along the feed and an i1iSis chart needs {need} mm. It fits with top and bottom margins of {m} mm or less" / "the page margins leave {room} mm across and this chart is {need} mm wide. It fits with left and right margins of {m} mm or less" / "… It fits only with no left and right margins".*
 
 ### M-GUIDED-SET-PAGES · PROPOSED · Generate in Guided, the run's own patch set takes other pages than asked — Create Chart
 
@@ -10989,7 +10989,7 @@ alone.
 >
 > This is unofficial. X-Rite did not make or approve it, and removed the i1iO 2 and the i1Pro 2 from i1Profiler in version 3.8.7 (X-Rite's own release notes); 3.8.6 is the last version that works with them. ChromIQ's commands and timings were taken from USB recordings that one table owner made of i1Profiler, not from X-Rite's documentation. Some steps go beyond what was recorded and are first tries.
 >
-> What has been tried on a real table so far. One i1iO 2 with an i1Pro 2, on a Mac, with ChromIQ's separate tester program: the table's own homing and the moves over the empty table, as i1Profiler makes them, the start-up of a table that had just been switched on, the calibration on the instrument's own white tile and on the table's tile, and one reading of the table's tile all worked. With ChromIQ itself, a whole page of 528 patches was then read patch by patch on a real i1iO 2, on a Mac: the aiming, the slow steps towards the front and every row worked. Since then ChromIQ has also read rows as strips, a second page and rows with the dual scan on a real table, and has brought the arm home from the front of the table. Not tried on a real table yet: the dual scan patch by patch to the end, sheets cut into pieces, and what happens at the end of the arm's range of movement. On Windows and on Linux, nothing has been tried at all: it may not work there, and if it does not, ChromIQ stops and tells you what it found.
+> What has been tried on a real table so far. One i1iO 2 with an i1Pro 2, on a Mac, with ChromIQ's separate tester program: the table's own homing and the moves over the empty table, as i1Profiler makes them, the start-up of a table that had just been switched on, the calibration on the instrument's own white tile and on the table's tile, and one reading of the table's tile all worked. With ChromIQ itself, a whole page of 528 patches was then read patch by patch on a real i1iO 2, on a Mac: the aiming, the slow steps towards the front and every row worked. Since then ChromIQ has also read rows as strips, a second page and rows with the dual scan on a real table, and has brought the arm from the front of the table to its resting place. Not tried on a real table yet: the dual scan patch by patch to the end, sheets cut into pieces, and what happens at the end of the arm's range of movement. On Windows and on Linux, nothing has been tried at all: it may not work there, and if it does not, ChromIQ stops and tells you what it found.
 >
 > Keep your hands away from the arm while it moves. Nothing may lie on the table's bed except your sheet.
 >
@@ -11266,7 +11266,7 @@ alone.
 >
 > Not ticked: the arm drives along the whole row while the i1Pro 2 reads all the time, the way i1Profiler reads a row. Afterwards ChromIQ finds each patch in those readings by where the arm was at the time. This is much faster.
 >
-> Reading by strips is a first try. It is built from recordings of i1Profiler, and it has been tried on one real table so far. ChromIQ never guesses a value: a row that cannot be cut cleanly into its patches is not kept, and you can read it again, or read it patch by patch. A row that is too long for one strip move is read patch by patch by itself. If a strip move might still be waiting at the end, ChromIQ tells you to switch the table off with its power switch.
+> Reading by strips is a first try. It is built from recordings of i1Profiler, and so far it has been used on only one real table. ChromIQ never guesses a value: a row that cannot be cut cleanly into its patches is not kept, and you can read it again, or read it patch by patch. A row that is too long for one strip move is read patch by patch by itself. If a strip move might still be waiting at the end, ChromIQ tells you to switch the table off with its power switch.
 >
 > Every table chart starts ticked, unless you saved another choice for the table: Save as Defaults on this tab keeps your choice for every table chart, and Preferences > Beta can change it as well. A project that keeps its own setting opens with its own. Charts for other instruments keep their own patch-by-patch setting.
 
@@ -11280,7 +11280,7 @@ alone.
 
 > **Rows are read as strips**
 >
-> “Patch-by-patch mode (-p)” is off, so the table reads each row as a strip: the arm drives along the row while the i1Pro 2 reads all the time, as i1Profiler does. This is a first try and has been tried on one real table so far. Every row that cannot be cut cleanly into its patches is offered to you again, or patch by patch. To read patch by patch instead, press Not now, tick “Patch-by-patch mode (-p)” and press START MEASUREMENT again.
+> “Patch-by-patch mode (-p)” is off, so the table reads each row as a strip: the arm drives along the row while the i1Pro 2 reads all the time, as i1Profiler does. This is a first try, so far on only one real table. Every row that cannot be cut cleanly into its patches is offered to you again, or patch by patch. To read patch by patch instead, press Not now, tick “Patch-by-patch mode (-p)” and press START MEASUREMENT again.
 
 
 *Revised 2026-11-25 (safety review 2, S3 / S4; awaiting confirmation): what has been tried on a real table since.*
@@ -11422,7 +11422,7 @@ alone.
 
 > **Row {row} has M0 only for now**
 >
-> Row {row} of page {page} was read, and its M0 values are kept, but the reading program did not write its M1 and M2 values. So this row has no M1 and M2 yet; every other row keeps its own.
+> Row {row} of page {page} was read, and its M0 values are kept, but the reading program did not write the row's M1 and M2 values. So this row has no M1 and M2 yet; every other row keeps its own.
 >
 > •  Read it again: ChromIQ first asks you to take your hands away, then reads the row again with the UV light too.
 > •  Skip it: the row keeps M0 only. Continue Measurement, with the dual scan still switched on, reads it again later.
@@ -11438,7 +11438,7 @@ alone.
 
 > **The M1 and M2 values of row {row} could not be saved**
 >
-> ChromIQ stopped reading row {row} of page {page}, because the reading program could not write its M1 and M2 values into this run's folder. The M0 values read so far are kept. Reading the row again now would end the same way, so ChromIQ does not offer it.
+> ChromIQ stopped reading row {row} of page {page}, because the reading program could not write the row's M1 and M2 values into this run's folder. The M0 values read so far are kept. Reading the row again now would end the same way, so ChromIQ does not offer it.
 >
 > Please check that the disk is not full and that ChromIQ may write into this run's folder.
 >
@@ -11459,7 +11459,7 @@ alone.
 
 > **The sheet may have been printed smaller or larger**
 >
-> The three marks lie about {percent} % as far apart on the table as they should on this sheet, in both directions, and the corner is right. So the sheet was probably printed at about {percent} %, not at 100 %. ChromIQ does not accept it, and nothing has moved over your sheet. Please print the sheet again at 100 %, without “Fit to page” and without scaling. If the sheet was printed at 100 %, at least one aim was on another point.
+> The three marks lie about {percent} % as far apart on the table as they should on this sheet, in both directions, and the corner is right. So the sheet was probably printed at about {percent} %, not at 100 %. ChromIQ does not accept it, and nothing has moved over your sheet. Please print the sheet again at 100 %, without “Fit to page” and without scaling. If the sheet was printed at 100 %, you aimed at another point at least once.
 
 ### M-I1IO-DRIVE-DUAL-SPOT-WHOLE · PROPOSED · START of a table chart with the dual scan on, rows as strips chosen, whose patches are too short for a dual row (the chart layout “Compact”), Measure
 
@@ -12131,7 +12131,7 @@ With {n} = 1: "The arm moves in 1 second. Please keep your hands away from the t
 
 > **The arm stayed extended over the table**
 >
-> The arm stayed out over the table, and the table is still in its aiming mode. You do not need to do anything now. The next time you press START MEASUREMENT, ChromIQ first brings the arm home and ends the aiming mode, and the measurement starts as usual. It asks you before the arm moves, unless the arm is back at its resting place by then.
+> The arm stayed out over the table, and the table is still in its aiming mode. You do not need to do anything now. The next time you press START MEASUREMENT, ChromIQ first brings the arm to its resting place and ends the aiming mode, and the measurement starts as usual. It asks you before the arm moves, unless the arm is back at its resting place by then.
 
 ### M-I1IO-DRIVE-STILL-AIMING · PROPOSED · at a START the table reports that it is still in its aiming mode (f4 answers 01 at the opening), Measure (the i1iO table window)
 
@@ -12781,7 +12781,7 @@ For one (n = 1):
 
 > **Row {row} has M0 only for now**
 >
-> Row {row} of piece {page} was read, and its M0 values are kept, but the reading program did not write its M1 and M2 values. So this row has no M1 and M2 yet; every other row keeps its own.
+> Row {row} of piece {page} was read, and its M0 values are kept, but the reading program did not write the row's M1 and M2 values. So this row has no M1 and M2 yet; every other row keeps its own.
 >
 > •  Read it again: ChromIQ first asks you to take your hands away, then reads the row again with the UV light too.
 > •  Skip it: the row keeps M0 only. Continue Measurement, with the dual scan still switched on, reads it again later.
@@ -12793,7 +12793,7 @@ For one (n = 1):
 
 > **The M1 and M2 values of row {row} could not be saved**
 >
-> ChromIQ stopped reading row {row} of piece {page}, because the reading program could not write its M1 and M2 values into this run's folder. The M0 values read so far are kept. Reading the row again now would end the same way, so ChromIQ does not offer it.
+> ChromIQ stopped reading row {row} of piece {page}, because the reading program could not write the row's M1 and M2 values into this run's folder. The M0 values read so far are kept. Reading the row again now would end the same way, so ChromIQ does not offer it.
 >
 > Please check that the disk is not full and that ChromIQ may write into this run's folder.
 >

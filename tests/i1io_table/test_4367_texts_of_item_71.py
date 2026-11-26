@@ -77,7 +77,7 @@ def test_the_refused_page_says_the_percent_and_that_it_is_not_accepted(tmp_path)
     assert r.detail["scaled_percent"] == 97
     text = reason_text(r.reason, dict(r.detail))
     assert "97 %" in text and "not at 100 %" in text and "does not accept it" in text
-    assert "“Next step”" in text and "at least one aim was on another point." in text
+    assert "“Next step”" in text and "you aimed at another point at least once." in text
     assert job.alignment is None
     assert not [ln for ln in sim.received[n:] if ln.startswith(";m2")]
 
@@ -227,7 +227,8 @@ def test_no_text_says_untried_what_a_real_table_has_done():
               M.M_I1IO_DRIVE_STRIP_OPTION, M.M_I1IO_DRIVE_STRIP_FIRST_TRY,
               M.M_I1IO_DRIVE_DUAL_ROWS):
         assert "not been tried on a real table" not in m.body, m.id
-        assert "on one real table so far" in m.body, m.id
+        assert ("on one real table so far" in m.body
+                or "only one real table" in m.body), m.id
     assert "has not been tried on a table yet" not in " ".join(i1io_layout_help().split())
     assert "patch by patch is not yet tried to the end" in M.M_DUAL_BEFORE_START_TABLE.body
     assert "only patches of 8 mm, on one table" in M._I1IO_SHORT_PATCH

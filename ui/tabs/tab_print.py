@@ -2738,8 +2738,8 @@ class TabPrint(QWidget):
             text = self._isis_feed_note()
             short = text
             if text and self._isis_fed_as_printed:
-                short = tr("Feed this sheet into the i1iSis with the black "
-                           "bar first, against the left guide.")
+                short = tr("Feed this sheet into the i1iSis bar end first, against the left "
+                           "guide.")
         if not text:
             text = self._barbieri_print_note()
             short = tr("Print this chart at 100 % without scaling.") \

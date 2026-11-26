@@ -4640,9 +4640,9 @@ class LayoutOptionsPanel(QWidget):
         i = box.findData(name)
         if i >= 0 and box.currentIndex() != i:
             box.setCurrentIndex(i)
+        # (item 65: the (i) of "Chart layout" already describes Compact in its
+        # list, so the note is not shown a second time above it)
         self._i1io_layout_note.setVisible(False)
-        self._i1io_layout_tip.set_live_note(
-            self._i1io_layout_note.text() if name == "compact" else "")
 
     def _i1io_show_layout(self, on: bool) -> None:
         box = getattr(self, "i1io_layout", None)

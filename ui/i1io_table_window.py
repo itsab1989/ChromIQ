@@ -865,7 +865,7 @@ def option_text(flag: str, why: str) -> str:
             "when the table reads rows as strips, the instrument reads in standard resolution, "
             "so this measurement is made without high resolution"),
         "strip_rows_a_first_try_not_confirmed_on_a_real_table": tr(
-            "reading rows as strips is a first try and has been tried on one real table so far"),
+            "reading rows as strips is a first try, so far on only one real table"),
     }
     name = names.get(flag)
     if name is None:
@@ -1374,9 +1374,9 @@ def reason_text(rid: str, detail: "dict | None" = None, pieces: bool = False) ->
             "Nothing was read."),
         "white_level_implausible": tr(
             "With the white the i1Pro 2 has just made, the table's white tile reads Y {y}, and "
-            "a white tile reads between {lo} and {hi}. Most likely the instrument did not sit "
-            "flat on its white tile during the calibration. ChromIQ does not use this white, "
-            "and nothing has been read with it. Press “Next step” to calibrate again.").format(
+            "a white tile normally reads between {lo} and {hi}. Most likely the instrument did "
+            "not sit flat on its white tile during the calibration. ChromIQ does not use this "
+            "white, and nothing has been read with it. Press “Next step” to calibrate again.").format(
             y=d.get("tile_y", "?"), lo=int(d.get("lowest", 82)), hi=int(d.get("highest", 97))),
         "white_level_not_checked": tr(
             "ChromIQ could not read the table's white tile to check the white the i1Pro 2 has "
@@ -1435,7 +1435,7 @@ def reason_text(rid: str, detail: "dict | None" = None, pieces: bool = False) ->
             "the row was read, but the reading program did not write its M1 and M2 values, so "
             "the row is offered to you again"),
         "dual_conditions_not_written": tr(
-            "the reading program could not write its M1 and M2 values into this run's folder"),
+            "the reading program could not write the row's M1 and M2 values into this run's folder"),
         "dual_row_patches_too_short": tr(
             "the patches are too short to be read twice as a strip"),
         "stopped_before_the_uv_pass": tr(
@@ -1457,10 +1457,10 @@ def reason_text(rid: str, detail: "dict | None" = None, pieces: bool = False) ->
         if rid == "free_arm_outside_area":
             if push:
                 return tr("The free arm stands outside the part of the table where ChromIQ "
-                          "starts a move from, so nothing has moved. Please push the arm gently "
-                          "by hand {push}, let go of it, and press “Next step”. ChromIQ reads the "
-                          "arm again before anything moves, and asks you first to take your "
-                          "hands away.").format(push=push)
+                          "starts a move from, so nothing has moved. Please push the arm "
+                          "gently {push} by hand, let go of it, and press “Next step”. ChromIQ "
+                          "reads the arm again before anything moves, and asks you first to "
+                          "take your hands away.").format(push=push)
             return tr("The free arm stands outside the part of the table where ChromIQ starts "
                       "a move from, so nothing has moved.")
         if push and d.get("arm_free"):

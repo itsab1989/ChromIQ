@@ -1949,8 +1949,8 @@ def isis_sheet_check_text(reason: str, recipe=None) -> str:
 
 #: The Print tab's note for a loaded i1iSis chart (M-ISIS-CUT in it when the
 #: sheet must be cut).
-M_ISIS_PRINT_NOTE = ("Feed this sheet into the i1iSis with the black bar "
-                     "first, against the left guide. {cut_or_not}")
+M_ISIS_PRINT_NOTE = ("Feed this sheet into the i1iSis bar end first, against the left guide. "
+                     "{cut_or_not}")
 
 # ---- Barbieri Spectro 100xy charts (a Beta, `workflow.barbieri`) ----------
 
@@ -13897,62 +13897,48 @@ M_STRIP_RULER_NOT_COVERED = _m(
 M_I1IO_DRIVE_CONSENT = _m(
     "M-I1IO-DRIVE-CONSENT",
     "ChromIQ is about to drive your i1iO table",
-    "This is part of the beta “X-Rite i1iO support”. Please read it once, "
-    "completely.\n\n"
-    "What ChromIQ will do. It connects to your i1iO 2 table and to the i1Pro 2 "
-    "in its arm over USB. If the table has just been switched on, ChromIQ "
-    "first starts it, the way i1Profiler does (the arm may move to its resting "
-    "place). Then you aim the arm at three marks on your sheet, and ChromIQ "
-    "moves the arm over the sheet and reads each patch with the instrument. "
+    "This is part of the beta “X-Rite i1iO support”. Please read it once, completely.\n\n"
+    "What ChromIQ will do. It connects to your i1iO 2 table and to the i1Pro 2 in its arm over "
+    "USB. If the table has just been switched on, ChromIQ first starts it, the way i1Profiler "
+    "does (the arm may move to its resting place). Then you aim the arm at three marks on your "
+    "sheet, and ChromIQ moves the arm over the sheet and reads each patch with the instrument. "
     "Afterwards the arm goes back to its resting place.\n\n"
-    "This is unofficial. X-Rite did not make or approve it, and removed the "
-    "i1iO 2 and the i1Pro 2 from i1Profiler in version 3.8.7 (X-Rite's own "
-    "release notes); 3.8.6 is the last version that works with them. "
-    "ChromIQ's commands and timings were taken from USB recordings that "
-    "one table owner made of i1Profiler, not from X-Rite's documentation. "
-    "Some steps go beyond what was recorded and are first tries.\n\n"
-    "What has been tried on a real table so far. One i1iO 2 with an i1Pro 2, "
-    "on a Mac, with ChromIQ's separate tester program: the table's own homing "
-    "and the moves over the empty table, as i1Profiler makes them, the "
-    "start-up of a table that had just been switched on, the "
-    "calibration on the instrument's own white tile and on the table's tile, "
-    "and one reading of the table's tile all worked. With ChromIQ itself, a "
-    "whole page of 528 patches was then read patch by patch on a real i1iO 2, "
-    "on a Mac: the aiming, the slow steps towards the front and every row "
-    "worked. Since then ChromIQ has also read rows as strips, a second page and "
-    "rows with the dual scan on a real table, and has brought the arm home "
-    "from the front of the table. Not tried "
-    "on a real table yet: the dual scan patch by patch to the end, sheets cut "
-    "into pieces, and what happens at the end of the "
-    "arm's range of movement."
-    " On Windows and on Linux, nothing "
-    "has been tried at all: it "
-    "may not work there, and if it does not, ChromIQ stops and tells you what "
-    "it found.\n\n"
-    "Keep your hands away from the arm while it moves. Nothing may lie on the "
-    "table's bed except your sheet.\n\n"
+    "This is unofficial. X-Rite did not make or approve it, and removed the i1iO 2 and the "
+    "i1Pro 2 from i1Profiler in version 3.8.7 (X-Rite's own release notes); 3.8.6 is the last "
+    "version that works with them. ChromIQ's commands and timings were taken from USB "
+    "recordings that one table owner made of i1Profiler, not from X-Rite's documentation. Some "
+    "steps go beyond what was recorded and are first tries.\n\n"
+    "What has been tried on a real table so far. One i1iO 2 with an i1Pro 2, on a Mac, with "
+    "ChromIQ's separate tester program: the table's own homing and the moves over the empty "
+    "table, as i1Profiler makes them, the start-up of a table that had just been switched on, "
+    "the calibration on the instrument's own white tile and on the table's tile, and one "
+    "reading of the table's tile all worked. With ChromIQ itself, a whole page of 528 patches "
+    "was then read patch by patch on a real i1iO 2, on a Mac: the aiming, the slow steps "
+    "towards the front and every row worked. Since then ChromIQ has also read rows as strips, "
+    "a second page and rows with the dual scan on a real table, and has brought the arm from "
+    "the front of the table to its resting place. Not tried on a real table yet: the dual scan "
+    "patch by patch to the end, sheets cut into pieces, and what happens at the end of the "
+    "arm's range of movement. On Windows and on Linux, nothing has been tried at all: it may "
+    "not work there, and if it does not, ChromIQ stops and tells you what it found.\n\n"
+    "Keep your hands away from the arm while it moves. Nothing may lie on the table's bed "
+    "except your sheet.\n\n"
     "You can always switch the table off at its power switch. If anything looks or sounds "
-    "wrong, switch the table off at its power switch. That is always allowed, "
-    "and ChromIQ will never ask you not to. Leave it off for ten seconds "
-    "before you switch it on again.\n\n"
-    "Nothing is written into the memory of the table or of the instrument. "
-    "The instrument's calibration is kept on this computer, as when you "
-    "measure by hand.\n\n"
-    "i1Profiler (3.8.6 or older) must be closed while ChromIQ drives the "
-    "table, and i1Profiler cannot find the table while ChromIQ is using it. "
-    "ChromIQ does not close it for you. On a Mac, opening the i1Pro 2 stops "
-    "X-Rite's small background helper for the instrument (as measuring by "
-    "hand in ChromIQ always has). ArgyllCMS's notes say the helper starts "
-    "again by itself. If i1Profiler then does not find the instrument or the "
-    "table, quit ChromIQ, unplug the table's USB cable from the computer and "
-    "plug it in again; if that does not help, restart the computer. On the "
-    "one Mac where this has been tried, i1Profiler worked normally "
-    "afterwards; we do not know yet how often it does not.\n\n"
-    "What we ask of you. ChromIQ writes a diagnostics file of every session: "
-    "what was sent, what came back, the times and the readings, the versions "
-    "of your system and of ChromIQ, but no serial numbers, no names and no "
-    "folder paths. If anything goes wrong, or even if everything works, "
-    "please send it to us on GitHub. It is how this gets better for "
+    "wrong, switch the table off at its power switch. That is always allowed, and ChromIQ will "
+    "never ask you not to. Leave it off for ten seconds before you switch it on again.\n\n"
+    "Nothing is written into the memory of the table or of the instrument. The instrument's "
+    "calibration is kept on this computer, as when you measure by hand.\n\n"
+    "i1Profiler (3.8.6 or older) must be closed while ChromIQ drives the table, and i1Profiler "
+    "cannot find the table while ChromIQ is using it. ChromIQ does not close it for you. On a "
+    "Mac, opening the i1Pro 2 stops X-Rite's small background helper for the instrument (as "
+    "measuring by hand in ChromIQ always has). ArgyllCMS's notes say the helper starts again "
+    "by itself. If i1Profiler then does not find the instrument or the table, quit ChromIQ, "
+    "unplug the table's USB cable from the computer and plug it in again; if that does not "
+    "help, restart the computer. On the one Mac where this has been tried, i1Profiler worked "
+    "normally afterwards; we do not know yet how often it does not.\n\n"
+    "What we ask of you. ChromIQ writes a diagnostics file of every session: what was sent, "
+    "what came back, the times and the readings, the versions of your system and of ChromIQ, "
+    "but no serial numbers, no names and no folder paths. If anything goes wrong, or even if "
+    "everything works, please send it to us on GitHub. It is how this gets better for "
     "everybody.",
     approved=False)
 
@@ -14230,23 +14216,23 @@ M_I1IO_DRIVE_AIM_BUTTON_NOT_NOW = _m(
 M_I1IO_DRIVE_STRIP_OPTION = _m(
     "M-I1IO-DRIVE-STRIP-OPTION",
     "How the table reads each row",
-    "For a chart made for the i1iO table, “Patch-by-patch mode (-p)” decides how the "
-    "table reads your chart.\n\n"
+    "For a chart made for the i1iO table, “Patch-by-patch mode (-p)” decides how the table "
+    "reads your chart.\n\n"
     "Ticked (the default for a table chart): the arm stops on every patch, and the i1Pro 2 "
     "takes one reading there. This is the careful way, and it is the one we recommend.\n\n"
-    "Not ticked: the arm drives along the whole row while the i1Pro 2 reads all the time, "
-    "the way i1Profiler reads a row. Afterwards ChromIQ finds each patch in those readings "
-    "by where the arm was at the time. This is much faster.\n\n"
-    "Reading by strips is a first try. It is built from recordings of i1Profiler, and it "
-    "has been tried on one real table so far. ChromIQ never guesses a value: a row that "
-    "cannot be cut cleanly into its patches is not kept, and you can read it again, or read "
-    "it patch by patch. A row that is too long for one strip move is read patch by patch "
-    "by itself. If a strip move might still be waiting at the end, ChromIQ tells you to "
-    "switch the table off with its power switch.\n\n"
-    "Every table chart starts ticked, unless you saved another choice for the table: Save "
-    "as Defaults on this tab keeps your choice for every table chart, and Preferences > "
-    "Beta can change it as well. A project that keeps its own setting opens with its own. "
-    "Charts for other instruments keep their own patch-by-patch setting.",
+    "Not ticked: the arm drives along the whole row while the i1Pro 2 reads all the time, the "
+    "way i1Profiler reads a row. Afterwards ChromIQ finds each patch in those readings by "
+    "where the arm was at the time. This is much faster.\n\n"
+    "Reading by strips is a first try. It is built from recordings of i1Profiler, and so far "
+    "it has been used on only one real table. ChromIQ never guesses a value: a row that cannot "
+    "be cut cleanly into its patches is not kept, and you can read it again, or read it patch "
+    "by patch. A row that is too long for one strip move is read patch by patch by itself. If "
+    "a strip move might still be waiting at the end, ChromIQ tells you to switch the table off "
+    "with its power switch.\n\n"
+    "Every table chart starts ticked, unless you saved another choice for the table: Save as "
+    "Defaults on this tab keeps your choice for every table chart, and Preferences > Beta can "
+    "change it as well. A project that keeps its own setting opens with its own. Charts for "
+    "other instruments keep their own patch-by-patch setting.",
     approved=False)
 
 M_I1IO_DRIVE_STRIP_DEFAULT_OFFER = _m(
@@ -14262,12 +14248,11 @@ M_I1IO_DRIVE_STRIP_DEFAULT_OFFER = _m(
 M_I1IO_DRIVE_STRIP_FIRST_TRY = _m(
     "M-I1IO-DRIVE-STRIP-FIRST-TRY",
     "Rows are read as strips",
-    "“Patch-by-patch mode (-p)” is off, so the table reads each row as a strip: the arm "
-    "drives along the row while the i1Pro 2 reads all the time, as i1Profiler does. This "
-    "is a first try and has been tried on one real table so far. Every row that cannot be "
-    "cut cleanly into its patches is offered to you again, or patch by patch. To read "
-    "patch by patch instead, press Not now, tick “Patch-by-patch mode (-p)” and press "
-    "START MEASUREMENT again.",
+    "“Patch-by-patch mode (-p)” is off, so the table reads each row as a strip: the arm drives "
+    "along the row while the i1Pro 2 reads all the time, as i1Profiler does. This is a first "
+    "try, so far on only one real table. Every row that cannot be cut cleanly into its patches "
+    "is offered to you again, or patch by patch. To read patch by patch instead, press Not "
+    "now, tick “Patch-by-patch mode (-p)” and press START MEASUREMENT again.",
     approved=False)
 
 #: THE X-Rite i1Pro 2 DUAL SCAN ON THE i1iO 2 TABLE (2026-11-18, a first try; the owner: "you
@@ -14562,15 +14547,13 @@ M_I1IO_DRIVE_ROW_M0_ONLY_STRIP = _m(
 M_I1IO_DRIVE_ROW_M0_ONLY = _m(
     "M-I1IO-DRIVE-ROW-M0-ONLY",
     "Row {row} has M0 only for now",
-    "Row {row} of page {page} was read, and its M0 values are kept, but the reading program did "
-    "not write its M1 and M2 values. So this row has no M1 and M2 yet; every other row keeps "
-    "its own.\n\n"
-    "\u2022  Read it again: ChromIQ first asks you to take your hands away, then reads the row "
-    "again with the UV light too.\n"
-    "\u2022  Skip it: the row keeps M0 only. Continue Measurement, with the dual scan still "
-    "switched on, reads it again later.\n"
-    "\u2022  End this step: nothing more is read now, and nothing moves until you choose what "
-    "happens next.",
+    "Row {row} of page {page} was read, and its M0 values are kept, but the reading program "
+    "did not write the row's M1 and M2 values. So this row has no M1 and M2 yet; every other "
+    "row keeps its own.\n\n"
+    "•  Read it again: ChromIQ first asks you to take your hands away, then reads the row "
+    "again with the UV light too.\n•  Skip it: the row keeps M0 only. Continue Measurement, "
+    "with the dual scan still switched on, reads it again later.\n•  End this step: nothing "
+    "more is read now, and nothing moves until you choose what happens next.",
     approved=False)
 
 #: ...and when the reading program said that it could not write them (the row ended there): no
@@ -14579,14 +14562,12 @@ M_I1IO_DRIVE_ROW_M1_M2_NOT_WRITTEN = _m(
     "M-I1IO-DRIVE-ROW-M1-M2-NOT-WRITTEN",
     "The M1 and M2 values of row {row} could not be saved",
     "ChromIQ stopped reading row {row} of page {page}, because the reading program could not "
-    "write its M1 and M2 values into this run's folder. The M0 values read so far are kept. "
-    "Reading the row again now would end the same way, so ChromIQ does not offer it.\n\n"
-    "Please check that the disk is not full and that ChromIQ may write into this run's "
-    "folder.\n\n"
-    "\u2022  Skip it: ChromIQ goes on with the next row. Continue Measurement, with the dual scan "
-    "still switched on, reads this row again later.\n"
-    "\u2022  End this step: nothing more is read now, and nothing moves until you choose what "
-    "happens next.",
+    "write the row's M1 and M2 values into this run's folder. The M0 values read so far are "
+    "kept. Reading the row again now would end the same way, so ChromIQ does not offer it.\n\n"
+    "Please check that the disk is not full and that ChromIQ may write into this run's folder.\n\n"
+    "•  Skip it: ChromIQ goes on with the next row. Continue Measurement, with the dual scan "
+    "still switched on, reads this row again later.\n•  End this step: nothing more is read "
+    "now, and nothing moves until you choose what happens next.",
     approved=False)
 
 #: item 71 c: the refused aims' reason when both sides of the aimed triangle are off by about the
@@ -14595,10 +14576,10 @@ M_I1IO_DRIVE_AIMS_SCALED = _m(
     "M-I1IO-DRIVE-AIMS-SCALED",
     "The sheet may have been printed smaller or larger",
     "The three marks lie about {percent} % as far apart on the table as they should on this "
-    "sheet, in both directions, and the corner is right. So the sheet was probably printed at about "
-    "{percent} %, not at 100 %. ChromIQ does not accept it, and nothing has moved over your sheet. "
-    "Please print the sheet again at 100 %, without “Fit to page” and without scaling. If the sheet "
-    "was printed at 100 %, at least one aim was on another point.",
+    "sheet, in both directions, and the corner is right. So the sheet was probably printed at "
+    "about {percent} %, not at 100 %. ChromIQ does not accept it, and nothing has moved over "
+    "your sheet. Please print the sheet again at 100 %, without “Fit to page” and without "
+    "scaling. If the sheet was printed at 100 %, you aimed at another point at least once.",
     approved=False)
 
 M_I1IO_DRIVE_FRONT = _m(
@@ -15328,8 +15309,9 @@ M_I1IO_DRIVE_LEFT_OUT = _m(
     "The arm stayed extended over the table",
     "The arm stayed out over the table, and the table is still in its aiming mode. You do not "
     "need to do anything now. The next time you press START MEASUREMENT, ChromIQ first brings "
-    "the arm home and ends the aiming mode, and the measurement starts as usual. It asks you "
-    "before the arm moves, unless the arm is back at its resting place by then.",
+    "the arm to its resting place and ends the aiming mode, and the measurement starts as "
+    "usual. It asks you before the arm moves, unless the arm is back at its resting place by "
+    "then.",
     approved=False,
     needs_old_i1profiler=False)
 

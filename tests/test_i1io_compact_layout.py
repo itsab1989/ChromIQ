@@ -108,7 +108,7 @@ def test_manuals_choice_fills_the_boxes_and_shows_custom_when_they_are_edited(pa
     _pick(panel, "compact")
     assert (panel.patch_x.value(), panel.patch_y.value(),
             panel.spacer_width.value()) == (8.0, 8.0, 1.0)
-    assert panel._i1io_layout_tip.live_note() == panel._i1io_layout_note.text()
+    assert not panel._i1io_layout_tip.live_note()  # (said once, in the (i)'s list)
     assert not panel._i1io_layout_note.isVisibleTo(panel)
     kw = panel.get_recipe().build_kwargs()
     assert (kw["patch_h"], kw["patch_w"]) == (8.0, 8.0)
@@ -201,7 +201,7 @@ def test_guideds_choice_counts_builds_and_is_kept(chart_tab):
     assert params.i1io_layout == "compact"
     kw = tab._creator._engine_build_kwargs(params)
     assert (kw["patch_h"], kw["patch_w"], kw["spacer_width"]) == (8.0, 8.0, 1.0)
-    assert tab._i1io_layout_tooltip.live_note() and tab._i1io_layout_note.isHidden()
+    assert not tab._i1io_layout_tooltip.live_note() and tab._i1io_layout_note.isHidden()
     assert "8" in tab._engine_info_line("IO2", "A4", 300, dd=False, td=False, eff_lb=True,
                                         nsl=False, pscale=1.0, margin=6)
     # the target's own row
