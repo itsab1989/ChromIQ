@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-4.3.66-7c5cff">
+  <img alt="Version" src="https://img.shields.io/badge/version-4.3.67-7c5cff">
   <img alt="Downloads" src="https://img.shields.io/endpoint?url=https://itsab1989.github.io/github-traffic-downloads-dashboard/assets/badges/itsab1989_ChromIQ-downloads.json">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2a9d8f">
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-blue">
@@ -740,6 +740,12 @@ are not judged.
 >   no longer refused for a small move, a large move is asked about again, a
 >   START no longer changes the Measure settings, and the button of the
 >   instrument is offered only once ChromIQ is listening for it.
+> - New in 4.3.67: the i1iO table (Beta) offers to send the arm to its resting
+>   place at every ending, keeps the computer awake during a session, and
+>   with the dual scan patch by patch writes M1 and M2. Good strip and dual
+>   scan rows that were refused before are read. i1iSis imports are checked
+>   whether the chart was randomised or not. After a chart made in Guided,
+>   Manual shows the layout that chart was really made with.
 > - New in 4.3.66: a new chart layout (Beta, simulated table only). A3, A2,
 >   Tabloid and 13 x 19 inches, and in Manual other large sizes, are printed
 >   whole and cut into pieces that the table measures one after the other.
