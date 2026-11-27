@@ -1,5 +1,32 @@
 # Changelog
 
+## v4.3.69
+
+**i1iO table (Beta): a sheet that lies a few millimetres off across the rows is found, and you aim again. A dual row whose two passes do not fit keeps nothing.**
+
+### New
+
+- **i1iO table (Beta): after every row, ChromIQ checks whether the readings lie between two rows**, with the same check the import of i1Profiler measurements uses. When a sheet lies about 3 mm or more off across the rows from where its marks were aimed, the rows of that page read on those aims are not kept, and the page asks you to end the step and aim at the marks again. This works for strips, patch by patch and the dual scan.
+
+### Changed
+
+- **i1iO table (Beta), dual scan: a row whose UV pass does not fit its lamp pass keeps nothing.** Until now its lamp pass was kept as M0, also when the lamp itself had faded during the row. The row is offered to be read again, as after any failed row.
+- **i1iO table (Beta), dual scan: the timing of the two passes is judged without the sheet's place along the row.** A row that lies a little further along the table than the aims say moved both timing checks towards a refusal; rows at the far end of a sheet no longer come close to one. Every timing fault the earlier checks refused is still refused.
+
+### Documentation
+
+- The specifications for the i1iO table have new sections awaiting confirmation: the page check, the pairing rule and the timing.
+
+### Internal
+
+- i1iO table: no move, speed, aim or calibration changed; nothing new is sent to the table. With the Betas off nothing changes for any instrument.
+
+### Known issues
+
+- A sheet that lies less than about 3 mm off across the rows is not found by the new check.
+- In a rare case a good first row of a page is read again: when the step is ended after a failed row before the check could judge the rows before it.
+- The new texts of this version are shown as proposed texts and may still be reworded.
+
 ## v4.3.68
 
 **i1iO table (Beta): Return presses the green answer of the table's pop-ups, as in every other window. i1iSis import: measurements of several pages are imported and checked page by page.**
