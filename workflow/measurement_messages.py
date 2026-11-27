@@ -14582,11 +14582,11 @@ M_I1IO_DRIVE_ROW_NOT_IN_PLACE_SPOT = _m(
 #: page partly read on their neighbouring rows. The failed-row page's {why} (a clause)
 M_I1IO_DRIVE_PAGE_BESIDE = _m(
     "M-I1IO-DRIVE-PAGE-BESIDE",
-    "Rows read beside where they were aimed",
-    "the colours of this row and of the rows read before it since the marks were aimed are partly "
-    "those of their neighbouring rows, because the paper lies a few millimetres across from where "
-    "its marks were aimed; none of these rows is kept, and no row is kept until the marks have "
-    "been aimed at again",
+    "Rows read on a sheet shifted across the rows",
+    "the colours of this row and of the rows read before it since you aimed at the marks are partly "
+    "those of their neighbouring rows, because the paper lies a few millimetres off, across the "
+    "rows, from where you aimed at its marks; none of these rows is kept, and no row is kept until "
+    "you have aimed at the marks again",
     approved=False)
 
 #: the ending after "End measurement" at the question whether the right sheet lies there: the

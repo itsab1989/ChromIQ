@@ -12654,9 +12654,9 @@ For one (n = 1):
 
 *New 2026-11-27 (4.3.69, item 76, the page blend check: `workflow/i1io/table/page_blend.py`). The rows of the page read on the present aims hold part of their neighbouring rows' colours; this row and every other row of the page read on these aims are dropped, and the page is aimed at again (the row identity check's "aim again" paragraph comes first). Awaiting confirmation.*
 
-> **Rows read beside where they were aimed**
+> **Rows read on a sheet shifted across the rows**
 >
-> the colours of this row and of the rows read before it since the marks were aimed are partly those of their neighbouring rows, because the paper lies a few millimetres across from where its marks were aimed; none of these rows is kept, and no row is kept until the marks have been aimed at again
+> the colours of this row and of the rows read before it since you aimed at the marks are partly those of their neighbouring rows, because the paper lies a few millimetres off, across the rows, from where you aimed at its marks; none of these rows is kept, and no row is kept until you have aimed at the marks again
 
 ### M-I1IO-DRIVE-ROW-NOT-IN-PLACE-SPOT · PROPOSED · the Measure tab's log, the same for a row read patch by patch
 

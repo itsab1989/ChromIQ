@@ -218,7 +218,7 @@ def test_the_failed_row_page_says_why_in_the_new_words():
     from ui import i1io_table_window as W
     from workflow import measurement_messages as M
     assert W.reason_text(idn.REASON_PAGE) == M.M_I1IO_DRIVE_PAGE_BESIDE.render()[1]
-    assert "across from where its marks were aimed" in W.reason_text(idn.REASON_PAGE)
+    assert "across the rows, from where you aimed at its marks" in W.reason_text(idn.REASON_PAGE)
 
 
 def test_new_aims_start_the_page_check_afresh(tmp_path):
@@ -364,7 +364,10 @@ def test_s2_the_window_shows_the_variant(qtbot, monkeypatch, tmp_path):
                          "again_allowed": True, "only_end": True})
         win._ask(res)
         text = win._text.text()
-        assert "across from where its marks were aimed" in text
+        assert "across the rows, from where you aimed at its marks" in text
+        # the page says how to aim again (M-I1IO-DRIVE-ROW-AIM-AGAIN), first
+        from workflow import measurement_messages as M
+        assert text.startswith(M.M_I1IO_DRIVE_ROW_AIM_AGAIN.render()[1])
         assert "the rows read before it are kept" not in text
         assert "as often as you like" not in text and "Read it patch by patch" not in text
         # 81b: End this step is the one answer offered
@@ -374,7 +377,7 @@ def test_s2_the_window_shows_the_variant(qtbot, monkeypatch, tmp_path):
 def test_s3_the_reason_says_what_holds_after_every_answer():
     from workflow import measurement_messages as M
     body = M.M_I1IO_DRIVE_PAGE_BESIDE.body
-    assert "no row is kept until the marks have been aimed at again" in body
+    assert "no row is kept until you have aimed at the marks again" in body
     assert "read again once" not in body
 
 
