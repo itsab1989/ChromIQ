@@ -1994,6 +1994,32 @@ review.
   refused (under 10 mm).
 * **Every countdown** ends with the switch-off line.
 
+### ⏳ Awaiting confirmation: the page blend check (4.3.69, item 76)
+
+**Confirmed by:** *nobody yet.*
+
+* **Why.** The 4.5 mm opening on an 8 mm row keeps 1.75 mm to each edge. A sheet that lies a few
+  millimetres ACROSS the rows from where its marks were aimed (moved after the aims, every mark aimed
+  off the same way, or mark 3 off by 3.5 mm: 0.73 degrees, under the 1 degree angle limit) is read
+  partly on the neighbouring rows, 36 % of the opening at 3.5 mm. The placement check measures
+  along the row, the identity check ranks: every row passed, the readings 15 dE76 off (median).
+* **What.** After every row, strips, patch by patch and dual rows, the i1Profiler import's own
+  neighbour-strip check (`measure_chart.blend_share`, unchanged, its limit 0.12) runs over the
+  rows of the page judged on the present aims (`workflow/i1io/table/page_blend.py`). Above the
+  limit, the row is refused with `page_not_where_aimed` (the row identity check's family), and every
+  other row of the page read on these aims is emptied as a dropped row is (`dropped_later`); the
+  failed-row page shows "aim again" first, and its reason is M-I1IO-DRIVE-PAGE-BESIDE. The way on
+  is the identity check's: End this step, the arm home, the sheet laid, three aims, and the rows
+  are read again. Skip keeps the aims, as it does for the identity check. Nothing new is sent.
+* **Not judged** (said in the logs): no expected colours, fewer than two complete neighbouring rows,
+  rows whose neighbours differ by less than 12 dE76.
+* **Measured** on the owner's real pages (25 and 26 Nov 2026, four pages; numbers only, kept
+  privately), through the built code: right pages never above 0.030 after any row; 3.5 mm across
+  refused after row 2 to 5, 3.0 mm after row 3 to 9 (on a page of six rows, one direction of
+  3.0 mm was not reached), mark 3 aimed 3.5 mm off after row 2 to 3; 2.5 mm (a share of 0.11,
+  4.6 dE76 median) is not found. Patch by patch, a sheet off ALONG the row is not covered (the
+  opening sees mostly the spacer there): a study item.
+
 ### ⏳ Awaiting confirmation: the new chart layout, part 1: limits, sizes and the row identity check (2026-11-25)
 
 **Confirmed by:** *nobody yet.* The order for the build is the design of 25 November 2026 (its
@@ -2179,8 +2205,8 @@ the calibration rules are untouched.
   that lies there), a pass 2 to 4 late is refused more often. This verdict never told one row from another,
   before or after: that is the identity check's alone (in the rows it can judge), also when both
   passes come from the same wrong row. A fading lamp is not seen by the identity check; the
-  helper's pairing check sees one at half its light, not one 10 % down. Since 4.3.69 (item 77,
-  awaiting confirmation) a pairing refusal keeps nothing of the row, its lamp pass included: the
+  helper's pairing check sees one at half its light, not one 10 % down. Since 4.3.69 (item 77) a
+  pairing refusal keeps nothing of the row, its lamp pass included: the
   pairing cannot tell which pass is the bad one, and on the owner's 52 recorded dual rows a lamp at
   half its light from the middle of the row was refused 50 times and kept as M0 50 times (up to
   15.9 dE00). No right row on record was refused by the pairing. A UV pass that fails before or

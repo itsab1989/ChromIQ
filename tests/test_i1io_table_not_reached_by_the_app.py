@@ -122,7 +122,9 @@ def test_the_package_exists_and_is_complete():
         "placement.py",
         # the new chart layout (25 Nov 2026): the row identity check (a veto and a question on
         # a row's readings; sends nothing)
-        "identity.py"}
+        "identity.py",
+        # 4.3.69 (item 76): the page blend check (a veto on the rows of a page; never sends)
+        "page_blend.py"}
 
 
 #: build step 9: the only app modules that may import the package, and only lazily

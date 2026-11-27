@@ -1068,6 +1068,7 @@ def reason_text(rid: str, detail: "dict | None" = None, pieces: bool = False) ->
         own = piece_reason_text(rid)
         if own is not None:
             return own
+    from workflow import measurement_messages as M
     d = detail or {}
     texts = {
         "chart_not_for_i1io2_with_i1pro2": tr(
@@ -1157,6 +1158,8 @@ def reason_text(rid: str, detail: "dict | None" = None, pieces: bool = False) ->
             "ChromIQ did not use them"),
         "row_not_of_this_piece": tr("the colours were not the colours of this row, so ChromIQ did "
                                     "not use them"),
+        # 4.3.69 (item 76): the page blend check (workflow/i1io/table/page_blend.py)
+        "page_not_where_aimed": M.M_I1IO_DRIVE_PAGE_BESIDE.render()[1],
         "ended_at_the_row_identity_question": tr(
             "You ended the measurement because the colours ChromIQ read are not the colours of "
             "this row. Nothing of that row is kept."),

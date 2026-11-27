@@ -67,6 +67,7 @@ from . import geometry as geo
 from . import identity as idn
 from . import lines as cl
 from . import measurement as ms
+from . import page_blend as pb
 from . import placement as pl
 from . import reach as rc
 from . import reader as rd
@@ -1066,6 +1067,9 @@ class TableJob:
         #: read and no step forward is made on these aims any more: the homing (which still runs
         #: on them, so it runs exactly as ever) drops them, and new ones follow
         self.aims_void = False
+        #: 4.3.69 (item 76): {(page, row): {location: Lab}} of the rows judged on the PRESENT aims
+        #: (the page blend check's input); emptied whenever the aims change
+        self._aim_readings: "dict[tuple[int, int], dict]" = {}
         self.front_need: "int | None" = None
         #: 4.3.50: the alignment whose front question was answered "go on" (its creep asks no
         #: GO and no first visit before its first step); None: none
@@ -3583,6 +3587,7 @@ class TableJob:
     def _alignment_homed(self) -> None:
         self.arrived = []
         self.alignment = None
+        self._aim_readings = {}
         self.aims_void = False
         self.front_need = None
         self.fit = None
@@ -3698,6 +3703,7 @@ class TableJob:
                               "checks": al.checks})
         self.alignment = al
         self.aims_void = False
+        self._aim_readings = {}
         self.colours_refused.discard(self.page)
         fit = page_fit(sheet, self.page, al)
         self.fit = fit
@@ -5484,6 +5490,9 @@ class TableJob:
             judged = True
             if verdict == "shifted":
                 raise _RowFailed(idn.REASON_SPOT, "")
+            if verdict == "beside":
+                drop = idn.REASON_PAGE
+                raise _RowFailed(idn.REASON_PAGE, "")
             if verdict == "ask":
                 # the candidate stays unwritten until the answer: the files the reader wrote
                 # are taken off the disk, so that whatever ends this sitting leaves nothing
@@ -5515,8 +5524,8 @@ class TableJob:
                 # the row ended early (Stop, a doubt, a reading that failed): what was read so
                 # far is judged too when it is enough; a bad judgement drops it, nobody is asked
                 verdict = self._judge_row(plan, rec, readings)
-                drop = {"shifted": idn.REASON_SPOT,
-                        "ask": idn.REASON_ENDED}.get(verdict)
+                drop = {"shifted": idn.REASON_SPOT, "ask": idn.REASON_ENDED,
+                        "beside": idn.REASON_PAGE}.get(verdict)
             if drop is not None:
                 self._drop_row(plan, rec, drop, folder, readings=readings,
                                conditions=_files_in(folder / "conditions") - cond_before)
@@ -5938,6 +5947,9 @@ class TableJob:
                                                   for _sid, loc, _v, x in cut.patches])
             if verdict == "shifted":
                 raise _RowFailed(idn.REASON_STRIP, "")
+            if verdict == "beside":
+                drop = idn.REASON_PAGE
+                raise _RowFailed(idn.REASON_PAGE, "")
             if verdict == "ask":
                 drop = idn.REASON_ENDED
                 self._close_reader(scan)         # no reader waits while the person looks
@@ -6176,6 +6188,9 @@ class TableJob:
                                                   for q, x in zip(plan.patches, xyz0)])
             if verdict == "shifted":
                 raise _RowFailed(idn.REASON_STRIP, "")
+            if verdict == "beside":
+                drop = idn.REASON_PAGE
+                raise _RowFailed(idn.REASON_PAGE, "")
             # from here the row is this one's, or nobody's until the person has answered
             drop = idn.REASON_ENDED if verdict == "ask" else None
             dl.write_dual_in(str(folder / f"{name}.dual_in.txt"), cut)
@@ -6324,7 +6339,36 @@ class TableJob:
                        verdict=v["verdict"], what=text, **{
                            k: rec["identity"][k] for k in ("own", "shifted", "shift", "other",
                                                            "why")})
-        return verdict if verdict in ("shifted", "ask") else None
+        if verdict in ("shifted", "ask"):
+            return verdict
+        return self._judge_page(plan, rec, lab, expected)
+
+    def _judge_page(self, plan, rec: dict, lab: dict, expected: dict) -> "str | None":
+        """4.3.69 (item 76, ``page_blend.py``): the page blend check over the rows of this page
+        judged on the present aims, this one included. "beside" when they hold their neighbours'
+        colours (the caller drops this row, and :meth:`_drop_row` every other row of the page read
+        on these aims), else None. Its verdict into the row's record, the detailed table log and
+        the app log (the row_page_blend event); never raises."""
+        try:
+            if lab:
+                self._aim_readings[(plan.page, plan.index)] = dict(lab)
+            rows = {r: self._row_locs(plan.page, r) for (pg, r) in self._aim_readings
+                    if pg == plan.page}
+            measured = {}
+            for (pg, _r), m in self._aim_readings.items():
+                if pg == plan.page:
+                    measured.update(m)
+            v = pb.judge(rows, measured, expected)
+        except Exception as exc:      # noqa: BLE001 - never in the place of the table's own error
+            v = {"judged": False, "why": f"could not be judged ({type(exc).__name__})",
+                 "share": None, "row": None, "rows": 0, "beside": False}
+        rec["page_blend"] = {k: (round(v[k], 3) if k == "share" and v[k] is not None else v[k])
+                             for k in ("judged", "why", "share", "row", "rows", "beside")}
+        text = pb.summary(v)
+        self.diag.log("DATA", f"row {plan.index + 1} of page {plan.page + 1}: {text}")
+        self._progress(event="row_page_blend", row=plan.index + 1, judged=v["judged"],
+                       beside=v["beside"], share=v["share"], what=text)
+        return "beside" if v["beside"] else None
 
     def _ask_row_identity(self, plan, rec: dict):
         """A generator: the question whether the right sheet lies on the table (at most once per
@@ -6414,6 +6458,8 @@ class TableJob:
         self.diag.log("DATA", f"row {plan.index + 1} of page {plan.page + 1}: {reason}; none of "
                               f"its {n} readings is kept")
         earlier = self._drop_earlier_attempts(plan, reason)
+        if reason == idn.REASON_PAGE:
+            self._drop_page_rows_on_these_aims(plan, reason)
         try:
             self._progress(event="row_dropped", row=plan.index + 1, why=reason,
                            locs=[p.loc for p in plan.patches] + [
@@ -6421,6 +6467,34 @@ class TableJob:
                            earlier=len(earlier))
         except Exception:      # noqa: BLE001 - the preview's matter
             pass
+
+    def _drop_page_rows_on_these_aims(self, plan, reason: str) -> None:
+        """4.3.69 (item 76): the page blend check found the sheet across from where it was aimed:
+        every OTHER row of this page read on these aims was read beside its place too, so it is
+        emptied as the dropped one is, and read again after the new aims. Never raises."""
+        folder = getattr(self.diag, "folder", None)
+        others = sorted(r for (pg, r) in self._aim_readings
+                        if pg == plan.page and r != plan.index)
+        self._aim_readings = {}
+        for r in others:
+            try:
+                kept = (empty_row_records(folder, plan.page + 1, r + 1, reason, self.diag.log)
+                        if folder is not None else [])
+                self.row_status.setdefault(plan.page, {}).pop(r, None)
+                self.row_speed_marks.pop((plan.page, r), None)
+                self.diag.log("DATA", f"row {r + 1} of page {plan.page + 1}: {reason}: read on the "
+                                      f"same aims; none of its {len(kept)} kept readings is "
+                                      "kept, it is read again after the new aims")
+                self._progress(event="row_dropped", row=r + 1, why=reason, locs=kept,
+                               earlier=len(kept))
+            except Exception:      # noqa: BLE001 - the next row's record says it again
+                pass
+        if others and self.run is not None and self.stamp is not None:
+            try:
+                out = Path(self.run.i1io_table_measurement(self.stamp))
+                _unlink([out, *_files_in(out.parent / "conditions")])
+            except (OSError, ValueError):
+                pass
 
     def _drop_earlier_attempts(self, plan, reason: str) -> "list[str]":
         """What earlier attempts of *plan*'s row in THIS sitting kept (a row patch by patch that
@@ -6488,11 +6562,12 @@ class TableJob:
         # veto or where the person would be asked (the row is offered again as it is)
         verdict = self._judge_row(plan, rec, [{"loc": q.loc, "xyz": x}
                                               for q, x in zip(plan.patches, xyz0)])
-        if verdict in ("shifted", "ask"):
+        if verdict in ("shifted", "ask", "beside"):
             self.diag.log("DATA", f"{name}: the lamp pass is not kept on its own (the row "
                                   "identity check)")
-            self._drop_row(plan, rec, idn.REASON_STRIP if verdict == "shifted"
-                           else idn.REASON_ENDED, folder, keep_why=True)
+            self._drop_row(plan, rec, {"shifted": idn.REASON_STRIP, "ask": idn.REASON_ENDED,
+                                       "beside": idn.REASON_PAGE}[verdict], folder,
+                           keep_why=True)
             return False
         white = dl.white_for_place(self.cal_place)
         row_file = f"{name}.strip{stp.ROW_FILE_SUFFIX}"

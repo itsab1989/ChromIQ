@@ -60,7 +60,10 @@ STEP6_MODULES = {"job.py", "caps.py", "usb_system.py", "diagnostics.py",
                  "placement.py",
                  # the new chart layout (25 Nov 2026): the row identity check (a veto and a
                  # question on a row's readings; never sends)
-                 "identity.py"}
+                 "identity.py",
+                 # 4.3.69 (item 76): the page blend check (a veto on the rows of a page read on
+                 # the present aims; never sends)
+                 "page_blend.py"}
 
 
 def test_the_package_holds_the_five_moved_modules_and_the_job():
@@ -88,6 +91,9 @@ STEP7_APP_IMPORTS = {
                        "core.text_io", "core.file_manager",
                        # D-4b: a row's XYZ again from its scaled spectrum, as strip.py does
                        "workflow.argyll_colorimetry"},
+    # 4.3.69 (item 76): the page blend check IS the i1Profiler import's own neighbour-strip check
+    # (measure_chart.blend_share, its limit), unchanged; numpy comes with it
+    "page_blend.py": {"workflow.i1io.measure_chart", "numpy"},
     # round B: a strip row's XYZ from its spectrum, by the app's own ArgyllCMS method
     "strip.py": {"workflow.argyll_colorimetry", "core.cgats_date"},
     # round B: the helper's build string through the app's own --caps question

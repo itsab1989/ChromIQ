@@ -68,8 +68,11 @@ NAME_OTHER_FROM = 0.6
 REASON_STRIP = "strip_row_not_in_its_place"
 REASON_SPOT = "row_not_in_its_place"
 REASON_ENDED = "row_not_of_this_piece"
+#: 4.3.69 (item 76, ``page_blend.py``): the rows of a page hold their neighbours' colours: the sheet
+#: lies across from where it was aimed; every row of the page read on those aims is dropped
+REASON_PAGE = "page_not_where_aimed"
 #: every reason a row is dropped for by this check (nothing of it may be kept)
-REASONS = (REASON_STRIP, REASON_SPOT, REASON_ENDED)
+REASONS = (REASON_STRIP, REASON_SPOT, REASON_ENDED, REASON_PAGE)
 
 
 def _ranks(v: "list[float]") -> "list[float]":

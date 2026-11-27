@@ -14578,6 +14578,17 @@ M_I1IO_DRIVE_ROW_NOT_IN_PLACE_SPOT = _m(
     "marks again.",
     approved=False)
 
+#: 4.3.69 (item 76, workflow/i1io/table/page_blend.py): the page blend check found the rows of a
+#: page partly read on their neighbouring rows. The failed-row page's {why} (a clause)
+M_I1IO_DRIVE_PAGE_BESIDE = _m(
+    "M-I1IO-DRIVE-PAGE-BESIDE",
+    "Rows read beside where they were aimed",
+    "the colours of this row and of the rows read before it since the marks were aimed are partly "
+    "those of their neighbouring rows, because the paper lies a few millimetres across from where "
+    "its marks were aimed; none of these rows is kept, and they are read again once the marks have "
+    "been aimed at again",
+    approved=False)
+
 #: the ending after "End measurement" at the question whether the right sheet lies there: the
 #: rows read before it that the check could not judge stay, and are named ({strips} their letters)
 M_I1IO_DRIVE_ROWS_NOT_JUDGED = _m(
@@ -15966,6 +15977,7 @@ CATALOGUE = {m.id: m for m in (
     M_I1IO_DRIVE_OTHER_PIECE, M_I1IO_DRIVE_OTHER_SHEET,
     M_I1IO_DRIVE_ROWS_NOT_JUDGED,
     M_I1IO_DRIVE_ROW_NOT_IN_PLACE, M_I1IO_DRIVE_ROW_NOT_IN_PLACE_SPOT,
+    M_I1IO_DRIVE_PAGE_BESIDE,
     M_I1IO_DRIVE_ROW_AIM_AGAIN, M_I1IO_DRIVE_ROW_AIM_AGAIN_PIECE,
     M_I1IO_DRIVE_END_CHOICES_AIM_AGAIN,
     M_I1IO_DRIVE_STRIP_PATCHES_SHORT,
