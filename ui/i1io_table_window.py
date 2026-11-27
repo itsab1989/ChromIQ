@@ -220,7 +220,7 @@ def stop_button_qss(selector: str = "QPushButton", own_size: bool = True) -> str
 
 #: the role each answer has in the pop-up's button box (by its English label, compared through
 #: tr()), as the hand path's windows give theirs: the application's style orders the roles for
-#: the platform; the AcceptRole answer is filled in the Measure tab's accent (never a default);
+#: the platform; the AcceptRole answer is filled in the Measure tab's accent and is the default;
 #: a DestructiveRole one is never filled (ui.default_button); every other answer is plain
 _ACCEPT_LABELS = (
     "I understand, drive my table", "Start", "Start the table, my hands are away", "Go",
@@ -1761,24 +1761,42 @@ class _StatusLine(QLabel):
             hook(text)
 
 
-class NoDefaultButtonBox(QDialogButtonBox):
-    """A QDialogButtonBox whose buttons are never the default (condition 4). Qt's own box makes
-    its first AcceptRole button the dialog's default each time it is shown (found by the tests:
-    Return would have pressed the confirming answer); this one takes that back at once."""
+def filled_answer(box: QDialogButtonBox) -> "QPushButton | None":
+    """The answer of *box* drawn filled in the accent: its AcceptRole button named "primary"
+    (one per page; a page without one has none). Item 80: this is the button Return presses."""
+    R = QDialogButtonBox.ButtonRole
+    for b in box.buttons():
+        if isinstance(b, QPushButton) and box.buttonRole(b) == R.AcceptRole \
+                and b.objectName() == "primary" and not b.isHidden():
+            return b
+    return None
+
+
+class AcceptDefaultButtonBox(QDialogButtonBox):
+    """A QDialogButtonBox whose default is its filled AcceptRole answer, and only that one
+    (condition 4, item 80, decided by Basti on 27 Nov 2026: "just allow it like for everything
+    else"). Return and Enter press it the way they press every other ChromIQ dialog's filled
+    button; a page without a filled answer has no default; a default that cannot be pressed yet
+    (the hands-off answer while it waits) is not pressed by Return either (QDialog's own rule).
+    Qt's own box makes its FIRST AcceptRole button the default when it is shown, also one that
+    is not filled (the row identity check's answer): this box keeps its own choice instead."""
 
     def event(self, ev) -> bool:
         res = super().event(ev)
         from PyQt6.QtCore import QEvent
         if ev.type() in (QEvent.Type.Show, QEvent.Type.ChildAdded, QEvent.Type.LayoutRequest):
-            self.no_default()
+            self.apply_default()
         return res
 
-    def no_default(self) -> None:
+    def apply_default(self) -> None:
+        main = filled_answer(self)
         for b in self.buttons():
             if isinstance(b, QPushButton):
-                b.setDefault(False)
-                b.setAutoDefault(False)
-                b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+                b.setAutoDefault(False)          # the default never follows the focus (K44)
+                if b is not main:
+                    b.setDefault(False)
+        if main is not None and not main.isDefault():
+            main.setDefault(True)
 
 
 class TablePopup(QDialog):
@@ -1796,11 +1814,13 @@ class TablePopup(QDialog):
     3. nothing moves while it is open: the job waits for the answer (the window starts no job
        call before it has hidden the pop-up), and every pop-up of an open table offers End
        measurement, since the tab's Stop is behind it;
-    4. NO DEFAULT BUTTON. THIS IS THE ONE DELIBERATE DIFFERENCE FROM THE OTHER INSTRUMENTS'
-       WINDOWS: Enter, Return and Space never answer (no button is a default or an auto-default
-       and none takes the keyboard focus, so Space cannot press one); Esc is the window's own
-       Esc (the panel's: a question is withdrawn with the answer that moves nothing, the
-       ending's Esc is a withdrawal), never an answer that leads to a move."""
+    4. THE KEYS AS IN EVERY OTHER CHROMIQ DIALOG (item 80, decided by Basti on 27 Nov 2026,
+       "just allow it like for everything else"; it replaces "no default button"): Return and
+       Enter press the filled (AcceptRole) answer, and nothing on a page without one or while
+       that answer waits to be ready; Space presses the button the person moved the keyboard
+       focus to (no button starts with it, the application's DialogFocusFilter); Esc is the
+       window's own Esc (the panel's: a question is withdrawn with the answer that moves
+       nothing, the ending's Esc is a withdrawal), never an answer that leads to a move."""
 
     def __init__(self, win: "TableMeasureWindow") -> None:
         super().__init__(win, Qt.WindowType.Dialog | Qt.WindowType.CustomizeWindowHint
@@ -1823,7 +1843,7 @@ class TablePopup(QDialog):
         lay.setContentsMargins(24, 20, 24, 20)
         lay.setSpacing(16)
         # the window's question area and answers are put here by the window (_build_popup)
-        self.foot = NoDefaultButtonBox(self)
+        self.foot = AcceptDefaultButtonBox(self)
         self.foot.setObjectName("i1io_table_popup_footer")
         self.problem_btn = QPushButton(tr("Report a problem"), self.foot)
         self.problem_btn.setObjectName("i1io_table_popup_problem")
@@ -1846,7 +1866,6 @@ class TablePopup(QDialog):
             # last button of a stacked box was cut: measured on screen)
             b.setAutoDefault(False)
             b.setDefault(False)
-            b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             b.setVisible(False)
         self.problem_btn.clicked.connect(win._on_problem)
         self.end_btn.clicked.connect(win._on_end_pressed)
@@ -1855,13 +1874,6 @@ class TablePopup(QDialog):
         lay.addWidget(self.foot)
         #: where the window last put the pop-up (a later difference is the person's move)
         self.placed_at = None
-
-    def keyPressEvent(self, event) -> None:      # noqa: N802
-        # condition 4: Enter, Return and Space never answer a question of the table
-        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
-            event.accept()
-            return
-        super().keyPressEvent(event)
 
     def reject(self) -> None:      # Esc: the window's own Esc, never a hidden answer
         self._win.reject()
@@ -2164,7 +2176,7 @@ class TableMeasureWindow(QFrame):
         f.setPointSizeF(self._text.font().pointSizeF())
         self._title.setFont(f)
         # the answers in a button box by role (the grid stays empty in this presentation)
-        self._answer_box = NoDefaultButtonBox(self._answers)
+        self._answer_box = AcceptDefaultButtonBox(self._answers)
         self._answer_box.setObjectName("i1io_table_popup_answers")
         av = self._answers.layout()
         av.insertWidget(av.indexOf(self._status), self._answer_box)
@@ -2367,7 +2379,7 @@ class TableMeasureWindow(QFrame):
         """The answers' look, as the hand path's windows: the confirming answer filled in the
         Measure tab's accent (``tint_dialog_primary``, objectName "primary") while it can be
         pressed, a discarding one marked destructive, the rest plain; End measurement in the
-        look of the tab's own Stop. None is a default, none takes the focus (condition 4)."""
+        look of the tab's own Stop. The filled answer is the default (condition 4, item 80)."""
         from ui.default_button import mark_destructive
         from ui.widgets import tint_dialog_primary
         R = QDialogButtonBox.ButtonRole
@@ -2394,6 +2406,7 @@ class TableMeasureWindow(QFrame):
         if qss:
             self._popup.end_btn.setStyleSheet(qss)
         mark_destructive(self._popup.end_btn)
+        self._answer_box.apply_default()
 
     #: fix round, S-1: the countdown's title, large
     COUNTDOWN_TITLE_QSS = "QLabel { font-size: 22pt; font-weight: 600; }"
@@ -2485,12 +2498,7 @@ class TableMeasureWindow(QFrame):
             log.warning("i1iO table: a page was built while a step runs; no pop-up for %s",
                         page_id)
             return
-        from PyQt6.QtWidgets import QPushButton
         self._style_popup_buttons()
-        for b in pop.findChildren(QPushButton):
-            b.setAutoDefault(False)
-            b.setDefault(False)
-            b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         pop.setWindowTitle(title or tr("X-Rite i1iO table (Beta)"))
         self._sync_popup_footer()
         self._fit_popup()
@@ -2506,8 +2514,8 @@ class TableMeasureWindow(QFrame):
         # fitted to the real width)
         QTimer.singleShot(0, self._refit_popup)
         QTimer.singleShot(120, self._refit_popup)
-        self._answer_box.no_default()
-        pop.foot.no_default()
+        self._answer_box.apply_default()
+        pop.foot.apply_default()
         self._keep_popup_on_screen()
 
     @staticmethod
@@ -3041,7 +3049,6 @@ class TableMeasureWindow(QFrame):
             if self._popups:
                 # the hand path's windows' buttons (TablePopup), by role, in the height the
                 # application's button style gives them
-                b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
                 role = answer_role(label, alone=len(buttons) == 1, page=page_id)
                 if role == QDialogButtonBox.ButtonRole.AcceptRole and any(
                         r == QDialogButtonBox.ButtonRole.AcceptRole
@@ -3066,6 +3073,9 @@ class TableMeasureWindow(QFrame):
                 slot = said.fire
             b.clicked.connect(slot)
             made.append(b)
+        # the panel lives in the main window, where no button is a default (as beside every
+        # other measurement); the pop-up's filled answer becomes its default below
+        # (_present_popup, item 80)
         from ui.dialogs.no_default_button import no_default_button
         no_default_button(self)
         self._tick_widgets = made_ticks

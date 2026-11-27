@@ -8,7 +8,10 @@ The four conditions of the pop-ups (awaiting confirmation):
    tab's left column beside the chart preview, remembering where the person moved it;
 2. open only while an answer is needed (never while a job call runs);
 3. nothing moves while one is open, and each one of an open table offers a way to the ending;
-4. no default button: Enter, Return and Space never answer; Esc never answers with a move.
+4. the keys as in every other ChromIQ dialog (item 80, decided by Basti on 27 Nov 2026, "just
+   allow it like for everything else"; it replaced "no default button"): Return and Enter press
+   the filled answer and nothing else, Space only a button the person moved the focus to; Esc
+   never answers with a move.
 
 And the pop-ups are built through the app's shared dialog mechanisms (button roles ordered by the
 application's style, ``tint_dialog_primary`` for the confirming answer, ``mark_destructive``), so
@@ -95,18 +98,30 @@ def test_the_pop_up_is_an_application_modal_top_level_dialog_never_a_sheet(
     assert win._title.window() is pop and win._buttons[0].window() is pop
 
 
-def test_no_pop_up_ever_has_a_default_button_or_a_focused_one(qtbot, monkeypatch, tmp_path,
+def _defaults(win):
+    return [b for b in win.popup().findChildren(QPushButton) if b.isDefault()]
+
+
+def test_the_filled_answer_is_the_one_default_of_every_pop_up(qtbot, monkeypatch, tmp_path,
                                                               settings):
+    """Item 80 (Basti, 27 Nov 2026): as in every other ChromIQ dialog, the button Return presses
+    is the one drawn filled (K44), and only that one; a page without a filled answer has none.
+    No button's default follows the focus (no autoDefault), and every answer can be reached with
+    Tab, as in the other dialogs (the old rule took the focus away from them)."""
     win, sim, run, p, saved, finished = _quiet(qtbot, monkeypatch, tmp_path, settings,
                                                consent=False)
-    seen = set()
+    seen, with_default, without = set(), set(), set()
     for _ in range(80):
         page = p.page()
         seen.add(page)
+        filled = W.filled_answer(win._answer_box)
+        assert _defaults(win) == ([filled] if filled is not None else []), (page, [
+            b.text() for b in _defaults(win)])
+        (with_default if filled is not None else without).add(page)
         for b in win.popup().findChildren(QPushButton):
-            assert not b.isDefault() and not b.autoDefault(), (page, b.text())
+            assert not b.autoDefault(), (page, b.text())
             if b in win._buttons:
-                assert b.focusPolicy() == Qt.FocusPolicy.NoFocus, (page, b.text())
+                assert b.focusPolicy() != Qt.FocusPolicy.NoFocus, (page, b.text())
         if page == "done":
             break
         if page == "end_of_session":
@@ -114,25 +129,125 @@ def test_no_pop_up_ever_has_a_default_button_or_a_focused_one(qtbot, monkeypatch
             continue
         p.answer_page(page)
     assert {"consent", "prepare", "go", "aimed", "end_of_session"} <= seen
+    assert {"prepare", "go", "end_of_session"} <= with_default
 
 
-@pytest.mark.parametrize("key", [Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space])
-@pytest.mark.parametrize("page", ["go", "sheet_laid", "first_visit", "home_at_end"])
-def test_enter_return_and_space_never_answer(qtbot, monkeypatch, tmp_path, settings, key, page):
+@pytest.mark.parametrize("key", [Qt.Key.Key_Return, Qt.Key.Key_Enter])
+@pytest.mark.parametrize("page", ["go", "sheet_laid", "first_visit", "home_at_end",
+                                  "end_of_session"])
+def test_return_and_enter_press_the_filled_answer(qtbot, monkeypatch, tmp_path, settings, key,
+                                                  page):
     win, sim, run, p, saved, finished = _quiet(qtbot, monkeypatch, tmp_path, settings)
-    p.script.update({"end_of_session": "Save and stop"})
     try:
         p.drive_until(page)
     except AssertionError:
         pytest.skip(f"{page} is not asked in this walk")
-    n, shown = _moves(sim), len(win.pages_shown)
-    pop = win.popup()
-    QTest.keyClick(QApplication.focusWidget() or pop, key)
-    QTest.keyClick(pop, key)
-    qtbot.wait(150)
+    shown = len(win.pages_shown)
+    filled = W.filled_answer(win._answer_box)
+    assert filled is not None and filled.isDefault(), page
+    want = filled.text()
+    pressed = []
+    for b in win._buttons:
+        b.clicked.connect(lambda _c=False, t=b.text(): pressed.append(t))
+    QTest.keyClick(win.popup(), key)
     p.idle()
-    assert len(win.pages_shown) == shown and win.pages_shown[-1] == page
-    assert _moves(sim) == n and not win._busy
+    assert pressed == [want], (page, pressed)
+    assert len(win.pages_shown) > shown or finished or saved
+
+
+@pytest.fixture
+def the_apps_dialog_filter():
+    """main() installs DialogFocusFilter on the application (every dialog: no button starts
+    with the focus); the suite's QApplication does not, so this test does, as the app does."""
+    from ui.widgets import DialogFocusFilter
+    app = QApplication.instance()
+    f = DialogFocusFilter(app)
+    app.installEventFilter(f)
+    yield
+    app.removeEventFilter(f)
+
+
+def test_space_presses_nothing_until_the_person_moves_the_focus_to_a_button(
+        qtbot, monkeypatch, tmp_path, settings, the_apps_dialog_filter):
+    """As in the other dialogs: no button keeps the focus Qt gives one as a dialog appears, so
+    Space alone presses nothing on any page; Space on a button the person moved the focus to
+    presses that button."""
+    win, sim, run, p, saved, finished = _quiet(qtbot, monkeypatch, tmp_path, settings)
+    p.script.update({"end_of_session": "Save and stop"})
+    for _ in range(40):
+        page = p.page()
+        if page == "go":
+            break
+        qtbot.wait(400)                   # the application's focus passes have run
+        fw = win.popup().focusWidget()
+        assert not isinstance(fw, QPushButton), (page, fw.text())
+        p.answer_page(page)
+    qtbot.wait(400)
+    n, shown = _moves(sim), len(win.pages_shown)
+    pressed = []
+    for b in win._buttons:
+        b.clicked.connect(lambda _c=False, t=b.text(): pressed.append(t))
+    pop = win.popup()
+    fw = pop.focusWidget()
+    assert not isinstance(fw, QPushButton), fw.text()
+    QTest.keyClick(pop.focusWidget() or pop, Qt.Key.Key_Space)   # where the key goes
+    qtbot.wait(100)
+    assert pressed == [] and _moves(sim) == n and len(win.pages_shown) == shown
+    other = [b for b in win._buttons if not b.isDefault()][0]
+    want = other.text()
+    other.setFocus(Qt.FocusReason.TabFocusReason)
+    QTest.keyClick(other, Qt.Key.Key_Space)
+    p.idle()
+    assert pressed == [want]
+
+
+def test_return_presses_nothing_while_the_filled_answer_waits_or_is_missing(
+        qtbot, monkeypatch, tmp_path, settings):
+    win, sim, run, p, saved, finished = _quiet(qtbot, monkeypatch, tmp_path, settings)
+    p.press("Start")
+    assert p.page() == "ready_to_open"
+    shown = len(win.pages_shown)
+    start = [b for b in win._buttons if b.text() == "Start"][0]
+    # the ticks not given: no filled answer, no default, Return presses nothing
+    assert not start.isEnabled() and _defaults(win) == []
+    QTest.keyClick(win.popup(), Qt.Key.Key_Return)
+    p.idle()
+    assert len(win.pages_shown) == shown and p.page() == "ready_to_open"
+    for cb in win._tick_widgets:
+        cb.setChecked(True)
+    assert _defaults(win) == [start]
+    # the hands-off answer while it waits to be ready (HANDS_OFF_READY_MS): the default, not
+    # pressed by Return
+    start.setEnabled(False)
+    QTest.keyClick(win.popup(), Qt.Key.Key_Return)
+    p.idle()
+    assert p.page() == "ready_to_open"
+    start.setEnabled(True)
+    QTest.keyClick(win.popup(), Qt.Key.Key_Return)
+    p.idle()
+    assert p.page() != "ready_to_open"
+
+
+def test_the_hands_off_answer_is_the_default_while_it_waits(qtbot, monkeypatch, tmp_path,
+                                                            settings):
+    win, sim, run, p, saved, finished = _quiet(qtbot, monkeypatch, tmp_path, settings)
+    p.drive_until("go")
+    # the page as it is shown when the hands-off wait is on (the walks set it to 0): the same
+    # two calls in the same order as _show
+    monkeypatch.setattr(W, "HANDS_OFF_READY_MS", 400)
+    win._hold_hands_off_answers(win._buttons)
+    win._present_popup("go", win._title.text())
+    go = W.filled_answer(win._answer_box)
+    assert go is not None and go.isDefault() and not go.isEnabled()
+    n, shown = _moves(sim), len(win.pages_shown)
+    QTest.keyClick(win.popup(), Qt.Key.Key_Return)
+    qtbot.wait(50)
+    assert _moves(sim) == n and len(win.pages_shown) == shown
+    qtbot.waitUntil(go.isEnabled, timeout=3000)
+    assert go.isDefault() and W.filled_answer(win._answer_box) is go
+    QTest.keyClick(win.popup(), Qt.Key.Key_Return)
+    p.idle()
+    assert len(win.pages_shown) > shown
 
 
 def test_esc_on_a_pop_up_withdraws_and_moves_nothing(qtbot, monkeypatch, tmp_path, settings):
@@ -413,7 +528,8 @@ def test_the_pop_ups_are_built_through_the_apps_shared_dialog_helpers(qtbot, mon
                      "Keep measuring": R.RejectRole}
     assert "Discard and stop" in destroyed
     save = [b for b in box.buttons() if b.text() == "Save and stop"][0]
-    assert save.objectName() == "primary" and not save.isDefault()
+    # item 80 (Basti, 27 Nov 2026): the filled answer is the default, as on the hand path
+    assert save.objectName() == "primary" and save.isDefault()
     # the order is the style's (main.py: WinButtonLayoutStyle), never hard-coded here
     import inspect
     src = inspect.getsource(W.TableMeasureWindow._flow_popup_choices)
@@ -624,3 +740,32 @@ def test_the_problem_window_has_the_note_field(qtbot, monkeypatch, tmp_path, set
     assert p.page() == "problem"
     host = win.popup() if presentation == "popups" else win
     assert win._note_box.isVisibleTo(host) and win._note_edit.isVisibleTo(host)
+
+
+def test_the_countdown_has_no_default_return_presses_nothing(qtbot, monkeypatch, tmp_path,
+                                                             settings):
+    """Item 80: the countdown (guidance off) has only Stop, never filled: Return there presses
+    nothing, and the arm moves only when the countdown ends."""
+    seen = []
+    real = W.TableMeasureWindow._present_popup
+
+    def present(self, page_id, title):
+        real(self, page_id, title)
+        if page_id == "countdown" and self.popup() is not None and self.popup().isVisible():
+            pop = self.popup()
+            seen.append([b.text() for b in pop.findChildren(QPushButton) if b.isDefault()])
+            stops = []
+            self._popup.stop_btn.clicked.connect(lambda *_a: stops.append(1))
+            QTest.keyClick(pop, Qt.Key.Key_Return)
+            QTest.keyClick(pop, Qt.Key.Key_Enter)
+            seen.append(stops)
+    monkeypatch.setattr(W.TableMeasureWindow, "_present_popup", present)
+    win, sim, run, p, saved, finished = _quiet(qtbot, monkeypatch, tmp_path, settings,
+                                               guided=False)
+    p.script.update({"end_of_session": "Save and stop"})
+    for _ in range(60):
+        page = p.page()
+        if seen or page == "done":
+            break
+        p.answer_page(page)
+    assert seen and seen[0] == [] and seen[1] == [], seen

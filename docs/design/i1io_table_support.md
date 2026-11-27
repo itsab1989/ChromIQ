@@ -891,12 +891,18 @@ in-app drive has still not run on a real table.
   pressed while a step runs first stops the table before its next move, and the problem window
   opens only then. Every pop-up of an open table offers End measurement (in the look of the tab's
   Stop), since the tab's Stop is behind the modal window.
-* **Condition 4, no default button: THE ONE DELIBERATE DIFFERENCE FROM THE OTHER INSTRUMENTS'
-  WINDOWS.** No button is a default or an auto-default (Qt's button box makes its first confirming
-  button the default each time it is shown; ChromIQ takes that back), none takes the keyboard
-  focus, so Enter, Return and Space never answer. Esc and the title bar's close box do what the
-  panel's Esc does: a question is withdrawn with the answer that moves nothing and the ending is
-  asked; Esc on the ending is a withdrawal. Never an answer that leads to a move.
+* **Condition 4, the keys as in every other ChromIQ dialog (item 80, decided by Basti, 27 Nov
+  2026: "just allow it like for everything else"; it replaces "no default button").** Return and
+  Enter press the answer filled in the accent (the AcceptRole one, one per page) and only that one;
+  a page without a filled answer (the countdown, the first page's ticks not yet given, the row
+  identity check) has no default, and a filled answer that cannot be pressed yet (the hands-off
+  answer in its first moment) is not pressed by Return either. No default follows the keyboard
+  focus. Space presses only a button the person moved the focus to (Tab, a click): no button
+  starts with the focus, as in every ChromIQ dialog. Esc and the title bar's close box do what
+  the panel's Esc does: a question is withdrawn with the answer that moves nothing and the ending
+  is asked; Esc on the ending is a withdrawal. Never an answer that leads to a move. The panel
+  (guidance on) is part of the main window, where no button is a default, as beside every other
+  measurement: Return there presses nothing.
 * **The look, as the hand path's windows.** The model windows: M-END ("Keep what you have measured
   so far?"), "All Strips Read", the unread-patches window. The same margins, a bold title above
   the text, no icon, the answers in a button box by role so the application's style

@@ -806,6 +806,18 @@ coordinator's ruling, 25 November 2026): its one answer is Go on. End measuremen
 where it is on every page of the window; it was there twice until then. What it does is unchanged
 (the ending M-I1IO-DRIVE-END).
 
+### ⏳ Awaiting confirmation: Return and Enter in the table's pop-ups (item 80)
+
+**Confirmed by:** *nobody yet.* **Decided by Basti, 27 Nov 2026** ("just allow it like for
+everything else"), after he was told why the pop-ups had no default button.
+
+The table's pop-ups (guidance off) take the keys as every other ChromIQ dialog: Return and Enter
+press the answer filled in the accent (also Save and stop on M-END, as on the hand path), nothing
+on a page without one (the countdown, whose only button is Stop) or while that answer cannot be
+pressed yet; Space presses only a button the person moved the focus to; Esc and the close box are
+a withdrawal, as before, never an answer that leads to a move. The panel (guidance on) has no
+default button, as the Measure tab has none. Detail: `i1io_table_support.md`, condition 4.
+
 ### ⏳ Awaiting confirmation: every table ending leaves a table the next START can take (2026-11-21)
 
 **Confirmed by:** *nobody yet.* The owner, 2026-11-21: *"remember that driving the table should

@@ -151,7 +151,10 @@ def test_the_offer_after_a_clean_strip_measurement(qtbot, monkeypatch, tmp_path,
         win, p = _measure(qtbot, monkeypatch, tmp_path, settings, STRIP)
         assert "Reading rows as strips worked for this chart" in win._text.text()
         assert p.labels() == ["Not now", "Yes, make strips the default"]
-        assert not any(b.isDefault() or b.autoDefault() for b in win._buttons)
+        # item 80 (Basti, 27 Nov 2026): Return presses the filled answer ("Not now"), never the
+        # offer itself
+        assert [b.text() for b in win._buttons if b.isDefault()] == ["Not now"]
+        assert not any(b.autoDefault() for b in win._buttons)
         p.press("Yes, make strips the default")
         assert settings.get(KEY) is False
     finally:

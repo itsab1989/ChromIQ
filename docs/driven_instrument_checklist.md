@@ -31,8 +31,10 @@ Every line was missing from the first brief of the i1iO 2 table drive and cost a
 - [ ] A hands-off confirmation before every move that follows a question, and a guard at the
       single writer that refuses a move while one is owed; a test fixture fails any test in
       which that guard fired.
-- [ ] No default button; Enter, Return and Space never answer; a hands-off answer is accepted
-      only after it has been visible for a moment.
+- [ ] The keys as in every other ChromIQ dialog: Return and Enter press only the filled answer
+      (none on a page without one), Space only a button the person moved the focus to, Esc never
+      a move; a hands-off answer is accepted (also by Return) only after it has been visible for
+      a moment.
 - [ ] An "in use" marker written on open, cleared on a clean close, asked about at the next START.
 - [ ] "Switch it off" first wherever a move may still be waiting; truthful state texts.
 - [ ] A level check after calibration; the chart's identity (and a verification's date)
