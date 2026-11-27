@@ -112,6 +112,13 @@ def _job(tmp_path, layout, kind, shift, script=None, count=192):
                             J.Confirm.ROW_IDENTITY: "right", **(script or {})})
     p.events = []
     job.on_progress = p.events.append
+
+    def on_ask(person, res):
+        # safety review 81b: a row the page check refused offers End this step only
+        if res.confirm in (J.Confirm.ROW_FAILED, J.Confirm.ROW_FAILED_STRIP):
+            person.script[res.confirm] = ("stop" if res.detail.get("only_end")
+                                          else (script or {}).get(res.confirm, "skip"))
+    p.on_ask = on_ask
     ready_to_read(job, p)
     return job, sim, helper, p, ch, bed
 
@@ -165,10 +172,11 @@ def test_a_sheet_that_lies_across_from_its_aims_is_refused_and_nothing_of_the_pa
     assert all(r["accepted"] == [] and not r.get("m0_only") for r in recs), \
         [(r["row"], len(r["accepted"])) for r in recs]
     assert sum(1 for r in recs if r.get("dropped_later") == idn.REASON_PAGE) == d["row"] - 1
-    assert set(job.row_status.get(0, {}).values()) <= {"skipped"}
+    assert "read" not in set(job.row_status.get(0, {}).values())
     dropped = [e for e in p.events if e["event"] == "row_dropped"]
     assert {e["row"] for e in dropped} == set(range(1, d["row"] + 1))
-    assert job.needs_aims() is False                 # (Skip keeps them, as for the identity check)
+    # 81b: End this step is the one answer; the aims are given up
+    assert d["only_end"] is True and job.needs_aims() is True
 
 
 def test_ending_the_step_aims_again_and_reads_the_page_again(tmp_path):
@@ -244,34 +252,78 @@ def _read_whole_page(job, p):
 
 
 @pytest.mark.parametrize("layout, kind", [("standard", "strip"), ("compact", "spot"),
-                                          ("standard", "spot")])
+                                          ("standard", "spot"), ("standard", "dual")])
 @pytest.mark.parametrize("answer", ["skip", "again", "patch by patch"])
-def test_s1_a_trip_binds_whatever_the_answer(tmp_path, layout, kind, answer):
-    """S1: after a trip, Read it again, patch by patch and Skip it read on the SAME aims; every row
-    read on them trips too and is dropped. 0 patches kept on the page, whatever the answer."""
-    if kind == "spot" and answer == "patch by patch":
-        pytest.skip("a row read patch by patch is offered no other way")
-    script = {J.Confirm.ROW_FAILED: answer if answer != "patch by patch" else "skip",
-              J.Confirm.ROW_FAILED_STRIP: answer, "after_again_refused": "skip"}
-    job, sim, helper, p, ch, bed = _job(tmp_path, layout, kind, (0.0, 3.5), script=script,
-                                        count=192)
-    if answer == "again":
-        # (there is no limit: the person reads a row again as often as they like; here three
-        # times on every refused row, then Skip it)
-        tries = {}
+def test_81b_after_a_trip_end_this_step_is_the_one_answer(tmp_path, layout, kind, answer):
+    """S1 / 81b: Read it again, patch by patch and Skip it are refused (nothing sent); End this
+    step ends it, the aims are given up. 0 patches kept on the page."""
+    job, sim, helper, p, ch, bed = _job(tmp_path, layout, kind, (0.0, 3.5),
+                                        count=100 if kind == "dual" else 192)
+    tries = []
 
-        def on_ask(person, res):
-            if res.confirm in (J.Confirm.ROW_FAILED, J.Confirm.ROW_FAILED_STRIP):
-                k = res.detail.get("row")
-                tries[k] = tries.get(k, 0) + 1
-                person.script[res.confirm] = "again" if tries[k] <= 3 else "skip"
-        p.on_ask = on_ask
+    def on_ask(person, res):
+        if res.confirm in (J.Confirm.ROW_FAILED, J.Confirm.ROW_FAILED_STRIP) \
+                and res.detail.get("only_end"):
+            n = len(sim.received)
+            r = job.answer(res.confirm, answer)
+            tries.append((r.kind, r.reason, len(sim.received) - n))
+            person.script[res.confirm] = "stop"
+    p.on_ask = on_ask
     _read_whole_page(job, p)
     failed = _asked(p, J.Confirm.ROW_FAILED_STRIP) + _asked(p, J.Confirm.ROW_FAILED)
+    assert failed and failed[0]["why"] == idn.REASON_PAGE and failed[0]["only_end"]
+    assert tries == [(J.Kind.REFUSED, "not_one_of_the_choices", 0)]
+    assert [a for r in _records(job) for a in r["accepted"]] == []
+    assert job.needs_aims()
+
+
+def test_81b_a_row_read_on_refused_aims_is_dropped_unjudged(tmp_path):
+    """The flag: once the page check refused the aims, a row read on them is dropped without
+    being judged (a row just under the limit, or one cut short, is never kept), until the
+    homing."""
+    job, sim, helper, p, ch, bed = _job(tmp_path, "standard", "strip", (0.0, 3.5))
+    _read_whole_page(job, p)
+    assert job._aims_refused == {0}
+    # the person moves nothing; a row read on the same aims (as a later "again" would)
+    bed.shift_mm = (0.0, 0.0)                         # (even a row that would pass on its own)
+    job.aims_void = False
+    r = p.drive(job.read_row())
+    rec = _records(job)[-1]
+    assert rec["accepted"] == [] and rec["page_blend"]["beside"] is True
+    assert "refused these aims before" in rec["page_blend"]["why"]
+    assert p.drive(job.home()).ok and job._aims_refused == set()
+
+
+def test_81b_a_row_cut_short_on_refused_aims_keeps_nothing(tmp_path, monkeypatch):
+    """A row read patch by patch that ends early on refused aims (here a reading that fails
+    after three patches) keeps none of its patches."""
+    job, sim, helper, p, ch, bed = _job(tmp_path, "standard", "spot", (0.0, 3.5))
+    _read_whole_page(job, p)
+    assert job._aims_refused == {0}
+    job.aims_void = False
+    real = job._patch
+    n = {"k": 0}
+
+    def patch(*a, **k):
+        n["k"] += 1
+        if n["k"] > 3:
+            raise J._RowFailed("strip_patch_implausible", "")
+        return real(*a, **k)
+    monkeypatch.setattr(job, "_patch", patch)
+    p.drive(job.read_row())
+    rec = _records(job)[-1]
+    assert rec["accepted"] == [], len(rec["accepted"])
+
+
+def test_81b_a_confirmed_page_is_judged_like_any_other(tmp_path):
+    """Safety review 81b: the person's "right" at the identity question does not switch the page
+    check off (the exemption 81's builder added is gone)."""
+    job, sim, helper, p, ch, bed = _job(tmp_path, "standard", "strip", (0.0, 3.5))
+    job.identity_confirmed.add(0)
+    _read_whole_page(job, p)
+    failed = _asked(p, J.Confirm.ROW_FAILED_STRIP)
     assert failed and failed[0]["why"] == idn.REASON_PAGE
-    kept = [a for r in _records(job) for a in r["accepted"]]
-    assert kept == [], len(kept)
-    assert all(d["why"] == idn.REASON_PAGE for d in failed), {d["why"] for d in failed}
+    assert [a for r in _records(job) for a in r["accepted"]] == []
 
 
 def test_s1_the_aims_change_only_at_the_homing(tmp_path):
@@ -293,6 +345,7 @@ def test_s2_the_spot_page_does_not_say_the_rows_before_are_kept():
     import inspect
     src = inspect.getsource(W)
     assert 'M.M_I1IO_DRIVE_ROW_FAILED_BESIDE if d.get("why") == "page_not_where_aimed"' in src
+    assert "read it again" not in besides.lower() and "skip it" not in besides.lower()
 
 
 def test_s2_the_window_shows_the_variant(qtbot, monkeypatch, tmp_path):
@@ -305,13 +358,17 @@ def test_s2_the_window_shows_the_variant(qtbot, monkeypatch, tmp_path):
     st = AppSettings()
     st._qs = QSettings(str(tmp_path / "w.ini"), QSettings.Format.IniFormat)
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, st)
-    res = NS(kind="needs_confirmation", confirm="row_failed", step="read_row", choices=(),
-             detail={"row": 3, "page": 1, "why": idn.REASON_PAGE, "aim_again": True,
-                     "again_allowed": True})
-    win._ask(res)
-    text = win._text.text()
-    assert "across from where its marks were aimed" in text
-    assert "the rows read before it are kept" not in text
+    for confirm in ("row_failed", "row_failed_strip"):
+        res = NS(kind="needs_confirmation", confirm=confirm, step="read_row", choices=(),
+                 detail={"row": 3, "page": 1, "why": idn.REASON_PAGE, "aim_again": True,
+                         "again_allowed": True, "only_end": True})
+        win._ask(res)
+        text = win._text.text()
+        assert "across from where its marks were aimed" in text
+        assert "the rows read before it are kept" not in text
+        assert "as often as you like" not in text and "Read it patch by patch" not in text
+        # 81b: End this step is the one answer offered
+        assert [b.text() for b in win._buttons] == [W.tr("End this step")], confirm
 
 
 def test_s3_the_reason_says_what_holds_after_every_answer():
@@ -374,14 +431,3 @@ def test_p12_a_lamp_pass_kept_on_its_own_goes_when_its_page_trips(tmp_path):
     first = [r for r in _records(job) if r["row"] == 1]
     assert first and all(r["accepted"] == [] and not r.get("m0_only") for r in first)
     assert any(r.get("dropped_later") == idn.REASON_PAGE for r in first)
-
-
-def test_a_page_the_person_said_is_the_right_sheet_is_not_judged(tmp_path):
-    """The identity question was answered "right" on colours that are not the page's own: the
-    check's map from the chart's colours means nothing there, the person's answer stands."""
-    job, sim, helper, p, ch, bed = _job(tmp_path, "standard", "strip", (0.0, 3.5))
-    job.identity_confirmed.add(0)
-    rows = read_page(job, p)
-    assert all(r.ok and r.detail["status"] == "read" for r in rows)
-    assert all(not r["page_blend"]["judged"] and "the person said" in r["page_blend"]["why"]
-               for r in _records(job))

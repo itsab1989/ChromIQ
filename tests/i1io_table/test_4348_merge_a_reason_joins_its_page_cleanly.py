@@ -78,6 +78,7 @@ def test_a_row_page_never_doubles_the_stop_after_its_reason(code):
 def test_the_window_puts_every_row_reason_through_as_clause():
     src = inspect.getsource(W.TableMeasureWindow)
     assert 'reason_text(d.get("why", "")).rstrip(".")' not in src
-    assert src.count('why=as_clause(self._reason(d.get("why", "")))') == 2
+    # (4.3.69, safety review 81b: the third is the page of a row the page blend check refused)
+    assert src.count('why=as_clause(self._reason(d.get("why", "")))') == 3
     assert W.as_clause("abc。") == "abc" and W.as_clause("abc.") == "abc"
     assert W.as_clause("abc． ") == "abc" and W.as_clause("abc?") == "abc?"

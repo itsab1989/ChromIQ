@@ -12630,16 +12630,14 @@ For one (n = 1):
 >
 > Row {row} was read one or two patches beside its place, so none of it was kept. Please look how the sheet lies, without moving it. If it lies off its place, end the step and aim at its marks again.
 
-### M-I1IO-DRIVE-ROW-FAILED-BESIDE · PROPOSED · the failed-row page of a row read patch by patch that the page blend check refused
+### M-I1IO-DRIVE-ROW-FAILED-BESIDE · PROPOSED · the failed-row page of a row the page blend check refused (strips and patch by patch)
 
-*New 2026-11-27 (4.3.69, safety review 81, S2). M-I1IO-DRIVE-ROW-FAILED without its sentence "the rows read before it are kept": for this reason they are not (they were read on the same aims and are dropped with it).*
+*New 2026-11-27 (4.3.69, safety review 81, S2). M-I1IO-DRIVE-ROW-FAILED without its sentence "the rows read before it are kept": for this reason they are not (they were read on the same aims and are dropped with it). Safety review 81b: its one answer is End this step; nothing read on refused aims is kept, so neither Read it again nor Skip it is offered.*
 
 > **Row {row} could not be read**
 >
 > Row {row} of page {page} could not be read: {why}.
 >
-> •  Read it again: ChromIQ first asks you to take your hands away, then reads the row again. You can read it again as often as you like.
-> •  Skip it: the row stays missing; a later measurement with “Refine / resume existing measurement (-r)” reads it.
 > •  End this step: nothing more is read now, and nothing moves until you choose what happens next.
 
 ### M-I1IO-DRIVE-ROW-FAILED-BESIDE-PIECE · PROPOSED · the same on a chart in pieces
@@ -12650,8 +12648,6 @@ For one (n = 1):
 >
 > Row {row} of piece {page} could not be read: {why}.
 >
-> •  Read it again: ChromIQ first asks you to take your hands away, then reads the row again. You can read it again as often as you like.
-> •  Skip it: the row stays missing; a later measurement with “Refine / resume existing measurement (-r)” reads it.
 > •  End this step: nothing more is read now, and nothing moves until you choose what happens next.
 
 ### M-I1IO-DRIVE-PAGE-BESIDE · PROPOSED · the failed-row page's reason (a clause), strips, patch by patch and dual rows

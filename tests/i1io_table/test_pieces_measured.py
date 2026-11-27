@@ -199,8 +199,14 @@ def test_the_right_answer_keeps_the_row_and_asks_no_more_of_this_piece(four, tmp
     bed = B.Bed(ch.laid(0))
     job, sim, helper, p = _job(tmp_path, ch, bed)
     _on_to(job, p, bed, ch, 1, laid=ch.laid(2))           # piece 3 laid for piece 2
+    p.script[J.Confirm.ROW_FAILED_STRIP] = "stop"
     rows = read_page(job, p)
-    assert len(_asked(p)) == 1 and all(r.ok for r in rows[:2])
+    assert len(_asked(p)) == 1 and rows[0].ok
+    # 4.3.69 (safety review 81b): the answer "right" does not switch the page blend check off; a
+    # piece whose colours its neighbours' cannot explain is refused there, End this step only
+    failed = _asked(p, J.Confirm.ROW_FAILED_STRIP)
+    assert [d["why"] for d in failed] in ([], ["page_not_where_aimed"])
+    assert all(d["only_end"] for d in failed)
     bed.laid = ch.laid(3)
     _on_to(job, p, bed, ch, 2, laid=ch.laid(3))           # …and again: a question of its own
     assert p.drive(job.read_row()).ok

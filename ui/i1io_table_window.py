@@ -4318,6 +4318,12 @@ class TableMeasureWindow(QFrame):
             if "macos_normally_starts_that_service_again_by_itself" in d.get("facts", []):
                 mac = M.M_I1IO_DRIVE_READER_CONSENT_MAC.render()[1]
             title, body = M.M_I1IO_DRIVE_READER_CONSENT.render(mac=mac)
+        elif kind == "row_failed_strip" and d.get("only_end"):
+            # safety review 81b: the page blend check refused the aims: End this step only
+            title, body = M.of_pieces(M.M_I1IO_DRIVE_ROW_FAILED_BESIDE,
+                                      in_pieces(self._sheet)).render(
+                row=d.get("row", "?"), page=d.get("page", page),
+                why=as_clause(self._reason(d.get("why", ""))))
         elif kind == "row_failed_strip":
             # 4.3.50: a dual row that keeps its lamp pass as M0 only has its own words
             msg = (M.M_I1IO_DRIVE_ROW_M0_ONLY_STRIP if d.get("m0_kept")
@@ -4377,6 +4383,9 @@ class TableMeasureWindow(QFrame):
         no_again = kind == "row_failed" and d.get("why") == "dual_conditions_not_written"
         if no_again:
             values = tuple(v for v in values if v != "again")
+        if kind in ("row_failed", "row_failed_strip") and d.get("only_end"):
+            # safety review 81b: nothing read on these aims is kept: End this step only
+            values, no_again = ("stop",), True
         buttons = [((piece_choice_label(kind, v) if in_pieces(self._sheet) else None)
                     or choice_label(kind, v), self._answer_slot(v)) for v in values]
         made = self._show(kind, title, body, buttons)

@@ -1070,6 +1070,10 @@ class TableJob:
         #: 4.3.69 (item 76): {(page, row): {location: Lab}} of the rows judged on the PRESENT aims
         #: (the page blend check's input); emptied whenever the aims change
         self._aim_readings: "dict[tuple[int, int], dict]" = {}
+        #: safety review 81b: the pages whose present aims the page blend check has refused. Every
+        #: later row read on them is dropped WITHOUT being judged, until the homing gives the aims
+        #: up (a row read again just under the limit, or cut short, is never kept on them)
+        self._aims_refused: "set[int]" = set()
         self.front_need: "int | None" = None
         #: 4.3.50: the alignment whose front question was answered "go on" (its creep asks no
         #: GO and no first visit before its first step); None: none
@@ -1771,6 +1775,12 @@ class TableJob:
         if value not in CHOICES[kind]:
             return self._result(step, Kind.REFUSED, "not_one_of_the_choices",
                                 asked=self._pending.kind, choices=list(CHOICES[kind]))
+        if kind in (Confirm.ROW_FAILED, Confirm.ROW_FAILED_STRIP) and value != "stop" and (
+                (self._pending.detail or {}).get("only_end")):
+            # safety review 81b: a row the page blend check refused: its aims are refused, nothing
+            # read on them is kept, so the one way on is End this step (new aims)
+            return self._result(step, Kind.REFUSED, "not_one_of_the_choices",
+                                asked=self._pending.kind, choices=["stop"])
         if kind in (Confirm.ROW_FAILED, Confirm.ROW_FAILED_STRIP) and value in (
                 "again", "patch by patch"):
             # NEXT_STEPS 4d, enforced per page: a third row read again on this page is refused
@@ -3588,6 +3598,7 @@ class TableJob:
         self.arrived = []
         self.alignment = None
         self._aim_readings = {}
+        self._aims_refused = set()
         self.aims_void = False
         self.front_need = None
         self.fit = None
@@ -3704,6 +3715,7 @@ class TableJob:
         self.alignment = al
         self.aims_void = False
         self._aim_readings = {}
+        self._aims_refused.discard(self.page)
         self.colours_refused.discard(self.page)
         fit = page_fit(sheet, self.page, al)
         self.fit = fit
@@ -5306,6 +5318,8 @@ class TableJob:
                 "rows_read_again": self.rows_again.get(self.page, 0),
                 "calibration_due": self._calibration_due_for(len(plan.patches)),
                 "offer_rest": offer_rest, "aim_again": beside,
+                # safety review 81b: the page blend check refused the aims: End this step only
+                "only_end": rec["why"] == idn.REASON_PAGE,
                 # what really happened, not the reason's name: did this attempt send any move,
                 # and do the motors hold the arm (the page says so first)
                 "moved": self._table.motions_sent > moves_before
@@ -6309,6 +6323,17 @@ class TableJob:
         detailed table log, and one event for the app log. "shifted" (refused), "ask" (the
         person is asked, once per page), else None. A row of a page the person has confirmed is
         never asked about again; the veto stays."""
+        if plan.page in self._aims_refused:
+            # safety review 81b: the page blend check refused these aims; nothing read on them is
+            # judged or kept until the homing
+            rec["page_blend"] = {"judged": False, "why": "the page blend check refused these aims "
+                                 "before; nothing read on them is kept until the homing",
+                                 "share": None, "row": None, "rows": 0, "beside": True}
+            self.diag.log("DATA", f"row {plan.index + 1} of page {plan.page + 1}: read on aims "
+                                  "the page blend check refused; none of it is kept")
+            self._progress(event="row_page_blend", row=plan.index + 1, judged=False,
+                           beside=True, share=None, what=rec["page_blend"]["why"])
+            return "beside"
         xyz = {r["loc"]: r["xyz"] for r in readings
                if r.get("xyz") is not None and r.get("plausible", True)}
         expected = self.expected_lab or {}
@@ -6358,15 +6383,7 @@ class TableJob:
             for (pg, _r), m in self._aim_readings.items():
                 if pg == plan.page:
                     measured.update(m)
-            if plan.page in self.identity_confirmed:
-                # the identity check found colours that are not this page's own and the person
-                # said the right sheet lies there: the check's map from the chart's colours to
-                # the readings means nothing on it (the person's answer stands, as for identity)
-                v = {"judged": False, "why": "the person said the right sheet lies there, though "
-                     "its colours are not the chart's own", "share": None, "row": None,
-                     "rows": len(rows), "beside": False}
-            else:
-                v = pb.judge(rows, measured, expected)
+            v = pb.judge(rows, measured, expected)
         except Exception as exc:      # noqa: BLE001 - never in the place of the table's own error
             v = {"judged": False, "why": f"could not be judged ({type(exc).__name__})",
                  "share": None, "row": None, "rows": 0, "beside": False}
@@ -6376,7 +6393,10 @@ class TableJob:
         self.diag.log("DATA", f"row {plan.index + 1} of page {plan.page + 1}: {text}")
         self._progress(event="row_page_blend", row=plan.index + 1, judged=v["judged"],
                        beside=v["beside"], share=v["share"], what=text)
-        return "beside" if v["beside"] else None
+        if v["beside"]:
+            self._aims_refused.add(plan.page)
+            return "beside"
+        return None
 
     def _ask_row_identity(self, plan, rec: dict):
         """A generator: the question whether the right sheet lies on the table (at most once per

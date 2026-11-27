@@ -15001,15 +15001,11 @@ M_I1IO_DRIVE_ROW_FAILED = _m(
 
 #: safety review 81, S2: the same page when the page blend check refused the row: the rows read
 #: before it on these aims are NOT kept (its reason says so), so the sentence that says they are
-#: is left out
+#: is left out. Safety review 81b: End this step is the one answer (strips and patch by patch)
 M_I1IO_DRIVE_ROW_FAILED_BESIDE = _m(
     "M-I1IO-DRIVE-ROW-FAILED-BESIDE",
     "Row {row} could not be read",
     "Row {row} of page {page} could not be read: {why}.\n\n"
-    "\u2022  Read it again: ChromIQ first asks you to take your hands away, "
-    "then reads the row again. You can read it again as often as you like.\n"
-    "\u2022  Skip it: the row stays missing; a later measurement with "
-    "\u201cRefine / resume existing measurement (-r)\u201d reads it.\n"
     "\u2022  End this step: nothing more is read now, and nothing moves until "
     "you choose what happens next.",
     approved=False)
