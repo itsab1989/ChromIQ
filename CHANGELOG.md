@@ -1,5 +1,31 @@
 # Changelog
 
+## v4.3.68
+
+**i1iO table (Beta): Return presses the green answer of the table's pop-ups, as in every other window. i1iSis import: measurements of several pages are imported and checked page by page.**
+
+### New
+
+- **i1iSis import: a measurement of several pages is imported.** Until now it was refused. Every page is checked on its own. ChromIQ refuses the file when pages are swapped, missing or measured twice, and asks before it files anything when the pages cannot be told apart by their colours. Please measure all pages in one go and save one measurement.
+
+### Changed
+
+- **i1iO table (Beta): Return and Enter press the green answer of the table's pop-ups** (guidance off), as in every other ChromIQ window. A page without a green answer, or whose answer cannot be pressed yet, takes no Return. A held key counts once. Esc still never answers with a move.
+
+### Documentation
+
+- The specifications for the i1iO table's keys and for the several-page i1iSis import have new sections awaiting confirmation.
+
+### Internal
+
+- i1iO table: no move, speed, aim or calibration changed. With the Betas off nothing changes for any instrument.
+- i1iSis: every one-page import verdict of 4.3.67 is kept as a baseline test, and every chart that fits on one page imports as before.
+
+### Known issues
+
+- No real i1iSis measurement of several pages has been read yet: the import is tested on simulated measurements.
+- The new texts of this version are shown as proposed texts and may still be reworded.
+
 ## v4.3.67
 
 **i1iO table (Beta): safer endings and restarts, truer texts. i1iSis import: every measurement is checked, randomised or not. Create Chart: Manual shows the layout a Guided chart was really made with.**
