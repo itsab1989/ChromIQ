@@ -39,7 +39,7 @@ import threading
 import time
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QRunnable, Qt, QThreadPool, QTimer, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QEvent, QObject, QRunnable, Qt, QThreadPool, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox, QFrame, QGridLayout, QHBoxLayout, QLabel,
                              QPlainTextEdit, QPushButton, QScrollArea, QSizePolicy, QVBoxLayout,
                              QWidget)
@@ -1874,6 +1874,35 @@ class TablePopup(QDialog):
         lay.addWidget(self.foot)
         #: where the window last put the pop-up (a later difference is the person's move)
         self.placed_at = None
+        #: Return / Enter pressed and its release not seen yet (a held key counts once)
+        self._answer_key_held = False
+        from PyQt6.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app is not None:
+            # removed by Qt with this object
+            app.installEventFilter(self)
+
+    #: Return and Enter, the keys that press the filled answer (condition 4)
+    _ANSWER_KEYS = (Qt.Key.Key_Return, Qt.Key.Key_Enter)
+
+    def keyPressEvent(self, event) -> None:      # noqa: N802 - Qt's own name
+        # safety review of item 80, S1: A HELD KEY COUNTS ONCE, as in an ordinary dialog that one
+        # press closes. Its auto-repeat answers nothing, and a key still held when the next page
+        # appears does not answer that page either: a new press is needed (its release seen)
+        if event.key() in self._ANSWER_KEYS:
+            if event.isAutoRepeat() or self._answer_key_held:
+                event.accept()
+                return
+            self._answer_key_held = True
+        super().keyPressEvent(event)
+
+    def eventFilter(self, obj, event) -> bool:      # noqa: N802 - Qt's own name
+        """The release of Return / Enter, wherever it lands (the pop-up is hidden while a step
+        runs, so the release of the key that answered may reach another window). Never eats it."""
+        if event.type() == QEvent.Type.KeyRelease and not event.isAutoRepeat() \
+                and event.key() in self._ANSWER_KEYS:
+            self._answer_key_held = False
+        return False
 
     def reject(self) -> None:      # Esc: the window's own Esc, never a hidden answer
         self._win.reject()

@@ -32,7 +32,7 @@ Every line was missing from the first brief of the i1iO 2 table drive and cost a
       single writer that refuses a move while one is owed; a test fixture fails any test in
       which that guard fired.
 - [ ] The keys as in every other ChromIQ dialog: Return and Enter press only the filled answer
-      (none on a page without one), Space only a button the person moved the focus to, Esc never
+      (none on a page without one; a held key counts once), Space only a button the person moved the focus to, Esc never
       a move; a hands-off answer is accepted (also by Return) only after it has been visible for
       a moment.
 - [ ] An "in use" marker written on open, cleared on a clean close, asked about at the next START.

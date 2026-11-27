@@ -896,8 +896,10 @@ in-app drive has still not run on a real table.
   Enter press the answer filled in the accent (the AcceptRole one, one per page) and only that one;
   a page without a filled answer (the countdown, the first page's ticks not yet given, the row
   identity check) has no default, and a filled answer that cannot be pressed yet (the hands-off
-  answer in its first moment) is not pressed by Return either. No default follows the keyboard
-  focus. Space presses only a button the person moved the focus to (Tab, a click): no button
+  answer in its first moment) is not pressed by Return either. A held key counts once, as in an
+  ordinary dialog that one press closes: its auto-repeat answers nothing, and a key still held
+  when the next page appears does not answer it (a new press is needed). No default follows the
+  keyboard focus. Space presses only a button the person moved the focus to (Tab, a click): no button
   starts with the focus, as in every ChromIQ dialog. Esc and the title bar's close box do what
   the panel's Esc does: a question is withdrawn with the answer that moves nothing and the ending
   is asked; Esc on the ending is a withdrawal. Never an answer that leads to a move. The panel

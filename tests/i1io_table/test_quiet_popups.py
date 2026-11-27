@@ -769,3 +769,92 @@ def test_the_countdown_has_no_default_return_presses_nothing(qtbot, monkeypatch,
             break
         p.answer_page(page)
     assert seen and seen[0] == [] and seen[1] == [], seen
+
+
+def _key(widget, kind, key, repeat=False):
+    from PyQt6.QtCore import QEvent
+    from PyQt6.QtGui import QKeyEvent
+    ev = QKeyEvent(QEvent.Type.KeyPress if kind == "press" else QEvent.Type.KeyRelease, key,
+                   Qt.KeyboardModifier.NoModifier, "\r", repeat)
+    QApplication.sendEvent(widget, ev)
+
+
+@pytest.mark.parametrize("key", [Qt.Key.Key_Return, Qt.Key.Key_Enter])
+def test_a_held_return_counts_once(qtbot, monkeypatch, tmp_path, settings, key,
+                                   _no_modal_may_hang_the_suite):
+    """Safety review of item 80, S1: held from "Go" for 6 s (a press, then the key's auto-repeat
+    every 33 ms) it answered Go, Save and stop and the homing: 9 movement lines from one key.
+    As in an ordinary dialog one press closes, a held key counts once: Go only."""
+    monkeypatch.setattr(W, "HANDS_OFF_READY_MS", 600)
+    win, sim, run, p, saved, finished = _quiet(qtbot, monkeypatch, tmp_path, settings)
+    p.script.update({"end_of_session": "Save and stop"})
+    monkeypatch.setattr(W, "HANDS_OFF_READY_MS", 0)
+    p.drive_until("go")
+    monkeypatch.setattr(W, "HANDS_OFF_READY_MS", 600)
+    # a page waits 6 s here for an answer that never comes (the suite closes one after 4 s)
+    _no_modal_may_hang_the_suite.grace_ms = 30000
+    go = W.filled_answer(win._answer_box)
+    qtbot.waitUntil(go.isEnabled, timeout=3000)
+    pressed = []
+
+    class _Rec:
+        def __init__(self, label):
+            self.label = label
+
+        def hit(self, *_a):
+            pressed.append(self.label)
+    recs = []
+
+    def watch():
+        for b in win._buttons:
+            r = _Rec(b.text())
+            recs.append(r)
+            b.clicked.connect(r.hit)
+    real = win._present_popup
+
+    def present(page_id, title):
+        real(page_id, title)
+        watch()
+    monkeypatch.setattr(win, "_present_popup", present)
+    watch()
+    n0 = _moves(sim)
+    _key(win.popup(), "press", key)                      # the press: Go
+    t0 = __import__("time").monotonic()
+    while __import__("time").monotonic() - t0 < 6.0:     # held: the auto-repeat, every 33 ms
+        pop = win.popup()
+        target = pop if pop.isVisible() else (QApplication.focusWidget() or win)
+        _key(target, "press", key, repeat=True)
+        qtbot.wait(33)
+    p.idle()
+    assert pressed == [W.tr("Go")], pressed
+    # Go asks the move to new ground next: nothing moved, nothing saved
+    assert p.page() == "first_visit" and _moves(sim) == n0 and not saved
+    # the key still held when the next page appears (no release seen): a non-repeat press there
+    # (a key event a window may synthesise) answers nothing either
+    page, shown = p.page(), len(win.pages_shown)
+    assert win.popup().isVisible() and W.filled_answer(win._answer_box) is not None
+    if True:
+        qtbot.waitUntil(lambda: W.filled_answer(win._answer_box).isEnabled(), timeout=3000)
+        _key(win.popup(), "press", key)
+        p.idle()
+        assert len(win.pages_shown) == shown and p.page() == page and pressed == [W.tr("Go")]
+        # released: the next press answers
+        _key(win.popup(), "release", key)
+        _key(win.popup(), "press", key)
+        _key(win.popup(), "release", key)
+        p.idle()
+        assert pressed == [W.tr("Go"), W.tr("Make this move, my hands are away")]
+
+
+def test_a_repeating_key_whose_press_went_elsewhere_answers_nothing(qtbot, monkeypatch, tmp_path,
+                                                                    settings):
+    """The press of a held key landed in another window (the main window, before the pop-up
+    appeared); its auto-repeat then reaches the pop-up: it answers nothing."""
+    win, sim, run, p, saved, finished = _quiet(qtbot, monkeypatch, tmp_path, settings)
+    p.drive_until("go")
+    shown, n = len(win.pages_shown), _moves(sim)
+    for _ in range(10):
+        _key(win.popup(), "press", Qt.Key.Key_Return, repeat=True)
+        qtbot.wait(20)
+    p.idle()
+    assert len(win.pages_shown) == shown and p.page() == "go" and _moves(sim) == n

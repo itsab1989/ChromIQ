@@ -1452,7 +1452,8 @@ These come on top of sections 12 and 12a. Each was found missing by a review at 
   mistakes; you want both.
 - **The keys as in every other ChromIQ dialog** (the i1iO table's rule since 27 Nov 2026, the
   owner's decision; until then it had no default buttons). Return and Enter press the filled (accepting)
-  answer and only that one, nothing on a page without one; Space presses only a button the person
+  answer and only that one, nothing on a page without one, and a held key counts once (its
+  auto-repeat answers nothing, also not the next page); Space presses only a button the person
   moved the focus to; Esc never answers with a move. Qt makes the FIRST accepting button of a
   button box the default every time it is shown, also one you did not fill, so this needs code
   and a test
