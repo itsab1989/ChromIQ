@@ -2179,8 +2179,12 @@ the calibration rules are untouched.
   that lies there), a pass 2 to 4 late is refused more often. This verdict never told one row from another,
   before or after: that is the identity check's alone (in the rows it can judge), also when both
   passes come from the same wrong row. A fading lamp is not seen by the identity check; the
-  helper's pairing check sees one at half its light, not one 10 % down, and a pairing refusal costs
-  the row its M1 and M2 only: the lamp pass is kept as M0 (released behaviour). No row is read as a dual row that was not before (planned at
+  helper's pairing check sees one at half its light, not one 10 % down. Since 4.3.69 (item 77,
+  awaiting confirmation) a pairing refusal keeps nothing of the row, its lamp pass included: the
+  pairing cannot tell which pass is the bad one, and on the owner's 52 recorded dual rows a lamp at
+  half its light from the middle of the row was refused 50 times and kept as M0 50 times (up to
+  15.9 dE00). No right row on record was refused by the pairing. A UV pass that fails before or
+  while it runs (not the pairing) still leaves the lamp pass as M0. No row is read as a dual row that was not before (planned at
   both starts).
 * **START of a chart whose rows are too short for the dual scan** (the chart layout "Compact", rows
   as strips chosen): a question before anything is opened, written or moved

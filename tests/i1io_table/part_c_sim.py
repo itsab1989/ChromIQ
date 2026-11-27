@@ -853,7 +853,7 @@ class FakeScanReader:
 
     def dual_compute(self, name, scale, timeout=10.0):
         """The helper's M1 / M2 of a cut row (the simulator's own invented glow: a brightened
-        paper glows at 420-500 nm). Faults: uv_wrong_strip (the pairing check refuses)."""
+        paper glows at 420-500 nm). Faults: uv_wrong_strip, uv_no_light (the pairing check refuses)."""
         path = os.path.join(self.outdir, name + ".dual_in.txt")
         try:
             with open(path, encoding="ascii") as fh:
@@ -864,6 +864,9 @@ class FakeScanReader:
             return {"event": "tscan_dual_computed", "ok": False, "why": "record", "n": 0}
         if self.faults.get("uv_wrong_strip"):
             return {"event": "tscan_dual_computed", "ok": False, "why": "uv_pass_wrong_strip",
+                    "n": n, "pairing": ""}
+        if self.faults.get("uv_no_light"):
+            return {"event": "tscan_dual_computed", "ok": False, "why": "uv_pass_no_uv_light",
                     "n": n, "pairing": ""}
         out = []
         for v in vals:

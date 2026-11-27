@@ -538,7 +538,8 @@ def test_a_dual_rows_lamp_pass_kept_before_goes_with_the_dropped_row(tmp_path):
                           patch_h=12.0)
     bed = B.Bed(ch.laid())
     job, sim, helper, p = _job(tmp_path, ch, bed, "dual", {J.Confirm.ROW_IDENTITY: "stop"})
-    helper.faults["scan"] = {"uv_wrong_strip": True}
+    # (4.3.69, item 77: a pairing refusal keeps nothing; a UV pass that would not start does)
+    helper.faults["scan"] = {"uv_not_ready": True}
     p.drive(job.read_row())
     assert _records(job)[0]["m0_only"] and len(_records(job)[0]["accepted"]) == n
     helper.faults.pop("scan")
@@ -939,7 +940,10 @@ def test_a_dual_rows_lamp_pass_of_a_wrong_sheet_is_not_kept(tmp_path, fault):
         helper.faults["scan"] = {fault: True}
         p.drive(job.read_row())
         rec = _records(job)[0]
-        if right:
+        if right and fault == "uv_wrong_strip":
+            # 4.3.69 (item 77): a pairing refusal keeps nothing, the lamp pass included
+            assert rec["accepted"] == [] and "m0_only" not in rec
+        elif right:
             assert rec["m0_only"] and len(rec["accepted"]) == n
         else:
             assert rec["accepted"] == [] and "m0_only" not in rec

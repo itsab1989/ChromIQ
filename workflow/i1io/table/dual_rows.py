@@ -323,8 +323,9 @@ UV_FIT_BANDS_NM = (380.0, 400.0)
 # lamp pass and a reversed stream are found by the identity check alone, and only in a row it can
 # judge; the helper's pairing check finds another row's lamp pass with this row's own UV pass, not
 # both passes of one wrong row. The identity check does not see a fading lamp; the pairing check
-# sees one at half its light (30 of 30 from the row's middle), not one 10 % down. A pairing refusal
-# costs the row its M1 and M2 only: the lamp pass is kept as M0 (job._keep_lamp_pass).
+# sees one at half its light (30 of 30 from the row's middle), not one 10 % down. Since 4.3.69
+# (item 77) a pairing refusal keeps nothing of the row, its lamp pass included
+# (job.PAIRING_REASONS): the pairing cannot tell which pass is the bad one.
 LAMP_FIT_REFUSE_LATE = 1.75        # readings late of the assumed start: refused ...
 LAMP_FIT_REFUSE_EARLY = 2.5        # ... or this many early ...
 LAMP_FIT_MIN_GAIN = UV_FIT_MIN_GAIN   # ... when R squared at the best start is this much better

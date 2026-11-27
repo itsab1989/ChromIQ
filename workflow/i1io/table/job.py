@@ -238,6 +238,13 @@ PLACE_REASONS = (stp.PLACEMENT_REASON, idn.REASON_STRIP)
 #: finds one without a record removes the values (`remove_unjudged_leftovers`): a killed app
 #: leaves nothing of such a row
 JUDGING_SUFFIX = ".judging"
+#: 4.3.69 (item 77): the helper's pairing refusals. The two passes of the row do not fit each other,
+#: and nothing tells which of them is wrong: a lamp that fades during its pass is refused here as
+#: often as a UV pass that fails (on the owner's 52 recorded dual rows: a lamp at half its light
+#: from the middle of the row, refused 50 times, its pass kept as M0 50 times, up to 15.9 dE00).
+#: So a row refused by the pairing keeps NOTHING, its lamp pass included; the person reads it again
+#: as after any failed row. No right row on record was ever refused by the pairing (44 of 44).
+PAIRING_REASONS = ("uv_pass_wrong_strip", "uv_pass_no_uv_light")
 
 
 def _files_in(folder) -> "set[Path]":
@@ -6219,7 +6226,12 @@ class TableJob:
             # only the second pass (UV) failed or was refused: the row keeps its lamp pass as
             # M0 only (its M1 / M2 are missing; every other row keeps its own). The row still
             # counts as failed, so the person is asked as before and may read it again
-            if f.reason not in ("lamp_pass_timing_off", *PLACE_REASONS) and getattr(
+            if f.reason in PAIRING_REASONS:
+                # 4.3.69 (item 77): the pair does not fit, and the lamp may be the bad pass
+                self.diag.log("DATA", f"{name}: the two passes do not fit each other "
+                                      f"({f.reason}); nothing of the row is kept, its lamp "
+                                      "pass included")
+            elif f.reason not in ("lamp_pass_timing_off", *PLACE_REASONS) and getattr(
                     results.get("lamp"), "kind", None) == "done":
                 self._keep_lamp_pass(rec, plan, lamp, folder, name, f.reason)
             self._progress(event="row_end", row=plan.index + 1, status="failed", loc=f.loc)
