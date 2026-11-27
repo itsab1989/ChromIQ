@@ -14585,7 +14585,7 @@ M_I1IO_DRIVE_PAGE_BESIDE = _m(
     "Rows read beside where they were aimed",
     "the colours of this row and of the rows read before it since the marks were aimed are partly "
     "those of their neighbouring rows, because the paper lies a few millimetres across from where "
-    "its marks were aimed; none of these rows is kept, and they are read again once the marks have "
+    "its marks were aimed; none of these rows is kept, and no row is kept until the marks have "
     "been aimed at again",
     approved=False)
 
@@ -14991,6 +14991,21 @@ M_I1IO_DRIVE_ROW_FAILED = _m(
     "Row {row} of page {page} could not be read: {why}. The row counts as "
     "missing until it has been read completely; the rows read before it are "
     "kept.\n\n"
+    "\u2022  Read it again: ChromIQ first asks you to take your hands away, "
+    "then reads the row again. You can read it again as often as you like.\n"
+    "\u2022  Skip it: the row stays missing; a later measurement with "
+    "\u201cRefine / resume existing measurement (-r)\u201d reads it.\n"
+    "\u2022  End this step: nothing more is read now, and nothing moves until "
+    "you choose what happens next.",
+    approved=False)
+
+#: safety review 81, S2: the same page when the page blend check refused the row: the rows read
+#: before it on these aims are NOT kept (its reason says so), so the sentence that says they are
+#: is left out
+M_I1IO_DRIVE_ROW_FAILED_BESIDE = _m(
+    "M-I1IO-DRIVE-ROW-FAILED-BESIDE",
+    "Row {row} could not be read",
+    "Row {row} of page {page} could not be read: {why}.\n\n"
     "\u2022  Read it again: ChromIQ first asks you to take your hands away, "
     "then reads the row again. You can read it again as often as you like.\n"
     "\u2022  Skip it: the row stays missing; a later measurement with "
@@ -15903,7 +15918,7 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_CONSENT_GUIDANCE, M_I1IO_GUIDED_HELP, M_I1IO_LOG_HELP,
     M_I1IO_DRIVE_CAL_PLACE, M_I1IO_DRIVE_STORED_WHITE_REFUSED,
     M_I1IO_DRIVE_CAL_OWN_TILE, M_I1IO_DRIVE_CAL_RESEAT,
-    M_I1IO_DRIVE_ROW_FAILED,
+    M_I1IO_DRIVE_ROW_FAILED, M_I1IO_DRIVE_ROW_FAILED_BESIDE,
     M_I1IO_DRIVE_ROW_NOT_AGAIN, M_I1IO_DRIVE_REPORT, M_I1IO_DRIVE_PROBLEM,
     M_I1IO_DRIVE_NOTE, M_I1IO_DRIVE_NEXT_PAGE, M_I1IO_DRIVE_STOPPED_BY_YOU,
     M_I1IO_DRIVE_REFUSED, M_I1IO_DRIVE_FRONT_END, M_I1IO_DRIVE_FRONT_STOPPED,
@@ -15962,7 +15977,8 @@ I1IO_DRIVE_USB_MESSAGE["M-I1IO-DRIVE-TABLE-DRIVER-NOT-INSTALLED"] = M_I1IO_DRIVE
 #: The messages that speak of a page, as they are on a chart in pieces: the same words, but for
 #: the piece (`of_pieces`).
 PIECE_MESSAGES = {m.id: _piece_twin(m) for m in (
-    M_I1IO_DRIVE_ROW_FAILED, M_I1IO_DRIVE_ROW_FAILED_STRIP, M_I1IO_DRIVE_ROW_M0_ONLY,
+    M_I1IO_DRIVE_ROW_FAILED, M_I1IO_DRIVE_ROW_FAILED_BESIDE, M_I1IO_DRIVE_ROW_FAILED_STRIP,
+    M_I1IO_DRIVE_ROW_M0_ONLY,
     M_I1IO_DRIVE_ROW_M0_ONLY_STRIP, M_I1IO_DRIVE_ROW_PLACEMENT_REST,
     M_I1IO_DRIVE_ROW_FAILED_STRIP_NOT_MOVED, M_I1IO_DRIVE_ROW_M1_M2_NOT_WRITTEN,
     M_I1IO_DRIVE_ROW_NOT_IN_PLACE, M_I1IO_DRIVE_ROW_NOT_IN_PLACE_SPOT)}

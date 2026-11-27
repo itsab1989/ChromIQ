@@ -4341,6 +4341,8 @@ class TableMeasureWindow(QFrame):
             not_written = d.get("why") == "dual_conditions_not_written"
             msg = (M.M_I1IO_DRIVE_ROW_M1_M2_NOT_WRITTEN if not_written
                    else M.M_I1IO_DRIVE_ROW_M0_ONLY if d.get("m0_kept")
+                   # safety review 81, S2: the rows before it were dropped with it
+                   else M.M_I1IO_DRIVE_ROW_FAILED_BESIDE if d.get("why") == "page_not_where_aimed"
                    else M.M_I1IO_DRIVE_ROW_FAILED)
             title, body = M.of_pieces(msg, in_pieces(self._sheet)).render(
                 row=d.get("row", "?"), page=d.get("page", page),

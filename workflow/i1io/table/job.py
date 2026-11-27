@@ -6358,7 +6358,15 @@ class TableJob:
             for (pg, _r), m in self._aim_readings.items():
                 if pg == plan.page:
                     measured.update(m)
-            v = pb.judge(rows, measured, expected)
+            if plan.page in self.identity_confirmed:
+                # the identity check found colours that are not this page's own and the person
+                # said the right sheet lies there: the check's map from the chart's colours to
+                # the readings means nothing on it (the person's answer stands, as for identity)
+                v = {"judged": False, "why": "the person said the right sheet lies there, though "
+                     "its colours are not the chart's own", "share": None, "row": None,
+                     "rows": len(rows), "beside": False}
+            else:
+                v = pb.judge(rows, measured, expected)
         except Exception as exc:      # noqa: BLE001 - never in the place of the table's own error
             v = {"judged": False, "why": f"could not be judged ({type(exc).__name__})",
                  "share": None, "row": None, "rows": 0, "beside": False}
@@ -6471,11 +6479,15 @@ class TableJob:
     def _drop_page_rows_on_these_aims(self, plan, reason: str) -> None:
         """4.3.69 (item 76): the page blend check found the sheet across from where it was aimed:
         every OTHER row of this page read on these aims was read beside its place too, so it is
-        emptied as the dropped one is, and read again after the new aims. Never raises."""
+        emptied as the dropped one is, and read again after the new aims. Never raises.
+
+        Safety review 81, S1: the readings STAY in the page check while these aims stand (until
+        the homing that gives them up), so every later row read on these aims, whatever the
+        person answered (Read it again, patch by patch, Skip it), is judged with them, trips and
+        is dropped too: nothing is ever kept on aims the check has refused."""
         folder = getattr(self.diag, "folder", None)
         others = sorted(r for (pg, r) in self._aim_readings
                         if pg == plan.page and r != plan.index)
-        self._aim_readings = {}
         for r in others:
             try:
                 kept = (empty_row_records(folder, plan.page + 1, r + 1, reason, self.diag.log)

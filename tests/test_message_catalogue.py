@@ -147,6 +147,8 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-I1IO-COMPACT-INFO",                 # the new i1iO chart layout, 2026-11-25
     "M-I1IO-DRIVE-ROW-NOT-IN-PLACE-SPOT",                 # the new i1iO chart layout, 2026-11-25
     "M-I1IO-DRIVE-PAGE-BESIDE",                           # 4.3.69, item 76, the page blend check
+    "M-I1IO-DRIVE-ROW-FAILED-BESIDE",                     # 4.3.69, safety review 81, S2
+    "M-I1IO-DRIVE-ROW-FAILED-BESIDE-PIECE",               # the same, a chart in pieces
     "M-I1IO-DRIVE-ROW-NOT-IN-PLACE",                 # the new i1iO chart layout, 2026-11-25
     "M-I1IO-DRIVE-OTHER-SHEET",                 # the new i1iO chart layout, 2026-11-25
     "M-I1IO-DRIVE-OTHER-PIECE",                 # the new i1iO chart layout, 2026-11-25

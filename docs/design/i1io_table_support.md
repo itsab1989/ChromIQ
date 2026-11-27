@@ -2010,9 +2010,14 @@ review.
   other row of the page read on these aims is emptied as a dropped row is (`dropped_later`); the
   failed-row page shows "aim again" first, and its reason is M-I1IO-DRIVE-PAGE-BESIDE. The way on
   is the identity check's: End this step, the arm home, the sheet laid, three aims, and the rows
-  are read again. Skip keeps the aims, as it does for the identity check. Nothing new is sent.
+  are read again. A trip binds whatever the answer (safety review 81, S1): the refused readings
+  stay in the check while these aims stand, so every later row read on them (Read it again, patch
+  by patch, after Skip) trips and is dropped too; nothing is kept on refused aims, and the failed-row
+  page of a row read patch by patch does not say that the rows before it are kept
+  (M-I1IO-DRIVE-ROW-FAILED-BESIDE). Nothing new is sent.
 * **Not judged** (said in the logs): no expected colours, fewer than two complete neighbouring rows,
-  rows whose neighbours differ by less than 12 dE76.
+  rows whose neighbours differ by less than 12 dE76, a page the person said is the right sheet when
+  the identity check asked (its colours are not the chart's own; the person's answer stands).
 * **Measured** on the owner's real pages (25 and 26 Nov 2026, four pages; numbers only, kept
   privately), through the built code: right pages never above 0.030 after any row; 3.5 mm across
   refused after row 2 to 5, 3.0 mm after row 3 to 9 (on a page of six rows, one direction of
