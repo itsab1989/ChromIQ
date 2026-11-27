@@ -151,11 +151,12 @@ page j // (columns x rows). It is filed only when, randomised or not:
   and rows a page on its pages (M-IMPORT-ISIS-PAGES-GRID); "0 pages" says
   nothing about the pages;
 * its places, when it records them, run page by page as ChromIQ's test chart
-  writes them (the columns of each page from 0 or counted on). No i1iSis
-  measurement of several pages is on record, so any other form (and a file
-  that numbers its patches again on every page) is refused and the file asked
-  for (M-IMPORT-ISIS-PAGES-FORM); places in another form are taken only when
-  the colours clear every page by themselves;
+  writes them (the columns of each page from 0 or counted on): the two forms
+  ChromIQ's own `.txf` predicts, not yet seen in a real measurement. Places in
+  another form are taken only when every page's colours clearly sit on their
+  own patches; otherwise the file is refused and asked for
+  (M-IMPORT-ISIS-PAGES-FORM). A file that numbers its patches again on every
+  page is always refused (the same message);
 * the colours: every page by the one-page judge, and the whole chart against
   every way the pages can go in wrongly (two swapped, one twice, another
   order). One that fits clearly better is refused and named
@@ -165,10 +166,15 @@ page j // (columns x rows). It is filed only when, randomised or not:
   of a chart that is not randomised that cannot be checked asks
   M-IMPORT-ISIS-CANNOT-CHECK, as one page does; on a randomised chart such a
   page is filed as one page is.
+* a randomised chart that repeats its colours so that the readings fit its
+  patches in more than one order (one colour above all) is refused, one page
+  or several, with its own sentence (M-IMPORT-ISIS-ORDER-UNKNOWN: switch
+  Randomise off for such a chart); before it was refused with the turned
+  chart's sentence, which asked to measure the sheet in ChromIQ.
 
-Unproven: no i1iSis measurement of several pages is on record, so the form
-i1Profiler writes is assumed only as far as its own saved test chart shows it
-(columns and rows a page, the pages).
+Unproven: no i1iSis measurement of several pages is on record. The forms
+taken are predicted from ChromIQ's own `.txf` and from i1Profiler's own saved
+test chart (columns and rows a page, the pages), not seen.
 
 *(2026-11-25, item 63, awaiting confirmation)* Randomise does not decide
 whether a measurement is checked. Pages, every patch once, i1Profiler's grid

@@ -63,13 +63,29 @@ def test_a_tenth_of_a_millimetre_is_seen(tmp_path):
         != stored["chart.isis.json"]
 
 
+def _as_now(stored: list) -> list:
+    """4.3.67's verdict with the one change made since on purpose: a
+    randomised chart whose readings fit more than one order is refused with
+    the i1iSis's own sentence (M-IMPORT-ISIS-ORDER-UNKNOWN), no longer the
+    turned chart's (review of part 1 of the pieces work, S3)."""
+    from workflow import measurement_messages as MM
+    from workflow.measurement_import import (straight_or_turned_reason,
+                                             turned_ambiguous_reason)
+    if stored[1] in (straight_or_turned_reason(), turned_ambiguous_reason()):
+        return [stored[0], MM.isis_order_unknown_reason(), *stored[2:]]
+    return list(stored)
+
+
 def test_every_one_page_verdict_is_the_one_4367_gave(tmp_path):
     got = base.import_cases(tmp_path)
     assert set(got) == set(STORED["verdicts"])
     differ = [k for k, v in got.items()
-              if STORED["verdicts"][k][5] == 1 and list(v) != STORED[
-                  "verdicts"][k]]
+              if STORED["verdicts"][k][5] == 1 and list(v) != _as_now(
+                  STORED["verdicts"][k])]
     assert not differ, differ[:10]
+    changed = [k for k, v in STORED["verdicts"].items()
+               if v[5] == 1 and _as_now(v) != v]
+    assert changed and all(k.startswith("even|True|") for k in changed)
     # the stored several-page cases are the ones the import of several
     # pages is about: 4.3.67 refused every one of them
     several = [v for v in STORED["verdicts"].values() if v[5] > 1]

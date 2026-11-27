@@ -951,6 +951,7 @@ AWAITING_APPROVAL: "set[str]" = {
                                  "M-IMPORT-ISIS-PARTIAL",
                                  # 2026-11-27: an i1iSis measurement of
                                  # several pages (the pieces work, part 1)
+                                 "M-IMPORT-ISIS-ORDER-UNKNOWN",
                                  "M-IMPORT-ISIS-PAGES-MISSING",
                                  "M-IMPORT-ISIS-PAGES-MIXED",
                                  "M-IMPORT-ISIS-PAGES-FORM",

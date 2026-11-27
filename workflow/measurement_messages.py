@@ -1764,6 +1764,29 @@ def isis_partial_reason(got: int, total: int) -> str:
     return tr(_ISIS_IMPORT_PARTIAL).format(got=got, total=total)
 
 
+#: A randomised i1iSis chart that repeats its colours so that the readings fit
+#: its patches in more than one order (one colour above all): refused, as the
+#: turned chart's measurement is, with a sentence that is true of an i1iSis
+#: (review of part 1 of the pieces work, S3). One page and several.
+_ISIS_IMPORT_ORDER_UNKNOWN = (
+    "the patches of this i1iSis chart repeat their colours so that the "
+    "readings fit them in more than one order, and the chart was laid out "
+    "with “Randomise patch order”, so ChromIQ cannot tell which patch each "
+    "reading belongs to. Nothing has been filed. For a chart like this (an "
+    "evenness chart, say), switch “Randomise patch order” off, make the chart "
+    "again, print it and measure it: then ChromIQ can bring the measurement "
+    "back")
+M_IMPORT_ISIS_ORDER_UNKNOWN = _m(
+    "M-IMPORT-ISIS-ORDER-UNKNOWN",
+    "An i1iSis measurement whose readings fit more than one order",
+    _ISIS_IMPORT_ORDER_UNKNOWN,
+    approved=False)
+
+
+def isis_order_unknown_reason() -> str:
+    return tr(_ISIS_IMPORT_ORDER_UNKNOWN)
+
+
 # ---- an i1iSis measurement of a chart of several pages (part 1 of the i1iSis
 # pieces work, `workflow.isis.import_pages`) ---------------------------------
 
@@ -1820,8 +1843,9 @@ def isis_pages_mixed_reason(page: int, other: int) -> str:
     return tr(_ISIS_IMPORT_PAGES_MIXED).format(page=page, other=other)
 
 
-#: A form of i1Profiler's several-page file that is not on record: the
-#: patches numbered again on every page, or places of another kind.
+#: A form of i1Profiler's several-page file other than those ChromIQ's own
+#: .txf predicts (none is on record yet): the patches numbered again on every
+#: page, or places of another kind whose colours do not clear every page.
 _ISIS_IMPORT_PAGES_FORM = (
     "this file is a measurement of an i1iSis chart with {pages} pages, but "
     "it records the pages in a way ChromIQ has not seen from i1Profiler yet, "
@@ -16132,6 +16156,7 @@ CATALOGUE = {m.id: m for m in (
     M_IMPORT_I1IO_AIM_UNCHECKED,
     M_IMPORT_I1IO_FILED, M_IMPORT_ISIS_COLOURS, M_IMPORT_ISIS_FILES,
     M_IMPORT_ISIS_PARTIAL,
+    M_IMPORT_ISIS_ORDER_UNKNOWN,
     M_IMPORT_ISIS_PAGES_MISSING,
     M_IMPORT_ISIS_PAGES_MIXED,
     M_IMPORT_ISIS_PAGES_FORM,

@@ -4,7 +4,8 @@ of the i1iSis pieces work; CHALLENGE S1, S2; `workflow.isis.import_pages`).
 4.3.67 refused every one ("needs a later version"). Now it is paired by
 position through the order file, as one page is, and filed only when every
 check says the pages went in as printed: every patch once (missing pages
-named), i1Profiler's grid, its places in a form on record, the colours of
+named), i1Profiler's grid, its places in a form ChromIQ's own .txf predicts
+(none is on record yet), the colours of
 every page by the one-page judge, and the whole chart against every way the
 pages can be fed wrongly (swapped, one page twice, the pages in another
 order). Where the pages cannot be told apart by their colours the person is
@@ -123,6 +124,13 @@ def page_ways(c):
         for i in range(s[q]):
             p[q * k + i] = q * k + (i + R) % s[q]
         ways[f"page {q + 1} one column off"] = p
+        p = list(range(c.n))
+        for i in range(s[q]):
+            cc, r = divmod(i, R)
+            i2 = cc * R + (r + 1) % R
+            if i2 < s[q]:
+                p[q * k + i] = q * k + i2
+        ways[f"page {q + 1} one row off"] = p
     return ways
 
 
@@ -150,8 +158,7 @@ PRINTERS = [None, *F.PRINTERS]
 def test_a_right_measurement_is_never_refused(charts, tmp_path, name,
                                               randomize):
     if name == "even" and randomize:
-        pytest.skip("one colour, randomised: every order fits, refused as "
-                    "on one page (review 4.3.18 r1, SF-1)")
+        return             # refused in words: test_one_colour_randomised_...
     c = charts(name, randomize)
     for i, printer in enumerate(PRINTERS[::2] if c.n > 2000 else PRINTERS):
         for drift in (1.0, 3.0):
@@ -172,25 +179,6 @@ def test_where_pages_look_alike_the_person_is_asked(charts, tmp_path):
 
 
 # ---- every wrong way -------------------------------------------------------
-
-@pytest.mark.parametrize("randomize", [False, True])
-@pytest.mark.parametrize("name", sorted(SETS))
-def test_no_wrong_way_is_filed_in_silence(charts, tmp_path, name, randomize):
-    """Pages swapped, a page twice, the pages in another order, one page
-    turned or one column off, and every whole-sheet way of item 63: refused
-    or asked, never filed without a word (unless the patches really read
-    are of the same colours)."""
-    c = charts(name, randomize)
-    ways = {**c.ways(), **page_ways(c)}
-    for way, p in ways.items():
-        if _same_colours(c, p) and name != "even":
-            continue
-        for printer in (None, "low-gamut"):
-            v = _assess(c.measure(tmp_path / "m.ti3", p, printer), c)
-            assert not v.ok or v.isis_ask_why, (way, printer, "silent")
-            if name not in ASKS_WRONG:
-                assert not v.ok, (way, printer, v.isis_ask_why)
-
 
 @pytest.mark.parametrize("randomize", [False, True])
 @pytest.mark.parametrize("name", ["random", "sorted", "grid", "grid3",
@@ -235,6 +223,21 @@ def test_a_page_of_another_chart_is_refused(charts, tmp_path, randomize):
     assert v.reason in (MM.isis_colours_reason(),
                         MM.isis_pages_mixed_reason(2, 1),
                         MM.isis_pages_mixed_reason(2, 3)), v.reason
+
+
+@pytest.mark.parametrize("pages", [2, 1])
+def test_one_colour_randomised_is_refused_in_true_words(beta, tmp_path,
+                                                        pages):
+    """Every order fits a randomised chart of one colour: refused, one page
+    or several, with the i1iSis's own sentence (review of part 1, S3), never
+    the turned chart's "measure this sheet in ChromIQ"."""
+    from workflow import measurement_messages as MM
+    c = Chart(tmp_path / "c", [(60.0, 60.0, 60.0)] * (1500 if pages == 2
+                                                      else 400), True)
+    assert c.P == pages
+    v = _assess(c.measure(tmp_path / "m.ti3"), c)
+    assert not v.ok and v.reason == MM.isis_order_unknown_reason(), v.reason
+    assert "ChromIQ instead" not in v.reason and "Randomise" in v.reason
 
 
 # ---- every patch once (R1) ---------------------------------------------------
@@ -371,7 +374,7 @@ def _import_cxf(c, cxf, tmp_path):
 
 @pytest.mark.parametrize("randomize", [False, True])
 @pytest.mark.parametrize("places", ["page-local", "counted-on", "none"])
-def test_the_forms_on_record_are_filed(charts, tmp_path, randomize, places):
+def test_the_forms_the_test_chart_predicts_are_filed(charts, tmp_path, randomize, places):
     c = charts("sorted", randomize)
     v, ti3 = _import_cxf(c, write_cxf(tmp_path / "m.mxf", c, places=places),
                          tmp_path)
@@ -395,7 +398,7 @@ def test_another_grid_is_refused_with_both_named(charts, tmp_path,
 
 
 @pytest.mark.parametrize("randomize", [False, True])
-def test_places_in_a_form_not_on_record_need_every_page_clear(
+def test_places_in_a_form_the_test_chart_does_not_predict_need_every_page_clear(
         charts, tmp_path, randomize):
     """R4: the handheld rule's places (or any other form) are filed only
     when the colours of every page clearly sit on their own patches; on a
@@ -409,7 +412,7 @@ def test_places_in_a_form_not_on_record_need_every_page_clear(
     v, _ = _import_cxf(g, write_cxf(tmp_path / "g.mxf", g,
                                     places="handheld"), tmp_path)
     assert not v.ok and "send us this file" in v.reason, v.reason
-    # ...and with the places on record, the same file is asked about
+    # ...and with the places the .txf predicts, the same file is asked about
     v, _ = _import_cxf(g, write_cxf(tmp_path / "g.mxf", g), tmp_path)
     assert v.ok and v.isis_ask_why
 

@@ -374,7 +374,8 @@ def assess(ti3: Path, chart_ti2: "Path | None",
             # SF-1): the chart repeats its colours so that this file agrees
             # with the order in force AND with an earlier one ChromIQ wrote
             # for the same chart, each putting readings on other patches.
-            return ImportVerdict(False, turned_ambiguous_reason(),
+            return ImportVerdict(False, _isis_or(
+                turned.order, turned_ambiguous_reason),
                                  n_chart=n_chart or 0, n_measured=n_got)
         if (turned.applies and turned.verified
                 and getattr(turned.order, "kind", "") == "isis"
@@ -445,7 +446,8 @@ def assess(ti3: Path, chart_ti2: "Path | None",
                 and not read_from_the_sheet_as_printed(ti3)):
             turned = turned_match(measured, chart_ti2)
             if fits_straight_and_turned(measured, turned):
-                return ImportVerdict(False, straight_or_turned_reason(),
+                return ImportVerdict(False, _isis_or(
+                    turned.order, straight_or_turned_reason),
                                      n_chart=n_chart or 0, n_measured=n_got)
         # AN i1iSis CHART THAT IS NOT RANDOMISED (a Beta, item 63). Its order
         # is the chart's own numbering, so the check by SAMPLE_ID above passes
@@ -644,6 +646,20 @@ def _isis_partial_reason(got: int, total: int) -> str:
     return isis_partial_reason(got, total)
 
 
+def _isis_or(order, reason) -> str:
+    """M-IMPORT-ISIS-ORDER-UNKNOWN for an i1iSis chart whose readings fit
+    its patches in more than one order (a randomised chart that repeats its
+    colours, one colour above all); *reason*() for any other chart. The
+    turned chart's sentences ("measure this sheet in ChromIQ") are not true
+    of an i1iSis, which ChromIQ cannot drive."""
+    if getattr(order, "kind", "") == "isis":
+        log.info("import: the readings fit this i1iSis chart in more than "
+                 "one order; refused")
+        from workflow.measurement_messages import isis_order_unknown_reason
+        return isis_order_unknown_reason()
+    return reason()
+
+
 def _isis_partial_reason_of(order, entries) -> str:
     """Why an i1iSis file that holds only some of the chart's entries
     (*entries*, 0-based, each once) is refused: the pages it lacks when it
@@ -679,7 +695,8 @@ def _isis_numbered_page_by_page(measured, chart_ti2, order=None) -> str:
                                  int(order.columns), pages):
         return ""
     log.info("import: the i1iSis measurement numbers its patches page by "
-             "page; that form is not on record, so it is refused")
+             "page; ChromIQ's .txf does not predict that form, so it is "
+             "refused")
     from workflow.measurement_messages import isis_pages_form_reason
     return isis_pages_form_reason(pages)
 

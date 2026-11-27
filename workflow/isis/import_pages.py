@@ -10,13 +10,14 @@ nothing about which sheet went through the instrument when:
 
 * R1, every patch once: a file that holds whole pages and lacks others names
   the missing pages; a file that numbers its patches page by page (1 .. C x R
-  on every page again) is a form not on record, refused with a request for
-  the file;
+  on every page again) is a form ChromIQ's .txf does not predict, refused
+  with a request for the file;
 * R3, i1Profiler's grid when the file records it: C columns, R rows a page,
   P pages (its own saved ``.txf`` writes rows per page); ``NumberPatchPages
   "0"`` says nothing about the pages;
 * R4, the places when the file records them: page by page as ChromIQ's
-  ``.txf`` writes them, the columns of each page counted from 0 or counted on
+  ``.txf`` writes them (the forms it PREDICTS: no i1iSis measurement of
+  several pages has been seen yet), the columns of each page counted from 0 or counted on
   from the page before; any other form is filed only when the colours of
   every page clearly sit on their own patches, else refused with a request
   for the file (nothing is guessed);
@@ -54,7 +55,7 @@ class PagesVerdict:
 
     *why*: for WRONG "pages" (a page holds another page's readings),
     "colours" (a page does not fit its own patches), "places" (places in a
-    form not on record, colours not clear), "grid"; for CANNOT the reason
+    form the .txf does not predict, colours not clear), "grid"; for CANNOT the reason
     the person is asked ("pages" when pages cannot be told apart, else the
     one-page judge's). *page* / *other*: the pages named (from 1)."""
     verdict: str
@@ -98,7 +99,7 @@ def numbered_page_by_page(ids, n: int, rows: int, cols: int,
                           pages: int) -> bool:
     """True when *ids* (the file's SAMPLE_IDs, in file order) are 1 .. C x R
     on every page again: a form of i1Profiler's several-page file that is
-    not on record. Never filed by position (it could be any page)."""
+    predicted by ChromIQ's .txf and not yet seen. Never filed by position (it could be any page)."""
     sizes = page_sizes(n, rows, cols, pages)
     want = [str(i + 1) for s in sizes for i in range(s)]
     got = [str(s).strip('"') for s in ids]
@@ -315,7 +316,8 @@ def judge_pages(E, M, rows: int, cols: int, pages: int,
 
 def every_page_right(E, M, rows: int, cols: int, pages: int) -> bool:
     """True when every page's colours clearly sit on their own patches: the
-    only way a file whose places are in a form not on record is filed."""
+    only way a file whose places are in a form the .txf does not predict is
+    filed."""
     v = judge_pages(E, M, rows, cols, pages, randomised=False)
     if v.verdict != IC.RIGHT:
         return False
