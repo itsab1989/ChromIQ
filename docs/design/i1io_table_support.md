@@ -2014,7 +2014,10 @@ review.
   aims, every later row read on them is dropped without being judged until the homing gives the
   aims up, and the failed-row page offers End this step only (M-I1IO-DRIVE-ROW-FAILED-BESIDE, for
   strips and patch by patch alike). A page the person confirmed at the identity question is judged
-  like any other. Nothing new is sent.
+  like any other, and the confirmed row is in the check's map, so a later trip removes it too
+  (safety review 81c). At End this step after a failed row, the rows on these aims that no passing
+  page check has judged yet are emptied (`not_vouched_for_by_the_page_check`) and read again after
+  the new aims; rows a passing check judged stay. Nothing new is sent.
 * **Not judged** (said in the logs): no expected colours, fewer than two complete neighbouring rows,
   rows whose neighbours differ by less than 12 dE76.
 * **Measured** on the owner's real pages (25 and 26 Nov 2026, four pages; numbers only, kept

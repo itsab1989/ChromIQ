@@ -431,3 +431,95 @@ def test_p12_a_lamp_pass_kept_on_its_own_goes_when_its_page_trips(tmp_path):
     first = [r for r in _records(job) if r["row"] == 1]
     assert first and all(r["accepted"] == [] and not r.get("m0_only") for r in first)
     assert any(r.get("dropped_later") == idn.REASON_PAGE for r in first)
+
+
+# ---- safety review 81c ----------------------------------------------------------------------------
+
+def _turned(laid):
+    """An unusual print: the same sheet with its colour channels turned (the identity check asks
+    at the first row; the person says it is the right sheet)."""
+    out = B.Laid(laid.pixels[..., [1, 2, 0]].copy(), laid.w, laid.h)
+    return out
+
+
+@pytest.mark.parametrize("layout, kind", [("standard", "strip"), ("standard", "spot"),
+                                          ("compact", "spot")])
+@pytest.mark.parametrize("across", [3.0, 3.5])
+def test_81c_f1_a_row_confirmed_at_the_identity_question_goes_with_a_trip(tmp_path, layout,
+                                                                           kind, across):
+    ch = B.build_chart(tmp_path, count=192, **(COMPACT if layout == "compact" else {}))
+    bed = B.Bed(_turned(ch.laid()), shift_mm=(0.0, across))
+    job, sim, helper, run = B.bed_job(tmp_path, ch, bed, ask_after_each_step=False,
+                                      aims=B.Bed(ch.laid()).aims(ch.sheet))
+    assert job.set_options(SPOT if kind == "spot" else STRIP).ok
+    p = H.Person(job, sim, {J.Confirm.ROW_FAILED: "stop", J.Confirm.ROW_FAILED_STRIP: "stop",
+                            J.Confirm.ROW_IDENTITY: "right"})
+    p.events = []
+    job.on_progress = p.events.append
+    ready_to_read(job, p)
+    _read_whole_page(job, p)
+    assert _asked(p, J.Confirm.ROW_IDENTITY), "the unusual print is asked about"
+    assert [a for r in _records(job) for a in r["accepted"]] == []
+
+
+def _fail_row(monkeypatch, at_row):
+    """The row placement check refuses row *at_row* (1-based) of the page, as a real refusal."""
+    from workflow.i1io.table import strip as stp
+    real = stp.cut_row
+    n = {"k": 0}
+
+    def cut(*a, **k):
+        n["k"] += 1
+        if n["k"] == at_row:
+            return stp.Cut(False, stp.PLACEMENT_REASON)
+        return real(*a, **k)
+    monkeypatch.setattr(stp, "cut_row", cut)
+
+
+def test_81c_f2_end_after_a_failure_empties_the_rows_no_check_vouched_for(tmp_path, monkeypatch):
+    """Row 1 read alone (too few rows for the check), row 2 refused by the placement check, End
+    this step: row 1 goes too, and is read again after the new aims."""
+    job, sim, helper, p, ch, bed = _job(tmp_path, "standard", "strip", (0.0, 0.0),
+                                        script={J.Confirm.ROW_FAILED_STRIP: "stop"})
+    _fail_row(monkeypatch, 2)
+    _read_whole_page(job, p)
+    recs = _records(job)
+    assert [a for r in recs for a in r["accepted"]] == []
+    assert any(r.get("dropped_later") == J.UNVOUCHED for r in recs)
+    assert 0 not in job.row_status.get(0, {})
+
+
+def test_81c_f2_rows_a_passing_check_judged_stay(tmp_path, monkeypatch):
+    """Rows 1 to 3 read and judged by the check (passing), row 4 refused by the placement check,
+    End this step: rows 1 to 3 stay as read."""
+    job, sim, helper, p, ch, bed = _job(tmp_path, "standard", "strip", (0.0, 0.0),
+                                        script={J.Confirm.ROW_FAILED_STRIP: "stop"})
+    _fail_row(monkeypatch, 4)
+    _read_whole_page(job, p)
+    kept = {r["row"] for r in _records(job) if r["accepted"]}
+    assert kept == {1, 2, 3}
+    assert {job.row_status[0][k] for k in (0, 1, 2)} == {"read"}
+
+
+def test_81c_p12_a_lamp_pass_on_refused_aims_is_not_kept(tmp_path):
+    """The keep-the-lamp-pass path honours the refused aims ("beside") as the row itself does."""
+    job, sim, helper, p, ch, bed = _job(tmp_path, "standard", "dual", (0.0, 0.0), count=100)
+    assert p.drive(job.read_row()).ok
+    job._aims_refused.add(0)                          # the check refused these aims
+    helper.faults["scan"] = {"uv_not_ready": True}
+    p.drive(job.read_row())
+    rec = [r for r in _records(job) if r["row"] == 2][-1]
+    assert rec["accepted"] == [] and not rec.get("m0_only")
+
+
+def test_81c_p4b_new_aims_forget_the_old_readings_without_a_homing_in_between(tmp_path):
+    """The aims' own reset (not only the homing's): readings, the refused flag and the vouched
+    rows of earlier aims are gone the moment new aims are taken."""
+    job, sim, helper, p, ch, bed = _job(tmp_path, "standard", "strip", (0.0, 0.0))
+    assert p.drive(job.read_row()).ok and p.drive(job.read_row()).ok
+    assert p.drive(job.home()).ok
+    job._aim_readings[(0, 7)] = {"X1": (50.0, 0.0, 0.0)}
+    job._aims_refused.add(0)
+    job._aim_vouched.add((0, 7))
+    assert p.drive(job.align()).ok
+    assert job._aim_readings == {} and 0 not in job._aims_refused and job._aim_vouched == set()

@@ -152,12 +152,16 @@ def test_a_refused_row_and_end_this_step(tmp_path, kind):
     bed.shift_mm = (11.0, 0.0)
     res = p.drive(job.read_row())
     assert res.kind == J.Kind.REFUSED and res.reason == "stopped_after_a_failed_row"
-    assert job.needs_aims() and job.rows_left()[0] == 2
+    # (4.3.69, safety review 81c F2: row 1, read alone before the page blend check could judge
+    # it, goes with the End and is read again after the new aims, before row 2)
+    assert job.needs_aims() and job.rows_left()[0] == 1
     n = len(sim.received)
     assert p.drive(job.read_row()).reason == "needs_alignment" and not _moves(sim, n)
     assert p.drive(job.home()).ok
     sim.aims = bed.aims(ch.sheet)
     assert p.drive(job.align()).ok
+    res = p.drive(job.read_row())
+    assert res.detail["row"] == 1 and res.detail["status"] == "read"
     res = p.drive(job.read_row())
     assert res.detail["row"] == 2 and res.detail["status"] == "read"
     got, want = _kept(job), B.values_of(ch)

@@ -178,23 +178,20 @@ def test_every_finished_row_stays_and_the_next_start_reads_only_the_unread(tmp_p
     _offset_on(helper, 1)
     r = p.drive(job.read_row())
     assert seen == [stp.PLACEMENT_REASON] and not r.ok
-    # row 1 is on disk, row 2 is not
+    # 4.3.69 (safety review 81c, F2): row 1 was read alone, before the page blend check could
+    # judge it; the End after row 2's refusal empties it too (it may lie as row 2 did), so
+    # nothing of this sitting is kept, and the next START reads both rows
     recs = {(x["row"], x["attempt"]): x for x in _records(job)}
-    assert recs[(1, 1)]["status"] == "read" and recs[(2, 1)]["status"] == "failed"
-    assert len(list(job.diag.folder.rglob(recs[(1, 1)]["reader_ti3"]))) == 1
-    assert recs[(2, 1)]["reader_ti3"] is None and recs[(2, 1)]["accepted"] == []
-    # the next START completes it, reading only row 2
+    assert recs[(1, 1)]["accepted"] == [] and recs[(1, 1)]["dropped_later"] == J.UNVOUCHED
+    assert recs[(2, 1)]["status"] == "failed" and recs[(2, 1)]["accepted"] == []
     job2, sim2, helper2, p2 = job_on(run, tmp_path / "second", stamp=SECOND,
                                      faults={"scan": dict(CLEAN)})
-    found = job2.earlier_sessions()
-    assert [(e["stamp"], e["state"], e["accepted"]) for e in found] == \
-        [(RS.STAMP, "interrupted", 4)]
-    assert job2.adopt_earlier(RS.STAMP).ok
+    assert all(e["accepted"] == 0 for e in job2.earlier_sessions())
     assert job2.set_options(STRIP).ok
     ready_to_read(job2, p2)
     res = read_page(job2, p2)
-    assert [x.detail["status"] for x in res] == ["nothing_to_read", "read"]
-    assert sum(1 for ln in sim2.received if ln.startswith(";m2")) == 1
+    assert [x.detail["status"] for x in res] == ["read", "read"]
+    assert sum(1 for ln in sim2.received if ln.startswith(";m2")) == 2
     e, st = _end(job2, p2, "save")
     assert st["state"] == "complete" and e.ok
     assert _spectra(run.measurement_ti3) == want

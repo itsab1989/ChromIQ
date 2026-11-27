@@ -246,6 +246,9 @@ JUDGING_SUFFIX = ".judging"
 #: So a row refused by the pairing keeps NOTHING, its lamp pass included; the person reads it again
 #: as after any failed row. No right row on record was ever refused by the pairing (44 of 44).
 PAIRING_REASONS = ("uv_pass_wrong_strip", "uv_pass_no_uv_light")
+#: safety review 81c, F2: the reason a row read on the present aims is emptied when the step ends
+#: after a failed row before any passing page check judged it (it is read again after new aims)
+UNVOUCHED = "not_vouched_for_by_the_page_check"
 
 
 def _files_in(folder) -> "set[Path]":
@@ -1074,6 +1077,9 @@ class TableJob:
         #: later row read on them is dropped WITHOUT being judged, until the homing gives the aims
         #: up (a row read again just under the limit, or cut short, is never kept on them)
         self._aims_refused: "set[int]" = set()
+        #: safety review 81c, F2: the rows (page, row) a PASSING page check has judged on the
+        #: present aims; emptied with _aim_readings
+        self._aim_vouched: "set[tuple[int, int]]" = set()
         self.front_need: "int | None" = None
         #: 4.3.50: the alignment whose front question was answered "go on" (its creep asks no
         #: GO and no first visit before its first step); None: none
@@ -3598,6 +3604,7 @@ class TableJob:
         self.arrived = []
         self.alignment = None
         self._aim_readings = {}
+        self._aim_vouched = set()
         self._aims_refused = set()
         self.aims_void = False
         self.front_need = None
@@ -3715,6 +3722,7 @@ class TableJob:
         self.alignment = al
         self.aims_void = False
         self._aim_readings = {}
+        self._aim_vouched = set()
         self._aims_refused.discard(self.page)
         self.colours_refused.discard(self.page)
         fit = page_fit(sheet, self.page, al)
@@ -5371,6 +5379,9 @@ class TableJob:
                 self.row_status[self.page].pop(plan.index)
                 self.rows_again[self.page] = self.rows_again.get(self.page, 0) + 1
                 self._grant_for_row(plan)
+            # safety review 81c, F2: the rows on these aims that no passing page check has
+            # judged go too; they are read again after the new aims
+            self._drop_unvouched_rows(plan)
             raise PersonStopped("stopped_after_a_failed_row", row=plan.index + 1)
         out = {"row": plan.index + 1, "page": self.page + 1, "status": rec["status"],
                "read": len(rec["accepted"]), "patches": len(plan.patches),
@@ -6364,6 +6375,10 @@ class TableJob:
                        verdict=v["verdict"], what=text, **{
                            k: rec["identity"][k] for k in ("own", "shifted", "shift", "other",
                                                            "why")})
+        if verdict == "ask" and lab:
+            # safety review 81c, F1: a row the person may confirm at the identity question is in
+            # the page check's map too, so a later trip on these aims removes it with the others
+            self._aim_readings[(plan.page, plan.index)] = dict(lab)
         if verdict in ("shifted", "ask"):
             return verdict
         return self._judge_page(plan, rec, lab, expected)
@@ -6396,6 +6411,9 @@ class TableJob:
         if v["beside"]:
             self._aims_refused.add(plan.page)
             return "beside"
+        if v["judged"]:
+            # safety review 81c, F2: every row this passing check judged is vouched for
+            self._aim_vouched |= {(plan.page, r) for r in rows}
         return None
 
     def _ask_row_identity(self, plan, rec: dict):
@@ -6495,6 +6513,38 @@ class TableJob:
                            earlier=len(earlier))
         except Exception:      # noqa: BLE001 - the preview's matter
             pass
+
+    def _drop_unvouched_rows(self, plan) -> None:
+        """Safety review 81c, F2: End this step after a failed row: every other row of this page
+        read on the present aims that no passing page check has judged (too few rows to judge
+        yet, or a row confirmed at the identity question) is emptied, and read again after the new
+        aims. Rows a passing check judged stay. Never raises."""
+        folder = getattr(self.diag, "folder", None)
+        rows = sorted(r for (pg, r) in self._aim_readings
+                      if pg == plan.page and r != plan.index
+                      and (pg, r) not in self._aim_vouched
+                      and self.row_status.get(pg, {}).get(r) == "read")
+        for r in rows:
+            try:
+                kept = (empty_row_records(folder, plan.page + 1, r + 1, UNVOUCHED,
+                                          self.diag.log) if folder is not None else [])
+                self.row_status.setdefault(plan.page, {}).pop(r, None)
+                self.row_speed_marks.pop((plan.page, r), None)
+                self._aim_readings.pop((plan.page, r), None)
+                self.diag.log("DATA", f"row {r + 1} of page {plan.page + 1}: the step ended after "
+                                      "a failed row before the page check could judge it; none "
+                                      f"of its {len(kept)} readings is kept, it is read again "
+                                      "after the new aims")
+                self._progress(event="row_dropped", row=r + 1, why=UNVOUCHED, locs=kept,
+                               earlier=len(kept))
+            except Exception:      # noqa: BLE001 - the next row's record says it again
+                pass
+        if rows and self.run is not None and self.stamp is not None:
+            try:
+                out = Path(self.run.i1io_table_measurement(self.stamp))
+                _unlink([out, *_files_in(out.parent / "conditions")])
+            except (OSError, ValueError):
+                pass
 
     def _drop_page_rows_on_these_aims(self, plan, reason: str) -> None:
         """4.3.69 (item 76): the page blend check found the sheet across from where it was aimed:
