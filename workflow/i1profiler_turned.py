@@ -1684,6 +1684,21 @@ def turned_grid_verdict(ti3_path: "str | Path",
         grid = i1p_grid_of(ti3_path)
     if grid is None:
         return "", None
+    if getattr(order, "kind", "") == "isis" and int(order.pages or 1) > 1:
+        # AN i1iSis CHART OF SEVERAL PAGES (the i1iSis Beta): its grid is C
+        # columns and R rows a page on P pages, and its places run page by
+        # page, which the handheld rule below does not know. The import
+        # judged the places and the colours (`isis.import_pages`); here the
+        # grid only, so that no door files it on another grid.
+        from workflow.isis.import_pages import FileGrid, grid_differs
+        if grid_differs(FileGrid(grid.columns, grid.rows, grid.pages, ()),
+                        int(order.rows), int(order.columns),
+                        int(order.pages)):
+            from workflow.measurement_messages import isis_pages_grid_reason
+            return isis_pages_grid_reason(
+                order.columns, order.rows, order.pages, grid.columns,
+                grid.rows, grid.pages), None
+        return "", None
     if grid.pages > 1 and grid.columns == order.columns:
         # The Locations are the only evidence of where each entry sat; the
         # converted file keeps how many were in their cell, the rows counted

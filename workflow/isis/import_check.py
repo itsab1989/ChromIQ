@@ -121,6 +121,13 @@ def _rising(x: np.ndarray, y: np.ndarray) -> np.ndarray:
 def _misfit(E: np.ndarray, M: np.ndarray) -> float:
     """How far readings *M* are from what a plausible printer makes of the
     expected colours *E* (root mean square of L*, a*, b* together)."""
+    return float(np.sqrt(_residuals(E, M).mean()))
+
+
+def _residuals(E: np.ndarray, M: np.ndarray) -> np.ndarray:
+    """Each reading's squared distance (L*, a*, b* together) from what the
+    one plausible printer fitted to ALL of *E* and *M* makes of its expected
+    colour (:func:`_misfit` is the root of their mean)."""
     l_res = M[:, 0] - _rising(E[:, 0], M[:, 0])
     e = E[:, 1] + 1j * E[:, 2]
     m = M[:, 1] + 1j * M[:, 2]
@@ -130,7 +137,7 @@ def _misfit(E: np.ndarray, M: np.ndarray) -> float:
     ang = float(np.clip(np.angle(k), -0.45, 0.45))
     gain = float(np.clip(abs(k) * np.cos(np.angle(k) - ang), 0.3, 1.4))
     ab = m - gain * np.exp(1j * ang) * e
-    return float(np.sqrt((l_res ** 2 + np.abs(ab) ** 2).mean()))
+    return l_res ** 2 + np.abs(ab) ** 2
 
 
 def compare(E, M, rows: int, cols: int) -> Verdict:

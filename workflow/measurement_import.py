@@ -360,28 +360,34 @@ def assess(ti3: Path, chart_ti2: "Path | None",
             # and only the rest of the rows is missing. §I.14 pairs a COMPLETE
             # turned measurement only; that rule is unchanged here, the
             # refusal just gives its true reason now.
-            partial_reason = (
-                _isis_partial_reason
-                if getattr(turned.order, "kind", "") == "isis"
-                else _turned_partial_reason)
-            return ImportVerdict(False, partial_reason(
-                n_got, len(turned.order.sample_ids)),
-                n_chart=n_chart or 0, n_measured=n_got)
+            if getattr(turned.order, "kind", "") == "isis":
+                ids = [str(s).strip('"') for s in measured.sample_ids or ()]
+                why = _isis_partial_reason_of(
+                    turned.order, [int(s) - 1 for s in ids])
+            else:
+                why = _turned_partial_reason(
+                    n_got, len(turned.order.sample_ids))
+            return ImportVerdict(False, why,
+                                 n_chart=n_chart or 0, n_measured=n_got)
         if turned.applies and turned.ambiguous:
             # MORE THAN ONE ORDER FITS, AND THEY DISAGREE (review 4.3.18 r1,
             # SF-1): the chart repeats its colours so that this file agrees
             # with the order in force AND with an earlier one ChromIQ wrote
             # for the same chart, each putting readings on other patches.
-            return ImportVerdict(False, turned_ambiguous_reason(),
+            return ImportVerdict(False, _isis_or(
+                turned.order, turned_ambiguous_reason),
                                  n_chart=n_chart or 0, n_measured=n_got)
         if (turned.applies and turned.verified
                 and getattr(turned.order, "kind", "") == "isis"
                 and int(getattr(turned.order, "pages", 1) or 1) > 1):
-            # AN i1iSis CHART OF SEVERAL PAGES (a Beta, stage 1): measuring
-            # it in i1Profiler works, bringing it back needs a later version
-            # (the pages' places are not read yet). Said, never guessed.
-            return ImportVerdict(False, _isis_pages_reason(turned.order),
-                                 n_chart=n_chart or 0, n_measured=n_got)
+            # AN i1iSis CHART OF SEVERAL PAGES (the i1iSis Beta): paired by
+            # position through the order as one page is, and filed only when
+            # i1Profiler's grid, its places and the colours of every page say
+            # the pages went in as printed (`isis.import_pages`).
+            ids = [str(s).strip('"') for s in measured.sample_ids or ()]
+            return _isis_several_pages(
+                ti3, measured, [int(s) - 1 for s in ids], turned.order,
+                chart_ti2, source, n_chart or 0, n_got, randomised=True)
         if turned.applies and turned.verified:
             # …AND ONLY WHEN i1PROFILER LAID IT OUT ON THE GRID THE .TXF ASKS
             # FOR (4.3.19). The device values repeat the patch list whatever
@@ -412,6 +418,10 @@ def assess(ti3: Path, chart_ti2: "Path | None",
         if turned.applies:
             log.info("import: not the turned order either (%d of %d patches "
                      "differ)", turned.mismatched, turned.compared)
+        form = _isis_numbered_page_by_page(measured, chart_ti2)
+        if form:
+            return ImportVerdict(False, form, n_chart=n_chart or 0,
+                                 n_measured=n_got)
         return ImportVerdict(False, identity.get("reason") or tr(
             "the measured colours do not agree with the chart's patches"),
             n_chart=n_chart or 0, n_measured=n_got)
@@ -436,7 +446,8 @@ def assess(ti3: Path, chart_ti2: "Path | None",
                 and not read_from_the_sheet_as_printed(ti3)):
             turned = turned_match(measured, chart_ti2)
             if fits_straight_and_turned(measured, turned):
-                return ImportVerdict(False, straight_or_turned_reason(),
+                return ImportVerdict(False, _isis_or(
+                    turned.order, straight_or_turned_reason),
                                      n_chart=n_chart or 0, n_measured=n_got)
         # AN i1iSis CHART THAT IS NOT RANDOMISED (a Beta, item 63). Its order
         # is the chart's own numbering, so the check by SAMPLE_ID above passes
@@ -635,12 +646,93 @@ def _isis_partial_reason(got: int, total: int) -> str:
     return isis_partial_reason(got, total)
 
 
-def _isis_pages_reason(order) -> str:
-    return tr(
-        "this file is a measurement of an i1iSis chart with {pages} "
-        "pages. Bringing a measurement of several pages back into "
-        "ChromIQ needs a later version of ChromIQ; the measurement "
-        "itself is fine, so keep the file").format(pages=int(order.pages))
+def _isis_or(order, reason) -> str:
+    """M-IMPORT-ISIS-ORDER-UNKNOWN for an i1iSis chart whose readings fit
+    its patches in more than one order (a randomised chart that repeats its
+    colours, one colour above all); *reason*() for any other chart. The
+    turned chart's sentences ("measure this sheet in ChromIQ") are not true
+    of an i1iSis, which ChromIQ cannot drive."""
+    if getattr(order, "kind", "") == "isis":
+        log.info("import: the readings fit this i1iSis chart in more than "
+                 "one order; refused")
+        from workflow.measurement_messages import isis_order_unknown_reason
+        return isis_order_unknown_reason()
+    return reason()
+
+
+def _isis_partial_reason_of(order, entries) -> str:
+    """Why an i1iSis file that holds only some of the chart's entries
+    (*entries*, 0-based, each once) is refused: the pages it lacks when it
+    holds whole pages only, else how many patches it holds."""
+    n = len(order.sample_ids)
+    pages = int(getattr(order, "pages", 1) or 1)
+    if pages > 1 and order.rows > 0 and order.columns > 0:
+        from workflow.isis.import_pages import pages_held
+        held = pages_held(entries, n, int(order.rows), int(order.columns),
+                          pages)
+        if held is not None and held[1] and held[0]:
+            from workflow.measurement_messages import \
+                isis_pages_missing_reason
+            return isis_pages_missing_reason(len(held[0]), pages, held[1])
+    return _isis_partial_reason(len(set(entries)), n)
+
+
+def _isis_numbered_page_by_page(measured, chart_ti2, order=None) -> str:
+    """M-IMPORT-ISIS-PAGES-FORM when *measured* numbers its patches 1 ..
+    C x R on every page again (a form of i1Profiler's several-page file not
+    on record: it is not filed by position); "" otherwise. Only for an
+    i1iSis chart of several pages, while the Beta is on."""
+    if chart_ti2 is None or not _made_by_the_isis_beta(chart_ti2):
+        return ""
+    if order is None:
+        order = _isis_order_for(chart_ti2)
+    pages = int(getattr(order, "pages", 1) or 1) if order else 1
+    if pages < 2 or order.rows <= 0 or order.columns <= 0:
+        return ""
+    from workflow.isis.import_pages import numbered_page_by_page
+    if not numbered_page_by_page(measured.sample_ids or (),
+                                 len(order.sample_ids), int(order.rows),
+                                 int(order.columns), pages):
+        return ""
+    log.info("import: the i1iSis measurement numbers its patches page by "
+             "page; ChromIQ's .txf does not predict that form, so it is "
+             "refused")
+    from workflow.measurement_messages import isis_pages_form_reason
+    return isis_pages_form_reason(pages)
+
+
+def _isis_several_pages(ti3: Path, measured, at, order, chart_ti2,
+                        source, n_chart: int, n_got: int,
+                        randomised: bool) -> ImportVerdict:
+    """The verdict on a COMPLETE i1iSis measurement of a chart of several
+    pages whose row i is entry ``at[i]`` (`isis.import_pages.check`)."""
+    from workflow import measurement_messages as MM
+    from workflow.isis import import_check as IC
+    from workflow.isis import import_pages as IP
+
+    def refuse(reason: str) -> ImportVerdict:
+        return ImportVerdict(False, reason, n_chart=n_chart,
+                             n_measured=n_got)
+    v = IP.check(ti3, measured, at, order, chart_ti2, source, randomised)
+    if v.verdict == IC.WRONG:
+        if v.why == "pages":
+            return refuse(MM.isis_pages_mixed_reason(v.page, v.other))
+        if v.why == "grid":
+            fg = IP.grid_of_source(source)
+            if fg is None:
+                from workflow.reference_convert import i1p_grid_of
+                fg = i1p_grid_of(ti3)
+            return refuse(MM.isis_pages_grid_reason(
+                order.columns, order.rows, order.pages,
+                getattr(fg, "columns", "?"), getattr(fg, "rows", "?"),
+                getattr(fg, "pages", 0)))
+        if v.why == "places":
+            return refuse(MM.isis_pages_form_reason(int(order.pages)))
+        return refuse(MM.isis_colours_reason())
+    return ImportVerdict(
+        True, "", n_chart=n_chart, n_measured=n_got,
+        turned_order=randomised,
+        isis_ask_why=v.why if v.verdict == IC.CANNOT else "")
 
 
 def _isis_source_grid(ti3: Path, source: "Path | None"):
@@ -702,8 +794,6 @@ def _isis_same_order(ti3: Path, measured, chart_ti2: Path,
     n = len(order.sample_ids)
     if list(order.sample_ids) != [str(i + 1) for i in range(n)]:
         return None                  # randomised: the branches above judged it
-    if int(order.pages or 1) > 1:
-        return refuse(_isis_pages_reason(order))
     # EVERY ENTRY ONCE (§I.14, as for a randomised chart). i1Profiler numbers
     # its entries 1..N; a file whose ids are none of these was compared by
     # position, and is judged by position here too.
@@ -711,10 +801,20 @@ def _isis_same_order(ti3: Path, measured, chart_ti2: Path,
     ids = [str(s).strip('"') for s in (measured.sample_ids or [])]
     at = [numbers[s] for s in ids if s in numbers]
     by_number = sorted(at) == list(range(n)) and len(ids) == n
+    if not by_number:
+        form = _isis_numbered_page_by_page(measured, chart_ti2, order)
+        if form:
+            return refuse(form)
     if not by_number and (at or n_got != n):
+        if len(set(at)) == len(at):
+            return refuse(_isis_partial_reason_of(order, at))
         return refuse(_isis_partial_reason(len(set(at)), n))
     if not by_number:
         at = list(range(n))
+    if int(order.pages or 1) > 1:
+        # SEVERAL PAGES (the i1iSis Beta): the checks of `isis.import_pages`.
+        return _isis_several_pages(ti3, measured, at, order, chart_ti2,
+                                   source, n_chart, n_got, randomised=False)
     from workflow.i1profiler_turned import grid_mismatch
     why = grid_mismatch(ti3, order, chart_ti2,
                         grid=_isis_source_grid(ti3, source))
