@@ -571,9 +571,10 @@ def only_you_can_confirm_the_chart(parent, verdict, chart: "Path | None") -> boo
     from workflow import measurement_messages as M
     if getattr(verdict, "isis_ask_why", ""):
         # An i1iSis chart that is not randomised, whose colours cannot show
-        # how the sheet was fed (item 63): the same kind of question.
-        title, body = M.M_IMPORT_ISIS_CANNOT_CHECK.render(
-            **M.isis_cannot_check_kw(verdict.isis_ask_why))
+        # how the sheet was fed (item 63), or whose pages cannot be told
+        # apart (several pages): the same kind of question.
+        message, kw = M.isis_question(verdict.isis_ask_why)
+        title, body = message.render(**kw)
     else:
         title, body = M.M_IMPORT_DEVICE_FROM_CHART.render(
             count=int(getattr(verdict, "n_measured", 0) or 0),

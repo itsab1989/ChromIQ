@@ -134,10 +134,41 @@ device i1Profiler writes. RGB charts only for the `.txf` in this version.
 ### On: Measure and import
 
 Start shows M-ISIS-NOT-YET before anything is armed: the i1Profiler steps, the
-grid to check, the cut instruction, and for several pages that bringing them
-back needs a later version. Import Measurement pairs a one-page measurement
-through the order file (by position, checked by the device values); a
-measurement of several pages is refused with a sentence saying so.
+grid to check, the cut instruction, and for several pages that they are
+measured in one go, in the order of their page numbers, and saved as one
+measurement. Import Measurement pairs a measurement through the order file (by
+position, checked by the device values).
+
+*(2026-11-27, part 1 of the i1iSis pieces work, awaiting confirmation)* A
+measurement of SEVERAL pages is brought back (until 4.3.67 it was refused,
+"needs a later version"), paired by position as one page is: entry j is on
+page j // (columns x rows). It is filed only when, randomised or not:
+
+* every patch is in it once; a file that holds some pages whole names the
+  missing ones (M-IMPORT-ISIS-PAGES-MISSING), part of a page is counted
+  (M-IMPORT-ISIS-PARTIAL);
+* i1Profiler's grid, when the file records it, is the test chart's columns
+  and rows a page on its pages (M-IMPORT-ISIS-PAGES-GRID); "0 pages" says
+  nothing about the pages;
+* its places, when it records them, run page by page as ChromIQ's test chart
+  writes them (the columns of each page from 0 or counted on). No i1iSis
+  measurement of several pages is on record, so any other form (and a file
+  that numbers its patches again on every page) is refused and the file asked
+  for (M-IMPORT-ISIS-PAGES-FORM); places in another form are taken only when
+  the colours clear every page by themselves;
+* the colours: every page by the one-page judge, and the whole chart against
+  every way the pages can go in wrongly (two swapped, one twice, another
+  order). One that fits clearly better is refused and named
+  (M-IMPORT-ISIS-PAGES-MIXED); a page that does not fit its own patches is
+  refused (M-IMPORT-ISIS-COLOURS). Where the pages look alike the person is
+  asked, Cancel the default (M-IMPORT-ISIS-PAGES-CANNOT-CHECK); a single page
+  of a chart that is not randomised that cannot be checked asks
+  M-IMPORT-ISIS-CANNOT-CHECK, as one page does; on a randomised chart such a
+  page is filed as one page is.
+
+Unproven: no i1iSis measurement of several pages is on record, so the form
+i1Profiler writes is assumed only as far as its own saved test chart shows it
+(columns and rows a page, the pages).
 
 *(2026-11-25, item 63, awaiting confirmation)* Randomise does not decide
 whether a measurement is checked. Pages, every patch once, i1Profiler's grid

@@ -169,7 +169,10 @@ def test_the_charts_are_what_the_fault_needs(charts):
 # ---- several pages ---------------------------------------------------------
 
 @pytest.mark.parametrize("case", ["right", "swapped", "twice", "missing"])
-def test_several_pages_are_refused_in_words(charts, tmp_path, case):
+def test_several_pages_are_judged_page_by_page(charts, tmp_path, case):
+    """4.3.67 refused every one ("needs a later version"); part 1 of the
+    i1iSis pieces work brings them back (`isis.import_pages`), and the two
+    cases of the study stay refused, now for what they are."""
     c = charts("pages")
     k = c.R * c.C
     f = {"right": lambda j: j, "missing": lambda j: j,
@@ -179,7 +182,12 @@ def test_several_pages_are_refused_in_words(charts, tmp_path, case):
     keep = (lambda j: j < k) if case == "missing" else None
     v = _assess(c.measure(tmp_path / "m.ti3", map(f, range(c.n)), keep=keep),
                 c)
-    assert not v.ok and "i1iSis chart with 2 pages" in v.reason, v.reason
+    if case == "right":
+        assert v.ok and not v.isis_ask_why, v.reason
+    elif case == "missing":
+        assert not v.ok and "page 2 is not in it" in v.reason, v.reason
+    else:
+        assert not v.ok and "another order" in v.reason, v.reason
 
 
 # ---- one page, read wrongly --------------------------------------------------
@@ -423,9 +431,11 @@ def test_an_order_file_with_the_wrong_page_count_is_not_believed(
     if not side:
         (tmp_path / "copy" / "c.isis.json").unlink()
     v = assess(c.measure(tmp_path / "m.ti3"), ti2)
-    assert not v.ok
+    # with the side file the order is worked out again: right, filed; without
+    # it nothing says what the order file should say: refused
+    assert v.ok is side, v.reason
     if side:
-        assert "i1iSis chart with 2 pages" in v.reason, v.reason
+        assert v.turned_order is randomize
 
 
 def test_an_order_file_that_says_another_grid_or_kind_is_not_believed(
@@ -445,10 +455,10 @@ def test_an_order_file_that_says_another_grid_or_kind_is_not_believed(
     p = charts("pages")
     ti2 = _order_doc(p, tmp_path / "k", kind)
     v = assess(p.measure(tmp_path / "m.ti3"), ti2)
-    assert not v.ok and "i1iSis chart with 2 pages" in v.reason, v.reason
+    assert v.ok, v.reason              # worked out again: two pages
 
 
-def test_several_pages_are_refused_without_the_order_file(charts, tmp_path):
+def test_several_pages_need_no_order_file(charts, tmp_path):
     import shutil
 
     from workflow.measurement_import import assess
@@ -456,7 +466,7 @@ def test_several_pages_are_refused_without_the_order_file(charts, tmp_path):
     shutil.copytree(c.folder, tmp_path / "c")
     shutil.rmtree(tmp_path / "c" / "exports")
     v = assess(c.measure(tmp_path / "m.ti3"), tmp_path / "c" / "c.ti2")
-    assert not v.ok and "i1iSis chart with 2 pages" in v.reason, v.reason
+    assert v.ok, v.reason
 
 
 def test_part_of_a_randomised_chart_says_so_truly(charts, tmp_path):
@@ -505,7 +515,9 @@ def test_a_randomised_chart_is_judged_as_before(charts, tmp_path):
     p = b.measure(tmp_path / "m.ti3", ids=lambda j: str(b.ids[j]))
     v = _assess(p, b)
     assert v.ok, v.reason                # as before: in the chart's own order
-    assert not _assess(b.measure(tmp_path / "n.ti3"), b).ok
+    # i1Profiler's order of two pages: brought back since the pieces work
+    v = _assess(b.measure(tmp_path / "n.ti3"), b)
+    assert v.ok and v.turned_order, v.reason
 
 
 def test_beta_off_and_other_instruments_are_untouched(charts, tmp_path):

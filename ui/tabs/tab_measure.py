@@ -19105,9 +19105,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if not why:
             return True
         from workflow import measurement_messages as M
-        if self._ask_import_question(M.M_IMPORT_ISIS_CANNOT_CHECK,
-                                     tr("Import"),
-                                     **M.isis_cannot_check_kw(why)):
+        message, kw = M.isis_question(why)
+        if self._ask_import_question(message, tr("Import"), **kw):
             return True
         self._log.appendPlainText("\n" + tr(
             "[INFO] The import was cancelled. Nothing has been changed."))

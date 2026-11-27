@@ -1764,6 +1764,129 @@ def isis_partial_reason(got: int, total: int) -> str:
     return tr(_ISIS_IMPORT_PARTIAL).format(got=got, total=total)
 
 
+# ---- an i1iSis measurement of a chart of several pages (part 1 of the i1iSis
+# pieces work, `workflow.isis.import_pages`) ---------------------------------
+
+#: Whole pages are missing: they are named. {missing}: "2" or "2 and 3".
+_ISIS_IMPORT_PAGES_MISSING_ONE = (
+    "this file holds the readings of {have} of the {pages} pages of this "
+    "i1iSis chart: page {missing} is not in it. ChromIQ can only bring an "
+    "i1iSis measurement back when every page has been measured. Measure all "
+    "pages in i1Profiler, save them as one measurement and import that file")
+_ISIS_IMPORT_PAGES_MISSING_MANY = (
+    "this file holds the readings of {have} of the {pages} pages of this "
+    "i1iSis chart: pages {missing} are not in it. ChromIQ can only bring an "
+    "i1iSis measurement back when every page has been measured. Measure all "
+    "pages in i1Profiler, save them as one measurement and import that file")
+M_IMPORT_ISIS_PAGES_MISSING = _m(
+    "M-IMPORT-ISIS-PAGES-MISSING",
+    "An i1iSis measurement that lacks whole pages",
+    _ISIS_IMPORT_PAGES_MISSING_ONE + "\n" + _ISIS_IMPORT_PAGES_MISSING_MANY,
+    approved=False)
+
+
+def _and_list(numbers) -> str:
+    numbers = [str(n) for n in numbers]
+    if len(numbers) == 1:
+        return numbers[0]
+    return tr("{first} and {last}").format(first=", ".join(numbers[:-1]),
+                                            last=numbers[-1])
+
+
+def isis_pages_missing_reason(have: int, pages: int, missing) -> str:
+    missing = list(missing)
+    text = (_ISIS_IMPORT_PAGES_MISSING_ONE if len(missing) == 1
+            else _ISIS_IMPORT_PAGES_MISSING_MANY)
+    return tr(text).format(have=have, pages=pages,
+                           missing=_and_list(missing))
+
+
+#: A page holds the readings of another page (pages swapped, one page fed
+#: twice, the pages in another order).
+_ISIS_IMPORT_PAGES_MIXED = (
+    "the readings of page {page} in this file fit the patches of page "
+    "{other} of this i1iSis chart, not its own. The pages probably went "
+    "through the i1iSis in another order, or one page went through twice. "
+    "Feed every page once, in the order of its page number, bar end first "
+    "against the left guide, and measure again")
+M_IMPORT_ISIS_PAGES_MIXED = _m(
+    "M-IMPORT-ISIS-PAGES-MIXED",
+    "An i1iSis measurement whose pages are mixed up",
+    _ISIS_IMPORT_PAGES_MIXED,
+    approved=False)
+
+
+def isis_pages_mixed_reason(page: int, other: int) -> str:
+    return tr(_ISIS_IMPORT_PAGES_MIXED).format(page=page, other=other)
+
+
+#: A form of i1Profiler's several-page file that is not on record: the
+#: patches numbered again on every page, or places of another kind.
+_ISIS_IMPORT_PAGES_FORM = (
+    "this file is a measurement of an i1iSis chart with {pages} pages, but "
+    "it records the pages in a way ChromIQ has not seen from i1Profiler yet, "
+    "so ChromIQ cannot be sure which page each reading belongs to. Nothing "
+    "has been filed. Please send us this file on GitHub, so that ChromIQ can "
+    "learn to read it")
+M_IMPORT_ISIS_PAGES_FORM = _m(
+    "M-IMPORT-ISIS-PAGES-FORM",
+    "An i1iSis measurement of several pages in a form not seen yet",
+    _ISIS_IMPORT_PAGES_FORM,
+    approved=False)
+
+
+def isis_pages_form_reason(pages: int) -> str:
+    return tr(_ISIS_IMPORT_PAGES_FORM).format(pages=pages)
+
+
+#: i1Profiler laid the chart out on another grid than its test chart asks.
+_ISIS_IMPORT_PAGES_GRID = (
+    "i1Profiler laid this chart out on {got_cols} columns and {got_rows} "
+    "rows on {got_pages} pages, but the chart's i1Profiler test chart asks "
+    "for {cols} columns and {rows} rows on {pages} pages, so the readings "
+    "would sit on other patches. Load the test chart again, change nothing "
+    "on i1Profiler's Test Chart page, measure and import the new file")
+#: ...when the file does not say how many pages (NumberPatchPages "0").
+_ISIS_IMPORT_PAGES_GRID_NO_PAGES = (
+    "i1Profiler laid this chart out on {got_cols} columns and {got_rows} "
+    "rows a page, but the chart's i1Profiler test chart asks for {cols} "
+    "columns and {rows} rows on {pages} pages, so the readings would sit on "
+    "other patches. Load the test chart again, change nothing on "
+    "i1Profiler's Test Chart page, measure and import the new file")
+M_IMPORT_ISIS_PAGES_GRID = _m(
+    "M-IMPORT-ISIS-PAGES-GRID",
+    "An i1iSis measurement of several pages on another grid",
+    _ISIS_IMPORT_PAGES_GRID + "\n" + _ISIS_IMPORT_PAGES_GRID_NO_PAGES,
+    approved=False)
+
+
+def isis_pages_grid_reason(cols, rows, pages, got_cols, got_rows,
+                           got_pages) -> str:
+    text = (_ISIS_IMPORT_PAGES_GRID if got_pages
+            else _ISIS_IMPORT_PAGES_GRID_NO_PAGES)
+    return tr(text).format(cols=cols, rows=rows, pages=pages,
+                           got_cols=got_cols, got_rows=got_rows,
+                           got_pages=got_pages)
+
+
+#: The question when the pages of a measurement cannot be told apart by
+#: their colours. Cancel is the default.
+M_IMPORT_ISIS_PAGES_CANNOT_CHECK = _m(
+    "M-IMPORT-ISIS-PAGES-CANNOT-CHECK",
+    "ChromIQ cannot tell the pages of this measurement apart",
+    "i1Profiler copies the device values of its test chart into the "
+    "measurement, so they do not show in which order the pages went through "
+    "the i1iSis. ChromIQ normally sees that from the measured colours, but "
+    "the pages of this chart look so much alike that the readings of one "
+    "page could also belong to another.\n\n"
+    "ChromIQ has checked what it can: the test chart, the number of "
+    "readings, i1Profiler's grid if the file records it, and each page by "
+    "itself. The import is right only if every page went in once, in the "
+    "order of its page number, bar end first against the left guide.\n\n"
+    "Import the measurement?",
+    approved=False)
+
+
 #: The question when an i1iSis chart is not randomised and its colours cannot
 #: show how the sheet was fed (item 63, `workflow.isis.import_check`). Cancel
 #: is the default. {why}: one of the parts below.
@@ -1793,6 +1916,15 @@ M_IMPORT_ISIS_CANNOT_CHECK_PARTS = _m(
     "ChromIQ cannot check this sheet from its colours: the reasons (i1iSis)",
     "\n".join((_ISIS_WHY_WAY, _ISIS_WHY_WHOLE)),
     approved=False)
+
+
+def isis_question(why: str) -> "tuple":
+    """(message, placeholders) of the question an i1iSis import asks for
+    *why* (`ImportVerdict.isis_ask_why`): M-IMPORT-ISIS-PAGES-CANNOT-CHECK
+    when the pages cannot be told apart, else M-IMPORT-ISIS-CANNOT-CHECK."""
+    if why == "pages":
+        return M_IMPORT_ISIS_PAGES_CANNOT_CHECK, {}
+    return M_IMPORT_ISIS_CANNOT_CHECK, isis_cannot_check_kw(why)
 
 
 def isis_cannot_check_kw(why: str) -> dict:
@@ -1909,10 +2041,10 @@ _ISIS_NO_TXF_LOG = ("[WARNING] No i1Profiler test chart (.txf) was written "
                    "measure it with an i1iSis.")
 
 #: {multipage_note} of M-ISIS-NOT-YET for a chart of several pages (stage 1).
-M_ISIS_MULTIPAGE_NOTE = ("This chart has {pages} pages. Bringing a "
-                         "measurement of several pages back into ChromIQ "
-                         "needs a later version; measuring it in i1Profiler "
-                         "works today.\n")
+M_ISIS_MULTIPAGE_NOTE = ("This chart has {pages} pages. Measure all of "
+                         "them in one go in i1Profiler, in the order of their "
+                         "page numbers, and save them as one measurement: "
+                         "that one file is what ChromIQ brings back.\n")
 
 #: Start pressed on an X-Rite i1iSis chart while the Beta is off.
 _ISIS_SUPPORT_OFF_TEXT = (
@@ -16000,6 +16132,11 @@ CATALOGUE = {m.id: m for m in (
     M_IMPORT_I1IO_AIM_UNCHECKED,
     M_IMPORT_I1IO_FILED, M_IMPORT_ISIS_COLOURS, M_IMPORT_ISIS_FILES,
     M_IMPORT_ISIS_PARTIAL,
+    M_IMPORT_ISIS_PAGES_MISSING,
+    M_IMPORT_ISIS_PAGES_MIXED,
+    M_IMPORT_ISIS_PAGES_FORM,
+    M_IMPORT_ISIS_PAGES_GRID,
+    M_IMPORT_ISIS_PAGES_CANNOT_CHECK,
     M_IMPORT_ISIS_CANNOT_CHECK, M_IMPORT_ISIS_CANNOT_CHECK_PARTS,
     M_IMPORT_I1IO_REFUSED,
     M_I1IO_MEASURE_CHART_PAGES, M_I1IO_MEASURE_CHART_PAGES_PARTS,
