@@ -1769,8 +1769,8 @@ def isis_partial_reason(got: int, total: int) -> str:
 #: turned chart's measurement is, with a sentence that is true of an i1iSis
 #: (review of part 1 of the pieces work, S3). One page and several.
 _ISIS_IMPORT_ORDER_UNKNOWN = (
-    "the patches of this i1iSis chart repeat their colours so that the "
-    "readings fit them in more than one order, and the chart was laid out "
+    "some patches of this i1iSis chart have the same colour as others, so "
+    "the readings fit them in more than one order, and the chart was laid out "
     "with “Randomise patch order”, so ChromIQ cannot tell which patch each "
     "reading belongs to. Nothing has been filed. For a chart like this (an "
     "evenness chart, say), switch “Randomise patch order” off, make the chart "
@@ -1793,12 +1793,14 @@ def isis_order_unknown_reason() -> str:
 #: Whole pages are missing: they are named. {missing}: "2" or "2 and 3".
 _ISIS_IMPORT_PAGES_MISSING_ONE = (
     "this file holds the readings of {have} of the {pages} pages of this "
-    "i1iSis chart: page {missing} is not in it. ChromIQ can only bring an "
+    "i1iSis chart: page {missing} is not in it. Nothing has been filed. "
+    "ChromIQ can only bring an "
     "i1iSis measurement back when every page has been measured. Measure all "
     "pages in i1Profiler, save them as one measurement and import that file")
 _ISIS_IMPORT_PAGES_MISSING_MANY = (
     "this file holds the readings of {have} of the {pages} pages of this "
-    "i1iSis chart: pages {missing} are not in it. ChromIQ can only bring an "
+    "i1iSis chart: pages {missing} are not in it. Nothing has been filed. "
+    "ChromIQ can only bring an "
     "i1iSis measurement back when every page has been measured. Measure all "
     "pages in i1Profiler, save them as one measurement and import that file")
 M_IMPORT_ISIS_PAGES_MISSING = _m(
@@ -1828,9 +1830,10 @@ def isis_pages_missing_reason(have: int, pages: int, missing) -> str:
 #: twice, the pages in another order).
 _ISIS_IMPORT_PAGES_MIXED = (
     "the readings of page {page} in this file fit the patches of page "
-    "{other} of this i1iSis chart, not its own. The pages probably went "
-    "through the i1iSis in another order, or one page went through twice. "
-    "Feed every page once, in the order of its page number, bar end first "
+    "{other} of this i1iSis chart, not its own. Nothing has been filed. The "
+    "pages probably went through the i1iSis in another order, or one page "
+    "went through twice. Feed every page once, in the order of their page "
+    "numbers, bar end first "
     "against the left guide, and measure again")
 M_IMPORT_ISIS_PAGES_MIXED = _m(
     "M-IMPORT-ISIS-PAGES-MIXED",
@@ -1865,17 +1868,19 @@ def isis_pages_form_reason(pages: int) -> str:
 
 #: i1Profiler laid the chart out on another grid than its test chart asks.
 _ISIS_IMPORT_PAGES_GRID = (
-    "i1Profiler laid this chart out on {got_cols} columns and {got_rows} "
+    "i1Profiler laid this chart out as {got_cols} columns and {got_rows} "
     "rows on {got_pages} pages, but the chart's i1Profiler test chart asks "
     "for {cols} columns and {rows} rows on {pages} pages, so the readings "
-    "would sit on other patches. Load the test chart again, change nothing "
+    "would sit on other patches. Nothing has been filed. Load the test chart "
+    "again, change nothing "
     "on i1Profiler's Test Chart page, measure and import the new file")
 #: ...when the file does not say how many pages (NumberPatchPages "0").
 _ISIS_IMPORT_PAGES_GRID_NO_PAGES = (
-    "i1Profiler laid this chart out on {got_cols} columns and {got_rows} "
+    "i1Profiler laid this chart out as {got_cols} columns and {got_rows} "
     "rows a page, but the chart's i1Profiler test chart asks for {cols} "
-    "columns and {rows} rows on {pages} pages, so the readings would sit on "
-    "other patches. Load the test chart again, change nothing on "
+    "columns and {rows} rows a page, so the readings would sit on other "
+    "patches. Nothing has been filed. Load the test chart again, change "
+    "nothing on "
     "i1Profiler's Test Chart page, measure and import the new file")
 M_IMPORT_ISIS_PAGES_GRID = _m(
     "M-IMPORT-ISIS-PAGES-GRID",
@@ -1906,7 +1911,7 @@ M_IMPORT_ISIS_PAGES_CANNOT_CHECK = _m(
     "ChromIQ has checked what it can: the test chart, the number of "
     "readings, i1Profiler's grid if the file records it, and each page by "
     "itself. The import is right only if every page went in once, in the "
-    "order of its page number, bar end first against the left guide.\n\n"
+    "order of their page numbers, bar end first against the left guide.\n\n"
     "Import the measurement?",
     approved=False)
 

@@ -494,7 +494,7 @@ def test_the_pages_question_at_the_filing_doors(qapp, monkeypatch, go):
     v = ImportVerdict(True, isis_ask_why="pages")
     assert MF.only_you_can_confirm_the_chart(None, v, None) is go
     assert said[0][0] == "ChromIQ cannot tell the pages of this measurement apart"
-    assert "order of its page number" in said[0][1] and "{" not in said[0][1]
+    assert "order of their page numbers" in said[0][1] and "{" not in said[0][1]
     assert said[0][2].replace("&", "") == "Cancel"
 
 

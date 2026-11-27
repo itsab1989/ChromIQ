@@ -4855,7 +4855,7 @@ jobs, which is allowed and should be.*
 
 > **An i1iSis measurement whose readings fit more than one order**
 >
-> the patches of this i1iSis chart repeat their colours so that the readings fit them in more than one order, and the chart was laid out with “Randomise patch order”, so ChromIQ cannot tell which patch each reading belongs to. Nothing has been filed. For a chart like this (an evenness chart, say), switch “Randomise patch order” off, make the chart again, print it and measure it: then ChromIQ can bring the measurement back
+> some patches of this i1iSis chart have the same colour as others, so the readings fit them in more than one order, and the chart was laid out with “Randomise patch order”, so ChromIQ cannot tell which patch each reading belongs to. Nothing has been filed. For a chart like this (an evenness chart, say), switch “Randomise patch order” off, make the chart again, print it and measure it: then ChromIQ can bring the measurement back
 
 ### M-IMPORT-ISIS-PAGES-MISSING · PROPOSED · an i1iSis measurement of several pages that lacks whole pages, import
 
@@ -4863,8 +4863,8 @@ jobs, which is allowed and should be.*
 
 > **An i1iSis measurement that lacks whole pages**
 >
-> this file holds the readings of {have} of the {pages} pages of this i1iSis chart: page {missing} is not in it. ChromIQ can only bring an i1iSis measurement back when every page has been measured. Measure all pages in i1Profiler, save them as one measurement and import that file
-> this file holds the readings of {have} of the {pages} pages of this i1iSis chart: pages {missing} are not in it. ChromIQ can only bring an i1iSis measurement back when every page has been measured. Measure all pages in i1Profiler, save them as one measurement and import that file
+> this file holds the readings of {have} of the {pages} pages of this i1iSis chart: page {missing} is not in it. Nothing has been filed. ChromIQ can only bring an i1iSis measurement back when every page has been measured. Measure all pages in i1Profiler, save them as one measurement and import that file
+> this file holds the readings of {have} of the {pages} pages of this i1iSis chart: pages {missing} are not in it. Nothing has been filed. ChromIQ can only bring an i1iSis measurement back when every page has been measured. Measure all pages in i1Profiler, save them as one measurement and import that file
 
 ### M-IMPORT-ISIS-PAGES-MIXED · PROPOSED · an i1iSis measurement whose pages went in another order, or one page twice, import
 
@@ -4872,7 +4872,7 @@ jobs, which is allowed and should be.*
 
 > **An i1iSis measurement whose pages are mixed up**
 >
-> the readings of page {page} in this file fit the patches of page {other} of this i1iSis chart, not its own. The pages probably went through the i1iSis in another order, or one page went through twice. Feed every page once, in the order of its page number, bar end first against the left guide, and measure again
+> the readings of page {page} in this file fit the patches of page {other} of this i1iSis chart, not its own. Nothing has been filed. The pages probably went through the i1iSis in another order, or one page went through twice. Feed every page once, in the order of their page numbers, bar end first against the left guide, and measure again
 
 ### M-IMPORT-ISIS-PAGES-FORM · PROPOSED · an i1iSis measurement of several pages in a form ChromIQ's .txf does not predict, import
 
@@ -4888,8 +4888,8 @@ jobs, which is allowed and should be.*
 
 > **An i1iSis measurement of several pages on another grid**
 >
-> i1Profiler laid this chart out on {got_cols} columns and {got_rows} rows on {got_pages} pages, but the chart's i1Profiler test chart asks for {cols} columns and {rows} rows on {pages} pages, so the readings would sit on other patches. Load the test chart again, change nothing on i1Profiler's Test Chart page, measure and import the new file
-> i1Profiler laid this chart out on {got_cols} columns and {got_rows} rows a page, but the chart's i1Profiler test chart asks for {cols} columns and {rows} rows on {pages} pages, so the readings would sit on other patches. Load the test chart again, change nothing on i1Profiler's Test Chart page, measure and import the new file
+> i1Profiler laid this chart out as {got_cols} columns and {got_rows} rows on {got_pages} pages, but the chart's i1Profiler test chart asks for {cols} columns and {rows} rows on {pages} pages, so the readings would sit on other patches. Nothing has been filed. Load the test chart again, change nothing on i1Profiler's Test Chart page, measure and import the new file
+> i1Profiler laid this chart out as {got_cols} columns and {got_rows} rows a page, but the chart's i1Profiler test chart asks for {cols} columns and {rows} rows a page, so the readings would sit on other patches. Nothing has been filed. Load the test chart again, change nothing on i1Profiler's Test Chart page, measure and import the new file
 
 ### M-IMPORT-ISIS-PAGES-CANNOT-CHECK · PROPOSED · an i1iSis measurement of several pages whose pages cannot be told apart by their colours, every import
 
@@ -4899,7 +4899,7 @@ jobs, which is allowed and should be.*
 >
 > i1Profiler copies the device values of its test chart into the measurement, so they do not show in which order the pages went through the i1iSis. ChromIQ normally sees that from the measured colours, but the pages of this chart look so much alike that the readings of one page could also belong to another.
 >
-> ChromIQ has checked what it can: the test chart, the number of readings, i1Profiler's grid if the file records it, and each page by itself. The import is right only if every page went in once, in the order of its page number, bar end first against the left guide.
+> ChromIQ has checked what it can: the test chart, the number of readings, i1Profiler's grid if the file records it, and each page by itself. The import is right only if every page went in once, in the order of their page numbers, bar end first against the left guide.
 >
 > Import the measurement?
 
