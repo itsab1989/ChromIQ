@@ -406,15 +406,44 @@ def _layout_fit(plan, signal, first_reading_s: float, motion_start_s: float) -> 
             "r2_best": round(rb, 6), "r2_assumed": round(r0, 6), "spread": round(spread0, 4)}
 
 
-def _judge_lamp(lf) -> dict:
-    """The lamp pass's verdict from its fit (see LAMP_FIT_REFUSE_LATE)."""
+# ---- the place along the row in both passes (4.3.69, the owner's 26 Nov rows) --------------------
+#
+# The two passes run in OPPOSITE directions over the same sheet. A row that lies a little further
+# along the table than the aims say (the place) is met LATER by the lamp pass (forward) and EARLIER
+# by the UV pass (back): the two best starts move apart, mirrored. A late or early motion start
+# (the time) moves both the same way. On the owner's 26 Nov sheet the rows drifted along the row by
+# up to 1.3 mm (rows 19 and 20: lamp +2.0 / +1.75 readings, UV -1.25 / -2.25): both timing checks
+# read that place as timing, the lamp's passed only because its fit was unsure, the UV's by an R
+# squared gain 0.0002 under its gate. The place is the row placement check's (it confirms every
+# patch of the lamp pass, and the UV pass lies the same millimetres off, mirrored).
+#
+# So the part the two passes share with OPPOSITE signs (the smaller of the two, with the lamp's
+# sign) is taken out of both before they are judged; each pass is then judged by the limits above,
+# exactly as before. A pass that is off on its own (the other on time, or off the same way) has no
+# such part and is judged on its own value: no single-pass fault the earlier checks refused is
+# accepted now.
+
+
+def place_part(lamp_best, uv_best) -> float:
+    """The mirrored part of the two passes' best starts (readings, the lamp's sign), 0 when there
+    is none."""
+    if lamp_best is None or uv_best is None:
+        return 0.0
+    if lamp_best * uv_best >= 0:
+        return 0.0
+    return math.copysign(min(abs(lamp_best), abs(uv_best)), lamp_best)
+
+
+def _judge_lamp(lf, place: float = 0.0) -> dict:
+    """The lamp pass's verdict from its fit (see LAMP_FIT_REFUSE_LATE), the mirrored place part
+    taken out (*place*, readings)."""
     if lf is None or lf.get("best_readings") is None:
         return {"lamp_checked": False, "lamp_refuse": False,
                 "lamp_why": "too few readings inside the patches"}
     if lf["spread"] < UV_FIT_MIN_SPREAD:
         return {"lamp_checked": False, "lamp_refuse": False,
                 "lamp_why": "the row's patches hardly differ"}
-    b = lf["best_readings"]
+    b = lf["best_readings"] - place
     off = b >= LAMP_FIT_REFUSE_LATE or b <= -LAMP_FIT_REFUSE_EARLY
     if off and (lf["r2_best"] - lf["r2_assumed"]) < LAMP_FIT_MIN_GAIN:
         return {"lamp_checked": False, "lamp_refuse": False,
@@ -447,15 +476,21 @@ def uv_timing_fit(lamp, uv, lamp_rows, uv_rows, wavelengths=None) -> dict:
                             sc.UV_MOTION_START_AFTER_TRIGGER_S)
     out["lamp"] = _layout_fit(lamp, sl, sc.FIRST_READING_AFTER_LAMP_S,
                               sc.DUAL_LAMP_MOTION_START_S)
-    out.update(_judge_lamp(out["lamp"]))
     u = out["uv"]
+    # 4.3.69: the place along the row, mirrored in the two passes, is taken out of both
+    place = 0.0
+    if u.get("spread", 0.0) >= UV_FIT_MIN_SPREAD:
+        place = place_part(out["lamp"].get("best_readings"), u.get("best_readings"))
+    out["place_readings"] = place
+    out["place_mm"] = round(place * sc.READING_S * float(lamp.speed), 3)
+    out.update(_judge_lamp(out["lamp"], place))
     if u["best_readings"] is None:
         out["why"] = "too few readings inside the patches"
         return out
     if u["spread"] < UV_FIT_MIN_SPREAD:
         out["why"] = "the row's patches hardly differ at 380-400 nm"
         return out
-    off = abs(u["best_readings"]) >= UV_FIT_REFUSE_READINGS
+    off = abs(u["best_readings"] + place) >= UV_FIT_REFUSE_READINGS
     if off and (u["r2_best"] - u["r2_assumed"]) < UV_FIT_MIN_GAIN:
         out["why"] = "the patches' edges do not show the timing (R squared hardly changes)"
         return out

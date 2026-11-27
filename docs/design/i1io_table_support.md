@@ -2020,6 +2020,23 @@ review.
   4.6 dE76 median) is not found. Patch by patch, a sheet off ALONG the row is not covered (the
   opening sees mostly the spacer there): a study item.
 
+### ⏳ Awaiting confirmation: a dual row's timing without the place along the row (4.3.69)
+
+**Confirmed by:** *nobody yet.*
+
+The lamp pass runs forward and the UV pass back. A row that lies further along the table than the
+aims say is met later by the one and earlier by the other: the two best starts move apart,
+mirrored, and both timing checks read that place as timing. On the owner's 26 Nov sheet rows 19 and
+20 lay up to 1.3 mm along (lamp +2.0 / +1.75 readings, UV -1.25 / -2.25); the lamp verdict passed
+only because its fit was unsure, the UV's by an R squared gain 0.0002 under its gate. Now the part
+the two passes share with opposite signs (the smaller of the two, the lamp's sign; `dual_rows.
+place_part`) is taken out of both before each is judged by its own unchanged limits, and recorded
+(`place_readings`, `place_mm`). The place is the row placement check's, which confirms every patch
+of the lamp pass. A pass that is off on its own, or both off the same way, is judged as before:
+every planted fault of the earlier timing tests is still refused, and of both passes off together
+(-4 to +4 readings each) only pairs off in OPPOSITE directions are accepted now. Nothing sent
+changes.
+
 ### ⏳ Awaiting confirmation: the new chart layout, part 1: limits, sizes and the row identity check (2026-11-25)
 
 **Confirmed by:** *nobody yet.* The order for the build is the design of 25 November 2026 (its
