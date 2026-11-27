@@ -525,7 +525,9 @@ def test_s2_not_now_is_the_offers_confirming_answer(qtbot, monkeypatch, tmp_path
         assert roles["Yes, make strips the default"] == R.ActionRole
         filled = [b.text() for b in box.buttons() if b.objectName() == "primary"]
         assert filled == ["Not now"]
-        assert not any(b.isDefault() or b.autoDefault() for b in box.buttons())
+        # item 80 (Basti, 27 Nov 2026): Return presses the filled answer, the neutral one here
+        assert [b.text() for b in box.buttons() if b.isDefault()] == ["Not now"]
+        assert not any(b.autoDefault() for b in box.buttons())
     finally:
         settings.set(KEY, True)
         settings.set("i1io_table_strip_offer_declined", False)

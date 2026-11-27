@@ -423,7 +423,10 @@ def test_the_panel_offers_four_ways_after_a_failed_strip(qtbot, monkeypatch, tmp
     # check refused
     assert "Rest patch by patch" not in labels
     assert "could not be sure where that patch is" in win._text.text()
-    assert not any(b.isDefault() or b.autoDefault() for b in win._buttons)
+    # item 80 (Basti, 27 Nov 2026): Return presses the filled answer, and only that one
+    filled = [b for b in win._buttons if b.objectName() == "primary"]
+    assert [b for b in win._buttons if b.isDefault()] == filled
+    assert not any(b.autoDefault() for b in win._buttons)
     person.press("Read it patch by patch")
     assert person.page() == "go"                     # hands off first, nothing moved
 

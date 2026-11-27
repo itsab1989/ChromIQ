@@ -1385,7 +1385,8 @@ lives in one job; the panel stays as thin as you can make it. On the table this 
   the device's true state as it last answered;
 - **the job returns ids, never sentences**; the panel turns them into translated text from the
   message catalogue (`workflow/measurement_messages.py`), so wording can never weaken a rule;
-- **the job never answers its own questions**, and nothing has a default;
+- **the job never answers its own questions**; only the window's filled answer is a default (Return),
+  never an answer the job gives itself;
 - the panel runs the job's steps off the GUI thread, so Stop and "Report a problem" stay
   pressable, and connects every signal to a named method ([section 11](#11-measuring)).
 
@@ -1449,10 +1450,14 @@ These come on top of sections 12 and 12a. Each was found missing by a review at 
   `workflow/i1io/table/job.py::HANDS_OFF_BREACHES`, and `tests/i1io_table/conftest.py` fails any
   table test in which it ever did. A rule in the job and a guard at the writer catch different
   mistakes; you want both.
-- **No default buttons.** Enter, Return and Space never answer; Esc never answers with a move;
-  no answer has the focus. Qt makes the first accepting button of a button box the default every
-  time it is shown, so this needs code and a test
-  (`ui/i1io_table_window.py::NoDefaultButtonBox`, `ui/dialogs/no_default_button.py::no_default_button`).
+- **The keys as in every other ChromIQ dialog** (the i1iO table's rule since 27 Nov 2026, the
+  owner's decision; until then it had no default buttons). Return and Enter press the filled (accepting)
+  answer and only that one, nothing on a page without one, and a held key counts once (its
+  auto-repeat answers nothing, also not the next page); Space presses only a button the person
+  moved the focus to; Esc never answers with a move. Qt makes the FIRST accepting button of a
+  button box the default every time it is shown, also one you did not fill, so this needs code
+  and a test
+  (`ui/i1io_table_window.py::AcceptDefaultButtonBox`, `filled_answer`).
 - **A minimum time before a hands-off answer is accepted**, so the second click of a double
   click cannot answer the next page (`ui/i1io_table_window.py::HANDS_OFF_READY_MS`, 600 ms).
 - **An "in use" marker** written when the device is opened and cleared on a clean close. If the
