@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-4.3.67-7c5cff">
+  <img alt="Version" src="https://img.shields.io/badge/version-4.3.68-7c5cff">
   <img alt="Downloads" src="https://img.shields.io/endpoint?url=https://itsab1989.github.io/github-traffic-downloads-dashboard/assets/badges/itsab1989_ChromIQ-downloads.json">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2a9d8f">
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-blue">
@@ -740,6 +740,10 @@ are not judged.
 >   no longer refused for a small move, a large move is asked about again, a
 >   START no longer changes the Measure settings, and the button of the
 >   instrument is offered only once ChromIQ is listening for it.
+> - New in 4.3.68: in the i1iO table's pop-ups (Beta), Return and Enter press
+>   the green answer as in every other window, and a held key counts once.
+>   i1iSis measurements of several pages are imported, each page checked; pages
+>   swapped, missing or measured twice are refused.
 > - New in 4.3.67: the i1iO table (Beta) offers to send the arm to its resting
 >   place at every ending, keeps the computer awake during a session, and
 >   with the dual scan patch by patch writes M1 and M2. Good strip and dual
